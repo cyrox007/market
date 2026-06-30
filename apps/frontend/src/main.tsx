@@ -18,9 +18,9 @@ declare global {
 const ssrContext = typeof window !== 'undefined' ? window.__INITIAL_STATE__ : undefined
 
 // Проверяем, есть ли уже отрендеренный контент (SSR режим)
-const hasRenderedContent = rootElement.hasChildNodes()
+/* const hasRenderedContent = rootElement.hasChildNodes() */
 
-if (hasRenderedContent) {
+/* if (hasRenderedContent) {
   // SSR режим - используем гидратацию
   hydrateRoot(
     rootElement,
@@ -28,11 +28,11 @@ if (hasRenderedContent) {
       <App Router={BrowserRouter} ssrContext={ssrContext} />
     </StrictMode>
   )
-} else {
+} else { */
   // SPA режим - обычный рендеринг
   createRoot(rootElement).render(
     <StrictMode>
       <App Router={BrowserRouter} ssrContext={ssrContext} />
     </StrictMode>
   )
-}
+/* } */
