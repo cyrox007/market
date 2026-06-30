@@ -1,0 +1,39 @@
+# Общие
+.git
+.gitignore
+Dockerfile*
+docker-compose*
+
+*.zip
+*.tar
+*.gz
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+.pnpm-store
+.cache
+.next
+dist
+build
+
+# PHP/Composer
+vendor
+composer.lock
+
+# IDE
+.idea
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+**/.docker
+**/.dockerignore
+
+*.zip
+*.tar
+*.gz

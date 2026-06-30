@@ -1,0 +1,172 @@
+@import "../../../../vendor/filament/filament/resources/css/theme.css";
+@import "../../../../vendor/spykapps/theme-edinburgh/resources/css/edinburgh.css";
+
+/* Primary #dc2626 + лёгкие бордеры, тени, скругления, компактные таблицы */
+:root {
+    /* Скругления */
+    --theme-radius: 8px;
+    --theme-radius-sm: 6px;
+    --theme-radius-xs: 4px;
+
+    /* Primary #dc2626 */
+    --theme-brass: #dc2626;
+    --theme-brass-hover: #b91c1c;
+    --theme-brass-light: #f87171;
+    --theme-brass-dim: rgb(220 38 38 / 0.08);
+    --theme-brass-ring: rgb(220 38 38 / 0.2);
+    --theme-border-ornate: rgb(220 38 38 / 0.12);
+    --cb-color: rgb(220 38 38 / 0.2);
+
+    /* Светлая тема */
+    --theme-surface: #fafbfc;
+    --theme-surface-dim: #f5f6f8;
+    --theme-surface-card: #ffffff;
+    --theme-surface-inset: #f1f3f5;
+    --theme-surface-deep: #eceef1;
+    --theme-body-bg: #f5f6f8;
+
+    /* Лёгкие бордеры */
+    --theme-border: rgb(55 65 81 / 0.05);
+    --theme-border-mid: rgb(55 65 81 / 0.08);
+    --theme-border-heavy: rgb(55 65 81 / 0.1);
+
+    /* Тени «парящие», без излишков */
+    --theme-shadow-soft: 0 2px 8px rgb(55 65 81 / 0.06);
+    --theme-shadow-md:
+        0 8px 24px -4px rgb(55 65 81 / 0.08),
+        0 2px 8px -2px rgb(55 65 81 / 0.04),
+        0 0 0 1px rgb(55 65 81 / 0.04);
+    --theme-shadow-lg:
+        0 20px 48px -12px rgb(55 65 81 / 0.1),
+        0 8px 24px -8px rgb(55 65 81 / 0.06),
+        0 0 0 1px rgb(55 65 81 / 0.04);
+    --theme-shadow-inset: inset 0 1px 2px rgb(55 65 81 / 0.04);
+
+    /* Текст */
+    --theme-slate: #1f2937;
+    --theme-slate-dim: #4b5563;
+    --theme-slate-muted: #6b7280;
+    --theme-slate-faint: #9ca3af;
+}
+
+.dark {
+    /* Скругления */
+    --theme-radius: 8px;
+    --theme-radius-sm: 6px;
+    --theme-radius-xs: 4px;
+
+    /* Primary в тёмной теме — светлее для контраста */
+    --theme-brass: #f87171;
+    --theme-brass-hover: #dc2626;
+    --theme-brass-light: #fca5a5;
+    --theme-brass-dim: rgb(248 113 113 / 0.08);
+    --theme-brass-ring: rgb(248 113 113 / 0.2);
+    --theme-border-ornate: rgb(248 113 113 / 0.1);
+    --cb-color: rgb(248 113 113 / 0.18);
+
+    /* Тёмная тема */
+    --theme-surface: #27272a;
+    --theme-surface-dim: #1f1f23;
+    --theme-surface-card: #2d2d32;
+    --theme-surface-inset: #1c1c1f;
+    --theme-surface-deep: #141416;
+    --theme-body-bg: #18181b;
+
+    /* Лёгкие бордеры */
+    --theme-border: rgb(255 255 255 / 0.04);
+    --theme-border-mid: rgb(255 255 255 / 0.06);
+    --theme-border-heavy: rgb(255 255 255 / 0.08);
+
+    /* Тени «парящие» */
+    --theme-shadow-soft: 0 2px 10px rgb(0 0 0 / 0.35);
+    --theme-shadow-md:
+        0 10px 28px -4px rgb(0 0 0 / 0.4),
+        0 2px 8px -2px rgb(0 0 0 / 0.25),
+        0 0 0 1px rgb(255 255 255 / 0.04);
+    --theme-shadow-lg:
+        0 24px 56px -12px rgb(0 0 0 / 0.5),
+        0 10px 28px -8px rgb(0 0 0 / 0.35),
+        0 0 0 1px rgb(255 255 255 / 0.04);
+    --theme-shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.25);
+
+    /* Текст */
+    --theme-slate: #e4e4e7;
+    --theme-slate-dim: #a1a1aa;
+    --theme-slate-muted: #71717a;
+    --theme-slate-faint: #52525b;
+}
+
+/* Компактность: уменьшаем отступы секций, карточек, таблиц */
+.fi-section-content-ctn,
+.fi-section > div,
+.fi-wi-stats-overview-stat {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+.fi-section-header-ctn {
+    padding-bottom: 0.5rem !important;
+}
+
+.fi-modal:not(.fi-width-screen) .fi-modal-window .fi-modal-header.fi-sticky {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+}
+
+.fi-modal:not(.fi-width-screen) .fi-modal-window .fi-modal-footer.fi-sticky {
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.625rem !important;
+}
+
+/* Таблицы компактнее */
+.fi-ta-content-grid .fi-ta-record,
+.fi-table th,
+.fi-table td,
+[class*="fi-ta"] th,
+[class*="fi-ta"] td {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    font-size: 0.8125rem !important;
+    line-height: 1.35 !important;
+}
+
+.fi-table thead th {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.fi-ta-table-wrapper table th,
+.fi-ta-table-wrapper table td {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+}
+
+.fi-main-ctn {
+    padding: 1rem !important;
+}
+
+.fi-header-heading {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+}
+
+/* Инфолист товара: категории — ограничение ширины и стиль как у таксонов (чипы) на странице редактирования */
+.product-infolist-taxons-section .fi-section-content-ctn,
+.product-infolist-taxons-section [data-slot="container"] {
+    max-width: 28rem;
+}
+.product-infolist-taxons-section .fi-schema-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}

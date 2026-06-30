@@ -1,0 +1,32 @@
+# Node dependencies
+node_modules
+
+# Logs
+logs
+*.log
+
+# Node dependencies
+node_modules
+
+# Frontend build
+apps/frontend/dist
+apps/frontend/out
+
+# k6 reports
+tools/k6/reports
+.k6
+
+# Misc
+.DS_Store
+.fleet
+.idea
+
+# AI / IDE (internal dev tooling, not for client handoff)
+.cursor/
+.claude/
+.agents/
+.ai-factory/
+AGENTS.md
+CLAUDE.md
+.vscode
+.osp

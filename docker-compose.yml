@@ -1,0 +1,67 @@
+services:
+  app:
+    build:
+      context: ./services/backend
+    container_name: sv_app
+    working_dir: /var/www
+    volumes:
+      - ./services/backend:/var/www
+      - ./services/backend/docker/custom.ini:/usr/local/etc/php/conf.d/99-custom.ini:ro
+    ports:
+      - "8000:8000"
+    environment:
+      PHP_CLI_SERVER_WORKERS: "4"
+    command: php artisan serve --host=0.0.0.0 --port=8000 --no-reload
+    depends_on:
+      - db
+      - redis
+    networks:
+      - sv_network
+
+  db:
+    image: mysql:8.0
+    container_name: sv_db
+    environment:
+      MYSQL_DATABASE: sv
+      MYSQL_USER: sv_user
+      MYSQL_PASSWORD: secret123
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysqldata:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - sv_network
+
+  redis:
+    image: redis:alpine
+    container_name: sv_cache
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - sv_network
+    volumes:
+      - redis_data:/data
+
+  # elasticsearch:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:9.1.5
+  #   container_name: sv_elasticsearch
+  #   environment:
+  #     - discovery.type=single-node
+  #     - bootstrap.memory_lock=true
+  #     - xpack.security.enabled=false
+  #     - ES_JAVA_OPTS=-Xms512m -Xmx512m
+  #   ports:
+  #     - "9200:9200"
+  #   networks:
+  #     - sv_network
+
+volumes:
+  mysqldata:
+  es_data:
+  redis_data:
+
+networks:
+  sv_network:
+    driver: bridge

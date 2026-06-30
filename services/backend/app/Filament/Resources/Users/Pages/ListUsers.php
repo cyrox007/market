@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Filament\Resources\Users\Pages;
+
+use App\Filament\Resources\Users\UserResource;
+use Filament\Actions;
+use Filament\Resources\Pages\ListRecords;
+
+class ListUsers extends ListRecords
+{
+    protected static string $resource = UserResource::class;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\CreateAction::make(),
+        ];
+    }
+    public function getTitle(): string
+    {
+        return __('filament/admin_sv/list_users.title');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('filament/admin_sv/list_users.title');
+    }
+
+}
