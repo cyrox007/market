@@ -7,9 +7,13 @@ use Illuminate\Support\Facades\Route;
 Route::get('api-docs/metrics', ApiMetricsController::class)
     ->name('api-docs.metrics');
 
-Route::get('/', function () {
+/* Route::get('/', function () {
     return view('welcome');
-});
+}); */
+
+Route::get('/{any}', function () {
+    return File::get(public_path('index.html'));
+})->where('any', '^(?!api|admin_sv|filament|livewire|storage).*$');
 
 // Маршрут для печати заказа (требует аутентификации через Filament)
 Route::middleware([
