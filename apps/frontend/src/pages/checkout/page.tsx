@@ -165,7 +165,7 @@ export default function Checkout() {
 			// Используем region?.id напрямую, чтобы гарантировать использование выбранного региона
 			// (даже если он выбран автоматически и еще не сохранен в localStorage)
 			const regionId = region?.id || getRegionId();
-			const [paymentMethodsResponse, locationsResponse] = await Promise.all([
+			const [paymentMethodsResponse, locationsResponse]: any = await Promise.all([
 				api.paymentMethods.list(regionId ? { region_id: regionId } : undefined),
 				api.shipping.getLocations({ type: 'locality' }),
 			]);
@@ -216,7 +216,7 @@ export default function Checkout() {
 		}
 
 		try {
-			const [methodsResponse, handlingTypesResponse, additionalServicesResponse] = await Promise.all([
+			const [methodsResponse, handlingTypesResponse, additionalServicesResponse]: any = await Promise.all([
 				api.shipping.getShippingMethods({
 					location_id: finalShippingLocationId,
 					order_amount: cart?.subtotal || 0,
@@ -272,7 +272,7 @@ export default function Checkout() {
 			const regionId = getRegionId();
 
 			// Если выбран конкретный метод доставки, используем его для расчета
-			let calculation;
+			let calculation: any;
 			if (shippingMethodId && deliveryType === 'delivery') {
 				calculation = await api.shipping.calculateShippingMethod({
 					shipping_method_id: shippingMethodId,
@@ -281,7 +281,7 @@ export default function Checkout() {
 					delivery_handling_type_id: deliveryHandlingTypeId || undefined,
 					floor: deliveryFloor || undefined,
 					requires_assembly: assemblyNeeded,
-				});
+				} as any);
 
 				const deliveryPrice = calculation.calculation?.delivery_price || 0;
 				const handlingPrice = calculation.calculation?.handling_price || 0;
@@ -302,7 +302,7 @@ export default function Checkout() {
 					floor: deliveryFloor || undefined,
 					requires_assembly: assemblyNeeded,
 					region_id: regionId || undefined,
-				});
+				} as any);
 
 				const handlingPrice = calculation.calculation?.handling_price || 0;
 				const deliveryPrice = calculation.calculation?.delivery_price || 0;
