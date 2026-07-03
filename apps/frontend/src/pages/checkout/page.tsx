@@ -580,29 +580,34 @@ export default function Checkout() {
 		// Validation
 		if (!contactForm.name || !contactForm.phone || !contactForm.email) {
 			setError('Заполните все обязательные поля контактной информации');
+			window.scrollTo({ top: 0, behavior: 'smooth' });
 			return;
 		}
 
 		if (deliveryType === 'delivery') {
 			if (!addressForm.city || !addressForm.street || !addressForm.house) {
 				setError('Заполните адрес доставки');
+				window.scrollTo({ top: 0, behavior: 'smooth' });
 				return;
 			}
 			// Проверяем shippingLocationId или region.id (если регион выбран автоматически)
 			const finalShippingLocationId = shippingLocationId || region?.id;
 			if (!finalShippingLocationId) {
 				setError('Выберите локацию доставки');
+				window.scrollTo({ top: 0, behavior: 'smooth' });
 				return;
 			}
 		}
 
 		if (deliveryType === 'delivery' && !shippingMethodId) {
 			setError('Выберите способ доставки');
+			window.scrollTo({ top: 0, behavior: 'smooth' });
 			return;
 		}
 
 		if (!paymentMethod) {
 			setError('Выберите способ оплаты');
+			window.scrollTo({ top: 0, behavior: 'smooth' });
 			return;
 		}
 
@@ -766,6 +771,7 @@ export default function Checkout() {
 						const msg = 'Заказ создан. Разрешите всплывающие окна или нажмите «Оплатить» на странице заказа.';
 						showPaymentTabError(paymentTab, msg);
 						setError(msg);
+						window.scrollTo({ top: 0, behavior: 'smooth' });
 					}
 				} catch (e) {
 					console.error('Failed to open payment:', e);
@@ -773,6 +779,7 @@ export default function Checkout() {
 					showPaymentTabError(paymentTab, msg);
 					closePaymentTab(paymentTab);
 					setError(msg);
+					window.scrollTo({ top: 0, behavior: 'smooth' });
 				}
 			} else {
 				closePaymentTab(paymentTab);
@@ -791,6 +798,7 @@ export default function Checkout() {
 			closePaymentTab(paymentTab);
 			console.error('Failed to create order:', err);
 			setError(err?.data?.message || err?.message || 'Ошибка при создании заказа. Пожалуйста, попробуйте снова.');
+			window.scrollTo({ top: 0, behavior: 'smooth' });
 		} finally {
 			setIsSubmitting(false);
 		}
