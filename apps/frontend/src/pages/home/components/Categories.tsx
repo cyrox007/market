@@ -87,11 +87,18 @@ export default function Categories() {
 	return (
 		<section className="px-6 lg:px-12 py-16">
 			<div className="max-w-7xl mx-auto">
-				<div className="flex items-center justify-between mb-8">
-					<h2 className="text-3xl font-bold text-gray-900 mb-8">Категории</h2>
+				<div className="flex items-center justify-between mb-4">
+					<h2 className="text-3xl font-bold text-gray-900 mb-4">Категории</h2>
+					<Link
+						to="/catalog"
+						className="text-sm text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1"
+					>
+						Все категории
+						<i className="ri-arrow-right-line"></i>
+					</Link>
 				</div>
 
-				<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+				<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
 					{categories.slice(0, 6).map((category, index) => (
 						<Link
 							key={category.id}
@@ -100,7 +107,7 @@ export default function Categories() {
 							onMouseEnter={() => prefetchCategory(category.slug)}
 							onFocus={() => prefetchCategory(category.slug)}
 						>
-							<div className={`${bgColors[index % bgColors.length]} rounded-2xl p-6 transition-all duration-300 group-hover:shadow-lg`}>
+							{/* <div className={`${bgColors[index % bgColors.length]} rounded-2xl p-6 transition-all duration-300 group-hover:shadow-lg`}>
 								<div className="aspect-square mb-3 overflow-hidden rounded-xl">
 									{category.image_thumb || category.image_hd || category.image ? (
 										<img
@@ -122,6 +129,37 @@ export default function Categories() {
 										{category.products_count} товаров
 									</p>
 								)}
+							</div> */}
+
+							<div className='relative bg-[rgb(249,244,243)] relative rounded-lg overflow-hidden transition-all duration-300 group-hover:shadow-lg h-44 md:h-48 lg:h-72'>
+								<div className="absolute top-3 left-3 z-10">
+									<h3 className="text-black text-base font-semibold drop-shadow-md leading-tight max-w-[80%]">
+										{category.name}
+									</h3>
+									{category.products_count > 0 && (
+										<p className="text-black/80 text-xs mt-0.5 drop-shadow-md">
+											{category.products_count} товаров
+										</p>
+									)}
+								</div>
+								<div className="absolute inset-0 w-full h-full flex items-end">
+									{category.image_thumb || category.image_hd || category.image ? (
+										<img
+											src={category.image_thumb || category.image_hd || category.image}
+											alt={category.name}
+											className="w-full h-auto object-cover object-bottom transition-transform duration-300 group-hover:scale-105"
+										/>
+									) : (
+										<div className="w-full h-full flex items-center justify-center bg-gray-200/50">
+											<i className="ri-image-line text-4xl text-gray-400"></i>
+										</div>
+									)}
+								</div>
+								<div className="absolute bottom-3 right-3 z-10">
+									<div className="w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center transition-all duration-300 group-hover:bg-white group-hover:scale-110 shadow-sm">
+										<i className="ri-arrow-right-line text-gray-700 text-lg"></i>
+									</div>
+								</div>
 							</div>
 						</Link>
 					))}
