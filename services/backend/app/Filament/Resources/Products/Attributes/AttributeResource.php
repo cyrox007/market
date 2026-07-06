@@ -48,6 +48,13 @@ class AttributeResource extends Resource
                             ->label(__('filament/admin_sv/attribute_resource.name'))
                             ->required()
                             ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if (!$state) {
+                                    return;
+                                }
+                                $set('slug', \Str::slug($state));
+                            })
                             ->placeholder('Цвет, Размер, Материал, Комплектация…'),
 
                         TextInput::make('slug')
@@ -56,7 +63,7 @@ class AttributeResource extends Resource
                             ->unique(ignoreRecord: true)
                             ->maxLength(255)
                             ->placeholder('color, size, material')
-                            ->helperText('Только латиница, цифры и дефис.'),
+                            ->helperText('Только латиница, цифры и дефис. Оставьте пустым для автоматической генерации.'),
                     ])
                     ->columns(2),
 
