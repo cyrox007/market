@@ -15,7 +15,7 @@ import {
 	type GatewayClientConfig,
 } from '../../utils/paymentUtils';
 
-
+import { usePageSeo } from '../../hooks/usePageSeo';
 
 const iconColorClasses: Record<string, string> = {
 	green: 'text-green-600',
@@ -38,6 +38,16 @@ export default function Orders() {
 	useEffect(() => {
 		loadOrders();
 	}, []);
+
+	usePageSeo({
+		title: 'Мои заказы – Светофор-Мебель',
+		description: 'История ваших заказов в интернет-магазине Светофор-Мебель.',
+		image: '/logo.png',
+		canonical_url: window.location.href,
+		robots: 'noindex, follow',
+		open_graph_title: 'Мои заказы – Светофор-Мебель',
+		locale: 'ru_RU',
+	});
 
 	const loadOrders = async () => {
 		setIsLoading(true);
