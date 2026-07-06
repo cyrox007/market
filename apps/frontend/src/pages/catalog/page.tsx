@@ -38,12 +38,12 @@ function CategoryCard({
 	}, [category.slug, prefetchCategory]);
 
 	usePageSeo({
-		title: 'Каталог | Светофор-Мебель',
+		title: 'Каталог – Светофор-Мебель',
 		description: 'Широкий выбор мебели для дома и офиса. Диваны, кровати, шкафы, столы, стулья и другие товары.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'index, follow',
-		open_graph_title: 'Каталог | Светофор-Мебель',
+		open_graph_title: 'Каталог – Светофор-Мебель',
 		locale: 'ru_RU',
 	});
 
