@@ -5,6 +5,7 @@ import { useCounters } from '../../hooks/useCounters';
 import { api, type Order, type Address, type BonusTransaction, type WishlistItem, type Product, type ShippingLocation, type NotificationSettings } from '../../lib/api';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 const menuItems = [
 	{ id: 'profile', label: 'Профиль', icon: 'ri-user-line' },
@@ -101,12 +102,12 @@ export default function Account() {
 	const [passwordSuccess, setPasswordSuccess] = useState(false);
 
 	usePageSeo({
-		title: 'Личный кабинет – Светофор-Мебель',
+		title: buildTitle('Личный кабинет'),
 		description: 'Личный кабинет покупателя в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Личный кабинет – Светофор-Мебель',
+		open_graph_title: buildTitle('Личный кабинет'),
 		locale: 'ru_RU',
 	});
 

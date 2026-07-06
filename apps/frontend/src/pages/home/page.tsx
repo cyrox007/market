@@ -6,15 +6,16 @@ import WhyChooseUs from './components/WhyChooseUs';
 import Newsletter from './components/Newsletter';
 
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Home() {
 	usePageSeo({
-		title: 'Главная – Светофор-Мебель',
+		title: buildTitle('Главная'),
 		description: 'Интернет-магазин качественной мебели. Диваны, кровати, шкафы, кухни и многое другое. Доставка по всей России.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'index, follow',
-		open_graph_title: 'Главная – Светофор-Мебель',
+		open_graph_title: buildTitle('Главная'),
 		locale: 'ru_RU',
 	});
 	

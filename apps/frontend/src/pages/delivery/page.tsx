@@ -1,14 +1,15 @@
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Delivery() {
 	usePageSeo({
-		title: 'Доставка – Светофор-Мебель',
+		title: buildTitle('Доставка'),
 		description: 'Условия доставки в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'index, follow',
-		open_graph_title: 'Доставка – Светофор-Мебель',
+		open_graph_title: buildTitle('Доставка'),
 		locale: 'ru_RU',
 	});
 	

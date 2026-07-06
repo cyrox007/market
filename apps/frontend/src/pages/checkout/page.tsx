@@ -18,6 +18,7 @@ import {
 } from '../../utils/paymentUtils';
 
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 interface AddressForm {
 	city: string;
@@ -50,12 +51,12 @@ export default function Checkout() {
 	const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
 	usePageSeo({
-		title: 'Оформление заказа – Светофор-Мебель',
+		title: buildTitle('Оформление заказа'),
 		description: 'Оформление заказа в интернет-магазине Светофор-Мебель. Быстрая доставка, удобная оплата.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Оформление заказа – Светофор-Мебель',
+		open_graph_title: buildTitle('Оформление заказа'),
 		locale: 'ru_RU',
 	});
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Login() {
 	const navigate = useNavigate();
@@ -19,12 +20,12 @@ export default function Login() {
 	}, [isAuthenticated, navigate]);
 
 	usePageSeo({
-		title: 'Вход – Светофор-Мебель',
+		title: buildTitle('Вход'),
 		description: 'Вход в личный кабинет интернет-магазина Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Вход – Светофор-Мебель',
+		open_graph_title: buildTitle('Вход'),
 		locale: 'ru_RU',
 	});
 

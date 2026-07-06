@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Register() {
 	const navigate = useNavigate();
@@ -25,12 +26,12 @@ export default function Register() {
 	}, [isAuthenticated, navigate]);
 
 	usePageSeo({
-		title: 'Регистрация – Светофор-Мебель',
+		title: buildTitle('Регистрация'),
 		description: 'Регистрация в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Регистрация – Светофор-Мебель',
+		open_graph_title: buildTitle('Регистрация'),
 		locale: 'ru_RU',
 	});
 

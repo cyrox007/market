@@ -1,15 +1,16 @@
 import { Link } from 'react-router-dom';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Contacts() {
 	usePageSeo({
-		title: 'Контакты – Светофор-Мебель',
+		title: buildTitle('Контакты'),
 		description: 'Контакты интернет-магазина Светофор-Мебель. Адреса магазинов, телефоны, режим работы.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'index, follow',
-		open_graph_title: 'Контакты – Светофор-Мебель',
+		open_graph_title: buildTitle('Контакты'),
 		locale: 'ru_RU',
 	});
 	return (

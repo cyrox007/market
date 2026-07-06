@@ -6,6 +6,7 @@ import { getCartQuantityForProduct, isVariableParent } from '../../utils/cartPro
 import { useCounters } from '../../hooks/useCounters';
 import type { Product, WishlistItem } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Favorites() {
 	const [items, setItems] = useState<WishlistItem[]>([]);
@@ -30,12 +31,12 @@ export default function Favorites() {
 	}, []);
 
 	usePageSeo({
-		title: 'Избранное – Светофор-Мебель',
+		title: buildTitle('Избранное'),
 		description: 'Ваши избранные товары в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Избранное – Светофор-Мебель',
+		open_graph_title: buildTitle('Избранное'),
 		locale: 'ru_RU',
 	});
 

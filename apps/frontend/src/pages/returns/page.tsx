@@ -1,14 +1,15 @@
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Returns() {
 	usePageSeo({
-		title: 'Возврат – Светофор-Мебель',
+		title: buildTitle('Возврат'),
 		description: 'Условия возврата товаров в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'index, follow',
-		open_graph_title: 'Возврат – Светофор-Мебель',
+		open_graph_title: buildTitle('Возврат'),
 		locale: 'ru_RU',
 	});
 	

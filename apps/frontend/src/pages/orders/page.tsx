@@ -16,6 +16,7 @@ import {
 } from '../../utils/paymentUtils';
 
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 const iconColorClasses: Record<string, string> = {
 	green: 'text-green-600',
@@ -40,12 +41,12 @@ export default function Orders() {
 	}, []);
 
 	usePageSeo({
-		title: 'Мои заказы – Светофор-Мебель',
+		title: buildTitle('Мои заказы'),
 		description: 'История ваших заказов в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Мои заказы – Светофор-Мебель',
+		open_graph_title: buildTitle('Мои заказы'),
 		locale: 'ru_RU',
 	});
 

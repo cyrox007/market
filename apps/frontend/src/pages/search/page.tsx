@@ -19,6 +19,7 @@ import {
 import { normalizeListProduct } from '../../utils/cartProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Search() {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -60,12 +61,12 @@ export default function Search() {
 	}, [searchParams]);
 
 	usePageSeo({
-		title: 'Поиск – Светофор-Мебель',
+		title: buildTitle('Поиск'),
 		description: 'Результаты поиска в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Поиск – Светофор-Мебель',
+		open_graph_title: buildTitle('Поиск'),
 		locale: 'ru_RU',
 	});
 

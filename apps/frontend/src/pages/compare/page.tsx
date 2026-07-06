@@ -6,6 +6,7 @@ import { getCartQuantityForProduct, isVariableParent } from '../../utils/cartPro
 import { useCounters } from '../../hooks/useCounters';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function Compare() {
 	const [products, setProducts] = useState<Product[]>([]);
@@ -30,12 +31,12 @@ export default function Compare() {
 	}, []);
 
 	usePageSeo({
-		title: 'Сравнение – Светофор-Мебель',
+		title: buildTitle('Сравнение'),
 		description: 'Сравнение товаров в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Сравнение – Светофор-Мебель',
+		open_graph_title: buildTitle('Сравнение'),
 		locale: 'ru_RU',
 	});
 

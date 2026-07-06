@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 function useQuery() {
 	return new URLSearchParams(useLocation().search);
@@ -22,12 +23,12 @@ export default function ResetPasswordPage() {
 	const [success, setSuccess] = useState<string | null>(null);
 
 	usePageSeo({
-		title: 'Сброс пароля – Светофор-Мебель',
+		title: buildTitle('Сброс пароля'),
 		description: 'Сброс пароля в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Сброс пароля – Светофор-Мебель',
+		open_graph_title: buildTitle('Сброс пароля'),
 		locale: 'ru_RU',
 	});
 

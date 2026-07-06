@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 export default function ForgotPasswordPage() {
 	const [email, setEmail] = useState('');
@@ -10,12 +11,12 @@ export default function ForgotPasswordPage() {
 	const [success, setSuccess] = useState<string | null>(null);
 
 	usePageSeo({
-		title: 'Восстановление пароля – Светофор-Мебель',
+		title: buildTitle('Восстановление пароля'),
 		description: 'Восстановление пароля в интернет-магазине Светофор-Мебель.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'noindex, follow',
-		open_graph_title: 'Восстановление пароля – Светофор-Мебель',
+		open_graph_title: buildTitle('Восстановление пароля'),
 		locale: 'ru_RU',
 	});
 

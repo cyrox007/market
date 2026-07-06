@@ -6,6 +6,7 @@ import { useSSR } from '../../contexts/SSRContext';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
 import type { Category } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { buildTitle } from '../../constants/seo';
 
 const CATEGORIES_KEY = '/api/categories';
 
@@ -38,12 +39,12 @@ function CategoryCard({
 	}, [category.slug, prefetchCategory]);
 
 	usePageSeo({
-		title: 'Каталог – Светофор-Мебель',
+		title: buildTitle('Каталог'),
 		description: 'Широкий выбор мебели для дома и офиса. Диваны, кровати, шкафы, столы, стулья и другие товары.',
 		image: '/logo.png',
 		canonical_url: window.location.href,
 		robots: 'index, follow',
-		open_graph_title: 'Каталог – Светофор-Мебель',
+		open_graph_title: buildTitle('Каталог'),
 		locale: 'ru_RU',
 	});
 
