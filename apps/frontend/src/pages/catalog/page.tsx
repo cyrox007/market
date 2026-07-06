@@ -47,7 +47,7 @@ function CategoryCard({
             <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 overflow-hidden ${bgColors[index % bgColors.length]}`}>
                 {category.image_thumb || category.image_hd || category.image ? (
                     <img
-                        src={category.image_thumb || category.image_hd || category.image}
+                        src={category.image_thumb || category.image_hd || category.image || undefined}
                         alt={category.name}
                         className="w-full h-full object-cover rounded-full"
                         loading="lazy"
