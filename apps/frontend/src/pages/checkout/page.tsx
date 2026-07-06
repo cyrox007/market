@@ -17,6 +17,8 @@ import {
 	type GatewayClientConfig,
 } from '../../utils/paymentUtils';
 
+import { usePageSeo } from '../../hooks/usePageSeo';
+
 interface AddressForm {
 	city: string;
 	street: string;
@@ -46,6 +48,16 @@ export default function Checkout() {
 	const [shippingMethodsRaw, setShippingMethodsRaw] = useState<ShippingMethod[]>([]);
 	const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
 	const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+
+	usePageSeo({
+		title: 'Оформление заказа – Светофор-Мебель',
+		description: 'Оформление заказа в интернет-магазине Светофор-Мебель. Быстрая доставка, удобная оплата.',
+		image: '/logo.png',
+		canonical_url: window.location.href,
+		robots: 'noindex, follow',
+		open_graph_title: 'Оформление заказа – Светофор-Мебель',
+		locale: 'ru_RU',
+	});
 
 	// Вычисляем финальные цены методов доставки с учетом суммы заказа
 	const shippingMethods = useMemo(() => {
@@ -1138,8 +1150,8 @@ export default function Checkout() {
 														<label
 															key={method.id}
 															className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${shippingMethodId === method.id
-																	? 'border-red-600 bg-red-50'
-																	: 'border-gray-200 hover:border-red-300'
+																? 'border-red-600 bg-red-50'
+																: 'border-gray-200 hover:border-red-300'
 																}`}
 														>
 															<input
@@ -1200,8 +1212,8 @@ export default function Checkout() {
 														<div
 															key={type.id}
 															className={`p-4 border-2 rounded-lg transition-all ${deliveryHandlingTypeId === type.id
-																	? 'border-red-600 bg-red-50'
-																	: 'border-gray-200'
+																? 'border-red-600 bg-red-50'
+																: 'border-gray-200'
 																}`}
 														>
 															<label className="flex items-start gap-4 cursor-pointer">
@@ -1323,8 +1335,8 @@ export default function Checkout() {
 												<label
 													key={service.id}
 													className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${isSelected
-															? 'border-red-600 bg-red-50'
-															: 'border-gray-200 hover:border-red-300'
+														? 'border-red-600 bg-red-50'
+														: 'border-gray-200 hover:border-red-300'
 														}`}
 												>
 													<input
