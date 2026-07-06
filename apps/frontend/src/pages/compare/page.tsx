@@ -5,6 +5,7 @@ import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct, isVariableParent } from '../../utils/cartProduct';
 import { useCounters } from '../../hooks/useCounters';
 import type { Product } from '../../lib/api';
+import { usePageSeo } from '../../hooks/usePageSeo';
 
 export default function Compare() {
 	const [products, setProducts] = useState<Product[]>([]);
@@ -27,6 +28,16 @@ export default function Compare() {
 
 		loadCompareList();
 	}, []);
+
+	usePageSeo({
+		title: 'Сравнение – Светофор-Мебель',
+		description: 'Сравнение товаров в интернет-магазине Светофор-Мебель.',
+		image: '/logo.png',
+		canonical_url: window.location.href,
+		robots: 'noindex, follow',
+		open_graph_title: 'Сравнение – Светофор-Мебель',
+		locale: 'ru_RU',
+	});
 
 	const removeProduct = async (id: number) => {
 		try {
@@ -158,10 +169,10 @@ export default function Compare() {
 															}}
 															disabled={!product.in_stock}
 															className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${getCartQuantityForProduct(cart?.items, product) > 0
-																	? 'bg-green-600 text-white hover:bg-green-700'
-																	: product.in_stock
-																		? 'bg-red-600 text-white hover:bg-red-700'
-																		: 'bg-gray-300 text-gray-500 cursor-not-allowed'
+																? 'bg-green-600 text-white hover:bg-green-700'
+																: product.in_stock
+																	? 'bg-red-600 text-white hover:bg-red-700'
+																	: 'bg-gray-300 text-gray-500 cursor-not-allowed'
 																}`}
 														>
 															{getCartQuantityForProduct(cart?.items, product) > 0
