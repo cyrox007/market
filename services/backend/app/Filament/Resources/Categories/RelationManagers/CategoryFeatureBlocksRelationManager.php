@@ -14,7 +14,8 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 class CategoryFeatureBlocksRelationManager extends RelationManager
 {
     protected static string $relationship = 'featureBlocks';
@@ -69,11 +70,14 @@ class CategoryFeatureBlocksRelationManager extends RelationManager
                             ->required(),
                     ])
                     ->mutateFormDataUsing(function (array $data): array {
-                        // Убеждаемся, что sort_order установлен
                         if (!isset($data['sort_order'])) {
                             $data['sort_order'] = 0;
                         }
                         return $data;
+                    })
+                    ->after(function () {
+                        Cache::flush();
+                        Log::info('🔥 Cache flushed after attach (AttachAction)');
                     }),
             ])
             ->actions([
@@ -87,13 +91,20 @@ class CategoryFeatureBlocksRelationManager extends RelationManager
                             ->required(),
                     ])
                     ->using(function (array $data, $record): void {
-                        // Обновляем данные в pivot таблице
                         $this->getOwnerRecord()->featureBlocks()->updateExistingPivot($record->id, [
                             'sort_order' => $data['sort_order'] ?? 0,
                         ]);
+                    })
+                    ->after(function () {
+                        Cache::flush();
+                        Log::info('🔥 Cache flushed after edit sort order');
                     }),
                 DetachAction::make()
-                    ->label('Отвязать'),
+                    ->label('Отвязать')
+                    ->after(function () {
+                        Cache::flush();
+                        Log::info('🔥 Cache flushed after detach');
+                    }),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

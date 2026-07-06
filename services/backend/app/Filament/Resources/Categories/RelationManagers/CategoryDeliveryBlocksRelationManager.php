@@ -14,6 +14,8 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class CategoryDeliveryBlocksRelationManager extends RelationManager
 {
@@ -70,11 +72,14 @@ class CategoryDeliveryBlocksRelationManager extends RelationManager
                             ->required(),
                     ])
                     ->mutateFormDataUsing(function (array $data): array {
-                        // Убеждаемся, что sort_order установлен
                         if (!isset($data['sort_order'])) {
                             $data['sort_order'] = 0;
                         }
                         return $data;
+                    })
+                    ->after(function () {
+                        Cache::flush();
+                        Log::info('🔥 Cache flushed after attach (DeliveryBlock)');
                     }),
             ])
             ->actions([
@@ -88,14 +93,22 @@ class CategoryDeliveryBlocksRelationManager extends RelationManager
                             ->required(),
                     ])
                     ->using(function (array $data, $record): void {
-                        // Обновляем данные в pivot таблице
                         $this->getOwnerRecord()->deliveryBlocks()->updateExistingPivot($record->id, [
                             'sort_order' => $data['sort_order'] ?? 0,
                         ]);
+                    })
+                    ->after(function () {
+                        Cache::flush();
+                        Log::info('🔥 Cache flushed after edit sort order (DeliveryBlock)');
                     }),
                 DetachAction::make()
-                    ->label('Отвязать'),
+                    ->label('Отвязать')
+                    ->after(function () {
+                        Cache::flush();
+                        Log::info('🔥 Cache flushed after detach (DeliveryBlock)');
+                    }),
             ])
+
             ->bulkActions([
                 BulkActionGroup::make([
                     BulkAction::make('update_sort_order')
@@ -114,9 +127,17 @@ class CategoryDeliveryBlocksRelationManager extends RelationManager
                                 ]);
                             }
                         })
-                        ->deselectRecordsAfterCompletion(),
+                        ->deselectRecordsAfterCompletion()
+                        ->after(function () {
+                            Cache::flush();
+                            Log::info('🔥 Cache flushed after bulk update (DeliveryBlock)');
+                        }),
                     DetachBulkAction::make()
-                        ->label('Отвязать выбранные'),
+                        ->label('Отвязать выбранные')
+                        ->after(function () {
+                            Cache::flush();
+                            Log::info('🔥 Cache flushed after bulk detach (DeliveryBlock)');
+                        }),
                 ]),
             ])
             ->modifyQueryUsing(function ($query) {
