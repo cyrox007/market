@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCounters } from '../../hooks/useCounters';
 import { api, type Order, type Address, type BonusTransaction, type WishlistItem, type Product, type ShippingLocation, type NotificationSettings } from '../../lib/api';
 import PhoneInput from '../../components/ui/PhoneInput';
+import { usePageSeo } from '../../hooks/usePageSeo';
 
 const menuItems = [
 	{ id: 'profile', label: 'Профиль', icon: 'ri-user-line' },
@@ -98,6 +99,16 @@ export default function Account() {
 	const [isChangingPassword, setIsChangingPassword] = useState(false);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
 	const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+	usePageSeo({
+		title: 'Личный кабинет – Светофор-Мебель',
+		description: 'Личный кабинет покупателя в интернет-магазине Светофор-Мебель.',
+		image: '/logo.png',
+		canonical_url: window.location.href,
+		robots: 'noindex, follow',
+		open_graph_title: 'Личный кабинет – Светофор-Мебель',
+		locale: 'ru_RU',
+	});
 
 	// Загрузка данных при смене секции
 	useEffect(() => {
@@ -534,8 +545,8 @@ export default function Account() {
 										key={item.id}
 										onClick={() => setActiveSection(item.id)}
 										className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap ${activeSection === item.id
-												? 'bg-red-50 text-red-600'
-												: 'text-gray-700 hover:bg-gray-50'
+											? 'bg-red-50 text-red-600'
+											: 'text-gray-700 hover:bg-gray-50'
 											}`}
 									>
 										<i className={`${item.icon} text-xl`}></i>
@@ -860,8 +871,8 @@ export default function Account() {
 											<div
 												key={addr.id}
 												className={`bg-white border-2 rounded-2xl p-6 hover:shadow-md transition-all ${addr.is_default
-														? 'border-green-300 bg-green-50/30'
-														: 'border-gray-200'
+													? 'border-green-300 bg-green-50/30'
+													: 'border-gray-200'
 													}`}
 											>
 												<div className="flex items-start justify-between mb-3">
