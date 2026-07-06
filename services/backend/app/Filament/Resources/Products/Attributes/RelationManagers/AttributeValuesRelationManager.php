@@ -40,14 +40,21 @@ class AttributeValuesRelationManager extends RelationManager
                 ->label($valueLabel)
                 ->required()
                 ->maxLength(255)
+                ->live(onBlur: true)
+                ->afterStateUpdated(function ($state, callable $set) {  
+                    if (!$state) {
+                        return;
+                    }
+                    $set('slug', \Str::slug($state));
+                })
                 ->helperText($valueHelper),
 
             TextInput::make('slug')
                 ->label('Slug')
-                ->required()
+                //->required()
                 ->unique(ignoreRecord: true, table: 'product_attribute_values', column: 'slug')
                 ->maxLength(255)
-                ->helperText('Уникальный идентификатор для API и URL'),
+                ->helperText('Уникальный идентификатор для API и URL. Оставьте пустым для автоматической генерации.'),
 
             TextInput::make('sort_order')
                 ->label('Порядок сортировки')
