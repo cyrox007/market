@@ -202,7 +202,7 @@ class ProductDetailResource extends JsonResource
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
                     'images' => $variant->images_urls ?: ($variant->main_image_url ? [$variant->main_image_url] : []),
                     'description' => $variant->description,
-                    'excerpt' => $variant->excerpt,
+                    //'excerpt' => $variant->excerpt,
                     'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
                 ];
             })->values()->toArray();
@@ -401,7 +401,7 @@ class ProductDetailResource extends JsonResource
             'rating' => $this->rating ?? 4.8,
             'reviews_count' => $this->reviews_count ?? 0,
             'description' => $this->description,
-            'excerpt' => $this->excerpt,
+            //'excerpt' => $this->excerpt,
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
             'parent_id' => $this->when($isVariant, $this->parent_product_id),

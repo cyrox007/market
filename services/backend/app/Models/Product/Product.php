@@ -1180,7 +1180,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         return $query->where(function ($q) use ($searchTerm) {
             $q->where('name', 'like', $searchTerm)
                 ->orWhere('description', 'like', $searchTerm)
-                ->orWhere('excerpt', 'like', $searchTerm)
+                //->orWhere('excerpt', 'like', $searchTerm)
                 ->orWhere('sku', 'like', $searchTerm);
         });
     }

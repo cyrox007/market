@@ -90,13 +90,13 @@ class ProductForm
 
                         // Описания: Textarea вместо RichEditor из-за бага в Filament 4.3 (TipTap init "length"/getEditor undefined).
                         // HTML в description/excerpt на фронте рендерится как есть; при желании вернуть RichEditor — обновить Filament.
-                        Textarea::make('excerpt')
+                        /* Textarea::make('excerpt')
                             ->label(__('filament/admin_sv/product_resource.excerpt'))
                             ->default('')
                             ->maxLength(500)
                             ->rows(3)
                             ->helperText('Краткое описание для карточек и списков (до 500 символов). Поддерживается HTML.')
-                            ->columnSpanFull(),
+                            ->columnSpanFull(), */
 
                         Textarea::make('description')
                             ->label(__('filament/admin_sv/product_resource.description'))
