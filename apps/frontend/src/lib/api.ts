@@ -515,6 +515,7 @@ export interface VariationAttributeOption {
   attribute_slug: string;
   attribute_name?: string | null;
   values?: VariationAttributeValue[];
+  is_multiple?: boolean;
 }
 
 export interface SelectedVariationItem {

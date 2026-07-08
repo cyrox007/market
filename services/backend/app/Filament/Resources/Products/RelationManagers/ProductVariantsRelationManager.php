@@ -127,6 +127,7 @@ class ProductVariantsRelationManager extends RelationManager
             if ($attr->allow_custom_value && $hasOptions && $attr->type !== 'select') {
                 $selectField = Select::make('variation_attr_' . $attr->id)
                     ->label($attr->name . ' (из списка)')
+                    ->multiple(fn () => $attr->is_multiple)
                     ->options($options)
                     ->searchable()
                     ->helperText('Выберите значение из списка или введите своё ниже')
@@ -193,6 +194,7 @@ class ProductVariantsRelationManager extends RelationManager
             // Иначе - только Select с предопределенными значениями
             else {
                 $field = Select::make('variation_attr_' . $attr->id)
+                    ->multiple(fn () => $attr->is_multiple)
                     ->label($attr->name)
                     ->options($options)
                     ->required(($isVariantAttribute || $attr->is_required) && $hasOptions)
@@ -427,20 +429,38 @@ class ProductVariantsRelationManager extends RelationManager
                             return $data;
                         }
                         $record->load('variantAttributes');
-                        $byAttr = $record->variantAttributes->keyBy('id');
+                        
+                        // Группируем атрибуты по ID (один атрибут — несколько значений)
+                        $grouped = $record->variantAttributes->groupBy('id');
                         $formAttrs = app(GetVariationAttributesForProductAction::class)->execute($parent);
+                        
                         foreach ($formAttrs as $attr) {
-                            $v = $byAttr->get($attr->id);
-                            if (!$v || !$v->pivot) {
+                            $items = $grouped->get($attr->id);
+                            if (!$items || $items->isEmpty()) {
                                 continue;
                             }
-                            $pivot = $v->pivot;
-                            if ($pivot->custom_value !== null && $pivot->custom_value !== '') {
-                                $data['variation_custom_' . $attr->id] = $pivot->custom_value;
+                            
+                            // Проверяем кастомные значения
+                            $customValues = $items->filter(function ($item) {
+                                return $item->pivot->custom_value !== null && $item->pivot->custom_value !== '';
+                            });
+                            
+                            if ($customValues->isNotEmpty()) {
+                                $data['variation_custom_' . $attr->id] = $customValues->first()->pivot->custom_value;
                             } else {
-                                $data['variation_attr_' . $attr->id] = $pivot->attribute_value_id;
+                                // Собираем все ID значений в массив
+                                $valueIds = $items
+                                    ->pluck('pivot.attribute_value_id')
+                                    ->filter()
+                                    ->values()
+                                    ->toArray();
+                                
+                                if (!empty($valueIds)) {
+                                    $data['variation_attr_' . $attr->id] = $valueIds;
+                                }
                             }
                         }
+                        
                         return $data;
                     })
                     ->using(function (array $data, Product $record): Product {

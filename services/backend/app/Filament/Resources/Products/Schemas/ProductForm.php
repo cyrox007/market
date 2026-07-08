@@ -46,7 +46,7 @@ class ProductForm
                         // Правая колонка (изображения здесь, не сверху)
                         Group::make([
                             self::categoriesSection(),
-                            self::manufacturerSection(),
+                            /* self::manufacturerSection(), */
                             self::statusPriceSection(),
                             self::imagesSection(),
                             self::taxShippingSection(),
@@ -82,21 +82,21 @@ class ProductForm
                             ->helperText('ЧПУ для URL. Генерируется из названия автоматически, можно изменить при необходимости')
                             ->columnSpanFull(),
 
-                        TextInput::make('subtitle')
+                        /* TextInput::make('subtitle')
                             ->label(__('filament/admin_sv/product_resource.subtitle'))
                             ->maxLength(255)
                             ->helperText('Краткий подзаголовок товара (опционально)')
-                            ->columnSpanFull(),
+                            ->columnSpanFull(), */
 
                         // Описания: Textarea вместо RichEditor из-за бага в Filament 4.3 (TipTap init "length"/getEditor undefined).
                         // HTML в description/excerpt на фронте рендерится как есть; при желании вернуть RichEditor — обновить Filament.
-                        Textarea::make('excerpt')
+                        /* Textarea::make('excerpt')
                             ->label(__('filament/admin_sv/product_resource.excerpt'))
                             ->default('')
                             ->maxLength(500)
                             ->rows(3)
                             ->helperText('Краткое описание для карточек и списков (до 500 символов). Поддерживается HTML.')
-                            ->columnSpanFull(),
+                            ->columnSpanFull(), */
 
                         Textarea::make('description')
                             ->label(__('filament/admin_sv/product_resource.description'))
@@ -409,17 +409,29 @@ class ProductForm
                                     ->label('Значение (из списка)')
                                     ->options(function ($get) {
                                         $attributeId = $get('attribute_id');
-                                        if (!$attributeId) {
-                                            return [];
-                                        }
-
-                                        return AttributeValue::where('attribute_id', $attributeId)
+                                        if (!$attributeId) return [];
+                                        
+                                        $attribute = Attribute::find($attributeId);
+                                        $values = AttributeValue::where('attribute_id', $attributeId)
                                             ->orderBy('sort_order')
                                             ->orderBy('value')
                                             ->pluck('value', 'id')
                                             ->toArray();
+                                        
+                                        // Если это цвет, добавляем цветовой чип в опции
+                                        if ($attribute && $attribute->type === 'color') {
+                                            // Можно оставить как есть или добавить цветовые индикаторы
+                                        }
+                                        
+                                        return $values;
                                     })
                                     ->searchable()
+                                    ->multiple(function ($get) {
+                                        $attributeId = $get('attribute_id');
+                                        if (!$attributeId) return false;
+                                        $attribute = Attribute::find($attributeId);
+                                        return $attribute && $attribute->is_multiple;
+                                    })
                                     ->live()
                                     ->afterStateUpdated(function ($state, $set) {
                                         if (!empty($state)) {
@@ -449,18 +461,11 @@ class ProductForm
                                     ->maxLength(500)
                                     ->visible(function ($get) {
                                         $attributeId = $get('attribute_id');
-                                        if (!$attributeId) {
-                                            return false;
-                                        }
+                                        if (!$attributeId) return false;
 
                                         $attribute = Attribute::find($attributeId);
-                                        if (!$attribute) {
-                                            return false;
-                                        }
+                                        if (!$attribute) return false;
 
-                                        // Ручной ввод доступен для типов, у которых есть смысл
-                                        // комбинировать список и свой текст (string, text, number_input),
-                                        // и только когда это разрешено в настройках атрибута
                                         return $attribute->allow_custom_value
                                             && in_array($attribute->type, ['string', 'text', 'number_input'], true);
                                     })
@@ -495,9 +500,13 @@ class ProductForm
                             ->itemLabel(fn(array $state): ?string => 
                                 ($attribute = Attribute::find($state['attribute_id'] ?? null))
                                     ? $attribute->name . 
-                                      (($value = AttributeValue::find($state['attribute_value_id'] ?? null))
-                                          ? ': ' . $value->value 
-                                          : '')
+                                    (isset($state['attribute_value_id']) && !empty($state['attribute_value_id'])
+                                        ? (is_array($state['attribute_value_id'])
+                                            ? ' (несколько значений)'
+                                            : (($value = AttributeValue::find($state['attribute_value_id']))
+                                                ? ': ' . $value->value
+                                                : ''))
+                                        : '')
                                     : 'Новая характеристика'
                             )
                             ->helperText('Выберите характеристику и её значение. Для добавления новых значений используйте раздел "Характеристики" в меню.')
