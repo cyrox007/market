@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } fr
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import ReviewModal from '../../components/feature/ReviewModal';
-import ProductLink from '../../components/ui/ProductLink';
+//import ProductLink from '../../components/ui/ProductLink';
 import ProductCard from '../../components/ui/ProductCard';
 import ProductGallery from '../../components/product/ProductGallery';
 import ProductBundleSection from '../../components/product/ProductBundleSection';
@@ -18,7 +18,7 @@ import { useSSR } from '../../contexts/SSRContext';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { getProductKey } from '../../utils/ssr-to-swr';
 import { resolveProductStockBadge } from '../../utils/productUtils';
-import type { ProductDetail, Product, ProductVariant, Review, VariationAttributeOption, SelectedVariationItem } from '../../lib/api';
+import type { ProductDetail, Product, ProductVariant, Review, /* VariationAttributeOption, */ SelectedVariationItem } from '../../lib/api';
 import VariantColorSelector from '../../components/product/VariantColorSelector';
 
 const tabs = [
@@ -311,8 +311,8 @@ export default function Product() {
 	const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
 	const { changeProductQuantity } = useCartActions();
 	const { refreshWishlistCount, refreshCompareCount } = useCounters();
-	const { region: clientRegion, getRegionId } = useRegion();
-	const region = ssrRegion || clientRegion;
+	const { /* region: clientRegion, */ getRegionId } = useRegion();
+	//const region = ssrRegion || clientRegion;
 	const regionId = getRegionId();
 	const prefetchProduct = usePrefetchProduct();
 
@@ -327,7 +327,7 @@ export default function Product() {
 
 	const {
 		data: productPayload,
-		error: productLoadError,
+		//error: productLoadError,
 		isLoading: isProductFetching,
 		mutate: mutateProduct,
 	} = useSWR(
@@ -655,12 +655,14 @@ export default function Product() {
 	};
 
 	// Вспомогательная функция для определения ID товара для избранного
-	const getProductIdForWishlist = (product: Product): number => {
+	const getProductIdForWishlist = (product: Product | null | undefined): number => {
+		if (!product) return 0;
 		return product.id;
 	};
 
 	// Вспомогательная функция для определения ID товара для сравнения
-	const getProductIdForCompare = (product: Product): number => {
+	const getProductIdForCompare = (product: Product | null | undefined): number => {
+		if (!product) return 0;
 		if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
 			return product.first_available_variant_id;
 		}
@@ -903,50 +905,53 @@ export default function Product() {
 	const hasVariantImages = variantForImages?.images && variantForImages.images.length > 0;
 	const productImages = hasVariantImages
 		? variantForImages!.images
-		: (product.images?.length ? product.images : product.image_hd ? [product.image_hd] : product.image ? [product.image] : []);
+		: (product?.images?.length ? product.images : product?.image_hd ? [product.image_hd] : product?.image ? [product.image] : []);
 
 	// Вычисляем выбранную вариацию и все отображаемые данные ОДИН РАЗ перед рендером
 	const selectedVariant = getSelectedVariant() ?? (
-		product.is_variant && product.variants?.length
+		product?.is_variant && product.variants?.length
 			? product.variants.find((variant) => variant.id === product.id) ?? null
 			: null
 	);
 
 	// Derived state: все данные для отображения вычисляются из product + selectedVariant
-	const displayPrice = selectedVariant?.price ?? product.price;
-	const displayOldPrice = selectedVariant?.old_price ?? product.old_price;
-	const displaySku = selectedVariant?.sku ?? product.sku;
+	const displayPrice = selectedVariant?.price ?? product?.price ?? 0;
+	const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
+	//const displaySku = selectedVariant?.sku ?? product?.sku;
 	const bundleSetTotalPrice = bundleProducts.length === 0
 		? null
 		: (displayPrice ?? 0) + bundleProducts.reduce((sum, item) => sum + (item.price ?? 0), 0);
-	const stockBadge = resolveProductStockBadge({
-		product,
-		selectedVariant,
-		stockSettings: {
-			...stockSettings,
-			show_exact_above: 0,
-		},
-	});
+	const stockBadge = product
+		? resolveProductStockBadge({
+			product,
+			selectedVariant,
+			stockSettings: {
+				...stockSettings,
+				show_exact_above: 0,
+			},
+		})
+		: { badgeLabel: 'Нет в наличии', badgeClass: 'bg-gray-200 text-gray-600', stock: 0 };
+
 	const displayDescription = selectedVariant && hasMeaningfulProductText(selectedVariant.description)
 		? selectedVariant.description!
-		: product.description;
+		: product?.description;
 	const displayExcerpt = selectedVariant && hasMeaningfulProductText(selectedVariant.excerpt)
 		? selectedVariant.excerpt!
-		: product.excerpt;
+		: product?.excerpt;
 	const variantSpecs = selectedVariant
 		? getSpecificationsArray(selectedVariant.specifications)
 		: [];
 	const displaySpecifications = variantSpecs.length > 0
 		? variantSpecs
 		: getSpecificationsArray(
-			product.specifications,
+			product?.specifications,
 			(product as { specification_names?: Record<string, string> }).specification_names,
 		);
-	const cartProductId = selectedVariant?.id ?? product.id;
+	const cartProductId = selectedVariant?.id ?? product?.id;
 	const currentCartItem = (cart?.items ?? []).find((item) => item.product_id === cartProductId);
 	const currentCartQuantity = currentCartItem?.quantity ?? 0;
-	const currentWishlistProductId = getProductIdForWishlist(product);
-	const currentCompareProductId = getProductIdForCompare(product);
+	const currentWishlistProductId = product ? getProductIdForWishlist(product) : 0;
+	const currentCompareProductId = product ? getProductIdForCompare(product) : 0;
 	const isInWishlist = favorites.includes(currentWishlistProductId);
 	const isInCompare = compareList.includes(currentCompareProductId);
 
@@ -959,14 +964,14 @@ export default function Product() {
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-					{product.category && (
+					{product?.category && (
 						<>
 							<i className="ri-arrow-right-s-line text-gray-400"></i>
 							<Link to={`/catalog/${product.category.slug}`} className="text-gray-600 hover:text-red-600">{product.category.name}</Link>
 						</>
 					)}
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
-					<span className="text-gray-900">{product.name}</span>
+					<span className="text-gray-900">{product?.name}</span>
 				</div>
 
 				{/* Product Main Info - New Layout */}
@@ -977,7 +982,7 @@ export default function Product() {
 						<div className="flex flex-col flex-1 w-full md:max-w-[500px] order-1 md:order-2 min-w-0">
 							<ProductGallery
 								images={productImages}
-								productName={product.name}
+								productName={product?.name ?? 'undefined'}
 								selectedIndex={selectedImage}
 								onSelectIndex={setSelectedImage}
 							/>
@@ -1099,45 +1104,47 @@ export default function Product() {
 						<div className="flex-1 space-y-4 sm:space-y-6 order-3 lg:order-3">
 							{/* Product Name and Status */}
 							<div>
-								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
+								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
 									<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
 										{stockBadge.badgeLabel}
 									</span>
 									{(() => {
 										const selectedVariant = getSelectedVariant();
-										const displaySku = selectedVariant?.sku || product.sku;
+										const displaySku = selectedVariant?.sku || product?.sku;
 										const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 										return displaySku ? (
 											<span className="text-xs text-gray-500" key={`sku-top-${displaySku}-${variantKey}`}>Арт: {displaySku}</span>
 										) : null;
 									})()}
 								</div>
-								<h1 className="text-xl sm:text-2xl font-bold mb-3">{product.name}</h1>
+								<h1 className="text-xl sm:text-2xl font-bold mb-3">{product?.name}</h1>
 								<div className="flex items-center gap-4 flex-wrap">
 									<div className="flex items-center gap-1">
 										{[...Array(5)].map((_, i) => (
 											<i
 												key={i}
-												className={`${i < Math.floor(product.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
+												className={`${i < Math.floor(product?.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
 													} text-yellow-500 text-base sm:text-lg`}
 											></i>
 										))}
-										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product.rating ?? 0}</span>
+										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product?.rating ?? 0}</span>
 									</div>
-									<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
-										{product.reviews_count} {product.reviews_count === 1 ? 'отзыв' : product.reviews_count < 5 ? 'отзыва' : 'отзывов'}
-									</a>
+									{product && (
+										<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
+											{product?.reviews_count ?? 0} {product?.reviews_count === 1 ? 'отзыв' : product?.reviews_count < 5 ? 'отзыва' : 'отзывов'}
+										</a>
+									)}
 								</div>
 							</div>
 
 							{/* Вариации: все атрибуты показываем полностью; значения не из текущей вариации — с opacity, по клику переключаем на вариацию с этим значением */}
-							{product.variation_attributes
+							{product?.variation_attributes
 								?.filter((a) => a.attribute_slug !== 'color' && a.values?.length)
 								.map((attr) => (
 									<VariantAttributeSelector
 										key={attr.attribute_slug}
 										attribute={attr}
-										selectedValue={selectedVariation[attr.attribute_slug]?.[0] ?? null}
+										selectedValues={new Set(selectedVariation[attr.attribute_slug] ?? [])}
 										isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
 										onSelect={(valueSlug) => handleSelectVariationAttribute(attr.attribute_slug, valueSlug)}
 										isDisabled={isLoadingVariant}
@@ -1146,10 +1153,10 @@ export default function Product() {
 
 							{/* Цвета как палитра вариантов */}
 							<VariantColorSelector
-								variants={product.variants}
+								variants={product?.variants ?? []}
 								selectedVariantId={selectedVariant?.id ?? null}
 								onSelect={(variantId) => {
-									const variant = product.variants?.find(v => v.id === variantId);
+									const variant = product?.variants?.find(v => v.id === variantId);
 									if (variant) {
 										console.log('🟢 Выбран вариант:', variant);
 										// Обновляем selectedVariation
@@ -1168,7 +1175,7 @@ export default function Product() {
 								const blocks = product?.feature_blocks;
 								const hasBlocks = blocks && Array.isArray(blocks) && blocks.length > 0;
 								return hasBlocks;
-							})() && product.feature_blocks && product.feature_blocks.length > 0 && (
+							})() && product?.feature_blocks && product.feature_blocks.length > 0 && (
 									<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
 										{product.feature_blocks.map((block) => {
 											// Маппинг цветов Tailwind для использования в style
@@ -1234,14 +1241,14 @@ export default function Product() {
 					{/* Right: Action Container */}
 					<div className="bg-gray-50 rounded-2xl p-4 sm:p-6 h-fit lg:sticky lg:top-20 order-3 lg:order-3">
 						{/* Stock Status */}
-						<div className="mb-4" key={`stock-${product.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}-${stockBadge.stockText}`}>
+						<div className="mb-4" key={`stock-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}-${'stockText' in stockBadge ? stockBadge.stockText : ''}`}>
 							<div className="flex items-center gap-2 justify-center flex-wrap">
 								<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
 									{stockBadge.badgeLabel}
 								</span>
 								{(() => {
 									const selectedVariant = getSelectedVariant();
-									const displaySku = selectedVariant?.sku || product.sku;
+									const displaySku = selectedVariant?.sku || product?.sku;
 									const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 									return displaySku ? (
 										<span className="text-xs text-gray-500" key={`sku-${displaySku}-${variantKey}`}>Арт: {displaySku}</span>
@@ -1253,7 +1260,7 @@ export default function Product() {
 						{/* Price */}
 						<div
 							className="mb-6 text-center"
-							key={`price-${product.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
+							key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
 						>
 							<div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
 								<span className="text-2xl sm:text-3xl font-bold text-red-600">
@@ -1299,9 +1306,9 @@ export default function Product() {
 							<div className="flex gap-2">
 								{(() => {
 									// Для вариативных товаров проверяем доступность выбранной вариации (в т.ч. одной вариации / по цвету или размеру)
-									let isProductAvailable = product.in_stock === true;
+									let isProductAvailable = product?.in_stock === true;
 
-									if (product.is_variable && !product.is_variant && product.variants) {
+									if (product?.is_variable && !product.is_variant && product.variants) {
 										const selectedVariant = getSelectedVariant();
 										if (selectedVariant) {
 											isProductAvailable =
@@ -1313,13 +1320,19 @@ export default function Product() {
 												(v: ProductVariant) => v.in_stock === true && (v.stock ?? 0) > 0,
 											);
 											if (inStockVariants.length > 0) {
-												// Проверяем совместимость: есть ли вариация, у которой все атрибуты не противоречат выбору
 												const compatible = inStockVariants.some((v: ProductVariant) => {
 													const va = v.variation_attributes ?? [];
 													if (va.length === 0) return Object.keys(selectedVariation).length === 0;
+
 													for (const a of va) {
 														const sel = selectedVariation[a.attribute_slug];
-														if (sel !== undefined && sel !== '' && sel !== a.value_slug) return false;
+														// sel может быть массивом или строкой
+														const selectedValues = Array.isArray(sel) ? sel : (sel ? [sel] : []);
+
+														// Если есть выбранные значения, проверяем, что value_slug есть в них
+														if (selectedValues.length > 0 && !selectedValues.includes(a.value_slug)) {
+															return false;
+														}
 													}
 													return true;
 												});
@@ -1506,16 +1519,20 @@ export default function Product() {
 												<div className="flex justify-between p-4 bg-gray-50 rounded-lg col-span-1 md:col-span-2">
 													<span className="font-semibold text-gray-900">Цвета:</span>
 													<div className="flex flex-wrap gap-3">
-														{product!.colors.map((color) => (
-															<div key={color.id} className="flex items-center gap-1.5">
-																<span
-																	className="w-5 h-5 rounded-full border border-gray-300"
-																	style={{ backgroundColor: color.color_code || '#ccc' }}
-																	title={color.value}
-																/>
-																<span className="text-sm text-gray-700">{color.value}</span>
-															</div>
-														))}
+														{product?.colors && product.colors.length > 0 && (
+															<>
+																{product.colors.map((color) => (
+																	<div key={color.id} className="flex items-center gap-1.5">
+																		<span
+																			className="w-5 h-5 rounded-full border border-gray-300"
+																			style={{ backgroundColor: color.color_code || '#ccc' }}
+																			title={color.value}
+																		/>
+																		<span className="text-sm text-gray-700">{color.value}</span>
+																	</div>
+																))}
+															</>
+														)}
 													</div>
 												</div>
 											)}
@@ -1532,7 +1549,7 @@ export default function Product() {
 									const blocks = product?.delivery_blocks;
 									const hasBlocks = blocks && Array.isArray(blocks) && blocks.length > 0;
 									return hasBlocks && blocks;
-								})() && product.delivery_blocks && Array.isArray(product.delivery_blocks) ? (
+								})() && product?.delivery_blocks && Array.isArray(product.delivery_blocks) ? (
 									<div className="space-y-6">
 										{product.delivery_blocks.map((block) => {
 											// Маппинг цветов Tailwind для использования в style

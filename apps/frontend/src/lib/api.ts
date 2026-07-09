@@ -488,7 +488,7 @@ export interface Product {
   first_available_variant_id?: number | null;
   variation_attributes?: VariationAttributeOption[];
   colors?: ColorOption[];
-  specifications?: Record<string, string>;
+  specifications?: Record<string, any> | null;
   category: {
     id: number;
     name: string;
@@ -509,9 +509,11 @@ export interface VariationAttributeValue {
   name?: string | null;
   code?: string | null;
   count?: number;
+  id?: number | string | null;
 }
 
 export interface VariationAttributeOption {
+  type?: string | null;
   attribute_slug: string;
   attribute_name?: string | null;
   values?: VariationAttributeValue[];
@@ -564,6 +566,8 @@ export interface ProductDeliveryBlock {
 
 export interface ProductDetail extends Product {
   images: string[];
+  image_hd?: string | null;
+  image_fullhd?: string | null;
   colors?: ColorOption[];
   sizes?: SizeOption[];
   selected_color?: ColorOption | null;
@@ -603,6 +607,8 @@ export interface ColorOption {
   code?: string | null;
   /** Количество товаров с этим цветом в категории; 0 — опция недоступна (показать серой) */
   count?: number;
+  value: string; 
+  color_code: string | null;
 }
 
 export interface SizeOption {

@@ -1,7 +1,12 @@
 interface VariantColorSelectorProps {
 	variants: Array<{
 		id: number;
-		colors: Array<{ value: string; color_code: string | null }>;
+		colors?: Array<{
+			id: number;
+			value: string;
+			slug: string;
+			color_code: string | null;
+		}>;
 		price: number;
 		in_stock: boolean;
 	}>;
@@ -35,19 +40,23 @@ export default function VariantColorSelector({
                                 ${!isAvailable ? 'opacity-50 cursor-not-allowed' : 'hover:border-red-400 cursor-pointer'}
                             `}
 						>
-							<div className="flex gap-1">
-								{variant.colors.map((color, idx) => (
-									<span
-										key={idx}
-										className="w-8 h-8 rounded-full border border-gray-300"
-										style={{ backgroundColor: color.color_code || '#ccc' }}
-										title={color.value}
-									/>
-								))}
-							</div>
-							<div className="text-xs text-gray-500 mt-1">
-								{variant.colors.map(c => c.value).join(' + ')}
-							</div>
+							{variant.colors && variant.colors.length > 0 && (
+								<>
+									<div className="flex gap-1">
+										{variant.colors.map((color, idx) => (
+											<span
+												key={idx}
+												className="w-8 h-8 rounded-full border border-gray-300"
+												style={{ backgroundColor: color.color_code || '#ccc' }}
+												title={color.value}
+											/>
+										))}
+									</div>
+									<div className="text-xs text-gray-500 mt-1">
+										{variant.colors.map(c => c.value).join(' + ')}
+									</div>
+								</>
+							)}
 							{!isAvailable && (
 								<div className="text-xs text-red-500 mt-1">Нет в наличии</div>
 							)}
