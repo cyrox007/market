@@ -506,6 +506,7 @@ export interface Product {
 }
 
 export interface VariationAttributeValue {
+	id?: string | null;
 	slug?: string | null;
 	name?: string | null;
 	code?: string | null;
@@ -515,6 +516,7 @@ export interface VariationAttributeValue {
 export interface VariationAttributeOption {
 	attribute_slug: string;
 	attribute_name?: string | null;
+	type?: string | null;
 	values?: VariationAttributeValue[];
 }
 
@@ -540,6 +542,7 @@ export interface ProductVariant {
 	description?: string | null;
 	excerpt?: string | null;
 	specifications?: { name: string; value: string; slug: string }[] | Record<string, string> | null;
+	backorder?: string | null;
 }
 
 export interface ProductFeatureBlock {

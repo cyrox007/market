@@ -5,7 +5,7 @@ import type { Product, ProductDetail, ProductVariant, ColorOption, SizeOption } 
  * @param product - Товар для проверки
  * @returns true если товар доступен (в наличии или под заказ)
  */
-export function isProductAvailable(product: Product | ProductDetail): boolean {
+export function isProductAvailable(product: Product | ProductDetail): boolean | undefined {
   // Для вариативных товаров проверяем наличие хотя бы одной доступной вариации
   if (product.is_variable && !product.is_variant && 'variants' in product && product.variants) {
     return product.variants.some(v => v.in_stock && (v.stock > 0 || v.backorder));
@@ -94,9 +94,9 @@ export function getProductStockStatus(product: Product | ProductDetail): {
   }
   
   // Для обычных товаров
-  const available = product.in_stock && (product.stock > 0 || product.backorder);
+  const available = (product.in_stock ?? false) && (product.stock > 0 || product.backorder);
   return {
-    available,
+    available: available ?? false,
     stock: product.stock || 0,
     backorder: product.backorder || false,
     status: product.backorder ? 'backorder' : (product.stock > 0 ? 'in_stock' : 'out_of_stock'),
