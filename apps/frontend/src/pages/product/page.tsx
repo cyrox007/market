@@ -91,6 +91,7 @@ export default function Product() {
 
 	// Выбранная комбинация атрибутов вариации: attribute_slug -> value_slug (опции берём из product.variation_attributes)
 	const [selectedVariation, setSelectedVariation] = useState<Record<string, string>>({});
+	const [selectedVariantState, setSelectedVariantState] = useState<ProductVariant | null>(null);
 
 	useLayoutEffect(() => {
 		if (hasSSRProduct && initialProduct && (!slug || initialProduct.slug === slug) && !product) {
@@ -804,7 +805,7 @@ export default function Product() {
 		: (product?.images?.length ? product.images : product?.image_hd ? [product.image_hd] : product?.image ? [product.image] : []);
 
 	// Вычисляем выбранную вариацию и все отображаемые данные ОДИН РАЗ перед рендером
-	const selectedVariant = getSelectedVariant() ?? (
+	const selectedVariant = selectedVariantState ?? getSelectedVariant() ?? (
 		product?.is_variant && product.variants?.length
 			? product.variants.find((variant) => variant.id === product.id) ?? null
 			: null
@@ -1055,9 +1056,8 @@ export default function Product() {
 									onSelect={(variantId) => {
 										const variant = product.variants?.find(v => v.id === variantId);
 										if (variant) {
-											// Обновляем выбранную вариацию
-											setSelectedVariant(variant);
-											// Обновляем атрибуты для совместимости с корзиной
+											console.log('🟢 Выбран вариант:', variant.id, variant.colors);
+											setSelectedVariantState(variant); // 👈 обновляем состояние
 											const attrs: Record<string, string> = {};
 											variant.variation_attributes?.forEach((a) => {
 												attrs[a.attribute_slug] = a.value_slug;
