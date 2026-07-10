@@ -6,10 +6,10 @@ use App\Actions\Product\GetVariationAttributesForProductAction;
 use App\Actions\Product\SyncVariantVariationAttributesAction;
 use App\Filament\Forms\WarehouseStocksFormComponents;
 use App\Filament\Resources\Products\ProductResource;
-use App\Models\Product\Attribute;
 use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
 use App\Services\Inventory\WarehouseStockResolver;
+use App\Models\Product\AttributeValue;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -18,7 +18,8 @@ use Filament\Schemas\Components\Section;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Illuminate\Database\Eloquent\Model;
+use Filament\Forms\Components\ColorPicker;
+use Illuminate\Support\Str;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
@@ -137,6 +138,33 @@ class ProductVariantsRelationManager extends RelationManager
                         if (!empty($state)) {
                             $set('variation_custom_' . $attr->id, null);
                         }
+                    })
+                    ->createOptionForm(function () use ($attr) {
+                        $isColor = $attr->type === 'color';
+                        $fields = [
+                            TextInput::make('value')
+                                ->label('Название значения')
+                                ->required()
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                            TextInput::make('slug')
+                                ->label('Слаг')
+                                ->helperText('Оставьте пустым для автоматической генерации'),
+                        ];
+                        if ($isColor) {
+                            $fields[] = ColorPicker::make('color_code')
+                                ->label('HEX цвета');
+                        }
+                        $fields[] = TextInput::make('sort_order')
+                            ->label('Порядок')
+                            ->numeric()
+                            ->default(0);
+                        return $fields;
+                    })
+                    ->createOptionUsing(function (array $data, $get) use ($attr): int {
+                        $data['attribute_id'] = $attr->id;
+                        $value = AttributeValue::create($data);
+                        return $value->id;
                     });
                 
                 $textField = TextInput::make('variation_custom_' . $attr->id)
@@ -201,7 +229,34 @@ class ProductVariantsRelationManager extends RelationManager
                     ->helperText($isVariantAttribute
                         ? 'Основной параметр, который определяет название и уникальность вариации.'
                         : 'Параметр торгового предложения'
-                    );
+                    )
+                    ->createOptionForm(function () use ($attr) {
+                        $isColor = $attr->type === 'color';
+                        $fields = [
+                            TextInput::make('value')
+                                ->label('Название значения')
+                                ->required()
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                            TextInput::make('slug')
+                                ->label('Слаг')
+                                ->helperText('Оставьте пустым для автоматической генерации'),
+                        ];
+                        if ($isColor) {
+                            $fields[] = ColorPicker::make('color_code')
+                                ->label('HEX цвета');
+                        }
+                        $fields[] = TextInput::make('sort_order')
+                            ->label('Порядок')
+                            ->numeric()
+                            ->default(0);
+                        return $fields;
+                    })
+                    ->createOptionUsing(function (array $data, $get) use ($attr): int {
+                        $data['attribute_id'] = $attr->id;
+                        $value = AttributeValue::create($data);
+                        return $value->id;
+                    });
                 if ($isVariantAttribute) {
                     $variantAttributeFields[] = $field;
                 } else {
