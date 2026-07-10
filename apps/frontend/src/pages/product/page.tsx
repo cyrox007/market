@@ -1029,16 +1029,44 @@ export default function Product() {
 							</div>
 
 							{/* Вариации: все атрибуты показываем полностью; значения не из текущей вариации — с opacity, по клику переключаем на вариацию с этим значением */}
-							{product?.variation_attributes?.filter((a: VariationAttributeOption) => a.values?.length).map((attr: VariationAttributeOption) => (
-								<VariantAttributeSelector
-									key={attr.attribute_slug}
-									attribute={attr}
-									selectedValueSlug={selectedVariant ? (selectedVariation[attr.attribute_slug] ?? null) : null}
-									isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
-									onSelect={(valueSlug, isDisabledClick) => handleSelectVariationAttribute(attr.attribute_slug, valueSlug, isDisabledClick)}
-									isDisabled={isLoadingVariant}
+							{/* ============================================
+								АТРИБУТЫ ВАРИАЦИЙ (кроме цвета)
+								============================================ */}
+							{product?.variation_attributes
+								?.filter((a) => a.attribute_slug !== 'color' && a.values?.length)
+								.map((attr) => (
+									<VariantAttributeSelector
+										key={attr.attribute_slug}
+										attribute={attr}
+										selectedValueSlug={selectedVariant ? (selectedVariation[attr.attribute_slug] ?? null) : null}
+										isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
+										onSelect={(valueSlug, isDisabledClick) => handleSelectVariationAttribute(attr.attribute_slug, valueSlug, isDisabledClick)}
+										isDisabled={isLoadingVariant}
+									/>
+								))}
+
+							{/* ============================================
+								ПАЛИТРА ЦВЕТОВ (выбор варианта по цветам)
+								============================================ */}
+							{product?.variants && product.variants.length > 0 && (
+								<VariantColorSelector
+									variants={product.variants}
+									selectedVariantId={selectedVariant?.id ?? null}
+									onSelect={(variantId) => {
+										const variant = product.variants?.find(v => v.id === variantId);
+										if (variant) {
+											// Обновляем выбранную вариацию
+											setSelectedVariant(variant);
+											// Обновляем атрибуты для совместимости с корзиной
+											const attrs: Record<string, string> = {};
+											variant.variation_attributes?.forEach((a) => {
+												attrs[a.attribute_slug] = a.value_slug;
+											});
+											setSelectedVariation(attrs);
+										}
+									}}
 								/>
-							))}
+							)}
 
 							{/* Features - Grid 2x2 */}
 							{(() => {
@@ -1279,8 +1307,8 @@ export default function Product() {
 											onClick={handleAddToCart}
 											disabled={isAddingToCart || !isProductAvailable}
 											className={`py-3 rounded-lg font-semibold transition-all whitespace-nowrap shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${!isProductAvailable
-													? 'bg-gray-400 text-white cursor-not-allowed w-full'
-													: 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/30 w-full'
+												? 'bg-gray-400 text-white cursor-not-allowed w-full'
+												: 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/30 w-full'
 												}`}
 										>
 											{isAddingToCart ? (
