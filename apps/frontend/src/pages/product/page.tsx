@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } fr
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import ReviewModal from '../../components/feature/ReviewModal';
-import ProductLink from '../../components/ui/ProductLink';
+//import ProductLink from '../../components/ui/ProductLink';
 import ProductCard from '../../components/ui/ProductCard';
 import ProductGallery from '../../components/product/ProductGallery';
 import ProductBundleSection from '../../components/product/ProductBundleSection';
@@ -18,7 +18,8 @@ import { useSSR } from '../../contexts/SSRContext';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { getProductKey } from '../../utils/ssr-to-swr';
 import { resolveProductStockBadge } from '../../utils/productUtils';
-import type { ProductDetail, Product, ProductVariant, Review, VariationAttributeOption, SelectedVariationItem } from '../../lib/api';
+import type { ProductDetail, Product, ProductVariant, Review, /* VariationAttributeOption, */ SelectedVariationItem } from '../../lib/api';
+import VariantColorSelector from '../../components/product/VariantColorSelector';
 
 const tabs = [
 	{ id: 'description', label: 'Описание', icon: 'ri-file-text-line' },

@@ -73,9 +73,11 @@ class Attribute extends Model
         'is_use_in_variations',
         'allow_custom_value',
         'sort_order',
+        'is_multiple'
     ];
 
     protected $casts = [
+        'is_multiple' => 'boolean',
         'is_filterable' => 'boolean',
         'is_required' => 'boolean',
         'is_use_in_variations' => 'boolean',

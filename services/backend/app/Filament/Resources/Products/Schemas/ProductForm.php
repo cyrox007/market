@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
@@ -23,6 +24,7 @@ use App\Models\Product\Product;
 use App\Models\Product\Manufacturer;
 use App\Filament\Forms\WarehouseStocksFormComponents;
 use App\Models\Settings\ProductStockSettings;
+use Illuminate\Support\Str;
 
 class ProductForm
 {
@@ -46,7 +48,7 @@ class ProductForm
                         // Правая колонка (изображения здесь, не сверху)
                         Group::make([
                             self::categoriesSection(),
-                            self::manufacturerSection(),
+                            /* self::manufacturerSection(), */
                             self::statusPriceSection(),
                             self::imagesSection(),
                             self::taxShippingSection(),
@@ -71,7 +73,7 @@ class ProductForm
                             ->required()
                             ->maxLength(255)
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, $set, $get) => $get('slug') === '' || $get('slug') === null ? $set('slug', \Str::slug($state)) : null)
+                            ->afterStateUpdated(fn ($state, $set, $get) => $get('slug') === '' || $get('slug') === null ? $set('slug', Str::slug($state)) : null)
                             ->helperText('Полное название товара для отображения на сайте')
                             ->columnSpanFull(),
 
@@ -82,11 +84,11 @@ class ProductForm
                             ->helperText('ЧПУ для URL. Генерируется из названия автоматически, можно изменить при необходимости')
                             ->columnSpanFull(),
 
-                        TextInput::make('subtitle')
+                        /* TextInput::make('subtitle')
                             ->label(__('filament/admin_sv/product_resource.subtitle'))
                             ->maxLength(255)
                             ->helperText('Краткий подзаголовок товара (опционально)')
-                            ->columnSpanFull(),
+                            ->columnSpanFull(), */
 
                         // Описания: Textarea вместо RichEditor из-за бага в Filament 4.3 (TipTap init "length"/getEditor undefined).
                         // HTML в description/excerpt на фронте рендерится как есть; при желании вернуть RichEditor — обновить Filament.
@@ -336,173 +338,234 @@ class ProductForm
     protected static function attributesSection(): Section
     {
         return Section::make('Характеристики товара')
-                    ->description('Характеристики с значениями (материал, производитель и т.д.). Компактное отображение.')
-                    ->collapsible()
-                    ->collapsed()
+            ->description('Характеристики с значениями (материал, производитель и т.д.). Компактное отображение.')
+            ->collapsible()
+            ->collapsed()
+            ->schema([
+                Repeater::make('product_attributes')
+                    ->label('Характеристики')
+                    ->afterStateHydrated(function (callable $set, callable $get, ?Product $record): void {
+                        $current = $get('product_attributes') ?? [];
+                        if (!empty($current)) {
+                            return;
+                        }
+
+                        if (!$record) {
+                            return;
+                        }
+
+                        $record->loadMissing('taxons');
+                        $taxons = $record->taxons;
+
+                        if ($taxons->isEmpty()) {
+                            return;
+                        }
+
+                        $slugs = $taxons->pluck('slug')->filter()->unique()->values()->all();
+                        if (empty($slugs)) {
+                            return;
+                        }
+
+                        $categories = Category::query()
+                            ->whereIn('slug', $slugs)
+                            ->with('variationAttributes')
+                            ->get();
+
+                        $defaultAttributes = $categories
+                            ->flatMap(fn (Category $category) => $category->variationAttributes ?? collect())
+                            ->unique('id')
+                            ->values();
+
+                        if ($defaultAttributes->isEmpty()) {
+                            return;
+                        }
+
+                        $initial = [];
+                        foreach ($defaultAttributes as $attribute) {
+                            $initial[] = [
+                                'attribute_id' => $attribute->id,
+                                'attribute_value_id' => null,
+                            ];
+                        }
+
+                        if (!empty($initial)) {
+                            $set('product_attributes', $initial);
+                        }
+                    })
                     ->schema([
-                        Repeater::make('product_attributes')
-                            ->label('Характеристики')
-                            ->afterStateHydrated(function (callable $set, callable $get, ?Product $record): void {
-                                // Если записей ещё нет, заполняем по умолчанию из атрибутов категорий
-                                $current = $get('product_attributes') ?? [];
-                                if (!empty($current)) {
-                                    return;
-                                }
-
-                                if (!$record) {
-                                    return;
-                                }
-
-                                // Получаем таксоны (Vanilo Taxon), по ним находим наши категории и их variationAttributes.
-                                $record->loadMissing('taxons');
-                                $taxons = $record->taxons;
-
-                                if ($taxons->isEmpty()) {
-                                    return;
-                                }
-
-                                $slugs = $taxons->pluck('slug')->filter()->unique()->values()->all();
-                                if (empty($slugs)) {
-                                    return;
-                                }
-
-                                $categories = Category::query()
-                                    ->whereIn('slug', $slugs)
-                                    ->with('variationAttributes')
-                                    ->get();
-
-                                $defaultAttributes = $categories
-                                    ->flatMap(fn (Category $category) => $category->variationAttributes ?? collect())
-                                    ->unique('id')
-                                    ->values();
-
-                                if ($defaultAttributes->isEmpty()) {
-                                    return;
-                                }
-
-                                $initial = [];
-                                foreach ($defaultAttributes as $attribute) {
-                                    $initial[] = [
-                                        'attribute_id' => $attribute->id,
-                                        'attribute_value_id' => null,
-                                    ];
-                                }
-
-                                if (!empty($initial)) {
-                                    $set('product_attributes', $initial);
+                        Select::make('attribute_id')
+                            ->label('Характеристика')
+                            ->options(Attribute::orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($set) {
+                                $set('attribute_value_id', null);
+                                $set('custom_value', null);
+                            })
+                            // 👇 INLINE-СОЗДАНИЕ ХАРАКТЕРИСТИКИ
+                            ->createOptionForm([
+                                TextInput::make('name')
+                                    ->label('Название характеристики')
+                                    ->required()
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                                TextInput::make('slug')
+                                    ->label('Слаг')
+                                    ->required()
+                                    ->unique(ignoreRecord: true)
+                                    ->helperText('Оставьте пустым для автоматической генерации'),
+                                Select::make('type')
+                                    ->label('Тип')
+                                    ->options([
+                                        'select' => 'Список',
+                                        'color' => 'Цвет',
+                                        'string' => 'Строка',
+                                        'text' => 'Текст',
+                                        'number' => 'Число',
+                                    ])
+                                    ->default('select')
+                                    ->required(),
+                                TextInput::make('sort_order')
+                                    ->label('Порядок')
+                                    ->numeric()
+                                    ->default(0),
+                                Toggle::make('is_use_in_variations')
+                                    ->label('Участвует в вариациях')
+                                    ->default(false),
+                                Toggle::make('is_filterable')
+                                    ->label('Показывать в фильтрах')
+                                    ->default(true),
+                                Toggle::make('is_multiple')
+                                    ->label('Множественный выбор')
+                                    ->default(false)
+                                    ->visible(fn ($get) => $get('type') === 'color' || in_array($get('type'), ['select', 'string'], true)),
+                                Toggle::make('allow_custom_value')
+                                    ->label('Разрешить ручной ввод')
+                                    ->default(false)
+                                    ->visible(fn ($get) => $get('type') !== 'color'),
+                            ])
+                            ->createOptionUsing(function (array $data): int {
+                                $attribute = Attribute::create($data);
+                                return $attribute->id;
+                            }),
+                        
+                        Select::make('attribute_value_id')
+                            ->label('Значение (из списка)')
+                            ->options(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) return [];
+                                
+                                return AttributeValue::where('attribute_id', $attributeId)
+                                    ->orderBy('sort_order')
+                                    ->orderBy('value')
+                                    ->pluck('value', 'id')
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->multiple(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) return false;
+                                $attribute = Attribute::find($attributeId);
+                                return $attribute && $attribute->is_multiple;
+                            })
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set) {
+                                if (!empty($state)) {
+                                    $set('custom_value', null);
                                 }
                             })
-                            ->schema([
-                                Select::make('attribute_id')
-                                    ->label('Характеристика')
-                                    ->options(Attribute::orderBy('name')->pluck('name', 'id'))
-                                    ->searchable()
-                                    ->preload()
-                                    ->required()
-                                    ->reactive()
-                                    ->afterStateUpdated(function ($set) {
-                                        $set('attribute_value_id', null);
-                                        $set('custom_value', null);
-                                    }),
-                                
-                                Select::make('attribute_value_id')
-                                    ->label('Значение (из списка)')
-                                    ->options(function ($get) {
-                                        $attributeId = $get('attribute_id');
-                                        if (!$attributeId) {
-                                            return [];
-                                        }
+                            ->required(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) return false;
+                                $attribute = Attribute::find($attributeId);
+                                return ($attribute->is_required ?? false) && empty($get('custom_value'));
+                            })
+                            ->disabled(fn($get) => !$get('attribute_id'))
+                            
+                            ->createOptionForm(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                $attribute = $attributeId ? Attribute::find($attributeId) : null;
+                                $isColor = $attribute && $attribute->type === 'color';
+                                $isString = $attribute && in_array($attribute->type, ['string', 'text'], true);
 
-                                        return AttributeValue::where('attribute_id', $attributeId)
-                                            ->orderBy('sort_order')
-                                            ->orderBy('value')
-                                            ->pluck('value', 'id')
-                                            ->toArray();
-                                    })
-                                    ->searchable()
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, $set) {
-                                        if (!empty($state)) {
-                                            $set('custom_value', null);
-                                        }
-                                    })
-                                    ->required(function ($get) {
-                                        $attributeId = $get('attribute_id');
-                                        if (!$attributeId) {
-                                            return false;
-                                        }
+                                $fields = [
+                                    TextInput::make('value')
+                                        ->label('Название значения')
+                                        ->required()
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                                    TextInput::make('slug')
+                                        ->label('Слаг')
+                                        ->helperText('Оставьте пустым для автоматической генерации'),
+                                ];
 
-                                        $attribute = Attribute::find($attributeId);
-                                        if (!$attribute) {
-                                            return false;
-                                        }
+                                if ($isColor) {
+                                    $fields[] = ColorPicker::make('color_code')
+                                        ->label('HEX цвета')
+                                        ->helperText('Цвет чипа на карточке товара');
+                                }
 
-                                        // Обязательное поле, если атрибут required
-                                        // и при этом не заполнен ручной ввод
-                                        return ($attribute->is_required ?? false)
-                                            && empty($get('custom_value'));
-                                    })
-                                    ->disabled(fn($get) => !$get('attribute_id')),
+                                if ($isString || !$isColor) {
+                                    $fields[] = TextInput::make('sort_order')
+                                        ->label('Порядок')
+                                        ->numeric()
+                                        ->default(0);
+                                }
 
-                                TextInput::make('custom_value')
-                                    ->label('Значение (ручной ввод)')
-                                    ->maxLength(500)
-                                    ->visible(function ($get) {
-                                        $attributeId = $get('attribute_id');
-                                        if (!$attributeId) {
-                                            return false;
-                                        }
+                                return $fields;
+                            })
+                            ->createOptionUsing(function (array $data, $get): int {
+                                $attributeId = $get('attribute_id');
+                                $data['attribute_id'] = $attributeId;
+                                $value = AttributeValue::create($data);
+                                return $value->id;
+                            }),
 
-                                        $attribute = Attribute::find($attributeId);
-                                        if (!$attribute) {
-                                            return false;
-                                        }
-
-                                        // Ручной ввод доступен для типов, у которых есть смысл
-                                        // комбинировать список и свой текст (string, text, number_input),
-                                        // и только когда это разрешено в настройках атрибута
-                                        return $attribute->allow_custom_value
-                                            && in_array($attribute->type, ['string', 'text', 'number_input'], true);
-                                    })
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, $set) {
-                                        if ($state !== null && $state !== '') {
-                                            $set('attribute_value_id', null);
-                                        }
-                                    })
-                                    ->required(function ($get) {
-                                        $attributeId = $get('attribute_id');
-                                        if (!$attributeId) {
-                                            return false;
-                                        }
-
-                                        $attribute = Attribute::find($attributeId);
-                                        if (!$attribute) {
-                                            return false;
-                                        }
-
-                                        // Для обязательных атрибутов требуем либо выбор значения,
-                                        // либо заполненный ручной ввод
-                                        return ($attribute->is_required ?? false)
-                                            && empty($get('attribute_value_id'));
-                                    }),
-                            ])
-                            ->columns(1)
-                            ->compact()
-                            ->defaultItems(0)
-                            ->addActionLabel('Добавить характеристику')
-                            ->collapsible()
-                            ->itemLabel(fn(array $state): ?string => 
-                                ($attribute = Attribute::find($state['attribute_id'] ?? null))
-                                    ? $attribute->name . 
-                                      (($value = AttributeValue::find($state['attribute_value_id'] ?? null))
-                                          ? ': ' . $value->value 
-                                          : '')
-                                    : 'Новая характеристика'
-                            )
-                            ->helperText('Выберите характеристику и её значение. Для добавления новых значений используйте раздел "Характеристики" в меню.')
-                            ->columnSpanFull(),
-                    ]);
+                        TextInput::make('custom_value')
+                            ->label('Значение (ручной ввод)')
+                            ->maxLength(500)
+                            ->visible(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) return false;
+                                $attribute = Attribute::find($attributeId);
+                                return $attribute && $attribute->allow_custom_value
+                                    && in_array($attribute->type, ['string', 'text', 'number_input'], true);
+                            })
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set) {
+                                if ($state !== null && $state !== '') {
+                                    $set('attribute_value_id', null);
+                                }
+                            })
+                            ->required(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) return false;
+                                $attribute = Attribute::find($attributeId);
+                                return ($attribute->is_required ?? false) && empty($get('attribute_value_id'));
+                            }),
+                    ])
+                    ->columns(1)
+                    ->compact()
+                    ->defaultItems(0)
+                    ->addActionLabel('Добавить характеристику')
+                    ->collapsible()
+                    ->itemLabel(fn(array $state): ?string => 
+                        ($attribute = Attribute::find($state['attribute_id'] ?? null))
+                            ? $attribute->name . 
+                            (isset($state['attribute_value_id']) && !empty($state['attribute_value_id'])
+                                ? (is_array($state['attribute_value_id'])
+                                    ? ' (несколько значений)'
+                                    : (($value = AttributeValue::find($state['attribute_value_id']))
+                                        ? ': ' . $value->value
+                                        : ''))
+                                : '')
+                            : 'Новая характеристика'
+                    )
+                    ->helperText('Выберите характеристику и её значение. Для добавления новых значений используйте раздел "Характеристики" в меню.')
+                    ->columnSpanFull(),
+            ]);
     }
 
     protected static function colorSection(): Section
