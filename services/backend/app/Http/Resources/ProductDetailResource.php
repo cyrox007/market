@@ -144,26 +144,41 @@ class ProductDetailResource extends JsonResource
                 if (!$attr) {
                     continue;
                 }
-                $values = $sourceProduct->getAvailableValuesForVariationAttribute($attrSlug);
-                if ($values->isEmpty()) {
+
+                // ГРУППИРУЕМ ЗНАЧЕНИЯ ИЗ ВСЕХ ВАРИАЦИЙ
+                $allValues = collect();
+
+                // Проходим по всем вариациям
+                foreach ($this->variants as $variant) {
+                    $variantAttrs = $variant->getVariationAttributesForApi();
+                    foreach ($variantAttrs as $va) {
+                        if ($va['attribute_slug'] === $attrSlug) {
+                            $allValues->push([
+                                'slug' => $va['value_slug'] ?? null,
+                                'name' => $va['value_name'] ?? $va['value_slug'] ?? null,
+                                'code' => $va['code'] ?? null,
+                            ]);
+                        }
+                    }
+                }
+
+                // Убираем дубликаты по slug
+                $uniqueValues = $allValues->unique('slug')->values()->toArray();
+
+                if (empty($uniqueValues)) {
                     continue;
                 }
+
                 $variationAttributes[] = [
                     'attribute_slug' => $attr->slug,
                     'attribute_name' => $attr->name,
                     'type' => $attr->type ?? null,
-                    'values' => $values->map(function ($v) {
-                        return [
-                            'id' => $v->id ?? null,
-                            'name' => $v->name ?? $v->value ?? null,
-                            'slug' => $v->slug ?? null,
-                            'code' => $v->color_code ?? null,
-                        ];
-                    })->values()->toArray(),
+                    'values' => $uniqueValues,
+                    'is_multiple' => (bool) $attr->is_multiple, // 👈 ДОБАВЛЯЕМ ФЛАГ!
                 ];
             }
 
-            // selected_variation: для вариации — из её variantAttributeValues; для родителя — из самой дешёвой вариации (заполним ниже после построения variants)
+            // selected_variation: для вариации — из её variantAttributeValues; для родителя — из самой дешёвой вариации
             if ($isVariant) {
                 $selectedVariation = $this->resource->getVariationAttributesForApi();
             }
@@ -190,7 +205,28 @@ class ProductDetailResource extends JsonResource
 
                 $variantSpecs = $variant->buildSpecificationsForApi();
                 $variantStock = (int) round((float) ($warehouseStockResolver->resolveForProduct($variant, $region) ?? 0));
+                
+                $colorAttr = \App\Models\Product\Attribute::where('slug', 'color')->first();
+                $colorValues = $colorAttr 
+                    ? $variant->variantAttributes()->wherePivot('attribute_id', $colorAttr->id)->get()
+                    : collect();
 
+                $colors = [];
+                foreach ($colorValues as $attr) {
+                    $pivot = $attr->pivot;
+                    $valueId = $pivot->attribute_value_id;
+                    if ($valueId) {
+                        $value = \App\Models\Product\AttributeValue::find($valueId);
+                        if ($value) {
+                            $colors[] = [
+                                'id' => $value->id,
+                                'value' => $value->value,
+                                'slug' => $value->slug,
+                                'color_code' => $value->color_code,
+                            ];
+                        }
+                    }
+                }
                 return [
                     'id' => $variant->id,
                     'sku' => $variant->sku,
@@ -204,6 +240,7 @@ class ProductDetailResource extends JsonResource
                     'description' => $variant->description,
                     'excerpt' => $variant->excerpt,
                     'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
+                    'colors' => $colors,
                 ];
             })->values()->toArray();
 
@@ -401,7 +438,7 @@ class ProductDetailResource extends JsonResource
             'rating' => $this->rating ?? 4.8,
             'reviews_count' => $this->reviews_count ?? 0,
             'description' => $this->description,
-            'excerpt' => $this->excerpt,
+            //'excerpt' => $this->excerpt,
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
             'parent_id' => $this->when($isVariant, $this->parent_product_id),
@@ -421,6 +458,7 @@ class ProductDetailResource extends JsonResource
             'seo' => SeoApiTransformer::forModel($this->resource),
             'feature_blocks' => $featureBlocks,
             'delivery_blocks' => $deliveryBlocks,
+            'colors' => $this->getColorsArray(),
         ];
     }
 }

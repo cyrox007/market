@@ -23,6 +23,10 @@ class SyncVariantVariationAttributesAction
         Product $parentProduct,
         ?array $forcedAttributeIds = null,
     ): void {
+        \Log::info('[SyncVariantVariationAttributesAction] data', [
+            'data' => $data,
+            'variant_id' => $variant->id,
+        ]);
         $attributes = $this->getVariationAttributesForProductAction->execute($parentProduct, $forcedAttributeIds);
 
         if ($attributes->isEmpty()) {
@@ -63,11 +67,49 @@ class SyncVariantVariationAttributesAction
      */
     protected function insertAttributePivot(Product $variant, Attribute $attr, array $data, $now): bool
     {
-        $valueId = $data['variation_attr_' . $attr->id] ?? null;
+        $valueData = $data['variation_attr_' . $attr->id] ?? null;
         $custom = $data['variation_custom_' . $attr->id] ?? null;
         $customStr = $custom !== null && $custom !== '' ? (string) $custom : null;
         $isStringType = in_array($attr->type, ['string', 'text'], true);
-
+        
+        $inserted = false;
+        
+        // Если это множественный атрибут (is_multiple = true)
+        if ($attr->is_multiple) {
+            // Преобразуем в массив, если это не массив
+            $valueIds = is_array($valueData) ? $valueData : (empty($valueData) ? [] : [$valueData]);
+            
+            foreach ($valueIds as $valueId) {
+                if ($valueId !== null && $valueId !== '') {
+                    DB::table('product_variant_attributes')->insert([
+                        'product_id' => $variant->id,
+                        'attribute_id' => $attr->id,
+                        'attribute_value_id' => $valueId,
+                        'custom_value' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                    $inserted = true;
+                }
+            }
+            
+            // Если есть кастомное значение — добавляем отдельно
+            if ($attr->allow_custom_value && $customStr !== null) {
+                DB::table('product_variant_attributes')->insert([
+                    'product_id' => $variant->id,
+                    'attribute_id' => $attr->id,
+                    'attribute_value_id' => null,
+                    'custom_value' => $customStr,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $inserted = true;
+            }
+            
+            return $inserted;
+        }
+        
+        // Старая логика для одиночных атрибутов
         if ($isStringType && $customStr !== null) {
             DB::table('product_variant_attributes')->insert([
                 'product_id' => $variant->id,
@@ -77,20 +119,18 @@ class SyncVariantVariationAttributesAction
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-
             return true;
         }
 
-        if ($valueId !== null && $valueId !== '') {
+        if ($valueData !== null && $valueData !== '') {
             DB::table('product_variant_attributes')->insert([
                 'product_id' => $variant->id,
                 'attribute_id' => $attr->id,
-                'attribute_value_id' => $valueId,
+                'attribute_value_id' => $valueData,
                 'custom_value' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-
             return true;
         }
 
@@ -103,7 +143,6 @@ class SyncVariantVariationAttributesAction
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-
             return true;
         }
 
