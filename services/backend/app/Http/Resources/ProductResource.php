@@ -199,7 +199,7 @@ class ProductResource extends JsonResource
                     'slug' => $taxon->slug ?? \Str::slug($taxon->name),
                 ])->values()
             ),
-            //'excerpt' => $this->excerpt,
+            'excerpt' => $this->excerpt,
             'is_visible_in_region' => $isVisibleInRegion,
             'seo' => $isListView ? null : SeoApiTransformer::forModel($this->resource),
         ];

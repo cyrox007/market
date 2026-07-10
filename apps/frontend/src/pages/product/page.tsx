@@ -56,7 +56,7 @@ function hasMeaningfulProductText(value: string | null | undefined): boolean {
 
 /** Описание есть у родителя или хотя бы у одной вариации — вкладку не прячем при смене ТП. */
 function productHasAnyDescription(product: ProductDetail): boolean {
-	if (hasMeaningfulProductText(product.description)) {
+	if (hasMeaningfulProductText(product.description) || hasMeaningfulProductText(product.excerpt)) {
 		return true;
 	}
 
@@ -85,12 +85,12 @@ export default function Product() {
 	// Это критично для предотвращения показа "Товар не найден"
 	const initialProductForState = hasSSRProduct ? initialProduct : null;
 
-	const [product, setProduct] = useState<ProductDetail | null>(initialProductForState);
+	const [product, setProduct] = useState<ProductDetail | null | undefined>(initialProductForState);
 	// isLoading = false если есть SSR данные, иначе true
 	const [isLoading, setIsLoading] = useState(!hasSSRProduct);
 
 	// Выбранная комбинация атрибутов вариации: attribute_slug -> value_slug (опции берём из product.variation_attributes)
-	const [selectedVariation, setSelectedVariation] = useState<Record<string, string>>({});
+	const [selectedVariation, setSelectedVariation] = useState<Record<string, string[]>>({});
 
 	useLayoutEffect(() => {
 		if (hasSSRProduct && initialProduct && (!slug || initialProduct.slug === slug) && !product) {
@@ -134,23 +134,40 @@ export default function Product() {
 	}, [selectedVariation]);
 
 	/** Вариация подходит, если все её атрибуты совпадают с выбранными (у вариации может быть меньше атрибутов, чем у товара). */
-	const variantMatchesSelection = useCallback((v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }, selection: Record<string, string>): boolean => {
-		const va = v.variation_attributes ?? [];
-		if (va.length === 0) return Object.keys(selection).length === 0;
+	const variantMatchesSelection = useCallback((v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number; }, selection: Record<string, string[]>,): boolean => {
+		const attrs = v.variation_attributes ?? [];
 
-		// Проверяем, что все атрибуты вариации совпадают с выбранными
-		// Важно: проверяем только те атрибуты, которые есть у вариации
-		// Игнорируем лишние атрибуты в selection - они могут быть из других вариаций
-		for (const a of va) {
-			const selectedVal = selection[a.attribute_slug];
-			// Если атрибут не выбран или выбранное значение не совпадает - вариация не подходит
-			if (selectedVal === undefined || selectedVal === '' || a.value_slug !== selectedVal) {
+		if (attrs.length === 0) {
+			return Object.keys(selection).length === 0;
+		}
+
+		// Собираем карту значений вариации
+		const variantMap: Record<string, string[]> = {};
+
+		for (const attr of attrs) {
+			if (!variantMap[attr.attribute_slug]) {
+				variantMap[attr.attribute_slug] = [];
+			}
+
+			variantMap[attr.attribute_slug].push(attr.value_slug);
+		}
+
+		// Проверяем выбранные значения
+		for (const [attributeSlug, selectedValues] of Object.entries(selection)) {
+			if (!selectedValues.length) continue;
+
+			const variantValues = variantMap[attributeSlug] ?? [];
+
+			// Все выбранные значения должны присутствовать у вариации
+			if (!selectedValues.every(v => variantValues.includes(v))) {
 				return false;
 			}
 		}
 
 		return true;
-	}, []);
+	},
+		[],
+	);
 
 	// Подставляем атрибуты вариации: среди совместимых с текущим выбором берём с макс. числом атрибутов (чтобы показывать материал, размер и т.д.)
 	useEffect(() => {
@@ -167,11 +184,39 @@ export default function Product() {
 		// Совместима, если по всем атрибутам вариации выбор не противоречит (нет значения или совпадает)
 		const compatible = (v: ProductVariant) => {
 			const attrs = v.variation_attributes ?? [];
-			if (attrs.length === 0) return Object.keys(selectedVariation).length === 0;
-			for (const a of attrs) {
-				const sel = selectedVariation[a.attribute_slug];
-				if (sel !== undefined && sel !== '' && sel !== a.value_slug) return false;
+
+			if (attrs.length === 0) {
+				return Object.keys(selectedVariation).length === 0;
 			}
+
+			// строим карту атрибут -> значения вариации
+			const variantMap: Record<string, string[]> = {};
+
+			for (const a of attrs) {
+				if (!variantMap[a.attribute_slug]) {
+					variantMap[a.attribute_slug] = [];
+				}
+
+				variantMap[a.attribute_slug].push(a.value_slug);
+			}
+
+			for (const [slug, rawValues] of Object.entries(selectedVariation)) {
+
+				const selectedValues = Array.isArray(rawValues)
+					? rawValues
+					: rawValues
+						? [rawValues]
+						: [];
+
+				if (selectedValues.length === 0) continue;
+
+				const variantValues = variantMap[slug] ?? [];
+
+				if (!selectedValues.every(v => variantValues.includes(v))) {
+					return false;
+				}
+			}
+
 			return true;
 		};
 
@@ -180,10 +225,18 @@ export default function Product() {
 		// Сначала ищем точное совпадение (variantMatchesSelection)
 		const exactMatch = matching.find((v: ProductVariant) => variantMatchesSelection(v, selectedVariation));
 		if (exactMatch?.variation_attributes?.length) {
-			const fromVariant = exactMatch.variation_attributes.reduce((acc: Record<string, string>, a: SelectedVariationItem) => {
-				acc[a.attribute_slug] = a.value_slug;
-				return acc;
-			}, {});
+			const fromVariant = exactMatch.variation_attributes.reduce(
+				(acc: Record<string, string[]>, a) => {
+					if (!acc[a.attribute_slug]) {
+						acc[a.attribute_slug] = [];
+					}
+
+					acc[a.attribute_slug].push(a.value_slug);
+
+					return acc;
+				},
+				{},
+			);
 
 			setSelectedVariation((prev) => {
 				// Проверяем, нужно ли обновлять
@@ -205,31 +258,50 @@ export default function Product() {
 		// Если точного совпадения нет, но есть совместимые - берем самую богатую
 		if (matching.length > 0) {
 			const variant = matching.reduce((best, v) =>
-				(v.variation_attributes?.length ?? 0) > (best.variation_attributes?.length ?? 0) ? v : best
+				(v.variation_attributes?.length ?? 0) >
+					(best.variation_attributes?.length ?? 0)
+					? v
+					: best
 			);
 
 			if (variant?.variation_attributes?.length) {
-				const fromVariant = variant.variation_attributes.reduce((acc: Record<string, string>, a: SelectedVariationItem) => {
-					acc[a.attribute_slug] = a.value_slug;
-					return acc;
-				}, {});
+				const fromVariant = variant.variation_attributes.reduce(
+					(acc: Record<string, string[]>, a: SelectedVariationItem) => {
+						if (!acc[a.attribute_slug]) {
+							acc[a.attribute_slug] = [];
+						}
+
+						acc[a.attribute_slug].push(a.value_slug);
+
+						return acc;
+					},
+					{},
+				);
 
 				setSelectedVariation((prev) => {
-					// Проверяем, нужно ли обновлять
-					let needsUpdate = false;
-					for (const [k, val] of Object.entries(fromVariant)) {
-						if (prev[k] !== val) {
-							needsUpdate = true;
-							break;
+					const same = Object.keys(fromVariant).every((key) => {
+						const prevValues = prev[key] ?? [];
+						const newValues = fromVariant[key] ?? [];
+
+						if (prevValues.length !== newValues.length) {
+							return false;
 						}
+
+						return prevValues.every(v => newValues.includes(v));
+					});
+
+					if (same) {
+						return prev;
 					}
-					if (!needsUpdate) return prev;
-					// Сохраняем текущие значения и добавляем/обновляем только атрибуты из вариации
-					return { ...prev, ...fromVariant };
+
+					return {
+						...prev,
+						...fromVariant,
+					};
 				});
 			}
 		}
-	}, [product?.id, product?.is_variable, product?.is_variant, product?.variants, selectedVariation]);
+	}, [product?.id, product?.is_variable, product?.is_variant, product?.variants]);
 
 	const [showShareMenu, setShowShareMenu] = useState(false);
 	const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -239,8 +311,8 @@ export default function Product() {
 	const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
 	const { changeProductQuantity } = useCartActions();
 	const { refreshWishlistCount, refreshCompareCount } = useCounters();
-	const { region: clientRegion, getRegionId } = useRegion();
-	const region = ssrRegion || clientRegion;
+	const { /* region: clientRegion, */ getRegionId } = useRegion();
+	//const region = ssrRegion || clientRegion;
 	const regionId = getRegionId();
 	const prefetchProduct = usePrefetchProduct();
 
@@ -255,7 +327,7 @@ export default function Product() {
 
 	const {
 		data: productPayload,
-		error: productLoadError,
+		//error: productLoadError,
 		isLoading: isProductFetching,
 		mutate: mutateProduct,
 	} = useSWR(
@@ -331,10 +403,18 @@ export default function Product() {
 
 		if (data.product.selected_variation?.length) {
 			setSelectedVariation(
-				data.product.selected_variation.reduce((acc: Record<string, string>, s: SelectedVariationItem) => {
-					acc[s.attribute_slug] = s.value_slug;
-					return acc;
-				}, {}),
+				data.product.selected_variation.reduce(
+					(acc: Record<string, string[]>, s: SelectedVariationItem) => {
+						if (!acc[s.attribute_slug]) {
+							acc[s.attribute_slug] = [];
+						}
+
+						acc[s.attribute_slug].push(s.value_slug);
+
+						return acc;
+					},
+					{},
+				),
 			);
 		} else if (product?.slug !== slug) {
 			setSelectedVariation({});
@@ -385,11 +465,23 @@ export default function Product() {
 			// Ищем вариацию, которая совместима с текущим выбором
 			const compatible = (v: ProductVariant) => {
 				const va = v.variation_attributes ?? [];
-				if (va.length === 0) return Object.keys(selectedVariation).length === 0;
-				for (const a of va) {
-					const sel = selectedVariation[a.attribute_slug];
-					if (sel !== undefined && sel !== '' && sel !== a.value_slug) return false;
+
+				if (va.length === 0) {
+					return Object.keys(selectedVariation).length === 0;
 				}
+
+				for (const a of va) {
+					const selected = selectedVariation[a.attribute_slug];
+
+					if (
+						selected &&
+						selected.length > 0 &&
+						!selected.includes(a.value_slug)
+					) {
+						return false;
+					}
+				}
+
 				return true;
 			};
 
@@ -563,12 +655,14 @@ export default function Product() {
 	};
 
 	// Вспомогательная функция для определения ID товара для избранного
-	const getProductIdForWishlist = (product: Product): number => {
+	const getProductIdForWishlist = (product: Product | null | undefined): number => {
+		if (!product) return 0;
 		return product.id;
 	};
 
 	// Вспомогательная функция для определения ID товара для сравнения
-	const getProductIdForCompare = (product: Product): number => {
+	const getProductIdForCompare = (product: Product | null | undefined): number => {
+		if (!product) return 0;
 		if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
 			return product.first_available_variant_id;
 		}
@@ -636,52 +730,55 @@ export default function Product() {
 	};
 
 	/** Выбор значения одного атрибута вариации. При клике по недоступному (opacity) — переключаем на первую доступную вариацию с этим значением. */
-	const handleSelectVariationAttribute = (attributeSlug: string, valueSlug: string, isDisabledClick = false) => {
+	const handleSelectVariationAttribute = (
+		attributeSlug: string,
+		valueSlug: string,
+		isDisabledClick = false,
+	) => {
 		if (!valueSlug || !product?.variants?.length) return;
 
 		if (isDisabledClick) {
 			const firstAvailable = product.variants.find(
-				(v: ProductVariant) =>
+				(v) =>
 					(v.in_stock ?? true) &&
 					(v.stock ?? 0) > 0 &&
-					v.variation_attributes?.some((a: SelectedVariationItem) => a.attribute_slug === attributeSlug && a.value_slug === valueSlug)
+					v.variation_attributes?.some(
+						(a) =>
+							a.attribute_slug === attributeSlug &&
+							a.value_slug === valueSlug,
+					),
 			);
+
 			if (firstAvailable?.variation_attributes?.length) {
-				const next = firstAvailable.variation_attributes.reduce((acc: Record<string, string>, a: SelectedVariationItem) => {
-					acc[a.attribute_slug] = a.value_slug;
-					return acc;
-				}, {});
+				const next: Record<string, string[]> = {};
+
+				firstAvailable.variation_attributes.forEach((a) => {
+					if (!next[a.attribute_slug]) {
+						next[a.attribute_slug] = [];
+					}
+
+					next[a.attribute_slug].push(a.value_slug);
+				});
+
 				setSelectedVariation(next);
 			}
+
 			return;
 		}
 
 		setSelectedVariation((prev) => {
-			const attrSlugs = product?.variation_attributes?.map((a: VariationAttributeOption) => a.attribute_slug) ?? [];
-			if (!attrSlugs.length) return { ...prev, [attributeSlug]: valueSlug };
+			const next: Record<string, string[]> = {
+				...prev,
+			};
 
-			// Только вариации в наличии — иначе можно получить несуществующую/недоступную комбинацию
-			const variantsWithThisValue = (product?.variants ?? []).filter(
-				(v: ProductVariant) =>
-					(v.in_stock ?? true) &&
-					(v.stock ?? 0) > 0 &&
-					v.variation_attributes?.some((a: SelectedVariationItem) => a.attribute_slug === attributeSlug && a.value_slug === valueSlug)
-			);
+			const current = next[attributeSlug] ?? [];
 
-			if (variantsWithThisValue.length === 0) return prev;
-
-			const next: Record<string, string> = { ...prev, [attributeSlug]: valueSlug };
-			for (const slug of attrSlugs) {
-				if (slug === attributeSlug) continue;
-				const currentSlug = next[slug];
-				const available = !currentSlug || variantsWithThisValue.some((v: ProductVariant) =>
-					v.variation_attributes?.some((a: SelectedVariationItem) => a.attribute_slug === slug && a.value_slug === currentSlug)
-				);
-				if (!available) {
-					const first = variantsWithThisValue[0].variation_attributes?.find((a: SelectedVariationItem) => a.attribute_slug === slug);
-					if (first) next[slug] = first.value_slug;
-				}
+			if (current.includes(valueSlug)) {
+				next[attributeSlug] = current.filter((v) => v !== valueSlug);
+			} else {
+				next[attributeSlug] = [...current, valueSlug];
 			}
+
 			return next;
 		});
 	};
@@ -690,25 +787,32 @@ export default function Product() {
 	const isValueAvailableForAttribute = (attributeSlug: string, valueSlug: string): boolean => {
 		if (!product?.is_variable || !product.variants?.length) return true;
 
-		// Создаем временный выбор с новым значением
 		const tempSelection = { ...selectedVariation, [attributeSlug]: valueSlug };
 
-		return product.variants.some((v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) => {
-			// Проверяем наличие в наличии
+		return product.variants.some((v) => {
 			if (!(v.in_stock ?? true) || (v.stock ?? 0) <= 0) return false;
 
 			const va = v.variation_attributes ?? [];
 			if (va.length === 0) return Object.keys(tempSelection).length === 0;
 
-			// Проверяем, что вариация имеет это значение
-			const hasThis = va.some((a: SelectedVariationItem) => a.attribute_slug === attributeSlug && a.value_slug === valueSlug);
-			if (!hasThis) return false;
+			const variantAttrSlugs = va.map(a => a.attribute_slug);
+			const selectedAttrSlugs = Object.keys(tempSelection);
 
-			// Проверяем совместимость с остальными выбранными атрибутами
-			// Вариация совместима, если все её атрибуты не противоречат выбору
-			for (const a of va) {
-				const selectedVal = tempSelection[a.attribute_slug];
-				if (selectedVal !== undefined && selectedVal !== '' && a.value_slug !== selectedVal) {
+			for (const slug of selectedAttrSlugs) {
+				if (!variantAttrSlugs.includes(slug)) continue;
+
+				// 👇 ЗАЩИТА: приводим к массиву
+				let selectedValues = tempSelection[slug] ?? [];
+				if (!Array.isArray(selectedValues)) {
+					selectedValues = [selectedValues];
+				}
+				if (selectedValues.length === 0) continue;
+
+				const variantValues = va
+					.filter(a => a.attribute_slug === slug)
+					.map(a => a.value_slug);
+
+				if (!selectedValues.every(v => variantValues.includes(v))) {
 					return false;
 				}
 			}
@@ -801,50 +905,53 @@ export default function Product() {
 	const hasVariantImages = variantForImages?.images && variantForImages.images.length > 0;
 	const productImages = hasVariantImages
 		? variantForImages!.images
-		: (product.images?.length ? product.images : product.image_hd ? [product.image_hd] : product.image ? [product.image] : []);
+		: (product?.images?.length ? product.images : product?.image_hd ? [product.image_hd] : product?.image ? [product.image] : []);
 
 	// Вычисляем выбранную вариацию и все отображаемые данные ОДИН РАЗ перед рендером
 	const selectedVariant = getSelectedVariant() ?? (
-		product.is_variant && product.variants?.length
+		product?.is_variant && product.variants?.length
 			? product.variants.find((variant) => variant.id === product.id) ?? null
 			: null
 	);
 
 	// Derived state: все данные для отображения вычисляются из product + selectedVariant
-	const displayPrice = selectedVariant?.price ?? product.price;
-	const displayOldPrice = selectedVariant?.old_price ?? product.old_price;
-	const displaySku = selectedVariant?.sku ?? product.sku;
+	const displayPrice = selectedVariant?.price ?? product?.price ?? 0;
+	const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
+	//const displaySku = selectedVariant?.sku ?? product?.sku;
 	const bundleSetTotalPrice = bundleProducts.length === 0
 		? null
 		: (displayPrice ?? 0) + bundleProducts.reduce((sum, item) => sum + (item.price ?? 0), 0);
-	const stockBadge = resolveProductStockBadge({
-		product,
-		selectedVariant,
-		stockSettings: {
-			...stockSettings,
-			show_exact_above: 0,
-		},
-	});
+	const stockBadge = product
+		? resolveProductStockBadge({
+			product,
+			selectedVariant,
+			stockSettings: {
+				...stockSettings,
+				show_exact_above: 0,
+			},
+		})
+		: { badgeLabel: 'Нет в наличии', badgeClass: 'bg-gray-200 text-gray-600', stock: 0 };
+
 	const displayDescription = selectedVariant && hasMeaningfulProductText(selectedVariant.description)
 		? selectedVariant.description!
-		: product.description;
-	/* const displayExcerpt = selectedVariant && hasMeaningfulProductText(selectedVariant.excerpt)
+		: product?.description;
+	const displayExcerpt = selectedVariant && hasMeaningfulProductText(selectedVariant.excerpt)
 		? selectedVariant.excerpt!
-		: product.excerpt; */
+		: product?.excerpt;
 	const variantSpecs = selectedVariant
 		? getSpecificationsArray(selectedVariant.specifications)
 		: [];
 	const displaySpecifications = variantSpecs.length > 0
 		? variantSpecs
 		: getSpecificationsArray(
-			product.specifications,
+			product?.specifications,
 			(product as { specification_names?: Record<string, string> }).specification_names,
 		);
-	const cartProductId = selectedVariant?.id ?? product.id;
+	const cartProductId = selectedVariant?.id ?? product?.id;
 	const currentCartItem = (cart?.items ?? []).find((item) => item.product_id === cartProductId);
 	const currentCartQuantity = currentCartItem?.quantity ?? 0;
-	const currentWishlistProductId = getProductIdForWishlist(product);
-	const currentCompareProductId = getProductIdForCompare(product);
+	const currentWishlistProductId = product ? getProductIdForWishlist(product) : 0;
+	const currentCompareProductId = product ? getProductIdForCompare(product) : 0;
 	const isInWishlist = favorites.includes(currentWishlistProductId);
 	const isInCompare = compareList.includes(currentCompareProductId);
 
@@ -857,14 +964,14 @@ export default function Product() {
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-					{product.category && (
+					{product?.category && (
 						<>
 							<i className="ri-arrow-right-s-line text-gray-400"></i>
 							<Link to={`/catalog/${product.category.slug}`} className="text-gray-600 hover:text-red-600">{product.category.name}</Link>
 						</>
 					)}
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
-					<span className="text-gray-900">{product.name}</span>
+					<span className="text-gray-900">{product?.name}</span>
 				</div>
 
 				{/* Product Main Info - New Layout */}
@@ -875,7 +982,7 @@ export default function Product() {
 						<div className="flex flex-col flex-1 w-full md:max-w-[500px] order-1 md:order-2 min-w-0">
 							<ProductGallery
 								images={productImages}
-								productName={product.name}
+								productName={product?.name ?? 'undefined'}
 								selectedIndex={selectedImage}
 								onSelectIndex={setSelectedImage}
 							/>
@@ -997,55 +1104,78 @@ export default function Product() {
 						<div className="flex-1 space-y-4 sm:space-y-6 order-3 lg:order-3">
 							{/* Product Name and Status */}
 							<div>
-								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
+								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
 									<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
 										{stockBadge.badgeLabel}
 									</span>
 									{(() => {
 										const selectedVariant = getSelectedVariant();
-										const displaySku = selectedVariant?.sku || product.sku;
+										const displaySku = selectedVariant?.sku || product?.sku;
 										const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 										return displaySku ? (
 											<span className="text-xs text-gray-500" key={`sku-top-${displaySku}-${variantKey}`}>Арт: {displaySku}</span>
 										) : null;
 									})()}
 								</div>
-								<h1 className="text-xl sm:text-2xl font-bold mb-3">{product.name}</h1>
+								<h1 className="text-xl sm:text-2xl font-bold mb-3">{product?.name}</h1>
 								<div className="flex items-center gap-4 flex-wrap">
 									<div className="flex items-center gap-1">
 										{[...Array(5)].map((_, i) => (
 											<i
 												key={i}
-												className={`${i < Math.floor(product.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
+												className={`${i < Math.floor(product?.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
 													} text-yellow-500 text-base sm:text-lg`}
 											></i>
 										))}
-										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product.rating ?? 0}</span>
+										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product?.rating ?? 0}</span>
 									</div>
-									<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
-										{product.reviews_count} {product.reviews_count === 1 ? 'отзыв' : product.reviews_count < 5 ? 'отзыва' : 'отзывов'}
-									</a>
+									{product && (
+										<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
+											{product?.reviews_count ?? 0} {product?.reviews_count === 1 ? 'отзыв' : product?.reviews_count < 5 ? 'отзыва' : 'отзывов'}
+										</a>
+									)}
 								</div>
 							</div>
 
 							{/* Вариации: все атрибуты показываем полностью; значения не из текущей вариации — с opacity, по клику переключаем на вариацию с этим значением */}
-							{product.variation_attributes?.filter((a: VariationAttributeOption) => a.values?.length).map((attr: VariationAttributeOption) => (
-								<VariantAttributeSelector
-									key={attr.attribute_slug}
-									attribute={attr}
-									selectedValueSlug={selectedVariant ? (selectedVariation[attr.attribute_slug] ?? null) : null}
-									isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
-									onSelect={(valueSlug, isDisabledClick) => handleSelectVariationAttribute(attr.attribute_slug, valueSlug, isDisabledClick)}
-									isDisabled={isLoadingVariant}
-								/>
-							))}
+							{product?.variation_attributes
+								?.filter((a) => a.attribute_slug !== 'color' && a.values?.length)
+								.map((attr) => (
+									<VariantAttributeSelector
+										key={attr.attribute_slug}
+										attribute={attr}
+										selectedValues={new Set(selectedVariation[attr.attribute_slug] ?? [])}
+										isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
+										onSelect={(valueSlug) => handleSelectVariationAttribute(attr.attribute_slug, valueSlug)}
+										isDisabled={isLoadingVariant}
+									/>
+								))}
+
+							{/* Цвета как палитра вариантов */}
+							<VariantColorSelector
+								variants={product?.variants ?? []}
+								selectedVariantId={selectedVariant?.id ?? null}
+								onSelect={(variantId) => {
+									const variant = product?.variants?.find(v => v.id === variantId);
+									if (variant) {
+										console.log('🟢 Выбран вариант:', variant);
+										// Обновляем selectedVariation
+										const attrs: Record<string, string[]> = {};
+										variant.variation_attributes?.forEach((a) => {
+											attrs[a.attribute_slug] = [a.value_slug];
+										});
+										console.log('🟢 Устанавливаем selectedVariation:', attrs);
+										setSelectedVariation(attrs);
+									}
+								}}
+							/>
 
 							{/* Features - Grid 2x2 */}
 							{(() => {
 								const blocks = product?.feature_blocks;
 								const hasBlocks = blocks && Array.isArray(blocks) && blocks.length > 0;
 								return hasBlocks;
-							})() && product.feature_blocks && product.feature_blocks.length > 0 && (
+							})() && product?.feature_blocks && product.feature_blocks.length > 0 && (
 									<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
 										{product.feature_blocks.map((block) => {
 											// Маппинг цветов Tailwind для использования в style
@@ -1111,14 +1241,14 @@ export default function Product() {
 					{/* Right: Action Container */}
 					<div className="bg-gray-50 rounded-2xl p-4 sm:p-6 h-fit lg:sticky lg:top-20 order-3 lg:order-3">
 						{/* Stock Status */}
-						<div className="mb-4" key={`stock-${product.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}-${stockBadge.stockText}`}>
+						<div className="mb-4" key={`stock-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}-${'stockText' in stockBadge ? stockBadge.stockText : ''}`}>
 							<div className="flex items-center gap-2 justify-center flex-wrap">
 								<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
 									{stockBadge.badgeLabel}
 								</span>
 								{(() => {
 									const selectedVariant = getSelectedVariant();
-									const displaySku = selectedVariant?.sku || product.sku;
+									const displaySku = selectedVariant?.sku || product?.sku;
 									const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 									return displaySku ? (
 										<span className="text-xs text-gray-500" key={`sku-${displaySku}-${variantKey}`}>Арт: {displaySku}</span>
@@ -1130,7 +1260,7 @@ export default function Product() {
 						{/* Price */}
 						<div
 							className="mb-6 text-center"
-							key={`price-${product.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
+							key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
 						>
 							<div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
 								<span className="text-2xl sm:text-3xl font-bold text-red-600">
@@ -1176,9 +1306,9 @@ export default function Product() {
 							<div className="flex gap-2">
 								{(() => {
 									// Для вариативных товаров проверяем доступность выбранной вариации (в т.ч. одной вариации / по цвету или размеру)
-									let isProductAvailable = product.in_stock === true;
+									let isProductAvailable = product?.in_stock === true;
 
-									if (product.is_variable && !product.is_variant && product.variants) {
+									if (product?.is_variable && !product.is_variant && product.variants) {
 										const selectedVariant = getSelectedVariant();
 										if (selectedVariant) {
 											isProductAvailable =
@@ -1190,13 +1320,19 @@ export default function Product() {
 												(v: ProductVariant) => v.in_stock === true && (v.stock ?? 0) > 0,
 											);
 											if (inStockVariants.length > 0) {
-												// Проверяем совместимость: есть ли вариация, у которой все атрибуты не противоречат выбору
 												const compatible = inStockVariants.some((v: ProductVariant) => {
 													const va = v.variation_attributes ?? [];
 													if (va.length === 0) return Object.keys(selectedVariation).length === 0;
+
 													for (const a of va) {
 														const sel = selectedVariation[a.attribute_slug];
-														if (sel !== undefined && sel !== '' && sel !== a.value_slug) return false;
+														// sel может быть массивом или строкой
+														const selectedValues = Array.isArray(sel) ? sel : (sel ? [sel] : []);
+
+														// Если есть выбранные значения, проверяем, что value_slug есть в них
+														if (selectedValues.length > 0 && !selectedValues.includes(a.value_slug)) {
+															return false;
+														}
 													}
 													return true;
 												});
@@ -1279,8 +1415,8 @@ export default function Product() {
 											onClick={handleAddToCart}
 											disabled={isAddingToCart || !isProductAvailable}
 											className={`py-3 rounded-lg font-semibold transition-all whitespace-nowrap shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${!isProductAvailable
-													? 'bg-gray-400 text-white cursor-not-allowed w-full'
-													: 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/30 w-full'
+												? 'bg-gray-400 text-white cursor-not-allowed w-full'
+												: 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/30 w-full'
 												}`}
 										>
 											{isAddingToCart ? (
@@ -1345,7 +1481,7 @@ export default function Product() {
 									<div className="text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: displayDescription! }} />
 								) : (
 									<p className="text-gray-700 mb-4 leading-relaxed">
-										{'Описание товара отсутствует.'}
+										{displayExcerpt || 'Описание товара отсутствует.'}
 									</p>
 								)}
 							</div>
@@ -1354,19 +1490,53 @@ export default function Product() {
 						{activeTab === 'specs' && (
 							<div>
 								<h3 className="text-2xl font-bold mb-6">Характеристики</h3>
+
 								{(() => {
-									const specs = displaySpecifications;
-									return specs.length > 0 ? (
+									// 👇 Фильтруем цвет из характеристик
+									const filteredSpecs = displaySpecifications.filter(
+										(spec) => spec.slug !== 'color'
+									);
+
+									const hasSpecs = filteredSpecs.length > 0;
+									const hasColors = product && product.colors && product.colors.length > 0;
+
+									if (!hasSpecs && !hasColors) {
+										return <p className="text-gray-500">Характеристики не указаны</p>;
+									}
+
+									return (
 										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											{specs.map((spec) => (
+											{/* Характеристики (без цвета) */}
+											{filteredSpecs.map((spec) => (
 												<div key={spec.slug} className="flex justify-between p-4 bg-gray-50 rounded-lg">
 													<span className="font-semibold text-gray-900">{spec.name}</span>
 													<span className="text-gray-700">{spec.value}</span>
 												</div>
 											))}
+
+											{/* Цвета (палитра) */}
+											{hasColors && (
+												<div className="flex justify-between p-4 bg-gray-50 rounded-lg col-span-1 md:col-span-2">
+													<span className="font-semibold text-gray-900">Цвета:</span>
+													<div className="flex flex-wrap gap-3">
+														{product?.colors && product.colors.length > 0 && (
+															<>
+																{product.colors.map((color) => (
+																	<div key={color.id} className="flex items-center gap-1.5">
+																		<span
+																			className="w-5 h-5 rounded-full border border-gray-300"
+																			style={{ backgroundColor: color.color_code || '#ccc' }}
+																			title={color.value}
+																		/>
+																		<span className="text-sm text-gray-700">{color.value}</span>
+																	</div>
+																))}
+															</>
+														)}
+													</div>
+												</div>
+											)}
 										</div>
-									) : (
-										<p className="text-gray-500">Характеристики не указаны</p>
 									);
 								})()}
 							</div>
@@ -1379,7 +1549,7 @@ export default function Product() {
 									const blocks = product?.delivery_blocks;
 									const hasBlocks = blocks && Array.isArray(blocks) && blocks.length > 0;
 									return hasBlocks && blocks;
-								})() && product.delivery_blocks && Array.isArray(product.delivery_blocks) ? (
+								})() && product?.delivery_blocks && Array.isArray(product.delivery_blocks) ? (
 									<div className="space-y-6">
 										{product.delivery_blocks.map((block) => {
 											// Маппинг цветов Tailwind для использования в style

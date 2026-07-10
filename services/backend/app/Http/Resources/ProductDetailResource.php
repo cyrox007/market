@@ -238,7 +238,7 @@ class ProductDetailResource extends JsonResource
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
                     'images' => $variant->images_urls ?: ($variant->main_image_url ? [$variant->main_image_url] : []),
                     'description' => $variant->description,
-                    //'excerpt' => $variant->excerpt,
+                    'excerpt' => $variant->excerpt,
                     'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
                     'colors' => $colors,
                 ];
