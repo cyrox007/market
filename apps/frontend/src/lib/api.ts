@@ -488,7 +488,7 @@ export interface Product {
 	first_available_variant_id?: number | null;
 	variation_attributes?: VariationAttributeOption[];
 	colors?: ColorOption[];
-	specifications?: Record<string, string>;
+	specifications?: Record<string, any> | null;
 	category: {
 		id: number;
 		name: string;
@@ -502,6 +502,7 @@ export interface Product {
 	//excerpt: string | null;
 	delivery_days?: number | null;
 	seo?: SeoMeta | null;
+	
 }
 
 export interface VariationAttributeValue {
@@ -563,6 +564,7 @@ export interface ProductDeliveryBlock {
 
 export interface ProductDetail extends Product {
 	images: string[];
+	image_hd?: string | null;
 	colors?: ColorOption[];
 	sizes?: SizeOption[];
 	selected_color?: ColorOption | null;

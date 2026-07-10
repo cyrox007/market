@@ -7,7 +7,7 @@ interface VariantAttributeSelectorProps {
 	attribute: VariationAttributeOption;
 	selectedValues?: Set<string>;
 	isValueAvailable: (valueSlug: string) => boolean;
-	onSelect: (valueSlug: string) => void;
+	onSelect: (valueSlug: string, isDisabledClick?: boolean) => void;
 	isDisabled?: boolean;
 	inactive?: boolean;
 }

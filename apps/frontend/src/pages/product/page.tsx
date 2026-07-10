@@ -818,14 +818,24 @@ export default function Product() {
 	const bundleSetTotalPrice = bundleProducts.length === 0
 		? null
 		: (displayPrice ?? 0) + bundleProducts.reduce((sum, item) => sum + (item.price ?? 0), 0);
-	const stockBadge = resolveProductStockBadge({
-		product,
-		selectedVariant,
-		stockSettings: {
-			...stockSettings,
-			show_exact_above: 0,
-		},
-	});
+	const stockBadge = product
+		? resolveProductStockBadge({
+			product,
+			selectedVariant,
+			stockSettings: {
+				...stockSettings,
+				show_exact_above: 0,
+			},
+		})
+		: {
+			badgeLabel: 'Нет в наличии',
+			badgeClass: 'bg-gray-200 text-gray-600',
+			stock: 0,
+			inStock: false,
+			backorder: false,
+			stockText: 'Нет в наличии',
+		};
+
 	const displayDescription = selectedVariant && hasMeaningfulProductText(selectedVariant.description)
 		? selectedVariant.description!
 		: product?.description;
@@ -844,8 +854,8 @@ export default function Product() {
 	const cartProductId = selectedVariant?.id ?? product?.id;
 	const currentCartItem = (cart?.items ?? []).find((item) => item.product_id === cartProductId);
 	const currentCartQuantity = currentCartItem?.quantity ?? 0;
-	const currentWishlistProductId = getProductIdForWishlist(product);
-	const currentCompareProductId = getProductIdForCompare(product);
+	const currentWishlistProductId = product ? getProductIdForWishlist(product) : 0;
+	const currentCompareProductId = product ? getProductIdForCompare(product) : 0;
 	const isInWishlist = favorites.includes(currentWishlistProductId);
 	const isInCompare = compareList.includes(currentCompareProductId);
 
@@ -876,7 +886,7 @@ export default function Product() {
 						<div className="flex flex-col flex-1 w-full md:max-w-[500px] order-1 md:order-2 min-w-0">
 							<ProductGallery
 								images={productImages}
-								productName={product?.name}
+								productName={product?.name ?? 'Товар'}
 								selectedIndex={selectedImage}
 								onSelectIndex={setSelectedImage}
 							/>
@@ -1023,9 +1033,13 @@ export default function Product() {
 										))}
 										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product?.rating ?? 0}</span>
 									</div>
-									<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
-										{product?.reviews_count} {product?.reviews_count === 1 ? 'отзыв' : product?.reviews_count < 5 ? 'отзыва' : 'отзывов'}
-									</a>
+									{(() => {
+										const count = product?.reviews_count ?? 0;
+										const label = count === 1 ? 'отзыв' : count < 5 ? 'отзыва' : 'отзывов';
+										<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
+											{count} {label}
+										</a>
+									})()}
 								</div>
 							</div>
 
@@ -1039,7 +1053,7 @@ export default function Product() {
 									<VariantAttributeSelector
 										key={attr.attribute_slug}
 										attribute={attr}
-										selectedValueSlug={selectedVariant ? (selectedVariation[attr.attribute_slug] ?? null) : null}
+										selectedValues={selectedVariant ? (selectedVariation[attr.attribute_slug] ? new Set([selectedVariation[attr.attribute_slug]]) : undefined) : undefined}
 										isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
 										onSelect={(valueSlug, isDisabledClick) => handleSelectVariationAttribute(attr.attribute_slug, valueSlug, isDisabledClick)}
 										isDisabled={isLoadingVariant}
@@ -1056,7 +1070,7 @@ export default function Product() {
 									onSelect={(variantId) => {
 										const variant = product.variants?.find(v => v.id === variantId);
 										if (variant) {
-											console.log('🟢 Выбран вариант:', variant.id, variant.colors);
+											//console.log('🟢 Выбран вариант:', variant.id, variant.colors);
 											setSelectedVariantState(variant); // 👈 обновляем состояние
 											const attrs: Record<string, string> = {};
 											variant.variation_attributes?.forEach((a) => {
@@ -1162,9 +1176,9 @@ export default function Product() {
 						>
 							<div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
 								<span className="text-2xl sm:text-3xl font-bold text-red-600">
-									{formatPrice(displayPrice)}
+									{formatPrice(displayPrice ?? 0)}
 								</span>
-								{displayOldPrice && (
+								{displayOldPrice && displayPrice && displayOldPrice > displayPrice && (
 									<span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap">
 										-{Math.round((1 - displayPrice / displayOldPrice) * 100)}%
 									</span>
