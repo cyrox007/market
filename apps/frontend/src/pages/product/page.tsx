@@ -18,7 +18,7 @@ import { useSSR } from '../../contexts/SSRContext';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { getProductKey } from '../../utils/ssr-to-swr';
 import { resolveProductStockBadge } from '../../utils/productUtils';
-import type { ProductDetail, Product, ProductVariant, Review, /* VariationAttributeOption, */ SelectedVariationItem } from '../../lib/api';
+import type { ProductDetail, Product, ProductVariant, Review, /* VariationAttributeOption, */ SelectedVariationItem, VariationAttributeOption } from '../../lib/api';
 import VariantColorSelector from '../../components/product/VariantColorSelector';
 
 const tabs = [
@@ -801,19 +801,19 @@ export default function Product() {
 	const hasVariantImages = variantForImages?.images && variantForImages.images.length > 0;
 	const productImages = hasVariantImages
 		? variantForImages!.images
-		: (product.images?.length ? product.images : product.image_hd ? [product.image_hd] : product.image ? [product.image] : []);
+		: (product?.images?.length ? product.images : product?.image_hd ? [product.image_hd] : product?.image ? [product.image] : []);
 
 	// Вычисляем выбранную вариацию и все отображаемые данные ОДИН РАЗ перед рендером
 	const selectedVariant = getSelectedVariant() ?? (
-		product.is_variant && product.variants?.length
+		product?.is_variant && product.variants?.length
 			? product.variants.find((variant) => variant.id === product.id) ?? null
 			: null
 	);
 
 	// Derived state: все данные для отображения вычисляются из product + selectedVariant
-	const displayPrice = selectedVariant?.price ?? product.price;
-	const displayOldPrice = selectedVariant?.old_price ?? product.old_price;
-	const displaySku = selectedVariant?.sku ?? product.sku;
+	const displayPrice = selectedVariant?.price ?? product?.price;
+	const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
+	const displaySku = selectedVariant?.sku ?? product?.sku;
 	const bundleSetTotalPrice = bundleProducts.length === 0
 		? null
 		: (displayPrice ?? 0) + bundleProducts.reduce((sum, item) => sum + (item.price ?? 0), 0);
@@ -827,7 +827,7 @@ export default function Product() {
 	});
 	const displayDescription = selectedVariant && hasMeaningfulProductText(selectedVariant.description)
 		? selectedVariant.description!
-		: product.description;
+		: product?.description;
 	/* const displayExcerpt = selectedVariant && hasMeaningfulProductText(selectedVariant.excerpt)
 		? selectedVariant.excerpt!
 		: product.excerpt; */
@@ -837,10 +837,10 @@ export default function Product() {
 	const displaySpecifications = variantSpecs.length > 0
 		? variantSpecs
 		: getSpecificationsArray(
-			product.specifications,
+			product?.specifications,
 			(product as { specification_names?: Record<string, string> }).specification_names,
 		);
-	const cartProductId = selectedVariant?.id ?? product.id;
+	const cartProductId = selectedVariant?.id ?? product?.id;
 	const currentCartItem = (cart?.items ?? []).find((item) => item.product_id === cartProductId);
 	const currentCartQuantity = currentCartItem?.quantity ?? 0;
 	const currentWishlistProductId = getProductIdForWishlist(product);
@@ -857,14 +857,14 @@ export default function Product() {
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-					{product.category && (
+					{product?.category && (
 						<>
 							<i className="ri-arrow-right-s-line text-gray-400"></i>
 							<Link to={`/catalog/${product.category.slug}`} className="text-gray-600 hover:text-red-600">{product.category.name}</Link>
 						</>
 					)}
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
-					<span className="text-gray-900">{product.name}</span>
+					<span className="text-gray-900">{product?.name}</span>
 				</div>
 
 				{/* Product Main Info - New Layout */}
@@ -875,7 +875,7 @@ export default function Product() {
 						<div className="flex flex-col flex-1 w-full md:max-w-[500px] order-1 md:order-2 min-w-0">
 							<ProductGallery
 								images={productImages}
-								productName={product.name}
+								productName={product?.name}
 								selectedIndex={selectedImage}
 								onSelectIndex={setSelectedImage}
 							/>
@@ -997,39 +997,39 @@ export default function Product() {
 						<div className="flex-1 space-y-4 sm:space-y-6 order-3 lg:order-3">
 							{/* Product Name and Status */}
 							<div>
-								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
+								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
 									<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
 										{stockBadge.badgeLabel}
 									</span>
 									{(() => {
 										const selectedVariant = getSelectedVariant();
-										const displaySku = selectedVariant?.sku || product.sku;
+										const displaySku = selectedVariant?.sku || product?.sku;
 										const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 										return displaySku ? (
 											<span className="text-xs text-gray-500" key={`sku-top-${displaySku}-${variantKey}`}>Арт: {displaySku}</span>
 										) : null;
 									})()}
 								</div>
-								<h1 className="text-xl sm:text-2xl font-bold mb-3">{product.name}</h1>
+								<h1 className="text-xl sm:text-2xl font-bold mb-3">{product?.name}</h1>
 								<div className="flex items-center gap-4 flex-wrap">
 									<div className="flex items-center gap-1">
 										{[...Array(5)].map((_, i) => (
 											<i
 												key={i}
-												className={`${i < Math.floor(product.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
+												className={`${i < Math.floor(product?.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
 													} text-yellow-500 text-base sm:text-lg`}
 											></i>
 										))}
-										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product.rating ?? 0}</span>
+										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product?.rating ?? 0}</span>
 									</div>
 									<a href="#reviews" onClick={(e) => { e.preventDefault(); scrollToProductDetails('reviews'); }} className="text-red-600 hover:underline text-xs sm:text-sm cursor-pointer">
-										{product.reviews_count} {product.reviews_count === 1 ? 'отзыв' : product.reviews_count < 5 ? 'отзыва' : 'отзывов'}
+										{product?.reviews_count} {product?.reviews_count === 1 ? 'отзыв' : product?.reviews_count < 5 ? 'отзыва' : 'отзывов'}
 									</a>
 								</div>
 							</div>
 
 							{/* Вариации: все атрибуты показываем полностью; значения не из текущей вариации — с opacity, по клику переключаем на вариацию с этим значением */}
-							{product.variation_attributes?.filter((a: VariationAttributeOption) => a.values?.length).map((attr: VariationAttributeOption) => (
+							{product?.variation_attributes?.filter((a: VariationAttributeOption) => a.values?.length).map((attr: VariationAttributeOption) => (
 								<VariantAttributeSelector
 									key={attr.attribute_slug}
 									attribute={attr}
@@ -1045,7 +1045,7 @@ export default function Product() {
 								const blocks = product?.feature_blocks;
 								const hasBlocks = blocks && Array.isArray(blocks) && blocks.length > 0;
 								return hasBlocks;
-							})() && product.feature_blocks && product.feature_blocks.length > 0 && (
+							})() && product?.feature_blocks && product.feature_blocks.length > 0 && (
 									<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
 										{product.feature_blocks.map((block) => {
 											// Маппинг цветов Tailwind для использования в style
@@ -1111,14 +1111,14 @@ export default function Product() {
 					{/* Right: Action Container */}
 					<div className="bg-gray-50 rounded-2xl p-4 sm:p-6 h-fit lg:sticky lg:top-20 order-3 lg:order-3">
 						{/* Stock Status */}
-						<div className="mb-4" key={`stock-${product.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}-${stockBadge.stockText}`}>
+						<div className="mb-4" key={`stock-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}-${stockBadge.stockText}`}>
 							<div className="flex items-center gap-2 justify-center flex-wrap">
 								<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
 									{stockBadge.badgeLabel}
 								</span>
 								{(() => {
 									const selectedVariant = getSelectedVariant();
-									const displaySku = selectedVariant?.sku || product.sku;
+									const displaySku = selectedVariant?.sku || product?.sku;
 									const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 									return displaySku ? (
 										<span className="text-xs text-gray-500" key={`sku-${displaySku}-${variantKey}`}>Арт: {displaySku}</span>
@@ -1130,7 +1130,7 @@ export default function Product() {
 						{/* Price */}
 						<div
 							className="mb-6 text-center"
-							key={`price-${product.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
+							key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
 						>
 							<div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
 								<span className="text-2xl sm:text-3xl font-bold text-red-600">
@@ -1176,9 +1176,9 @@ export default function Product() {
 							<div className="flex gap-2">
 								{(() => {
 									// Для вариативных товаров проверяем доступность выбранной вариации (в т.ч. одной вариации / по цвету или размеру)
-									let isProductAvailable = product.in_stock === true;
+									let isProductAvailable = product?.in_stock === true;
 
-									if (product.is_variable && !product.is_variant && product.variants) {
+									if (product?.is_variable && !product.is_variant && product.variants) {
 										const selectedVariant = getSelectedVariant();
 										if (selectedVariant) {
 											isProductAvailable =
@@ -1379,7 +1379,7 @@ export default function Product() {
 									const blocks = product?.delivery_blocks;
 									const hasBlocks = blocks && Array.isArray(blocks) && blocks.length > 0;
 									return hasBlocks && blocks;
-								})() && product.delivery_blocks && Array.isArray(product.delivery_blocks) ? (
+								})() && product?.delivery_blocks && Array.isArray(product.delivery_blocks) ? (
 									<div className="space-y-6">
 										{product.delivery_blocks.map((block) => {
 											// Маппинг цветов Tailwind для использования в style
