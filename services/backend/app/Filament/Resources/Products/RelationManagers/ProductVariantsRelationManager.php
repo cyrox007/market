@@ -6,10 +6,10 @@ use App\Actions\Product\GetVariationAttributesForProductAction;
 use App\Actions\Product\SyncVariantVariationAttributesAction;
 use App\Filament\Forms\WarehouseStocksFormComponents;
 use App\Filament\Resources\Products\ProductResource;
-use App\Models\Product\Attribute;
 use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
 use App\Services\Inventory\WarehouseStockResolver;
+use App\Models\Product\AttributeValue;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -18,7 +18,8 @@ use Filament\Schemas\Components\Section;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Illuminate\Database\Eloquent\Model;
+use Filament\Forms\Components\ColorPicker;
+use Illuminate\Support\Str;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
@@ -127,6 +128,7 @@ class ProductVariantsRelationManager extends RelationManager
             if ($attr->allow_custom_value && $hasOptions && $attr->type !== 'select') {
                 $selectField = Select::make('variation_attr_' . $attr->id)
                     ->label($attr->name . ' (из списка)')
+                    ->multiple(fn () => $attr->is_multiple)
                     ->options($options)
                     ->searchable()
                     ->helperText('Выберите значение из списка или введите своё ниже')
@@ -136,6 +138,33 @@ class ProductVariantsRelationManager extends RelationManager
                         if (!empty($state)) {
                             $set('variation_custom_' . $attr->id, null);
                         }
+                    })
+                    ->createOptionForm(function () use ($attr) {
+                        $isColor = $attr->type === 'color';
+                        $fields = [
+                            TextInput::make('value')
+                                ->label('Название значения')
+                                ->required()
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                            TextInput::make('slug')
+                                ->label('Слаг')
+                                ->helperText('Оставьте пустым для автоматической генерации'),
+                        ];
+                        if ($isColor) {
+                            $fields[] = ColorPicker::make('color_code')
+                                ->label('HEX цвета');
+                        }
+                        $fields[] = TextInput::make('sort_order')
+                            ->label('Порядок')
+                            ->numeric()
+                            ->default(0);
+                        return $fields;
+                    })
+                    ->createOptionUsing(function (array $data, $get) use ($attr): int {
+                        $data['attribute_id'] = $attr->id;
+                        $value = AttributeValue::create($data);
+                        return $value->id;
                     });
                 
                 $textField = TextInput::make('variation_custom_' . $attr->id)
@@ -193,13 +222,41 @@ class ProductVariantsRelationManager extends RelationManager
             // Иначе - только Select с предопределенными значениями
             else {
                 $field = Select::make('variation_attr_' . $attr->id)
+                    ->multiple(fn () => $attr->is_multiple)
                     ->label($attr->name)
                     ->options($options)
                     ->required(($isVariantAttribute || $attr->is_required) && $hasOptions)
                     ->helperText($isVariantAttribute
                         ? 'Основной параметр, который определяет название и уникальность вариации.'
                         : 'Параметр торгового предложения'
-                    );
+                    )
+                    ->createOptionForm(function () use ($attr) {
+                        $isColor = $attr->type === 'color';
+                        $fields = [
+                            TextInput::make('value')
+                                ->label('Название значения')
+                                ->required()
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                            TextInput::make('slug')
+                                ->label('Слаг')
+                                ->helperText('Оставьте пустым для автоматической генерации'),
+                        ];
+                        if ($isColor) {
+                            $fields[] = ColorPicker::make('color_code')
+                                ->label('HEX цвета');
+                        }
+                        $fields[] = TextInput::make('sort_order')
+                            ->label('Порядок')
+                            ->numeric()
+                            ->default(0);
+                        return $fields;
+                    })
+                    ->createOptionUsing(function (array $data, $get) use ($attr): int {
+                        $data['attribute_id'] = $attr->id;
+                        $value = AttributeValue::create($data);
+                        return $value->id;
+                    });
                 if ($isVariantAttribute) {
                     $variantAttributeFields[] = $field;
                 } else {
@@ -427,20 +484,38 @@ class ProductVariantsRelationManager extends RelationManager
                             return $data;
                         }
                         $record->load('variantAttributes');
-                        $byAttr = $record->variantAttributes->keyBy('id');
+                        
+                        // Группируем атрибуты по ID (один атрибут — несколько значений)
+                        $grouped = $record->variantAttributes->groupBy('id');
                         $formAttrs = app(GetVariationAttributesForProductAction::class)->execute($parent);
+                        
                         foreach ($formAttrs as $attr) {
-                            $v = $byAttr->get($attr->id);
-                            if (!$v || !$v->pivot) {
+                            $items = $grouped->get($attr->id);
+                            if (!$items || $items->isEmpty()) {
                                 continue;
                             }
-                            $pivot = $v->pivot;
-                            if ($pivot->custom_value !== null && $pivot->custom_value !== '') {
-                                $data['variation_custom_' . $attr->id] = $pivot->custom_value;
+                            
+                            // Проверяем кастомные значения
+                            $customValues = $items->filter(function ($item) {
+                                return $item->pivot->custom_value !== null && $item->pivot->custom_value !== '';
+                            });
+                            
+                            if ($customValues->isNotEmpty()) {
+                                $data['variation_custom_' . $attr->id] = $customValues->first()->pivot->custom_value;
                             } else {
-                                $data['variation_attr_' . $attr->id] = $pivot->attribute_value_id;
+                                // Собираем все ID значений в массив
+                                $valueIds = $items
+                                    ->pluck('pivot.attribute_value_id')
+                                    ->filter()
+                                    ->values()
+                                    ->toArray();
+                                
+                                if (!empty($valueIds)) {
+                                    $data['variation_attr_' . $attr->id] = $valueIds;
+                                }
                             }
                         }
+                        
                         return $data;
                     })
                     ->using(function (array $data, Product $record): Product {

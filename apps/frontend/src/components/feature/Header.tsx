@@ -93,6 +93,32 @@ export default function Header() {
 
   return (
     <>
+      <div className='hidden lg:flex justify-between items-center max-w-[1280px] w-full mx-auto px-4 py-2 border-b border-gray-200'>
+        {/* Region Selector - Desktop Only */}
+        <div className="hidden lg:flex lg:min-w-0 lg:max-w-[220px] xl:max-w-[300px]">
+          <RegionSelector />
+        </div>
+        <div className='flex gap-10'>
+          <Link to="/about" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+            О нас
+          </Link>
+          <Link to="/stores" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+            Магазины
+          </Link>
+          <Link to="/delivery" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+            Доставка
+          </Link>
+          <Link to="/returns" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+            Возврат
+          </Link>
+        </div>
+        <div className="flex flex-col items-center gap-1 text-sm">
+          <a href="tel:88002228586" className="text-gray-900 hover:text-red-600 font-semibold whitespace-nowrap">
+            8 (800) 222-85-86
+          </a>
+          <span className="text-gray-400 text-xs">Ежедневно с 9:00 до 21:00</span>
+        </div>
+      </div>
       <div ref={headerRef} className="header-locator sticky top-0 z-40 ">
         {/* Top Bar - Mobile Only */}
         <div className="lg:hidden bg-white border-b border-gray-200">
@@ -103,12 +129,12 @@ export default function Header() {
           </div>
         </div>
 
-        <header className="bg-[#F5F5F5] border-b border-gray-200">
+        <header className="bg-white border-b border-gray-200">
           {/* Main Header - 64px height */}
           <div className="max-w-[1280px] mx-auto px-4">
             <div className="header-locator-grid grid grid-cols-2 lg:grid-cols-3 items-center h-16 gap-4">
               {/* Left Container - Logo */}
-              <div className="flex items-center">
+              <div className="flex items-center gap-4">
                 <button
                   ref={menuButtonRef}
                   type="button"
@@ -125,8 +151,12 @@ export default function Header() {
                   <img
                     src="/logo.png"
                     alt="Светофор Мебели"
-                    className="h-8 md:h-10 object-contain"
+                    className="h-10 md:h-12 object-contain"
                   />
+                </Link>
+                <Link to="/catalog" className="hidden lg:flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
+                  <i className="ri-menu-line text-lg"></i>
+                  Каталог
                 </Link>
               </div>
 
@@ -169,10 +199,7 @@ export default function Header() {
 
               {/* Right Container - Icons */}
               <div className="min-w-0 flex items-center justify-end gap-1.5 sm:gap-2 lg:gap-3">
-                {/* Region Selector - Desktop Only */}
-                <div className="hidden lg:flex lg:min-w-0 lg:max-w-[220px] xl:max-w-[300px]">
-                  <RegionSelector />
-                </div>
+                
 
                 {/* Icons Container */}
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
@@ -308,42 +335,42 @@ export default function Header() {
               <Link
                 to="/catalog"
                 onClick={closeMenu}
-                className="px-4 py-3 text-gray-700 hover:bg-gray-200 border-b border-gray-200"
+                className="px-4 py-3 text-gray-900 hover:bg-gray-200 border-b border-gray-200"
               >
                 Каталог
               </Link>
               <Link
                 to="/about"
                 onClick={closeMenu}
-                className="px-4 py-3 text-gray-700 hover:bg-gray-200 border-b border-gray-200"
+                className="px-4 py-3 text-gray-900 hover:bg-gray-200 border-b border-gray-200"
               >
                 О нас
               </Link>
               <Link
                 to="/stores"
                 onClick={closeMenu}
-                className="px-4 py-3 text-gray-700 hover:bg-gray-200 border-b border-gray-200"
+                className="px-4 py-3 text-gray-900 hover:bg-gray-200 border-b border-gray-200"
               >
                 Магазины
               </Link>
               <Link
                 to="/delivery"
                 onClick={closeMenu}
-                className="px-4 py-3 text-gray-700 hover:bg-gray-200 border-b border-gray-200"
+                className="px-4 py-3 text-gray-900 hover:bg-gray-200 border-b border-gray-200"
               >
                 Доставка
               </Link>
               <Link
                 to="/returns"
                 onClick={closeMenu}
-                className="px-4 py-3 text-gray-700 hover:bg-gray-200 border-b border-gray-200"
+                className="px-4 py-3 text-gray-900 hover:bg-gray-200 border-b border-gray-200"
               >
                 Возврат
               </Link>
               <a
                 href="tel:+78001234567"
                 onClick={closeMenu}
-                className="px-4 py-3 text-gray-700 hover:bg-gray-200 font-medium"
+                className="px-4 py-3 text-gray-900 hover:bg-gray-200 font-medium"
               >
                 +7 (800) 123-45-67
               </a>
@@ -353,30 +380,16 @@ export default function Header() {
       )}
 
       {/* Navigation Links - Below header, scrolls with content */}
-      <div className="hidden lg:block bg-white border-b border-gray-200">
+      {/* тут тогда остается список пунктов меню категорий корневых */}
+      {/* <div className="hidden lg:block bg-white border-b border-gray-200">
         <div className="max-w-[1280px] mx-auto px-4">
           <nav className="flex items-center justify-center gap-8 py-3">
-            <Link to="/catalog" className="text-gray-700 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
-              Каталог
-            </Link>
-            <Link to="/about" className="text-gray-700 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
-              О нас
-            </Link>
-            <Link to="/stores" className="text-gray-700 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
-              Магазины
-            </Link>
-            <Link to="/delivery" className="text-gray-700 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
-              Доставка
-            </Link>
-            <Link to="/returns" className="text-gray-700 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
-              Возврат
-            </Link>
-            <a href="tel:+78001234567" className="text-gray-700 hover:text-red-600 transition-colors whitespace-nowrap text-sm font-medium">
-              +7 (800) 123-45-67
-            </a>
+            
+            
+            
           </nav>
         </div>
-      </div>
+      </div> */}
     </>
   );
 }

@@ -342,6 +342,38 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
+     * Получить массив цветов для товара
+     */
+    public function getColorsArray(): array
+    {
+        $colors = [];
+        
+        // Ищем характеристику "Цвет"
+        $colorAttribute = Attribute::where('slug', 'color')->first();
+        if (!$colorAttribute) {
+            return $colors;
+        }
+        
+        // Получаем значения цвета через характеристики
+        $colorValues = $this->attributeValues()
+            ->whereHas('attribute', function ($q) use ($colorAttribute) {
+                $q->where('id', $colorAttribute->id);
+            })
+            ->get();
+        
+        foreach ($colorValues as $value) {
+            $colors[] = [
+                'id' => $value->id,
+                'value' => $value->value,
+                'slug' => $value->slug,
+                'color_code' => $value->color_code,
+            ];
+        }
+        
+        return $colors;
+    }
+
+    /**
      * Привязать сопутствующий товар с автоматическим добавлением обратной связи.
      */
     public function attachRelatedProduct(Product $related): void
@@ -1180,7 +1212,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         return $query->where(function ($q) use ($searchTerm) {
             $q->where('name', 'like', $searchTerm)
                 ->orWhere('description', 'like', $searchTerm)
-                ->orWhere('excerpt', 'like', $searchTerm)
+                //->orWhere('excerpt', 'like', $searchTerm)
                 ->orWhere('sku', 'like', $searchTerm);
         });
     }

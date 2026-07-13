@@ -103,9 +103,27 @@ class EditProduct extends EditRecord
                         }
 
                         $attribute = \App\Models\Product\Attribute::find($attributeId);
-                        $customValueStr = $customValue !== null && $customValue !== '' ? (string) $customValue : null;
+                        // Если attribute_value_id — массив (множественный выбор)
+                        if (is_array($attributeValueId)) {
+                            foreach ($attributeValueId as $singleValueId) {
+                                if (!empty($singleValueId)) {
+                                    $attributeValue = AttributeValue::find($singleValueId);
+                                    if ($attributeValue && $attributeValue->attribute_id == $attributeId) {
+                                        $attributesData[] = [
+                                            'product_id' => $product->id,
+                                            'attribute_id' => $attributeId,
+                                            'attribute_value_id' => $singleValueId,
+                                            'custom_value' => null,
+                                            'created_at' => now(),
+                                            'updated_at' => now(),
+                                        ];
+                                    }
+                                }
+                            }
+                            continue;
+                        }
 
-                        // Если выбрано значение из справочника — приоритет у него
+                        // Одно значение
                         if (!empty($attributeValueId)) {
                             $attributeValue = AttributeValue::find($attributeValueId);
                             if ($attributeValue && $attributeValue->attribute_id == $attributeId) {
@@ -120,6 +138,8 @@ class EditProduct extends EditRecord
                             }
                             continue;
                         }
+
+                        $customValueStr = $customValue !== null && $customValue !== '' ? (string) $customValue : null;
 
                         // Если нет attribute_value_id, но есть ручной ввод — сохраняем его
                         // ТОЛЬКО для атрибутов, у которых разрешён custom_value.

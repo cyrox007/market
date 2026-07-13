@@ -48,6 +48,13 @@ class AttributeResource extends Resource
                             ->label(__('filament/admin_sv/attribute_resource.name'))
                             ->required()
                             ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if (!$state) {
+                                    return;
+                                }
+                                $set('slug', \Str::slug($state));
+                            })
                             ->placeholder('Цвет, Размер, Материал, Комплектация…'),
 
                         TextInput::make('slug')
@@ -56,7 +63,7 @@ class AttributeResource extends Resource
                             ->unique(ignoreRecord: true)
                             ->maxLength(255)
                             ->placeholder('color, size, material')
-                            ->helperText('Только латиница, цифры и дефис.'),
+                            ->helperText('Только латиница, цифры и дефис. Оставьте пустым для автоматической генерации.'),
                     ])
                     ->columns(2),
 
@@ -105,6 +112,12 @@ class AttributeResource extends Resource
                             ->default(false)
                             ->helperText('Если включено, при сохранении товара с этой категорией значение должно быть заполнено.'),
 
+                        Toggle::make('is_multiple') 
+                            ->label('Множественный выбор')
+                            ->default(false)
+                            ->helperText('Разрешить выбор нескольких значений (например, для цвета)')
+                            ->visible(fn ($get) => $get('type') === 'color' || in_array($get('type'), ['select', 'string'], true)),
+                            
                         Toggle::make('allow_custom_value')
                             ->label('Разрешить свой текст в вариациях')
                             ->default(false)
@@ -169,6 +182,11 @@ class AttributeResource extends Resource
                     ->label('Свой текст')
                     ->boolean()
                     ->sortable(),
+                
+                IconColumn::make('is_multiple')
+                    ->label('Множественный')
+                    ->boolean()
+                    ->sortable(),
 
                 TextColumn::make('values_count')
                     ->label(__('filament/admin_sv/attribute_resource.values_count'))
@@ -216,7 +234,4 @@ class AttributeResource extends Resource
     {
         return __('filament/admin_sv/attribute_resource.plural_model_label');
     }
-
-
-
 }
