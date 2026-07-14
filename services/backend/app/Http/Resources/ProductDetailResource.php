@@ -11,6 +11,8 @@ use App\Services\Product\ProductRegionRuleService;
 use App\Services\Seo\SeoApiTransformer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProductDetailResource extends JsonResource
 {
@@ -27,13 +29,13 @@ class ProductDetailResource extends JsonResource
         if ($regionId) {
             $region = ShippingLocation::find($regionId);
             if (!$region) {
-                \Log::warning('ProductDetailResource::toArray - Регион не найден по ID', [
+                Log::warning('ProductDetailResource::toArray - Регион не найден по ID', [
                     'region_id' => $regionId,
                     'product_id' => $this->id,
                 ]);
             }
         } else {
-            \Log::debug('ProductDetailResource::toArray - _region_id не передан в request', [
+            Log::debug('ProductDetailResource::toArray - _region_id не передан в request', [
                 'product_id' => $this->id,
                 'request_keys' => array_keys($request->all()),
             ]);
@@ -60,7 +62,7 @@ class ProductDetailResource extends JsonResource
         $parentProduct = null;
         if ($isVariant) {
             // Отладочное логирование для проверки вариации
-            \Log::debug('ProductDetailResource: Определена вариация', [
+            Log::debug('ProductDetailResource: Определена вариация', [
                 'variant_id' => $this->id,
                 'variant_sku' => $this->sku,
                 'parent_product_id' => $this->parent_product_id,
@@ -79,13 +81,14 @@ class ProductDetailResource extends JsonResource
             $parentProduct = $this->parentProduct;
 
             // ВАЖНО: Если родительский товар неактивен, вариация не должна отображаться
-            $parentState = $parentProduct?->state;
-            $parentIsActive = $parentState instanceof \UnitEnum
-                ? $parentState->value() === \App\Models\Product\Product::ACTIVE
-                : (string) $parentState === \App\Models\Product\Product::ACTIVE;
+            $parentIsActive = false;
+            if ($parentProduct) {
+                $state = $parentProduct->state;
+                $parentIsActive = (string) $state === \App\Models\Product\Product::ACTIVE;
+            }
 
             if (!$parentProduct || !$parentIsActive) {
-                \Log::warning('ProductDetailResource: Родительский товар неактивен или не найден', [
+                Log::warning('ProductDetailResource: Родительский товар неактивен или не найден', [
                     'variant_id' => $this->id,
                     'parent_product_id' => $this->parent_product_id,
                     'has_parent' => $parentProduct !== null,
@@ -93,7 +96,7 @@ class ProductDetailResource extends JsonResource
                 return [];
             }
 
-            \Log::debug('ProductDetailResource: Родительский товар загружен', [
+            Log::debug('ProductDetailResource: Родительский товар загружен', [
                 'variant_id' => $this->id,
                 'parent_product_id' => $parentProduct->id,
                 'parent_product_sku' => $parentProduct->sku,
@@ -273,7 +276,7 @@ class ProductDetailResource extends JsonResource
                 $productPrice = $regionRuleService->getPriceForRegion($parentProduct, $region, $this->resource);
 
                 // Отладочный вывод для проверки применения правил
-                \Log::debug('ProductDetailResource: Применение правил для вариации', [
+                Log::debug('ProductDetailResource: Применение правил для вариации', [
                     'variant_id' => $this->id,
                     'variant_sku' => $this->attributes['sku'] ?? $this->sku ?? '',
                     'variant_price_from_attributes' => $this->attributes['price'] ?? 'NOT_SET',
@@ -297,7 +300,7 @@ class ProductDetailResource extends JsonResource
                 }
 
                 // Отладочный вывод для обычного товара
-                \Log::debug('ProductDetailResource: Применение правил для товара', [
+                Log::debug('ProductDetailResource: Применение правил для товара', [
                     'product_id' => $this->id,
                     'product_sku' => $this->sku,
                     'base_price' => $basePrice,
@@ -312,7 +315,7 @@ class ProductDetailResource extends JsonResource
             if ($productPriceFromCheapestVariant !== null) {
                 $productPrice = $productPriceFromCheapestVariant;
             }
-            \Log::debug('ProductDetailResource: Регион не передан, используется базовая цена', [
+            Log::debug('ProductDetailResource: Регион не передан, используется базовая цена', [
                 'product_id' => $this->id,
                 'is_variant' => $isVariant,
                 'price' => $productPrice,
@@ -372,7 +375,7 @@ class ProductDetailResource extends JsonResource
 
         // Если это вариация и SKU пустой, проверяем родительский товар (но это не должно происходить)
         if ($isVariant && empty($sku) && $parentProduct) {
-            \Log::warning('ProductDetailResource: SKU вариации пустой, используем родительский', [
+            Log::warning('ProductDetailResource: SKU вариации пустой, используем родительский', [
                 'variant_id' => $this->id,
                 'parent_sku' => $parentProduct->sku,
             ]);
@@ -381,7 +384,7 @@ class ProductDetailResource extends JsonResource
 
         // Отладочный вывод для проверки данных вариации
         if ($isVariant) {
-            \Log::debug('ProductDetailResource для вариации - ФИНАЛЬНЫЕ ДАННЫЕ', [
+            Log::debug('ProductDetailResource для вариации - ФИНАЛЬНЫЕ ДАННЫЕ', [
                 'variant_id' => $this->id,
                 'variant_sku_final' => $sku,
                 'variant_sku_from_attributes' => $this->attributes['sku'] ?? 'NOT_SET',
@@ -448,7 +451,7 @@ class ProductDetailResource extends JsonResource
                 fn() => $this->taxons->first() ? [
                     'id' => $this->taxons->first()->id,
                     'name' => $this->taxons->first()->name,
-                    'slug' => $this->taxons->first()->slug ?? \Str::slug($this->taxons->first()->name),
+                    'slug' => $this->taxons->first()->slug ?? Str::slug($this->taxons->first()->name),
                 ] : null
             ),
             'categories' => CategoryResource::collection($this->whenLoaded('taxons')),
