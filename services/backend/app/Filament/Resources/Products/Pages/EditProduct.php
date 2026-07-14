@@ -8,6 +8,7 @@ use App\Models\Product\Product;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\DB;
+use Filament\Actions\Action;
 
 class EditProduct extends EditRecord
 {
@@ -19,6 +20,11 @@ class EditProduct extends EditRecord
     {
         return [
             DeleteAction::make(),
+            Action::make('viewOnSite')
+                ->label('Просмотр на сайте')
+                ->icon('heroicon-o-eye')
+                ->url(fn () => url('/product/' . $this->record->slug))
+                ->openUrlInNewTab(),
         ];
     }
 
