@@ -56,4 +56,9 @@ class CreateProduct extends CreateRecord
             Product::flushAllProductCaches();
         }
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return ProductResource::getUrl('index');
+    }
 }

@@ -193,4 +193,8 @@ class EditProduct extends EditRecord
         return __('filament/admin_sv/edit_product.title');
     }
 
+    protected function getRedirectUrl(): string
+    {
+        return ProductResource::getUrl('index');
+    }
 }
