@@ -81,11 +81,7 @@ class ProductDetailResource extends JsonResource
             $parentProduct = $this->parentProduct;
 
             // ВАЖНО: Если родительский товар неактивен, вариация не должна отображаться
-            $parentIsActive = false;
-            if ($parentProduct) {
-                $state = $parentProduct->state;
-                $parentIsActive = (string) $state === \App\Models\Product\Product::ACTIVE;
-            }
+            $parentIsActive = $parentProduct && (string) $parentProduct->state === \App\Models\Product\Product::ACTIVE;
 
             if (!$parentProduct || !$parentIsActive) {
                 Log::warning('ProductDetailResource: Родительский товар неактивен или не найден', [
