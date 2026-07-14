@@ -1515,7 +1515,8 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         }
 
         // Gallery images
-        $galleryImages = $this->getMedia('gallery');
+        $galleryImages = $this->getMedia('gallery')
+            ->sortByDesc('id');
         foreach ($galleryImages as $image) {
             $urls[] = $image->getUrl();
         }
@@ -1537,7 +1538,8 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         }
 
         // Gallery images
-        $galleryImages = $this->getMedia('gallery');
+        $galleryImages = $this->getMedia('gallery')
+        ->sortByDesc('id');
         foreach ($galleryImages as $image) {
             $urls[] = $image->getUrl('hd');
         }
