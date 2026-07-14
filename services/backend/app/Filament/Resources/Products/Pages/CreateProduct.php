@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Validation\ValidationException;
 
 class CreateProduct extends CreateRecord
 {
@@ -26,6 +28,24 @@ class CreateProduct extends CreateRecord
         return $data;
     }
 
+    /**
+     * Обработка создания с уведомлением об ошибках валидации
+     */
+    protected function handleRecordCreation(array $data): Product
+    {
+        try {
+            return parent::handleRecordCreation($data);
+        } catch (ValidationException $e) {
+            Notification::make()
+                ->title('Ошибка валидации')
+                ->danger()
+                ->body('Пожалуйста, исправьте ошибки в форме.')
+                ->send();
+
+            throw $e;
+        }
+    }
+
     protected function afterCreate(): void
     {
         // Сбрасываем кэш товаров на бекенде сразу после создания
@@ -35,5 +55,10 @@ class CreateProduct extends CreateRecord
         if (config('cache.clear_catalog_on_product_change', true)) {
             Product::flushAllProductCaches();
         }
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return ProductResource::getUrl('index');
     }
 }
