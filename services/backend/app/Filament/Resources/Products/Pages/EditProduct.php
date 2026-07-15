@@ -5,10 +5,13 @@ namespace App\Filament\Resources\Products\Pages;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
+use App\Services\Catalog\OneCProductSyncService;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\DB;
-use Filament\Actions\Action;
 
 class EditProduct extends EditRecord
 {
@@ -25,6 +28,36 @@ class EditProduct extends EditRecord
                 ->icon('heroicon-o-eye')
                 ->url(fn () => url('/product/' . $this->record->slug))
                 ->openUrlInNewTab(),
+
+            Action::make('syncFrom1C')
+                ->label('Загрузить из 1С')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('primary')
+                ->form([
+                    TextInput::make('external_id')
+                        ->label('Код товара в 1С')
+                        ->required()
+                        ->helperText('Введите external_id товара из системы 1С'),
+                ])
+                ->action(function (array $data, $livewire) {
+                    $externalId = $data['external_id'];
+                    $service = app(OneCProductSyncService::class);
+                    $product = $service->syncProductByExternalId($externalId);
+                    if (!$product) {
+                        Notification::make()
+                            ->title('Товар не найден в 1С')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
+                    // Обновляем форму данными из товара
+                    $livewire->form->fill($product->toArray());
+                    // Если есть вариации, обновляем отдельно (не в рамках этой задачи)
+                    Notification::make()
+                        ->title('Товар успешно загружен из 1С')
+                        ->success()
+                        ->send();
+                }),
         ];
     }
 
@@ -203,4 +236,6 @@ class EditProduct extends EditRecord
     {
         return ProductResource::getUrl('index');
     }
+
+    
 }
