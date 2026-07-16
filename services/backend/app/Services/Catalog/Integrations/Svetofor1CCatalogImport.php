@@ -902,6 +902,10 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
         }
 
         $rows = $this->fetchProductStocksRaw($externalId);
+        Log::info('Catalog import: stocks raw data', [
+            'external_id' => $externalId,
+            'rows' => $rows,
+        ]);
         foreach ($rows as $row) {
             $stockId = (string) ($row['stockId'] ?? '');
             if ($stockId === '') {
@@ -921,6 +925,20 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 );
             });
         }
+
+        // 🔥 Пересчитываем общий остаток и обновляем поле stock у товара
+        $totalStock = ProductWarehouseStock::where('product_id', $product->id)->sum('quantity');
+        $product->stock = $totalStock;
+        Log::info('Catalog import: saving product stock', [
+            'product_id' => $product->id,
+            'total_stock' => $totalStock,
+        ]);
+        $product->saveQuietly();
+
+        Log::info('Catalog import: product stock updated', [
+            'product_id' => $product->id,
+            'total_stock' => $totalStock,
+        ]);
     }
 
     /**

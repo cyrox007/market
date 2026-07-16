@@ -84,7 +84,4 @@ class ProductResource extends Resource
     {
         return __('filament/admin_sv/product_resource.plural_model_label');
     }
-
-
-
 }
