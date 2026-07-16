@@ -571,6 +571,16 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 continue;
             }
             $name = $this->decodeHtml((string) ($payload['name'] ?? $payload['title'] ?? '')) ?? '';
+            $cleanName = $name;
+            $unknow_code = null;
+
+            // Ищем код в любом месте строки (не только в начале)
+            if (preg_match('/\b(\d{3}\.\d{3}\.\d{3})\b/', $name, $matches)) {
+                $unknow_code = $matches[1];
+                // Удаляем этот код из названия вместе с пробелом после или перед
+                $cleanName = trim(preg_replace('/\b' . preg_quote($unknow_code, '/') . '\s*/', '', $name));
+            }
+
             $sku = $payload['sku']
                 ?? $payload['article']
                 ?? $payload['code']
@@ -587,7 +597,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             $manufacturerName = $this->decodeHtml((string) ($payload['manufacturer']['name'] ?? $payload['manufacturerName'] ?? $payload['manufacturer'] ?? '')) ?: null;
 
             $mapped[] = [
-                'name' => $name,
+                'name' => $cleanName,
                 'sku' => (string) $sku,
                 'slug' => $this->slugFrom($payload['slug'] ?? null, $name),
                 'price' => $price,
@@ -602,6 +612,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 // Полезно для выборочного обновления существующих товаров:
                 // фиксируем какие поля реально были в payload.
                 '_payload_keys' => array_keys($payload),
+                'other_code' => $unknow_code
             ];
         }
 
