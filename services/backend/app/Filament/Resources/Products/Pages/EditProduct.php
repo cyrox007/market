@@ -26,7 +26,7 @@ class EditProduct extends EditRecord
             Action::make('viewOnSite')
                 ->label('Просмотр на сайте')
                 ->icon('heroicon-o-eye')
-                ->url(fn () => url('/product/' . $this->record->slug))
+                ->url(fn() => url('/product/' . $this->record->slug))
                 ->openUrlInNewTab(),
 
             Action::make('syncFrom1C')
@@ -52,9 +52,12 @@ class EditProduct extends EditRecord
                     }
                     // Обновляем форму данными из товара
                     $livewire->form->fill($product->toArray());
-                    // Если есть вариации, обновляем отдельно (не в рамках этой задачи)
+
+                    // Сохраняем товар (обновляем)
+                    $livewire->save();
+
                     Notification::make()
-                        ->title('Товар успешно загружен из 1С')
+                        ->title('Товар успешно обновлён из 1С')
                         ->success()
                         ->send();
                 }),
@@ -236,6 +239,4 @@ class EditProduct extends EditRecord
     {
         return ProductResource::getUrl('index');
     }
-
-    
 }

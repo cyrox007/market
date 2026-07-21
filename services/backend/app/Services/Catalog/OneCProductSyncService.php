@@ -6,9 +6,111 @@ use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Services\Catalog\Integrations\Svetofor1CCatalogImport;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class OneCProductSyncService extends Svetofor1CCatalogImport
 {
+    /**
+     * Переопределяем родительский метод: получаем детали товара из кэш-эндпоинта API,
+     * а не из основного API.
+     */
+    protected function fetchProductDetailByExternalId(string $externalId): ?array
+    {
+        $url = $this->baseUrl . '/api/v1/integration/1c/v2/cache/products/' . urlencode($externalId);
+        $response = Http::timeout($this->timeout)
+            ->withHeaders($this->requestHeaders())
+            ->get($url);
+
+        if (!$response->successful()) {
+            Log::debug('1C sync: product detail from cache API failed', [
+                'external_id' => $externalId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return null;
+        }
+
+        $data = $response->json();
+        if (!is_array($data) || empty($data)) {
+            return null;
+        }
+
+        // Структура ответа: { id, externalId, payload: { ... }, price, createdAt, updatedAt }
+        $payload = $data['payload'] ?? [];
+        $price = $data['price'] ?? null;
+
+        // Формируем массив, совместимый с buildRowFromDetail
+        return [
+            'name'          => $payload['name'] ?? null,
+            'sku'           => $payload['sku'] ?? $payload['article'] ?? null,
+            'basePrice'     => $payload['basePrice'] ?? $price,
+            'originalPrice' => $payload['originalPrice'] ?? null,
+            'description'   => $payload['description'] ?? null,
+            'shortDescription' => $payload['shortDescription'] ?? null,
+            'manufacturerId' => $payload['manufacturerId'] ?? null,
+            'manufacturer'  => ['name' => $payload['manufacturer']['name'] ?? null],
+            'categoryIds'   => $payload['categoryIds'] ?? $payload['category_id'] ?? [],
+            // можно добавить imageUrl: $payload['images'][0] ?? null
+        ];
+    }
+
+    /**
+     * Переопределяем родительский метод: используем числовой ID из кэша,
+     * а не externalId, для запроса модификаций.
+     *
+     * @throws \RuntimeException
+     */
+    protected function fetchModificationsRaw(string $productExternalId): array
+    {
+        // 1. Сначала получаем кэш-данные товара, чтобы достать числовой ID
+        $cacheUrl = $this->baseUrl . '/api/v1/integration/1c/v2/cache/products/' . urlencode($productExternalId);
+        $cacheResponse = Http::timeout($this->timeout)
+            ->withHeaders($this->requestHeaders())
+            ->get($cacheUrl);
+
+        if (!$cacheResponse->successful()) {
+            throw new \RuntimeException(
+                "Failed to get product from cache: " . $cacheResponse->status() . ' ' . $cacheResponse->body()
+            );
+        }
+
+        $cacheData = $cacheResponse->json();
+        $productId = $cacheData['id'] ?? null;
+        if (!$productId) {
+            throw new \RuntimeException("Product ID not found in cache response for externalId: {$productExternalId}");
+        }
+
+        // 2. Запрашиваем модификации по числовому ID
+        $modUrl = $this->baseUrl . '/api/v1/integration/1c/products/' . $productId . '/modifications';
+        $modResponse = Http::timeout($this->timeout)
+            ->withHeaders($this->requestHeaders())
+            ->get($modUrl);
+
+        if (!$modResponse->successful()) {
+            throw new \RuntimeException(
+                "API modifications request failed: " . $modResponse->status() . ' ' . $modResponse->body()
+            );
+        }
+
+        $data = $modResponse->json();
+        $items = isset($data['modifications']) && is_array($data['modifications']) ? $data['modifications'] : [];
+        return array_values($items);
+    }
+
+    protected function applyProductDataFromImport(Product $product, array $row, bool $isUpdate): void
+    {
+        parent::applyProductDataFromImport($product, $row, $isUpdate);
+
+        if (!$isUpdate) {
+            if (empty($product->sku)) {
+                $product->sku = $row['sku'] ?? $row['external_id'] ?? null;
+            }
+            if (empty($product->slug)) {
+                $product->slug = $row['slug'] ?? \Str::slug($row['name'] ?? '');
+            }
+        }
+    }
+
     /**
      * Синхронизировать товар из 1С по external_id
      * Создаёт новый или обновляет существующий товар и его вариации.
@@ -103,27 +205,35 @@ class OneCProductSyncService extends Svetofor1CCatalogImport
      */
     protected function syncModifications(Product $parentProduct, string $externalId): void
     {
-        $raw = $this->fetchModificationsRaw($externalId);
-        $mapped = $this->mapModifications($raw);
-        if (empty($mapped)) {
-            return;
-        }
-
-        $parentProduct->is_variable = true;
-        $parentProduct->saveQuietly();
-
-        foreach ($mapped as $row) {
-            $variant = $this->findOrResolveVariant($parentProduct, $row);
-            if (!$variant) {
-                $variant = new Product();
-                $variant->parent_product_id = $parentProduct->id;
-                $variant->state = Product::ACTIVE;
-                $variant->stock = 0;
-                $variant->backorder = false;
-                $variant->units_sold = 0;
+        try {
+            $raw = $this->fetchModificationsRaw($externalId);
+            $mapped = $this->mapModifications($raw);
+            if (empty($mapped)) {
+                return;
             }
-            $this->applyVariantDataFromImport($variant, $row, $variant->exists);
-            $variant->save();
+
+            $parentProduct->is_variable = true;
+            $parentProduct->saveQuietly();
+
+            foreach ($mapped as $row) {
+                $variant = $this->findOrResolveVariant($parentProduct, $row);
+                if (!$variant) {
+                    $variant = new Product();
+                    $variant->parent_product_id = $parentProduct->id;
+                    $variant->state = Product::ACTIVE;
+                    $variant->stock = 0;
+                    $variant->backorder = false;
+                    $variant->units_sold = 0;
+                }
+                $this->applyVariantDataFromImport($variant, $row, $variant->exists);
+                $variant->save();
+            }
+        } catch (\Exception $e) {
+            Log::warning('1C sync: modifications fetch failed for product', [
+                'external_id' => $externalId,
+                'error' => $e->getMessage(),
+            ]);
+            // Продолжаем выполнение, не прерывая импорт
         }
     }
 }

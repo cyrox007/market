@@ -28,6 +28,7 @@ use Illuminate\Support\Str;
 use App\Services\Catalog\OneCProductSyncService;
 use Filament\Notifications\Notification;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 
 class ProductForm
 {
@@ -669,6 +670,14 @@ class ProductForm
                             ->icon('heroicon-o-arrow-down-tray')
                             ->action(function ($state, $set, $get, $livewire) {
                                 $externalId = $state;
+                                if (empty($externalId)) {
+                                    Notification::make()
+                                        ->title('Введите external_id')
+                                        ->warning()
+                                        ->send();
+                                    return;
+                                }
+
                                 $service = app(OneCProductSyncService::class);
                                 $product = $service->syncProductByExternalId($externalId);
                                 if (!$product) {
@@ -678,13 +687,14 @@ class ProductForm
                                         ->send();
                                     return;
                                 }
-                                // Обновляем форму данными из товара
-                                $livewire->form->fill($product->toArray());
-                                // Если есть вариации, обновляем отдельно (не в рамках этой задачи)
+
                                 Notification::make()
                                     ->title('Товар успешно загружен из 1С')
                                     ->success()
                                     ->send();
+
+                                // Перенаправление на страницу редактирования
+                                $livewire->redirect(route('filament.admin_sv.resources.products.edit', ['record' => $product->id]));
                             })
                     ),
             ])

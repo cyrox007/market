@@ -90,13 +90,14 @@ class CreateProduct extends CreateRecord
                             ->send();
                         return;
                     }
-                    // Обновляем форму данными из товара
-                    $livewire->form->fill($product->toArray());
-                    // Если есть вариации, обновляем отдельно (не в рамках этой задачи)
+
                     Notification::make()
                         ->title('Товар успешно загружен из 1С')
                         ->success()
                         ->send();
+
+                    // Перенаправляем на редактирование созданного товара
+                    $livewire->redirect(route('filament.admin_sv.resources.products.edit', ['record' => $product->id]));
                 }),
         ];
     }
