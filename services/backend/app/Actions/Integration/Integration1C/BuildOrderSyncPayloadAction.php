@@ -39,6 +39,7 @@ class BuildOrderSyncPayloadAction
             'liftCost' => $this->resolveLiftCost($order),
             'payment' => $this->resolvePaymentLabel($order),
             'products' => $this->buildProducts($order),
+            'status' => (string) $order->status,
         ];
     }
 

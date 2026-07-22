@@ -871,7 +871,7 @@ export default function Product() {
 		<div className="min-h-screen bg-white">
 
 			<div className="max-w-[1280px] mx-auto px-4 py-6">
-				{/* Breadcrumbs */}
+				{/* Хлебные крошки */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
 					<i className="ri-arrow-right-s-line text-gray-400"></i>
@@ -886,7 +886,7 @@ export default function Product() {
 					<span className="text-gray-900">{product?.name}</span>
 				</div>
 
-				{/* Product Main Info - New Layout */}
+				{/* Основная сетка: галерея слева, информация справа */}
 				<div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 mb-12">
 					{/* Left: Images and Details */}
 					<div className="flex flex-col md:flex-row gap-4">
