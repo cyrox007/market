@@ -245,6 +245,9 @@ export default function Product() {
 	const regionId = getRegionId();
 	const prefetchProduct = usePrefetchProduct();
 
+	const [showAllStocks, setShowAllStocks] = useState(false);
+
+
 	const productKey = slug
 		? getProductKey(slug, { region_id: regionId ?? undefined })
 		: null;
@@ -811,6 +814,11 @@ export default function Product() {
 			: null
 	);
 
+	const displayNearestStock = selectedVariant?.nearest_stock ?? product?.nearest_stock ?? product?.stock ?? 0;
+	const displayNearestWarehouse = selectedVariant?.nearest_warehouse_name ?? product?.nearest_warehouse_name ?? null;
+	const displayStocks = selectedVariant?.stocks ?? product?.stocks ?? [];
+	const inStock = displayNearestStock > 0 || product?.backorder;
+
 	// Derived state: все данные для отображения вычисляются из product + selectedVariant
 	const displayPrice = selectedVariant?.price ?? product?.price;
 	const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
@@ -1008,12 +1016,42 @@ export default function Product() {
 						<div className="flex-1 space-y-4 sm:space-y-6 order-3 lg:order-3">
 							{/* Product Name and Status */}
 							<div>
-								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product?.id}-${selectedVariant?.id ?? 'parent'}-${stockBadge.stock}`}>
-									<span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${stockBadge.badgeClass}`}>
-										{stockBadge.badgeLabel}
-									</span>
+								<div className="flex items-center gap-2 mb-3 flex-wrap" key={`status-${product?.id}-${selectedVariant?.id ?? 'parent'}-${displayNearestStock}`}>
+									{inStock ? (
+										<span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 whitespace-nowrap">
+											В наличии
+										</span>
+									) : (
+										<span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-600 whitespace-nowrap">
+											Нет в наличии
+										</span>
+									)}
+									{inStock && displayNearestStock > 0 && (
+										<span className="text-xs text-gray-600 whitespace-nowrap">
+											{displayNearestStock} шт.
+											{displayNearestWarehouse && (
+												<span className="text-xs text-gray-500 ml-1">(склад «{displayNearestWarehouse}»)</span>
+											)}
+										</span>
+									)}
+									{displayStocks.length > 1 && (
+										<button
+											onClick={() => setShowAllStocks(!showAllStocks)}
+											className="text-xs text-blue-600 hover:underline ml-1"
+										>
+											{showAllStocks ? 'Скрыть' : 'Показать все склады'}
+										</button>
+									)}
+									{showAllStocks && displayStocks.length > 1 && (
+										<ul className="mt-2 text-xs text-gray-700 list-disc pl-4">
+											{displayStocks.map((stock) => (
+												<li key={stock.warehouse_id}>
+													{stock.warehouse_name}: {stock.quantity} шт.
+												</li>
+											))}
+										</ul>
+									)}
 									{(() => {
-										const selectedVariant = getSelectedVariant();
 										const displaySku = selectedVariant?.sku || product?.sku;
 										const variantKey = selectedVariant?.id || Object.values(selectedVariation).sort().join('-') || 'main';
 										return displaySku ? (
