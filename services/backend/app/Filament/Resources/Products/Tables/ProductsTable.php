@@ -119,6 +119,30 @@ class ProductsTable
                         : ($record->isVariable()
                             ? 'Сумма остатков активных вариаций'
                             : null)),
+                TextColumn::make('warehouse_stocks_display')
+                    ->label('Остатки по складам')
+                    ->html()
+                    ->formatStateUsing(function (Product $record): string {
+                        if (!$record->relationLoaded('warehouseStocks')) {
+                            $record->load('warehouseStocks.warehouse');
+                        }
+
+                        if ($record->isVariable() && $record->warehouseStocks->isEmpty()) {
+                            return '<span class="text-gray-400 text-xs">см. вариации</span>';
+                        }
+
+                        if ($record->warehouseStocks->isEmpty()) {
+                            return '—';
+                        }
+
+                        return $record->warehouseStocks->map(function ($stock) {
+                            $name = $stock->warehouse->name ?? 'Склад #' . $stock->warehouse_id;
+                            return e($name) . ': ' . (int) $stock->quantity;
+                        })->implode('<br>');
+                    })
+                    ->tooltip('Остатки по каждому складу (для простых товаров)')
+                    ->toggleable()
+                    ->sortable(false),
 
                 TextColumn::make('variants_count')
                     ->label('Вариации')

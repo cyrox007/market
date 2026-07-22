@@ -24,6 +24,10 @@ class ProductResource extends JsonResource
             $region = ShippingLocation::find($regionId);
         }
 
+        if (!$this->relationLoaded('warehouseStocks')) {
+            $this->load('warehouseStocks.warehouse');
+        }
+
         $regionRuleService = app(ProductRegionRuleService::class);
         $warehouseStockResolver = app(WarehouseStockResolver::class);
 
@@ -155,7 +159,16 @@ class ProductResource extends JsonResource
         }
 
         $resolvedStock = $warehouseStockResolver->resolveForProduct($this->resource, $region);
-
+        $stocks = [];
+        if ($this->relationLoaded('warehouseStocks')) {
+            $stocks = $this->warehouseStocks->map(function ($stock) {
+                return [
+                    'warehouse_id' => $stock->warehouse_id,
+                    'warehouse_name' => $stock->warehouse->name ?? 'Склад #' . $stock->warehouse_id,
+                    'quantity' => (int) $stock->quantity,
+                ];
+            })->values()->toArray();
+        }
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -173,6 +186,7 @@ class ProductResource extends JsonResource
             'thumbnail' => $this->thumbnail_url,
             'in_stock' => $resolvedStock > 0 || $this->backorder,
             'stock' => $resolvedStock,
+            'stocks' => $stocks,
             'rating' => $this->rating ?? 0,
             'reviews_count' => $this->reviews_count ?? 0,
             'is_variable' => $this->isVariable(),

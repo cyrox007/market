@@ -296,15 +296,47 @@ class ProductForm
             ->collapsed(fn($record) => $record?->is_variable)
             ->visible(fn() => ProductStockSettings::getInstance()->warehouse_accounting_enabled)
             ->schema([
-                \Filament\Forms\Components\Placeholder::make('warehouse_variable_hint')
-                    ->label('')
-                    ->content('У вариативного товара остатки по складам настраиваются у каждой вариации (вкладка «Торговые предложения»). Здесь — только для простого товара без вариаций.')
+                // Для вариативных товаров – сводка по складам
+                \Filament\Forms\Components\Placeholder::make('variants_warehouse_summary')
+                    ->label('Суммарные остатки по складам (все вариации)')
+                    ->content(function ($record) {
+                        if (!$record || !$record->is_variable) {
+                            return '—';
+                        }
+                        $stocks = [];
+                        foreach ($record->variants as $variant) {
+                            foreach ($variant->warehouseStocks as $ws) {
+                                $wid = $ws->warehouse_id;
+                                if (!isset($stocks[$wid])) {
+                                    $stocks[$wid] = [
+                                        'name' => $ws->warehouse->name ?? 'Склад #' . $wid,
+                                        'total' => 0,
+                                    ];
+                                }
+                                $stocks[$wid]['total'] += $ws->quantity;
+                            }
+                        }
+                        if (empty($stocks)) {
+                            return 'Нет остатков на складах';
+                        }
+                        // Выводим в виде HTML с ссылкой на вкладку вариаций
+                        $list = collect($stocks)
+                            ->map(fn($item) => e($item['name']) . ': ' . $item['total'])
+                            ->implode('<br>');
+                        $url = route('filament.admin_sv.resources.products.edit', [
+                            'record' => $record->id,
+                            'tab' => 'productVariantsRelationManager'
+                        ]);
+                        $link = '<br><br><a href="' . e($url) . '" class="text-primary-600 hover:underline">Перейти к редактированию остатков вариаций →</a>';
+                        return new \Illuminate\Support\HtmlString($list . $link);
+                    })
                     ->visible(fn($record) => $record && $record->is_variable)
                     ->columnSpanFull(),
 
+                // Для простых товаров – Repeater для редактирования
                 WarehouseStocksFormComponents::warehouseStocksRepeater()
-                    ->visible(fn($record) => ! $record || ! $record->is_variable)
-                    ->helperText('Склады создаются при синхронизации из 1С (поле external_id склада). Привязка складов к регионам доставки — в разделе «Доставка → Склады».'),
+                    ->visible(fn($record) => !$record || !$record->is_variable)
+                    ->helperText('Склады создаются при синхронизации из 1С...'),
             ]);
     }
 

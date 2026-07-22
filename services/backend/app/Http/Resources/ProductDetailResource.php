@@ -9,6 +9,7 @@ use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehouseStockResolver;
 use App\Services\Product\ProductRegionRuleService;
 use App\Services\Seo\SeoApiTransformer;
+use App\Services\Inventory\WarehousePriorityResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Log;
@@ -39,6 +40,10 @@ class ProductDetailResource extends JsonResource
                 'product_id' => $this->id,
                 'request_keys' => array_keys($request->all()),
             ]);
+        }
+
+        if (!$this->relationLoaded('warehouseStocks')) {
+            $this->load('warehouseStocks.warehouse');
         }
 
         $regionRuleService = app(ProductRegionRuleService::class);
@@ -204,9 +209,9 @@ class ProductDetailResource extends JsonResource
 
                 $variantSpecs = $variant->buildSpecificationsForApi();
                 $variantStock = (int) round((float) ($warehouseStockResolver->resolveForProduct($variant, $region) ?? 0));
-                
+
                 $colorAttr = \App\Models\Product\Attribute::where('slug', 'color')->first();
-                $colorValues = $colorAttr 
+                $colorValues = $colorAttr
                     ? $variant->variantAttributes()->wherePivot('attribute_id', $colorAttr->id)->get()
                     : collect();
 
@@ -402,18 +407,32 @@ class ProductDetailResource extends JsonResource
 
         // Для вариативного родителя: в наличии, если доступна хотя бы одна вариация
         if ($isVariable && ! $isVariant && ! empty($variants)) {
-            $inStock = collect($variants)->contains(fn (array $variant): bool => (bool) ($variant['in_stock'] ?? false))
+            $inStock = collect($variants)->contains(fn(array $variant): bool => (bool) ($variant['in_stock'] ?? false))
                 || $this->backorder;
             if (! $inStock) {
                 $resolvedStock = 0;
             } else {
                 $resolvedStock = (int) collect($variants)
-                    ->filter(fn (array $variant): bool => (bool) ($variant['in_stock'] ?? false))
-                    ->max(fn (array $variant): int => (int) ($variant['stock'] ?? 0));
+                    ->filter(fn(array $variant): bool => (bool) ($variant['in_stock'] ?? false))
+                    ->max(fn(array $variant): int => (int) ($variant['stock'] ?? 0));
             }
         }
 
+        // Детализация остатков по складам
+        $stocks = [];
+        if ($this->relationLoaded('warehouseStocks')) {
+            $stocks = $this->warehouseStocks->map(function ($stock) {
+                return [
+                    'warehouse_id' => $stock->warehouse_id,
+                    'warehouse_name' => $stock->warehouse->name ?? 'Склад #' . $stock->warehouse_id,
+                    'quantity' => (int) $stock->quantity,
+                ];
+            })->values()->toArray();
+        }
+
         $stockLabel = StockCategoryHelper::formatStockDisplay($resolvedStock);
+
+        $priority = app(WarehousePriorityResolver::class)->resolve($this->resource, $region);
 
         return [
             'id' => $this->id,
@@ -432,6 +451,9 @@ class ProductDetailResource extends JsonResource
             'thumbnail' => $this->thumbnail_url,
             'in_stock' => $inStock,
             'stock' => $resolvedStock,
+            'nearest_stock' => $priority['nearest_stock'],
+            'nearest_warehouse_name' => $priority['nearest_warehouse_name'],
+            'stocks' => $priority['stocks'],
             'stock_label' => $stockLabel,
             'backorder' => (bool) $this->backorder,
             'rating' => $this->rating ?? 4.8,
