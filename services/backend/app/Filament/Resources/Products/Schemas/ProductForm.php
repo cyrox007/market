@@ -333,6 +333,11 @@ class ProductForm
                     ->visible(fn($record) => $record && $record->is_variable)
                     ->columnSpanFull(),
 
+                Toggle::make('backorder')
+                    ->label(__('filament/admin_sv/product_resource.backorder'))
+                    ->helperText('Если товара нет в наличии, разрешить клиентам делать предзаказ')
+                    ->default(false)
+                    ->columnSpanFull(),
                 // Для простых товаров – Repeater для редактирования
                 WarehouseStocksFormComponents::warehouseStocksRepeater()
                     ->visible(fn($record) => !$record || !$record->is_variable)
