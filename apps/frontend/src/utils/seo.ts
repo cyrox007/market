@@ -11,7 +11,7 @@ export function applySeoMeta(seo: SeoMeta | null | undefined): void {
   if (!seo) return;
 
   if (seo.title) {
-    document.title = seo.title;
+    document.title = seo.title || 'Светофор Мебели';
   }
 
   // description

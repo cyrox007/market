@@ -175,15 +175,15 @@ export function resolveProductStockBadge(params: {
   let badgeLabel: string;
   let badgeClass: string;
 
-  if (!inStock) {
+  if (backorder && stock === 0) {
+    badgeLabel = 'Под заказ';
+    badgeClass = 'bg-yellow-100 text-yellow-700';
+  } else if (!inStock) {
     badgeLabel = 'Нет в наличии';
     badgeClass = 'bg-red-100 text-red-700';
   } else if (stock > 0) {
     badgeLabel = `В наличии (${stockText})`;
     badgeClass = 'bg-green-100 text-green-700';
-  } else if (backorder) {
-    badgeLabel = 'Под заказ';
-    badgeClass = 'bg-yellow-100 text-yellow-700';
   } else {
     badgeLabel = 'Товар недоступен для заказа';
     badgeClass = 'bg-yellow-100 text-yellow-700';
