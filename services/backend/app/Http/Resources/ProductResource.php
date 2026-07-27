@@ -197,6 +197,7 @@ class ProductResource extends JsonResource
             'colors' => $colors,
             'specifications' => $specifications,
             'specification_names' => $specificationNames,
+            'backorder' => (bool) $this->backorder,
             'category' => $this->when(
                 $this->relationLoaded('taxons') && $this->taxons->isNotEmpty(),
                 fn() => $this->taxons->first() ? [

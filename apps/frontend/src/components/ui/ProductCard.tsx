@@ -230,7 +230,7 @@ function ProductCard({
               Выбрать
             </button>
           ) : (!product.in_stock && !product.backorder) ? (
-            <button disabled className="...">
+            <button disabled className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-gray-400 text-white cursor-not-allowed">
               Недоступно
             </button>
           ) : (product.backorder && (product.stock ?? 0) === 0) ? (

@@ -502,7 +502,6 @@ export interface Product {
 	//excerpt: string | null;
 	delivery_days?: number | null;
 	seo?: SeoMeta | null;
-	
 }
 
 export interface VariationAttributeValue {
