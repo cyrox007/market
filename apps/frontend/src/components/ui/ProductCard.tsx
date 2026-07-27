@@ -179,29 +179,25 @@ function ProductCard({
             {onToggleCompare && (
               <button
                 onClick={handleCompareClick}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${
-                  isInCompare ? 'bg-red-50' : ''
-                }`}
+                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${isInCompare ? 'bg-red-50' : ''
+                  }`}
               >
-                <i className={`text-base md:text-lg ${
-                  isInCompare
+                <i className={`text-base md:text-lg ${isInCompare
                     ? 'ri-scales-3-fill text-red-600'
                     : 'ri-scales-3-line text-gray-600'
-                }`}></i>
+                  }`}></i>
               </button>
             )}
             {onToggleFavorite && (
               <button
                 onClick={handleFavoriteClick}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${
-                  isFavorite ? 'bg-red-50' : ''
-                }`}
+                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${isFavorite ? 'bg-red-50' : ''
+                  }`}
               >
-                <i className={`text-base md:text-lg ${
-                  isFavorite
+                <i className={`text-base md:text-lg ${isFavorite
                     ? 'ri-heart-fill text-red-500'
                     : 'ri-heart-line text-red-600'
-                }`}></i>
+                  }`}></i>
               </button>
             )}
           </div>
@@ -233,12 +229,13 @@ function ProductCard({
             >
               Выбрать
             </button>
-          ) : !product.in_stock ? (
-            <button
-              disabled
-              className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-gray-400 text-white cursor-not-allowed"
-            >
+          ) : (!product.in_stock && !product.backorder) ? (
+            <button disabled className="...">
               Недоступно
+            </button>
+          ) : (product.backorder && (product.stock ?? 0) === 0) ? (
+            <button className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-yellow-600 text-white hover:bg-yellow-700">
+              Под заказ
             </button>
           ) : displayedCartQuantity > 0 ? (
             <div className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
@@ -262,11 +259,10 @@ function ProductCard({
             <button
               onClick={handleButtonClick}
               disabled={isAddingToCart}
-              className={`w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm disabled:opacity-70 ${
-                addedToCart
+              className={`w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm disabled:opacity-70 ${addedToCart
                   ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-red-600 text-white hover:bg-red-700'
-              }`}
+                }`}
             >
               {isAddingToCart ? 'Добавляем…' : addedToCart ? 'Добавлено' : 'В корзину'}
             </button>
