@@ -363,7 +363,7 @@ class ProductForm
                 SpatieMediaLibraryFileUpload::make('gallery')
                     ->collection('gallery')
                     ->label('Галерея изображений')
-                    ->helperText('Дополнительные фото товара (до 20). Превью в ряд.')
+                    ->helperText('Дополнительные фото товара (до 20). Превью в ряд. Порядок сохраняется как при загрузке.')
                     ->multiple()
                     ->image()
                     ->imageEditor()
@@ -371,7 +371,8 @@ class ProductForm
                     ->maxFiles(20)
                     ->maxSize(10240)
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
-                    ->panelLayout('grid'),
+                    ->panelLayout('grid')
+                    ->orderColumn('order_column'),
             ])
             ->columns(2);
     }

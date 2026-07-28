@@ -1514,9 +1514,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $urls[] = $mainImage->getUrl();
         }
 
-        // Gallery images
+        // Gallery images - сортируем по order_column для сохранения порядка загрузки
         $galleryImages = $this->getMedia('gallery')
-            ->sortByDesc('id');
+            ->sortBy('order_column');
         foreach ($galleryImages as $image) {
             $urls[] = $image->getUrl();
         }
@@ -1537,9 +1537,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $urls[] = $mainImage->getUrl('hd');
         }
 
-        // Gallery images
+        // Gallery images - сортируем по order_column для сохранения порядка загрузки
         $galleryImages = $this->getMedia('gallery')
-        ->sortByDesc('id');
+            ->sortBy('order_column');
         foreach ($galleryImages as $image) {
             $urls[] = $image->getUrl('hd');
         }
@@ -1557,7 +1557,8 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             ->singleFile(); // Для главного изображения
 
         $this->addMediaCollection('gallery')
-            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp']);
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp'])
+            ->useDefaultOrderColumn();
     }
 
     /**
@@ -1695,7 +1696,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $urls->push($mainImage->getUrl('thumb'));
         }
 
-        $galleryImages = $this->getMedia('gallery');
+        // Gallery images - сортируем по order_column для сохранения порядка загрузки
+        $galleryImages = $this->getMedia('gallery')
+            ->sortBy('order_column');
         foreach ($galleryImages as $image) {
             $urls->push($image->getUrl('thumb'));
         }
@@ -1728,7 +1731,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $urls->push($variant ? $mainImage->getUrl($variant) : $mainImage->getUrl());
         }
 
-        $galleryImages = $this->getMedia('gallery');
+        // Gallery images - сортируем по order_column для сохранения порядка загрузки
+        $galleryImages = $this->getMedia('gallery')
+            ->sortBy('order_column');
         foreach ($galleryImages as $image) {
             $urls->push($variant ? $image->getUrl($variant) : $image->getUrl());
         }

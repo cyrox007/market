@@ -26,14 +26,16 @@ class ArticleResource extends JsonResource
             'image_thumb' => $this->getFirstMediaUrl('image', 'thumb'),
             'image_hd' => $this->getFirstMediaUrl('image', 'hd'),
             'image_fullhd' => $this->getFirstMediaUrl('image', 'fullhd'),
-            'gallery' => $this->getMedia('gallery')->map(function ($media) {
-                return [
-                    'url' => $media->getUrl(),
-                    'thumb' => $media->getUrl('thumb'),
-                    'hd' => $media->getUrl('hd'),
-                    'fullhd' => $media->getUrl('fullhd'),
-                ];
-            }),
+            'gallery' => $this->getMedia('gallery')
+                ->sortBy('order_column')
+                ->map(function ($media) {
+                    return [
+                        'url' => $media->getUrl(),
+                        'thumb' => $media->getUrl('thumb'),
+                        'hd' => $media->getUrl('hd'),
+                        'fullhd' => $media->getUrl('fullhd'),
+                    ];
+                }),
             'category' => $this->when(
                 $this->relationLoaded('category') && $this->category,
                 fn() => [
