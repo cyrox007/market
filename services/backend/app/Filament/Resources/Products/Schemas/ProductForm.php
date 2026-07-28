@@ -373,7 +373,7 @@ class ProductForm
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                     ->panelLayout('grid')
                     ->reorderable()
-                    ->sorted(),
+                    ->reverse(),
                     
             ])
             ->columns(2);
