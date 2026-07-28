@@ -1491,6 +1491,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         return $media ? $media->getUrl('hd') : null;
     }
 
+    
     /**
      * Get Full HD image URL (large size).
      */

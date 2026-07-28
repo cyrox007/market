@@ -39,6 +39,7 @@ use App\Payment\Gateways\SberbankAcquiringGateway;
 use App\Services\Gateway\DatabaseGatewayLogger;
 use App\Services\Payment\RaiffeisenEcomClientFactory;
 use App\Services\Payment\RaiffeisenEcomRefundService;
+use Filament\Forms\Components\BaseFileUpload;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -160,6 +161,10 @@ class AppServiceProvider extends ServiceProvider
             )->withPivot(['price', 'is_active', 'sort_order'])
                 ->withTimestamps()
                 ->orderBy('shipping_location_additional_service.sort_order');
+        });
+
+        BaseFileUpload::configureUsing(function (BaseFileUpload $component) {
+            $component->appendFiles();
         });
     }
 }
