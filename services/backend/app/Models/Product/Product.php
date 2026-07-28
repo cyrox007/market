@@ -1516,7 +1516,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
 
         // Gallery images
         $galleryImages = $this->getMedia('gallery')
-            ->sortBy('order_column');
+            ->sortBy(function ($media) {
+                return [$media->order_column ?? PHP_INT_MAX, $media->id];
+            });
         foreach ($galleryImages as $image) {
             $urls[] = $image->getUrl();
         }
@@ -1539,7 +1541,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
 
         // Gallery images
         $galleryImages = $this->getMedia('gallery')
-        ->sortBy('order_column');
+        ->sortBy(function ($media) {
+            return [$media->order_column ?? PHP_INT_MAX, $media->id];
+        });
         foreach ($galleryImages as $image) {
             $urls[] = $image->getUrl('hd');
         }
