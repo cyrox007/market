@@ -372,7 +372,8 @@ class ProductForm
                     ->maxSize(10240)
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                     ->panelLayout('grid')
-                    ->reorderable(),
+                    ->reorderable()
+                    ->sorted(),
                     
             ])
             ->columns(2);
