@@ -596,7 +596,7 @@ class ProductController extends Controller
      * Получить товары для кэширования (вынесено в отдельный метод для переиспользования).
      * Для списка каталога ($listView = true) не грузим attributeValues — меньше БД и payload.
      */
-    protected function fetchProductsForCache($query, int $perPage, Request $request, bool $listView = false)
+    protected function fetchProductsForCache(\Illuminate\Database\Eloquent\Builder $query, int $perPage, Request $request, bool $listView = false)
     {
         $with = [
             'taxons',
@@ -1391,7 +1391,7 @@ class ProductController extends Controller
      * Применяет server-side фильтрацию по региональной видимости.
      * Исключает товары, которые скрыты правилами текущей локации или её предков.
      */
-    private function applyRegionVisibilityFilter($query, ShippingLocation $location)
+    private function applyRegionVisibilityFilter(\Illuminate\Database\Eloquent\Builder $query, ShippingLocation $location)
     {
         $locationIds = array_reverse($location->getAncestorsIds());
 
@@ -1475,7 +1475,7 @@ class ProductController extends Controller
      * Построить мета-данные для фильтров каталога.
      * Использует подзапросы вместо загрузки всех ID в память — масштабируется на большие категории.
      */
-    private function buildFiltersMeta($baseQuery): array
+    private function buildFiltersMeta(\Illuminate\Database\Eloquent\Builder $baseQuery): array
     {
         $queryForFilters = clone $baseQuery;
 
@@ -1639,7 +1639,7 @@ class ProductController extends Controller
             ->map(fn ($m) => [
                 'id' => $m->id,
                 'name' => $m->name,
-                'slug' => $m->slug ?? \Str::slug($m->name),
+                'slug' => $m->slug ?? Str::slug($m->name),
             ]);
 
         return [

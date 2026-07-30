@@ -8,6 +8,7 @@ use App\Services\Product\ProductRegionRuleService;
 use App\Services\Seo\SeoApiTransformer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 class ProductResource extends JsonResource
 {
@@ -64,7 +65,7 @@ class ProductResource extends JsonResource
                         $defaultColor = [
                             'id' => null,
                             'name' => $v->color,
-                            'slug' => \Str::slug($v->color),
+                            'slug' => Str::slug($v->color),
                             'code' => $v->color_code ?? null,
                         ];
                     }
@@ -73,7 +74,7 @@ class ProductResource extends JsonResource
                         $defaultSize = [
                             'id' => null,
                             'name' => "{$v->length} x {$v->width} см",
-                            'slug' => \Str::slug($sizeStr),
+                            'slug' => Str::slug($sizeStr),
                             'value' => $sizeStr,
                         ];
                     }
@@ -111,7 +112,7 @@ class ProductResource extends JsonResource
                 return [
                     'id' => $value->id ?? null,
                     'name' => $value->value ?? $value->name ?? null,
-                    'slug' => $value->slug ?? \Str::slug($value->value ?? $value->name ?? ''),
+                    'slug' => $value->slug ?? Str::slug($value->value ?? $value->name ?? ''),
                     'code' => $value->color_code ?? null,
                 ];
             })->values()->toArray();
@@ -203,7 +204,7 @@ class ProductResource extends JsonResource
                 fn() => $this->taxons->first() ? [
                     'id' => $this->taxons->first()->id,
                     'name' => $this->taxons->first()->name,
-                    'slug' => $this->taxons->first()->slug ?? \Str::slug($this->taxons->first()->name),
+                    'slug' => $this->taxons->first()->slug ?? Str::slug($this->taxons->first()->name),
                 ] : null
             ),
             'categories' => $this->when(
@@ -211,7 +212,7 @@ class ProductResource extends JsonResource
                 fn () => $this->taxons->map(fn ($taxon) => [
                     'id' => $taxon->id,
                     'name' => $taxon->name,
-                    'slug' => $taxon->slug ?? \Str::slug($taxon->name),
+                    'slug' => $taxon->slug ?? Str::slug($taxon->name),
                 ])->values()
             ),
             //'excerpt' => $this->excerpt,
