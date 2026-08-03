@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CatalogImportersWidget;
+use \App\Filament\Widgets\ProductImageImportWidget;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -36,6 +37,9 @@ class CatalogSyncPage extends Page
     {
         return [
             CatalogImportersWidget::class,
+            ProductImageImportWidget::class,
         ];
     }
+
+    
 }
