@@ -11,29 +11,36 @@ class ProductImagesImporter
     public function import(string $filePath): void
     {
         if (!file_exists($filePath) || !is_readable($filePath)) {
-            throw new \Exception("File \"{$filePath}\" does not exist or is not readable.");
+            throw new \Exception("Файл \"{$filePath}\" не найден или недоступен для чтения.");
         }
 
         try {
             $spreadsheet = IOFactory::load($filePath);
             $worksheet = $spreadsheet->getActiveSheet();
-            $rows = $worksheet->toArray();
+            
+            // Получаем итератор строк (экономия памяти)
+            $rowIterator = $worksheet->getRowIterator(2); 
 
-            // Пропускаем заголовок
-            $header = array_shift($rows);
+            // Индексы колонок (1 - это A, 2 - это B и т.д.)
+            $colExternalId = 2;      // Колонка B (Артикул)
+            $colMainPhoto = 16;      // Колонка P (Главное фото)
+            $colAdditional = 17;     // Колонка Q (Дополнительные фото)
+            
+            foreach ($rowIterator as $row) {
+                $cellIterator = $row->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(false); // Считываем даже пустые ячейки
 
-            // Индексы колонок (0-based) – сверьте с вашим файлом!
-            $colExternalId = 1;      // B
-            $colMainPhoto = 15;      // P
-            $colAdditional = 16;     // Q
+                $cells = [];
+                foreach ($cellIterator as $cell) {
+                    $cells[] = $cell->getValue();
+                }
 
-            foreach ($rows as $rowIndex => $row) {
-                $externalId = trim($row[$colExternalId] ?? '');
-                $mainPhoto = trim($row[$colMainPhoto] ?? '');
-                $additionalRaw = trim($row[$colAdditional] ?? '');
+                $externalId = trim($cells[$colExternalId - 1] ?? '');
+                $mainPhoto = trim($cells[$colMainPhoto - 1] ?? '');
+                $additionalRaw = trim($cells[$colAdditional - 1] ?? '');
 
+                // Пропускаем, если нет артикула или главного фото
                 if (empty($externalId) || empty($mainPhoto)) {
-                    Log::info("Пропущена строка {$rowIndex}: нет артикула или главного фото");
                     continue;
                 }
 
@@ -41,6 +48,7 @@ class ProductImagesImporter
                 $additionalUrls = preg_split('/[\s;,]+/', $additionalRaw, -1, PREG_SPLIT_NO_EMPTY);
 
                 ProcessProductImages::dispatch($externalId, $mainPhoto, $additionalUrls);
+                Log::info("Артикул {$externalId} отправлен в обработку");
             }
 
             Log::info('Импорт изображений завершён, задачи поставлены в очередь');
