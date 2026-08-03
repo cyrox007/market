@@ -37,6 +37,12 @@ class ProcessProductImages implements ShouldQueue
             return;
         }
 
+        // Создаём временную папку, если её нет
+        $tempDir = storage_path('app/temp');
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
         $client = new Client([
             'timeout' => 30,
             'verify' => false,
