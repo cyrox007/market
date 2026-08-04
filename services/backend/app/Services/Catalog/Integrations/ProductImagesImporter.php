@@ -48,7 +48,7 @@ class ProductImagesImporter
                 $additionalUrls = preg_split('/[\s;,]+/', $additionalRaw, -1, PREG_SPLIT_NO_EMPTY);
 
                 ProcessProductImages::dispatch($externalId, $mainPhoto, $additionalUrls);
-                Log::info("Артикул {$externalId} отправлен в обработку");
+                //Log::info("Артикул {$externalId} отправлен в обработку");
             }
 
             Log::info('Импорт изображений завершён, задачи поставлены в очередь');
