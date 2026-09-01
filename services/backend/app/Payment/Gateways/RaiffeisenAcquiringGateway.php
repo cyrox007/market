@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace App\Payment\Gateways;
 
 use App\Models\Payment\PaymentMethod as AppPaymentMethod;
-use Illuminate\Http\Request;
 use Vanilo\Contracts\Address;
 use Vanilo\Payment\Contracts\Payment;
-use Vanilo\Payment\Contracts\PaymentGateway;
 use Vanilo\Payment\Contracts\PaymentRequest;
-use Vanilo\Payment\Contracts\PaymentResponse;
-use Vanilo\Payment\Contracts\TransactionHandler;
-use Vanilo\Payment\Models\PaymentStatusProxy;
 
-class RaiffeisenAcquiringGateway implements PaymentGateway
+/**
+ * Райффайзен — оплата картой через платёжную форму (client-side redirect на pay.raif.ru/pay).
+ * Приём callback наследуется от AbstractRaiffeisenGateway (единый механизм Raif Pay).
+ */
+class RaiffeisenAcquiringGateway extends AbstractRaiffeisenGateway
 {
     public static function getName(): string
     {
@@ -34,77 +33,17 @@ class RaiffeisenAcquiringGateway implements PaymentGateway
         return new RaiffeisenPaymentRequest($payment);
     }
 
-    private const SUCCESS_STATUSES = ['CONFIRMED', 'PAID', 'SUCCESS', 'COMPLETED', 'CAPTURED'];
-    private const FAIL_STATUSES = ['DECLINED', 'CANCELLED', 'CANCELED', 'FAILED', 'REJECTED', 'EXPIRED'];
-
-    public function processPaymentResponse(Request $request, array $options = []): PaymentResponse
+    public function gatewayLogId(): string
     {
-        $payment = $options['payment'] ?? null;
-        $paymentId = $payment ? $payment->getPaymentId() : '';
-
-        $payload = $request->all();
-        if (empty($payload)) {
-            $raw = $request->getContent();
-            if (is_string($raw)) {
-                $payload = json_decode($raw, true) ?? [];
-            }
-        }
-
-        $status = strtoupper((string) ($payload['status'] ?? $payload['state'] ?? $payload['paymentStatus'] ?? ''));
-        $amount = (float) ($payload['amount'] ?? $payload['transactionAmount'] ?? 0);
-        $transactionId = $payload['transactionId'] ?? $payload['transaction_id'] ?? $payload['paymentId'] ?? $payload['id'] ?? null;
-        $message = $payload['message'] ?? $payload['errorMessage'] ?? null;
-
-        $wasSuccessful = in_array($status, self::SUCCESS_STATUSES, true);
-        $isFailed = in_array($status, self::FAIL_STATUSES, true);
-
-        if ($wasSuccessful) {
-            $vaniloStatus = PaymentStatusProxy::PAID();
-        } elseif ($isFailed) {
-            $vaniloStatus = in_array($status, ['CANCELLED', 'CANCELED', 'EXPIRED'], true)
-                ? PaymentStatusProxy::CANCELLED()
-                : PaymentStatusProxy::DECLINED();
-        } else {
-            $vaniloStatus = PaymentStatusProxy::PENDING();
-        }
-
-        return new RaiffeisenPaymentResponse(
-            paymentId: $paymentId,
-            wasSuccessful: $wasSuccessful,
-            status: $vaniloStatus,
-            message: $message,
-            transactionId: $transactionId ? (string) $transactionId : null,
-            transactionAmount: $amount > 0 ? $amount : ($payment ? (float) $payment->getAmount() : 0.0)
-        );
-    }
-
-    public function transactionHandler(): ?TransactionHandler
-    {
-        return null;
-    }
-
-    public function isOffline(): bool
-    {
-        return false;
+        return 'raiffeisen_acquiring';
     }
 
     public function getClientConfig(AppPaymentMethod $method): array
     {
         $config = $method->configuration() ?? [];
-        $fromConfig = config('payment.raiffeisen.public_id', '');
-        if ((string) $fromConfig === '') {
-            $fromConfig = env('RAIFFEISEN_PUBLIC_ID', '');
-        }
-        $fromMethod = $config['public_id'] ?? null;
-        $publicId = ($fromMethod !== null && (string) $fromMethod !== '') ? (string) $fromMethod : (string) $fromConfig;
 
-        $urlConfig = config('payment.raiffeisen.url', '');
-        if ((string) $urlConfig === '') {
-            $urlConfig = env('RAIFFEISEN_PAYMENT_URL', 'https://pay-test.raif.ru/pay');
-        }
-        $url = ($config['url'] ?? null) !== null && (string) ($config['url'] ?? '') !== ''
-            ? (string) $config['url']
-            : (string) $urlConfig;
+        $publicId = (string) ($config['public_id'] ?? config('payment.raiffeisen.public_id', ''));
+        $url = (string) ($config['url'] ?? config('payment.raiffeisen.url', 'https://pay-test.raif.ru/pay'));
 
         return [
             'publicId' => $publicId,

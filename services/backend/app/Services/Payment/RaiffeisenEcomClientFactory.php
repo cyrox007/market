@@ -13,23 +13,38 @@ class RaiffeisenEcomClientFactory
 {
     public function createForPayment(Payment $payment): RaiffeisenEcomClient
     {
-        $method = $payment->getMethod();
-        $config = $method->configuration() ?? [];
-        $publicId = (string) ($config['public_id'] ?? config('payment.raiffeisen_ecom.public_id') ?? env('RAIFFEISEN_ECOM_PUBLIC_ID', ''));
-        $secretKey = (string) ($config['secret_key'] ?? config('payment.raiffeisen_ecom.secret_key') ?? env('RAIFFEISEN_ECOM_SECRET_KEY', ''));
+        $config = $payment->getMethod()->configuration() ?? [];
         $isTest = (bool) ($config['is_test'] ?? config('payment.raiffeisen_ecom.is_test', true));
 
-        if ($publicId === '') {
-            $publicId = (string) (config('payment.raiffeisen.public_id') ?? env('RAIFFEISEN_PUBLIC_ID', ''));
-        }
-        if ($secretKey === '') {
-            $secretKey = (string) (config('payment.raiffeisen.secret_key') ?? env('RAIFFEISEN_SECRET_KEY', ''));
-        }
+        // Креды берём из метода оплаты, затем из ecom-, затем acquiring-конфига
+        // (один мерчант — одни учётные данные). Только config(): env() не читаем в рантайме
+        // (после config:cache env() вернёт null).
+        $publicId = $this->firstNonEmpty(
+            $config['public_id'] ?? null,
+            config('payment.raiffeisen_ecom.public_id'),
+            config('payment.raiffeisen.public_id'),
+        );
+        $secretKey = $this->firstNonEmpty(
+            $config['secret_key'] ?? null,
+            config('payment.raiffeisen_ecom.secret_key'),
+            config('payment.raiffeisen.secret_key'),
+        );
 
         if ($publicId === '' || $secretKey === '') {
             throw new \RuntimeException('Raiffeisen e-commerce: не настроены public_id или secret_key');
         }
 
         return new RaiffeisenEcomClient($publicId, $secretKey, $isTest);
+    }
+
+    private function firstNonEmpty(?string ...$values): string
+    {
+        foreach ($values as $value) {
+            if ((string) $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        return '';
     }
 }

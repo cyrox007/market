@@ -26,6 +26,7 @@ class RaiffeisenCallbackController extends Controller
         }
         $payload['_request_ip'] = $request->ip();
         $payload['_request_user_agent'] = $request->userAgent();
+        $payload['_signature'] = $request->header('X-Api-Signature-SHA256');
 
         ProcessRaiffeisenCallbackJob::dispatch($payload);
 
