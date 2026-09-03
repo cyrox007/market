@@ -21,13 +21,9 @@ class Integration1CApiService implements InventorySyncInterface
 
     public function __construct()
     {
-        $configPrefix = (bool) config('services.integration_1c.enabled', false)
-            ? 'services.integration_1c'
-            : 'services.onec';
-
-        $this->baseUrl = (string) config($configPrefix . '.base_url', '');
-        $this->apiKey = (string) config($configPrefix . '.api_key', '');
-        $this->timeout = (int) config($configPrefix . '.timeout', 30);
+        $this->baseUrl = (string) config('services.integration_1c.base_url', '');
+        $this->apiKey = (string) config('services.integration_1c.api_key', '');
+        $this->timeout = (int) config('services.integration_1c.timeout', 30);
     }
 
     public function syncOrderCreated(Order $order): bool

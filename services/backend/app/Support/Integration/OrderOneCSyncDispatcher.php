@@ -14,8 +14,7 @@ final class OrderOneCSyncDispatcher
 {
     public static function isEnabled(): bool
     {
-        return (bool) (config('services.integration_1c.enabled', false)
-            || config('services.onec.enabled', false));
+        return (bool) config('services.integration_1c.enabled', false);
     }
 
     public static function dispatch(Order|int $order): void

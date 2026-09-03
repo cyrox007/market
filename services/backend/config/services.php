@@ -48,15 +48,6 @@ return [
         'orders_queue' => env('ONEC_ORDERS_QUEUE', 'integration-1c'),
     ],
 
-    // Legacy key for backward compatibility.
-    'onec' => [
-        'base_url' => env('ONEC_API_BASE_URL', ''),
-        'api_key' => env('ONEC_API_KEY', ''),
-        'timeout' => env('ONEC_API_TIMEOUT', 30),
-        'enabled' => env('ONEC_API_ENABLED', false),
-        'orders_path' => env('ONEC_ORDERS_PATH', '/api/v1/integration/1c/orders'),
-        'orders_queue' => env('ONEC_ORDERS_QUEUE', 'integration-1c'),
-    ],
 
     /*
     | SSR-кэш фронта (опционально): POST сброс ключей главной после правки подборок.
