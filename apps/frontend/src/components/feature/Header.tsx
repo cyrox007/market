@@ -69,7 +69,9 @@ export default function Header() {
 
   useEffect(() => {
     if (!isMenuOpen) return;
-    headerRef.current && setMenuTop(headerRef.current.getBoundingClientRect().bottom);
+    if (headerRef.current) {
+      setMenuTop(headerRef.current.getBoundingClientRect().bottom);
+    }
   }, [isMenuOpen]);
 
   useEffect(() => {

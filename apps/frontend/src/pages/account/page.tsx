@@ -319,7 +319,7 @@ export default function Account() {
 			return;
 		}
 
-		if (profileForm.phone && !/^[\d\s\-\+\(\)]+$/.test(profileForm.phone)) {
+		if (profileForm.phone && !/^[\d\s\-+()]+$/.test(profileForm.phone)) {
 			setProfileError('Неверный формат телефона');
 			return;
 		}

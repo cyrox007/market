@@ -397,7 +397,7 @@ export default function Search() {
 									const pages: number[] = [];
 									const maxPages = 5;
 									let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
-									let endPage = Math.min(totalPages, startPage + maxPages - 1);
+									const endPage = Math.min(totalPages, startPage + maxPages - 1);
 
 									if (endPage - startPage < maxPages - 1) {
 										startPage = Math.max(1, endPage - maxPages + 1);
