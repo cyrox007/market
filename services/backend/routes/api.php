@@ -53,10 +53,10 @@ Route::prefix('v1')->group(function () {
     })->where('any', '.*');
     // Public routes - auth endpoints require session middleware for cookie-based auth
     Route::middleware(['api-session'])->prefix('auth')->group(function () {
-        Route::post('/register', [AuthController::class, 'register']);
-        Route::post('/login', [AuthController::class, 'login']);
-        Route::post('/password/forgot', [AuthController::class, 'forgotPassword']);
-        Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+        Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-strict');
+        Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth-strict');
+        Route::post('/password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:auth-strict');
         Route::options('{any}', function () {
             $origin = request()->headers->get('Origin');
             $allowedOrigins = config('cors.allowed_origins', []);
@@ -89,7 +89,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/{id}/bundle', [ProductController::class, 'bundle']);
         Route::get('/{id}/related', [ProductController::class, 'related']);
         Route::get('/{productId}/reviews', [ReviewController::class, 'index']);
-        Route::post('/{productId}/reviews', [ReviewController::class, 'store']);
+        Route::post('/{productId}/reviews', [ReviewController::class, 'store'])->middleware('throttle:writes');
         Route::get('/{slug}', [ProductController::class, 'show']);
     });
 
@@ -135,7 +135,7 @@ Route::prefix('v1')->group(function () {
 
     // Newsletter (public)
     Route::prefix('newsletter')->group(function () {
-        Route::post('/subscribe', [NewsletterController::class, 'subscribe']);
+        Route::post('/subscribe', [NewsletterController::class, 'subscribe'])->middleware('throttle:writes');
     });
 
     // Shipping (public)
@@ -186,7 +186,7 @@ Route::prefix('v1')->group(function () {
 
     // Orders: создание и payment-config без auth
     Route::middleware(['api-session'])->prefix('orders')->group(function () {
-        Route::post('/', [OrderController::class, 'store']);
+        Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });
 

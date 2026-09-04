@@ -28,7 +28,10 @@ use App\Models\Payment\PaymentMethod as AppPaymentMethod;
 use App\Models\Shipping\Carrier;
 use App\Models\Shipping\AdditionalService;
 use App\Models\Payment\PaymentMethod;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Vanilo\Payment\PaymentGateways;
 use Vanilo\Payment\Gateways\NullGateway;
@@ -98,6 +101,12 @@ class AppServiceProvider extends ServiceProvider
         });
 
         ProductWarehouseStock::observe(ProductWarehouseStockObserver::class);
+
+        // Р-4: лимиты частоты на чувствительных эндпоинтах (login — по IP и email).
+        RateLimiter::for('auth-strict', fn (Request $r) => Limit::perMinute(10)->by($r->ip() . '|' . mb_strtolower(trim((string) $r->input('email')))));
+        RateLimiter::for('auth', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
+        RateLimiter::for('orders', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
+        RateLimiter::for('writes', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
 
         // Morph map для Vanilo Payment (payable_type = 'order' → Order::class)
         Relation::morphMap([
