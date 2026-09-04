@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRegion } from '../hooks/useRegion';
 import { api } from '../lib/api';
@@ -25,6 +23,21 @@ export default function LocationModal({
   const [isGeoDetecting, setIsGeoDetecting] = useState(false);
   const [expandedDistricts, setExpandedDistricts] = useState<Set<number>>(new Set());
   const [expandedRegions, setExpandedRegions] = useState<Set<number>>(new Set());
+
+  /**
+   * Можно ли закрыть окно.
+   *
+   * При первом визите выбор города обязателен — это осознанное требование.
+   * Но если список городов не загрузился, выбирать физически не из чего,
+   * и запрет на закрытие превращается в тупик: посетитель видит затемнённый
+   * экран и не может ни закрыть окно, ни посмотреть каталог. Под это попадает
+   * каждый, у кого пустой localStorage — первый заход, приватное окно,
+   * очищенный кэш.
+   *
+   * Поэтому в состоянии ошибки окно закрывается, а при живом API
+   * поведение прежнее.
+   */
+  const canDismiss = !isFirstVisit || error !== null;
 
   // Загружаем дерево локаций только при открытии модалки
   useEffect(() => {
@@ -59,10 +72,16 @@ export default function LocationModal({
       }
     } catch (err: any) {
       console.error('Failed to load locations tree:', err);
-      let errorMessage = 'Не удалось загрузить список локаций';
+
+      // Покупателю показываем человеческий текст, а не сырую ошибку браузера.
+      // При недоступной сети fetch бросает TypeError с сообщением вида
+      // «Failed to fetch» — оно ничего не объясняет и выглядит поломкой.
+      // Технические подробности остаются в консоли выше.
+      let errorMessage =
+        'Не удалось загрузить список городов. Проверьте соединение и попробуйте снова.';
       if (err?.status === 404) {
         errorMessage = 'Маршрут API не найден. Проверьте настройки сервера.';
-      } else if (err?.message) {
+      } else if (err?.message && !(err instanceof TypeError)) {
         errorMessage = err.message;
       }
       setError(errorMessage);
@@ -316,10 +335,10 @@ export default function LocationModal({
     return () => clearTimeout(scrollTimer);
   }, [searchQuery, filteredTree]);
 
-  // Обработка закрытия по Escape (только если не первый визит)
+  // Обработка закрытия по Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isFirstVisit) {
+      if (e.key === 'Escape' && isOpen && canDismiss) {
         onClose();
       }
     };
@@ -333,7 +352,7 @@ export default function LocationModal({
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = '';
     };
-  }, [isOpen, onClose, isFirstVisit]);
+  }, [isOpen, onClose, canDismiss]);
 
   if (!isOpen) return null;
 
@@ -347,7 +366,7 @@ export default function LocationModal({
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isFirstVisit) {
+        if (e.target === e.currentTarget && canDismiss) {
           onClose();
         }
       }}
@@ -371,7 +390,7 @@ export default function LocationModal({
                 </p>
               )}
             </div>
-            {!isFirstVisit && (
+            {canDismiss && (
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
