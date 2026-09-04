@@ -49,7 +49,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Регистрируем сервис синхронизации с 1С, если включен
-        if (config('services.integration_1c.enabled', false) || config('services.onec.enabled', false)) {
+        if (config('services.integration_1c.enabled', false)) {
             $this->app->singleton(InventorySyncInterface::class, function ($app) {
                 return new Integration1CApiService();
             });
@@ -58,7 +58,7 @@ class AppServiceProvider extends ServiceProvider
         // Регистрируем StockService с опциональной синхронизацией
         $this->app->singleton(StockService::class, function ($app) {
             $sync = null;
-            if (config('services.integration_1c.enabled', false) || config('services.onec.enabled', false)) {
+            if (config('services.integration_1c.enabled', false)) {
                 $sync = $app->make(InventorySyncInterface::class);
             }
             return new StockService(

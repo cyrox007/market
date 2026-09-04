@@ -9,6 +9,7 @@ use App\Support\Integration\OrderOneCSyncDispatcher;
 use App\Models\Order\Order;
 use App\Models\Order\OrderStatus;
 use App\Payment\Gateways\SberbankAcquiringGateway;
+use App\Services\Payment\SberbankAcquiringClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -113,7 +114,58 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             'ip' => $requestIp,
         ], $payment, 'payment', 'info');
 
-        $request = Request::create('/', 'POST', [], [], [], [], json_encode($payloadClean));
+        // --- Р-1: обратная сверка статуса у банка. Callback — лишь триггер;
+        // факт оплаты определяется прямым запросом getOrderStatusExtended, а НЕ полями callback.
+        $bank = app(SberbankAcquiringClient::class)->getOrderStatusExtended(
+            (string) ($mdOrder ?? ''),
+            (string) ($orderNumber ?? $order->number)
+        );
+
+        if ($bank === []) {
+            // Банк не ответил (недоступен или не заданы креды) — оплату НЕ подтверждаем (fail-safe).
+            $gatewayLog->log(self::GATEWAY_ID, 'callback_unverified', 'Статус не подтверждён банком (getOrderStatusExtended не ответил) — оплата не проведена', [
+                'order_id' => $order->id,
+                'order_number' => $order->number,
+                'md_order' => $mdOrder,
+                'ip' => $requestIp,
+            ], $payment, 'payment', 'warning');
+
+            return;
+        }
+
+        $errorCode = (int) ($bank['errorCode'] ?? 0);
+        $bankOrderStatus = isset($bank['orderStatus']) ? (int) $bank['orderStatus'] : -1;
+        $bankAmount = (int) ($bank['amount'] ?? 0); // копейки
+        $expectedAmount = (int) round(((float) $payment->getAmount()) * 100);
+
+        // Оплата подтверждена = orderStatus 2 (полная авторизация) и запрос без ошибки.
+        $paid = ($errorCode === 0 && $bankOrderStatus === 2);
+
+        // Сверка суммы: банк должен подтвердить ровно сумму заказа (если сумму вернул).
+        if ($paid && $bankAmount > 0 && $bankAmount !== $expectedAmount) {
+            $gatewayLog->log(self::GATEWAY_ID, 'callback_rejected', 'Сумма банка не совпадает с заказом: ' . $bankAmount . ' коп vs ' . $expectedAmount . ' коп — оплата не проведена', [
+                'order_id' => $order->id,
+                'order_number' => $order->number,
+                'bank_amount' => $bankAmount,
+                'expected_amount' => $expectedAmount,
+                'bank_order_status' => $bankOrderStatus,
+                'ip' => $requestIp,
+            ], $payment, 'payment', 'warning');
+
+            return;
+        }
+
+        // Обновление платежа/заказа — по ДОВЕРЕННОМУ статусу банка, а не по телу callback.
+        $trustedPayload = [
+            'operation' => $paid ? 'deposited' : 'declined',
+            'status' => $paid ? 1 : 0,
+            'amount' => $bankAmount ?: $expectedAmount,
+            'mdOrder' => (string) ($mdOrder ?? ''),
+            'orderNumber' => $order->number,
+            'actionCode' => $bank['actionCode'] ?? null,
+            'message' => $bank['actionCodeDescription'] ?? $bank['errorMessage'] ?? null,
+        ];
+        $request = Request::create('/', 'POST', [], [], [], [], json_encode($trustedPayload));
         $request->headers->set('Content-Type', 'application/json');
 
         $response = $gateway->processPaymentResponse($request, ['payment' => $payment]);

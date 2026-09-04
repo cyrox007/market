@@ -272,9 +272,7 @@ class OrderController extends Controller
                     // Отправляем событие автоматической регистрации
                     event(new UserAutoRegistered($user, $autoRegisteredPassword));
                 } else {
-                    // Если пользователь существует, просто авторизуем его
-                    // (но не отправляем событие регистрации)
-                    Auth::login($existingUser);
+                    // Р-2: привязываем заказ к владельцу email, но БЕЗ входа в его сессию.
                     $user = $existingUser;
                 }
             }

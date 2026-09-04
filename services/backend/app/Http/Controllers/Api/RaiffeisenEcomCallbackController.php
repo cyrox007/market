@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\ProcessRaiffeisenEcomCallbackJob;
+use App\Jobs\ProcessRaiffeisenCallbackJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,7 +29,7 @@ class RaiffeisenEcomCallbackController extends Controller
         $payload['_request_user_agent'] = $request->userAgent();
         $payload['_signature'] = $request->header('X-Api-Signature-SHA256');
 
-        ProcessRaiffeisenEcomCallbackJob::dispatch($payload);
+        ProcessRaiffeisenCallbackJob::dispatch($payload);
 
         return response()->json(['status' => 'ok'], 200);
     }

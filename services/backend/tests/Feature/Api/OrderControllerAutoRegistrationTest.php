@@ -103,7 +103,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
         ]);
     }
 
-    public function test_guest_order_with_existing_email_logs_in_existing_user(): void
+    public function test_guest_order_with_existing_email_binds_order_without_login(): void
     {
         // Создаем существующего пользователя
         $existingUser = User::factory()->create([
@@ -144,11 +144,10 @@ class OrderControllerAutoRegistrationTest extends TestCase
         // Проверяем, что новый пользователь НЕ создан
         $this->assertEquals(1, User::where('email', $existingUser->email)->count());
 
-        // Проверяем, что пользователь авторизован
-        $this->assertTrue(Auth::check());
-        $this->assertEquals($existingUser->id, Auth::id());
+        // Р-2: гость НЕ должен авторизоваться под чужим аккаунтом по одному лишь email
+        $this->assertFalse(Auth::check());
 
-        // Проверяем, что заказ привязан к существующему пользователю
+        // Но заказ привязывается к аккаунту владельца email (он увидит его в своей истории)
         $this->assertDatabaseHas('orders', [
             'user_id' => $existingUser->id,
             'contact_email' => $existingUser->email,

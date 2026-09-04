@@ -8,6 +8,7 @@ use App\Contracts\Gateway\GatewayLoggerInterface;
 use App\Models\Order\Order;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SberbankAcquiringClient
@@ -230,6 +231,51 @@ class SberbankAcquiringClient
     /**
      * @return array{verify: bool|string}
      */
+    /**
+     * Обратная сверка статуса заказа у банка (защита от подделки callback, риск Р-1).
+     * POST /ecomm/gw/partner/api/v1/getOrderStatusExtended.do
+     *
+     * @return array<string, mixed> Ответ банка: orderStatus (0..6), amount (копейки),
+     *                              actionCode, errorCode и др. Пустой массив — запрос не удался.
+     */
+    public function getOrderStatusExtended(string $orderId = '', string $orderNumber = ''): array
+    {
+        $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
+        $path = (string) config('payment.sberbank_acquiring.status_path', '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
+        $endpoint = $baseUrl . $path;
+        $verifySsl = (bool) config('payment.sberbank_acquiring.verify_ssl', true);
+
+        $payload = [
+            'userName' => (string) config('payment.sberbank_acquiring.username'),
+            'password' => (string) config('payment.sberbank_acquiring.password'),
+            'language' => 'ru',
+        ];
+        if ($orderId !== '') {
+            $payload['orderId'] = $orderId;
+        } elseif ($orderNumber !== '') {
+            $payload['orderNumber'] = $orderNumber;
+        }
+
+        try {
+            /** @var Response $response */
+            $response = Http::asJson()
+                ->timeout(15)
+                ->withOptions($this->httpVerifyOptions($verifySsl))
+                ->post($endpoint, $payload);
+
+            $data = $response->json();
+
+            return is_array($data) ? $data : [];
+        } catch (\Throwable $e) {
+            Log::warning('Sberbank getOrderStatusExtended failed: ' . $e->getMessage(), [
+                'order_id' => $orderId,
+                'order_number' => $orderNumber,
+            ]);
+
+            return [];
+        }
+    }
+
     private function httpVerifyOptions(bool $verifySsl): array
     {
         if (!$verifySsl) {

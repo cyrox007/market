@@ -28,11 +28,7 @@ class SyncOrderTo1CJob implements ShouldQueue
     public function __construct(
         private readonly int $orderId
     ) {
-        $this->queue = (string) (
-            config('services.integration_1c.orders_queue')
-            ?? config('services.onec.orders_queue')
-            ?? 'integration-1c'
-        );
+        $this->queue = (string) (config('services.integration_1c.orders_queue') ?? 'integration-1c');
     }
 
     public function handle(
