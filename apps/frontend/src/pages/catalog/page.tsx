@@ -7,6 +7,8 @@ import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
 import type { Category } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { Archive, Armchair, Baby, BedDouble, Briefcase, ChevronRight, DoorOpen, Layers, Lightbulb, Palette, Sofa, TableIcon, Tv, Utensils } from 'lucide-react';
 
 const CATEGORIES_KEY = '/api/categories';
 
@@ -66,7 +68,7 @@ function CategoryCard({
 						decoding="async"
 					/>
 				) : (
-					<i className={`${category.icon || icons[index % icons.length]} text-2xl md:text-3xl ${textColors[index % textColors.length]}`}></i>
+					<Icon name={category.icon || icons[index % icons.length]} className={`size-[1em] text-2xl md:text-3xl ${textColors[index % textColors.length]}`} />
 				)}
 			</div>
 			<h3 className="font-semibold text-base md:text-lg mb-1 md:mb-2">{category.name}</h3>
@@ -88,7 +90,7 @@ function CategoryCard({
 
 const bgColors = ['bg-red-100', 'bg-yellow-100', 'bg-green-100', 'bg-blue-100', 'bg-purple-100', 'bg-pink-100'];
 const textColors = ['text-red-600', 'text-yellow-600', 'text-green-600', 'text-blue-600', 'text-purple-600', 'text-pink-600'];
-const icons = ['ri-sofa-line', 'ri-hotel-bed-line', 'ri-restaurant-line', 'ri-tv-line', 'ri-door-line', 'ri-bear-smile-line', 'ri-briefcase-line', 'ri-archive-line', 'ri-table-line', 'ri-armchair-line', 'ri-lightbulb-line', 'ri-palette-line', 'ri-stackshare-line'];
+const icons = [Sofa, BedDouble, Utensils, Tv, DoorOpen, Baby, Briefcase, Archive, TableIcon, Armchair, Lightbulb, Palette, Layers];
 
 const HOME_COLLECTION_FILTERS = new Set(['new', 'featured', 'sale']);
 
@@ -127,7 +129,7 @@ export default function Catalog() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs md:text-sm mb-4">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Каталог</span>
 				</div>
 

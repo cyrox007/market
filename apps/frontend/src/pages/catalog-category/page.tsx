@@ -23,6 +23,7 @@ import {
 import { normalizeListProduct } from '../../utils/cartProduct';
 import { getCategoryFragment, setCategoryFragmentFromCategory } from '../../lib/category-fragment-cache';
 import type { Category, Product, FiltersMeta } from '../../lib/api';
+import { ChevronRight, ListFilter, X } from 'lucide-react';
 
 export default function CatalogCategory() {
   const { category: categorySlug } = useParams<{ category: string }>();
@@ -504,9 +505,9 @@ export default function CatalogCategory() {
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-sm mb-2">
               <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-              <i className="ri-arrow-right-s-line text-gray-400"></i>
+              <ChevronRight className="size-[1em] text-gray-400" />
               <Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-              <i className="ri-arrow-right-s-line text-gray-400"></i>
+              <ChevronRight className="size-[1em] text-gray-400" />
               <span className="text-gray-900">{displayName}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold">{displayName}</h1>
@@ -535,7 +536,7 @@ export default function CatalogCategory() {
           onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
           className="lg:hidden w-full mb-4 bg-red-600 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 whitespace-nowrap"
         >
-          <i className="ri-filter-3-line"></i>
+          <ListFilter className="size-[1em]" />
           Фильтры
         </button>
 
@@ -549,7 +550,7 @@ export default function CatalogCategory() {
                 onClick={() => setIsMobileFilterOpen(false)}
                 className="w-8 h-8 flex items-center justify-center"
               >
-                <i className="ri-close-line text-2xl"></i>
+                <X className="size-[1em] text-2xl" />
               </button>
             </div>
 

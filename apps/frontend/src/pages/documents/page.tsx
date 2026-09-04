@@ -1,11 +1,40 @@
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { Award, BookOpen, CircleHelp, Download, Eye, FileArchive, FileChartColumn, FileSpreadsheet, FileText, Info, Mail, Phone, ShieldCheck, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+/**
+ * Классы Tailwind нельзя собирать в рантайме: сборщик сканирует исходники
+ * статически и выражение вида `bg-${color}-100` не видит, а safelist в конфиге
+ * нет. Из-за этого плашки документов на проде оставались серыми. Явный словарь
+ * даёт сборщику увидеть все нужные классы.
+ */
+const DOC_COLORS: Record<string, { bg: string; text: string }> = {
+	red: { bg: 'bg-red-100', text: 'text-red-600' },
+	yellow: { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+	green: { bg: 'bg-green-100', text: 'text-green-600' },
+};
+
+const docColors = (color: string) => DOC_COLORS[color] ?? DOC_COLORS.red;
+
+/** Иконка по расширению файла. */
+const FILE_ICONS: Record<string, LucideIcon> = {
+	pdf: FileText,
+	doc: FileText,
+	docx: FileText,
+	xls: FileSpreadsheet,
+	xlsx: FileSpreadsheet,
+	zip: FileArchive,
+	rar: FileArchive,
+};
+
 
 const documents = [
 	{
 		category: 'Юридические документы',
-		icon: 'ri-file-text-line',
+		icon: FileText,
 		color: 'red',
 		files: [
 			{ name: 'Политика конфиденциальности', size: '245 КБ', format: 'PDF' },
@@ -16,7 +45,7 @@ const documents = [
 	},
 	{
 		category: 'Сертификаты и лицензии',
-		icon: 'ri-award-line',
+		icon: Award,
 		color: 'yellow',
 		files: [
 			{ name: 'Сертификат соответствия ГОСТ', size: '1.2 МБ', format: 'PDF' },
@@ -27,7 +56,7 @@ const documents = [
 	},
 	{
 		category: 'Гарантийные документы',
-		icon: 'ri-shield-check-line',
+		icon: ShieldCheck,
 		color: 'green',
 		files: [
 			{ name: 'Гарантийный талон', size: '189 КБ', format: 'PDF' },
@@ -38,7 +67,7 @@ const documents = [
 	},
 	{
 		category: 'Каталоги и прайс-листы',
-		icon: 'ri-book-line',
+		icon: BookOpen,
 		color: 'red',
 		files: [
 			{ name: 'Каталог мебели 2024', size: '15.3 МБ', format: 'PDF' },
@@ -49,7 +78,7 @@ const documents = [
 	},
 	{
 		category: 'Инструкции по сборке',
-		icon: 'ri-tools-line',
+		icon: Wrench,
 		color: 'yellow',
 		files: [
 			{ name: 'Инструкция сборки диванов', size: '3.4 МБ', format: 'PDF' },
@@ -60,7 +89,7 @@ const documents = [
 	},
 	{
 		category: 'Финансовые документы',
-		icon: 'ri-file-chart-line',
+		icon: FileChartColumn,
 		color: 'green',
 		files: [
 			{ name: 'Образец договора купли-продажи', size: '345 КБ', format: 'PDF' },
@@ -97,7 +126,7 @@ export default function Documents() {
 				<div className="bg-blue-50 border-2 border-blue-600 rounded-2xl p-8 mb-12">
 					<div className="flex items-start gap-4">
 						<div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-							<i className="ri-information-line text-3xl text-white"></i>
+							<Info className="size-[1em] text-3xl text-white" />
 						</div>
 						<div>
 							<h2 className="text-2xl font-bold mb-3">Важная информация</h2>
@@ -118,7 +147,7 @@ export default function Documents() {
 							<div className={`bg-${category.color}-50 p-6 border-b border-gray-200`}>
 								<div className="flex items-center gap-4">
 									<div className={`w-14 h-14 bg-${category.color}-600 rounded-full flex items-center justify-center`}>
-										<i className={`${category.icon} text-2xl text-white`}></i>
+										<Icon name={category.icon} className="size-[1em] text-2xl text-white" />
 									</div>
 									<h2 className="text-2xl font-bold">{category.category}</h2>
 								</div>
@@ -131,8 +160,11 @@ export default function Documents() {
 											className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
 										>
 											<div className="flex items-center gap-4 flex-1">
-												<div className={`w-12 h-12 bg-${category.color}-100 rounded-lg flex items-center justify-center flex-shrink-0`}>
-													<i className={`ri-file-${file.format.toLowerCase()}-line text-2xl text-${category.color}-600`}></i>
+												<div className={`w-12 h-12 ${docColors(category.color).bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+													<Icon
+															name={FILE_ICONS[file.format.toLowerCase()] ?? FileText}
+															className={`size-[1em] text-2xl ${docColors(category.color).text}`}
+														/>
 												</div>
 												<div className="flex-1 min-w-0">
 													<h3 className="font-semibold mb-1 truncate">{file.name}</h3>
@@ -145,10 +177,10 @@ export default function Documents() {
 											</div>
 											<div className="flex gap-2 ml-4">
 												<button className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 hover:bg-red-50 cursor-pointer">
-													<i className="ri-eye-line text-xl text-red-600"></i>
+													<Eye className="size-[1em] text-xl text-red-600" />
 												</button>
 												<button className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 hover:bg-red-50 cursor-pointer">
-													<i className="ri-download-line text-xl text-red-600"></i>
+													<Download className="size-[1em] text-xl text-red-600" />
 												</button>
 											</div>
 										</div>
@@ -163,7 +195,7 @@ export default function Documents() {
 				<div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
 					<div className="bg-red-50 rounded-2xl p-8 text-center">
 						<div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-question-line text-3xl text-white"></i>
+							<CircleHelp className="size-[1em] text-3xl text-white" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">Нужна помощь?</h3>
 						<p className="text-gray-600 mb-4">Не нашли нужный документ?</p>
@@ -173,7 +205,7 @@ export default function Documents() {
 					</div>
 					<div className="bg-yellow-50 rounded-2xl p-8 text-center">
 						<div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-mail-line text-3xl text-white"></i>
+							<Mail className="size-[1em] text-3xl text-white" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">Email</h3>
 						<p className="text-gray-600 mb-4">Отправьте запрос на почту</p>
@@ -183,7 +215,7 @@ export default function Documents() {
 					</div>
 					<div className="bg-green-50 rounded-2xl p-8 text-center">
 						<div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-phone-line text-3xl text-white"></i>
+							<Phone className="size-[1em] text-3xl text-white" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">Телефон</h3>
 						<p className="text-gray-600 mb-4">Позвоните нам</p>

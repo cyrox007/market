@@ -7,6 +7,7 @@ import { useCounters } from '../../hooks/useCounters';
 import type { Product, WishlistItem } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ArrowLeftRight, ChevronRight, Heart, ImageIcon, LoaderCircle } from 'lucide-react';
 
 export default function Favorites() {
 	const [items, setItems] = useState<WishlistItem[]>([]);
@@ -64,7 +65,7 @@ export default function Favorites() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-sm mb-2">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Избранное</span>
 				</div>
 
@@ -76,14 +77,14 @@ export default function Favorites() {
 				{isLoading ? (
 					<div className="text-center py-20">
 						<div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-loader-4-line text-6xl text-gray-400 animate-spin"></i>
+							<LoaderCircle className="size-[1em] text-6xl text-gray-400 animate-spin" />
 						</div>
 						<h2 className="text-2xl font-bold mb-3">Загрузка...</h2>
 					</div>
 				) : items.length === 0 ? (
 					<div className="text-center py-20">
 						<div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-heart-line text-6xl text-gray-400"></i>
+							<Heart className="size-[1em] text-6xl text-gray-400" />
 						</div>
 						<h2 className="text-2xl font-bold mb-3">Список избранного пуст</h2>
 						<p className="text-gray-600 mb-6">Добавляйте товары в избранное, чтобы не потерять их</p>
@@ -102,7 +103,7 @@ export default function Favorites() {
 											<img src={product.thumbnail || product.image || ''} alt={product.name} className="w-full h-full object-cover object-top" />
 										) : (
 											<div className="w-full h-full flex items-center justify-center">
-												<i className="ri-image-line text-3xl text-gray-400"></i>
+												<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 											</div>
 										)}
 										<div className="absolute top-4 right-4 flex gap-2">
@@ -114,13 +115,13 @@ export default function Favorites() {
 												}}
 												className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer"
 											>
-												<i className="ri-scales-3-line text-xl text-gray-600"></i>
+												<ArrowLeftRight className="size-[1em] text-xl text-gray-600" />
 											</button>
 											<button
 												onClick={() => removeFromFavorites(product.id)}
 												className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
 											>
-												<i className="ri-heart-fill text-xl text-white"></i>
+												<Heart className="size-[1em] text-xl text-white" fill="currentColor" />
 											</button>
 										</div>
 										{!isVariableParent(product) && (!product.in_stock || product.stock === 0) && (

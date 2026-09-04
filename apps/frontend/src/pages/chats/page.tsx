@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ChevronRight, MessageSquare, Paperclip, Search, Send } from 'lucide-react';
 
 interface Message {
 	id: number;
@@ -130,9 +131,9 @@ export default function Chats() {
 					{/* Breadcrumbs */}
 					<div className="flex items-center gap-2 text-sm mb-4">
 						<Link to="/" className="text-gray-600 hover:text-red-600 cursor-pointer">Главная</Link>
-						<i className="ri-arrow-right-s-line text-gray-400"></i>
+						<ChevronRight className="size-[1em] text-gray-400" />
 						<Link to="/account" className="text-gray-600 hover:text-red-600 cursor-pointer">Профиль</Link>
-						<i className="ri-arrow-right-s-line text-gray-400"></i>
+						<ChevronRight className="size-[1em] text-gray-400" />
 						<span className="text-gray-900">Чаты</span>
 					</div>
 
@@ -149,7 +150,7 @@ export default function Chats() {
 										placeholder="Поиск чатов..."
 										className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-0 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20"
 									/>
-									<i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+									<Search className="size-[1em] absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 								</div>
 							</div>
 
@@ -236,7 +237,7 @@ export default function Chats() {
 								<div className="p-5 border-t border-gray-100">
 									<div className="flex gap-3 items-end">
 										<button className="w-11 h-11 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer flex-shrink-0">
-											<i className="ri-attachment-2 text-xl"></i>
+											<Paperclip className="size-[1em] text-xl" />
 										</button>
 										<input
 											type="text"
@@ -251,7 +252,7 @@ export default function Chats() {
 											disabled={!messageText.trim()}
 											className="w-11 h-11 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer flex-shrink-0"
 										>
-											<i className="ri-send-plane-fill text-lg"></i>
+											<Send className="size-[1em] text-lg" fill="currentColor" />
 										</button>
 									</div>
 								</div>
@@ -260,7 +261,7 @@ export default function Chats() {
 							<div className="flex-1 flex items-center justify-center">
 								<div className="text-center">
 									<div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-										<i className="ri-message-3-line text-5xl text-gray-400"></i>
+										<MessageSquare className="size-[1em] text-5xl text-gray-400" />
 									</div>
 									<h3 className="text-xl font-bold text-gray-900 mb-2">Выберите чат</h3>
 									<p className="text-gray-600">Выберите чат из списка слева</p>

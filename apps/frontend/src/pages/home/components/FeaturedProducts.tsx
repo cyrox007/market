@@ -8,6 +8,7 @@ import { useCounters } from '../../../hooks/useCounters';
 import { useWishlistAndCompare } from '../../../hooks/useWishlistAndCompare';
 import { useRegion } from '../../../hooks/useRegion';
 import { getHomeProductsKey } from '../../../utils/ssr-to-swr';
+import { ArrowRight } from 'lucide-react';
 
 export default function FeaturedProducts() {
   const ssrData = useSSR();
@@ -200,7 +201,7 @@ export default function FeaturedProducts() {
                   className="text-red-600 hover:text-red-700 font-semibold flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
                   <span>Смотреть все</span>
-                  <i className="ri-arrow-right-line"></i>
+                  <ArrowRight className="size-[1em]" />
                 </Link>
               </div>
 

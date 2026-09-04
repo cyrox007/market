@@ -2,6 +2,9 @@ import { Link } from 'react-router-dom';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { Bus, Calculator, Car, ChevronRight, Headset, Mail, MapPin, Phone, ShoppingBag, TrainFront, Truck, Undo2, Users } from 'lucide-react';
+import { VkIcon, WhatsAppIcon } from '../../components/ui/icons/brands';
 
 export default function Contacts() {
 	usePageSeo({
@@ -28,7 +31,7 @@ export default function Contacts() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Контакты</span>
 				</div>
 
@@ -36,7 +39,7 @@ export default function Contacts() {
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
 					<div className="bg-red-50 rounded-2xl p-8 text-center">
 						<div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-phone-line text-4xl text-white"></i>
+							<Phone className="size-[1em] text-4xl text-white" />
 						</div>
 						<h3 className="text-2xl font-bold mb-4">Телефон</h3>
 						<p className="text-gray-600 mb-4">Звоните нам ежедневно</p>
@@ -49,7 +52,7 @@ export default function Contacts() {
 
 					<div className="bg-yellow-50 rounded-2xl p-8 text-center">
 						<div className="w-20 h-20 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-mail-line text-4xl text-white"></i>
+							<Mail className="size-[1em] text-4xl text-white" />
 						</div>
 						<h3 className="text-2xl font-bold mb-4">Email</h3>
 						<p className="text-gray-600 mb-4">Напишите нам</p>
@@ -64,7 +67,7 @@ export default function Contacts() {
 
 					<div className="bg-green-50 rounded-2xl p-8 text-center">
 						<div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-map-pin-line text-4xl text-white"></i>
+							<MapPin className="size-[1em] text-4xl text-white" />
 						</div>
 						<h3 className="text-2xl font-bold mb-4">Адрес офиса</h3>
 						<p className="text-gray-600 mb-4">Главный офис</p>
@@ -93,21 +96,21 @@ export default function Contacts() {
 						</div>
 						<div className="space-y-4">
 							<div className="flex items-start gap-3">
-								<i className="ri-subway-line text-red-600 text-xl flex-shrink-0 mt-1"></i>
+								<TrainFront className="size-[1em] text-red-600 text-xl flex-shrink-0 mt-1" />
 								<div>
 									<p className="font-semibold">Метро</p>
 									<p className="text-gray-600">Станция "Площадь Революции", 5 минут пешком</p>
 								</div>
 							</div>
 							<div className="flex items-start gap-3">
-								<i className="ri-car-line text-red-600 text-xl flex-shrink-0 mt-1"></i>
+								<Car className="size-[1em] text-red-600 text-xl flex-shrink-0 mt-1" />
 								<div>
 									<p className="font-semibold">Парковка</p>
 									<p className="text-gray-600">Подземная парковка, первые 2 часа бесплатно</p>
 								</div>
 							</div>
 							<div className="flex items-start gap-3">
-								<i className="ri-bus-line text-red-600 text-xl flex-shrink-0 mt-1"></i>
+								<Bus className="size-[1em] text-red-600 text-xl flex-shrink-0 mt-1" />
 								<div>
 									<p className="font-semibold">Общественный транспорт</p>
 									<p className="text-gray-600">Автобусы: 12, 25, 45. Остановка "Центральная"</p>
@@ -186,19 +189,22 @@ export default function Contacts() {
 					<p className="text-gray-600 mb-8">Следите за новостями и акциями</p>
 					<div className="flex justify-center gap-4">
 						{[
-							{ icon: 'ri-vk-fill', color: 'bg-blue-600', name: 'VK' },
-							{ icon: 'ri-telegram-fill', color: 'bg-blue-500', name: 'Telegram' },
-							{ icon: 'ri-instagram-fill', color: 'bg-pink-600', name: 'Instagram' },
-							{ icon: 'ri-youtube-fill', color: 'bg-red-600', name: 'YouTube' },
-							{ icon: 'ri-whatsapp-fill', color: 'bg-green-600', name: 'WhatsApp' }
-						].map((social, idx) => (
+							{ Logo: VkIcon, color: 'text-blue-600', name: 'ВКонтакте' },
+							{ Logo: WhatsAppIcon, color: 'text-green-600', name: 'WhatsApp' },
+							/* Telegram, Instagram и YouTube убраны: логотипов нет ни в Lucide,
+							   ни в макете. Вернуть вместе с SVG:
+							{ Logo: TelegramIcon, color: 'text-sky-500', name: 'Telegram' },
+							{ Logo: InstagramIcon, color: 'text-pink-600', name: 'Instagram' },
+							{ Logo: YoutubeIcon, color: 'text-red-600', name: 'YouTube' },
+							*/
+						].map(({ Logo, color, name }) => (
 							<a
-								key={idx}
+								key={name}
 								href="#"
-								className={`w-14 h-14 ${social.color} rounded-full flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer`}
-								title={social.name}
+								className={`w-14 h-14 ${color} hover:opacity-80 transition-opacity cursor-pointer`}
+								title={name}
 							>
-								<i className={`${social.icon} text-2xl text-white`}></i>
+								<Logo className="w-full h-full" />
 							</a>
 						))}
 					</div>
@@ -209,25 +215,25 @@ export default function Contacts() {
 					<h2 className="text-3xl font-bold mb-8 text-center">Отделы компании</h2>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 						{[
-							{ title: 'Отдел продаж', phone: '+7 (800) 123-45-67', email: 'sales@svetofor-mebel.ru', icon: 'ri-shopping-bag-line', color: 'red' },
-							{ title: 'Служба поддержки', phone: '+7 (800) 123-45-68', email: 'support@svetofor-mebel.ru', icon: 'ri-customer-service-line', color: 'yellow' },
-							{ title: 'Отдел доставки', phone: '+7 (800) 123-45-69', email: 'delivery@svetofor-mebel.ru', icon: 'ri-truck-line', color: 'green' },
-							{ title: 'Отдел возвратов', phone: '+7 (800) 123-45-70', email: 'returns@svetofor-mebel.ru', icon: 'ri-arrow-go-back-line', color: 'red' },
-							{ title: 'Отдел кадров', phone: '+7 (800) 123-45-71', email: 'hr@svetofor-mebel.ru', icon: 'ri-team-line', color: 'yellow' },
-							{ title: 'Бухгалтерия', phone: '+7 (800) 123-45-72', email: 'accounting@svetofor-mebel.ru', icon: 'ri-calculator-line', color: 'green' }
+							{ title: 'Отдел продаж', phone: '+7 (800) 123-45-67', email: 'sales@svetofor-mebel.ru', icon: ShoppingBag, color: 'red' },
+							{ title: 'Служба поддержки', phone: '+7 (800) 123-45-68', email: 'support@svetofor-mebel.ru', icon: Headset, color: 'yellow' },
+							{ title: 'Отдел доставки', phone: '+7 (800) 123-45-69', email: 'delivery@svetofor-mebel.ru', icon: Truck, color: 'green' },
+							{ title: 'Отдел возвратов', phone: '+7 (800) 123-45-70', email: 'returns@svetofor-mebel.ru', icon: Undo2, color: 'red' },
+							{ title: 'Отдел кадров', phone: '+7 (800) 123-45-71', email: 'hr@svetofor-mebel.ru', icon: Users, color: 'yellow' },
+							{ title: 'Бухгалтерия', phone: '+7 (800) 123-45-72', email: 'accounting@svetofor-mebel.ru', icon: Calculator, color: 'green' }
 						].map((dept, idx) => (
 							<div key={idx} className={`bg-${dept.color}-50 rounded-xl p-6`}>
 								<div className={`w-12 h-12 bg-${dept.color}-600 rounded-full flex items-center justify-center mb-4`}>
-									<i className={`${dept.icon} text-2xl text-white`}></i>
+									<Icon name={dept.icon} className="size-[1em] text-2xl text-white" />
 								</div>
 								<h3 className="font-bold text-lg mb-3">{dept.title}</h3>
 								<div className="space-y-2">
 									<a href={`tel:${dept.phone}`} className="flex items-center gap-2 text-gray-700 hover:text-red-600">
-										<i className="ri-phone-line"></i>
+										<Phone className="size-[1em]" />
 										<span>{dept.phone}</span>
 									</a>
 									<a href={`mailto:${dept.email}`} className="flex items-center gap-2 text-gray-700 hover:text-red-600">
-										<i className="ri-mail-line"></i>
+										<Mail className="size-[1em]" />
 										<span className="text-sm">{dept.email}</span>
 									</a>
 								</div>

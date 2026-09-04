@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { Check, ChevronRight, CircleCheck, CircleDollarSign, CircleX, FileText, Mail, Phone, ShieldCheck, Truck } from 'lucide-react';
 
 export default function Returns() {
 	usePageSeo({
@@ -28,7 +30,7 @@ export default function Returns() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Возврат</span>
 				</div>
 
@@ -36,7 +38,7 @@ export default function Returns() {
 				<div className="bg-green-50 border-2 border-green-600 rounded-2xl p-8 mb-12">
 					<div className="flex items-start gap-4">
 						<div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0">
-							<i className="ri-shield-check-line text-3xl text-white"></i>
+							<ShieldCheck className="size-[1em] text-3xl text-white" />
 						</div>
 						<div>
 							<h2 className="text-2xl font-bold mb-3">Гарантия возврата 14 дней</h2>
@@ -54,38 +56,38 @@ export default function Returns() {
 					<div className="space-y-4">
 						{[
 							{
-								icon: 'ri-checkbox-circle-line',
+								icon: CircleCheck,
 								text: 'Товар не был в употреблении и сохранил товарный вид',
 								color: 'green'
 							},
 							{
-								icon: 'ri-checkbox-circle-line',
+								icon: CircleCheck,
 								text: 'Сохранены все ярлыки, бирки и заводская упаковка',
 								color: 'green'
 							},
 							{
-								icon: 'ri-checkbox-circle-line',
+								icon: CircleCheck,
 								text: 'Товар не был собран (для мебели, требующей сборки)',
 								color: 'green'
 							},
 							{
-								icon: 'ri-checkbox-circle-line',
+								icon: CircleCheck,
 								text: 'Есть документ, подтверждающий покупку (чек, накладная)',
 								color: 'green'
 							},
 							{
-								icon: 'ri-close-circle-line',
+								icon: CircleX,
 								text: 'Товар, изготовленный на заказ, возврату не подлежит',
 								color: 'red'
 							},
 							{
-								icon: 'ri-close-circle-line',
+								icon: CircleX,
 								text: 'Товар со следами эксплуатации возврату не подлежит',
 								color: 'red'
 							}
 						].map((item, idx) => (
 							<div key={idx} className="flex items-start gap-3">
-								<i className={`${item.icon} text-2xl text-${item.color}-600 flex-shrink-0 mt-1`}></i>
+								<Icon name={item.icon} className={`size-[1em] text-2xl text-${item.color}-600 flex-shrink-0 mt-1`} />
 								<p className="text-gray-700 text-lg">{item.text}</p>
 							</div>
 						))}
@@ -101,34 +103,34 @@ export default function Returns() {
 								step: '1',
 								title: 'Свяжитесь с нами',
 								description: 'Позвоните по телефону +7 (800) 123-45-67 или напишите на email: returns@svetofor-mebel.ru',
-								icon: 'ri-phone-line',
+								icon: Phone,
 								color: 'red'
 							},
 							{
 								step: '2',
 								title: 'Заполните заявление',
 								description: 'Наш менеджер поможет заполнить заявление на возврат и ответит на все вопросы',
-								icon: 'ri-file-text-line',
+								icon: FileText,
 								color: 'yellow'
 							},
 							{
 								step: '3',
 								title: 'Передайте товар',
 								description: 'Мы заберем товар по указанному адресу или вы можете привезти его в наш магазин',
-								icon: 'ri-truck-line',
+								icon: Truck,
 								color: 'green'
 							},
 							{
 								step: '4',
 								title: 'Получите деньги',
 								description: 'После проверки товара мы вернем деньги в течение 10 рабочих дней',
-								icon: 'ri-money-dollar-circle-line',
+								icon: CircleDollarSign,
 								color: 'red'
 							}
 						].map((item, idx) => (
 							<div key={idx} className="flex gap-6 bg-gray-50 rounded-xl p-6">
 								<div className={`w-16 h-16 bg-${item.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}>
-									<i className={`${item.icon} text-3xl text-${item.color}-600`}></i>
+									<Icon name={item.icon} className={`size-[1em] text-3xl text-${item.color}-600`} />
 								</div>
 								<div>
 									<div className={`text-3xl font-bold text-${item.color}-600 mb-2`}>{item.step}</div>
@@ -149,15 +151,15 @@ export default function Returns() {
 					</p>
 					<div className="space-y-3">
 						<div className="flex items-start gap-3">
-							<i className="ri-check-line text-green-600 text-xl flex-shrink-0 mt-1"></i>
+							<Check className="size-[1em] text-green-600 text-xl flex-shrink-0 mt-1" />
 							<p className="text-gray-700">Бесплатный ремонт или замена товара при гарантийном случае</p>
 						</div>
 						<div className="flex items-start gap-3">
-							<i className="ri-check-line text-green-600 text-xl flex-shrink-0 mt-1"></i>
+							<Check className="size-[1em] text-green-600 text-xl flex-shrink-0 mt-1" />
 							<p className="text-gray-700">Выезд мастера на дом для диагностики</p>
 						</div>
 						<div className="flex items-start gap-3">
-							<i className="ri-check-line text-green-600 text-xl flex-shrink-0 mt-1"></i>
+							<Check className="size-[1em] text-green-600 text-xl flex-shrink-0 mt-1" />
 							<p className="text-gray-700">Предоставление подменного товара на время ремонта</p>
 						</div>
 					</div>
@@ -203,11 +205,11 @@ export default function Returns() {
 					<p className="text-lg mb-6 opacity-90">Свяжитесь с нами любым удобным способом</p>
 					<div className="flex flex-wrap justify-center gap-4">
 						<a href="tel:+78001234567" className="bg-white text-red-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors whitespace-nowrap">
-							<i className="ri-phone-line mr-2"></i>
+							<Phone className="size-[1em] mr-2" />
 							+7 (800) 123-45-67
 						</a>
 						<a href="mailto:returns@svetofor-mebel.ru" className="bg-white text-red-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors whitespace-nowrap">
-							<i className="ri-mail-line mr-2"></i>
+							<Mail className="size-[1em] mr-2" />
 							returns@svetofor-mebel.ru
 						</a>
 					</div>

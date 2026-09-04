@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Heart, ImageIcon, Layers, ListFilter, Star, Tag, Truck, X } from 'lucide-react';
 
 const sets = [
 	{
@@ -149,9 +150,9 @@ export default function Sets() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-sm mb-2">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Готовые комплекты</span>
 				</div>
 
@@ -164,21 +165,21 @@ export default function Sets() {
 					{/* Quick Stats */}
 					<div className="hidden lg:flex items-center gap-4 self-center">
 						<div className="flex items-center gap-2 px-4 py-2 bg-red-50 rounded-lg">
-							<i className="ri-price-tag-3-line text-red-600 text-xl"></i>
+							<Tag className="size-[1em] text-red-600 text-xl" />
 							<div>
 								<p className="text-xs text-gray-600">Скидки до</p>
 								<p className="font-bold text-red-600">30%</p>
 							</div>
 						</div>
 						<div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg">
-							<i className="ri-truck-line text-green-600 text-xl"></i>
+							<Truck className="size-[1em] text-green-600 text-xl" />
 							<div>
 								<p className="text-xs text-gray-600">Доставка от</p>
 								<p className="font-bold text-green-600">0 ₽</p>
 							</div>
 						</div>
 						<div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 rounded-lg">
-							<i className="ri-stackshare-line text-yellow-600 text-xl"></i>
+							<Layers className="size-[1em] text-yellow-600 text-xl" />
 							<div>
 								<p className="text-xs text-gray-600">Готовые</p>
 								<p className="font-bold text-yellow-600">комплекты</p>
@@ -207,7 +208,7 @@ export default function Sets() {
 					onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
 					className="lg:hidden w-full mb-4 bg-red-600 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 whitespace-nowrap"
 				>
-					<i className="ri-filter-3-line"></i>
+					<ListFilter className="size-[1em]" />
 					Фильтры
 				</button>
 
@@ -222,7 +223,7 @@ export default function Sets() {
 								onClick={() => setIsMobileFilterOpen(false)}
 								className="w-8 h-8 flex items-center justify-center"
 							>
-								<i className="ri-close-line text-2xl"></i>
+								<X className="size-[1em] text-2xl" />
 							</button>
 						</div>
 
@@ -320,7 +321,7 @@ export default function Sets() {
 												/>
 											) : (
 												<div className="w-full h-full flex items-center justify-center">
-													<i className="ri-image-line text-3xl text-gray-400"></i>
+													<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 												</div>
 											)}
 											<div className="absolute top-3 left-3">
@@ -336,7 +337,7 @@ export default function Sets() {
 													}}
 													className="w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer"
 												>
-													<i className="ri-scales-3-line text-base md:text-lg text-gray-600"></i>
+													<ArrowLeftRight className="size-[1em] text-base md:text-lg text-gray-600" />
 												</button>
 												<button
 													onClick={(e) => {
@@ -346,7 +347,7 @@ export default function Sets() {
 													}}
 													className="w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer"
 												>
-													<i className={`text-base md:text-lg ${favorites.includes(set.id) ? 'ri-heart-fill text-red-500' : 'ri-heart-line text-red-600'}`}></i>
+													<Heart className={`size-[1em] text-base md:text-lg ${favorites.includes(set.id) ? 'text-red-500' : 'text-red-600'}`} fill={favorites.includes(set.id) ? 'currentColor' : 'none'} />
 												</button>
 											</div>
 											<div className="absolute bottom-3 left-3">
@@ -363,11 +364,7 @@ export default function Sets() {
 											<div className="flex items-center gap-2 mb-3">
 												<div className="flex items-center gap-1">
 													{[...Array(5)].map((_, i) => (
-														<i
-															key={i}
-															className={`${i < Math.floor(set.rating) ? 'ri-star-fill' : 'ri-star-line'
-																} text-yellow-500 text-sm`}
-														></i>
+														<Star className="size-[1em] text-yellow-500 text-sm" fill={i < Math.floor(set.rating) ? 'currentColor' : 'none'} key={i} />
 													))}
 													<span className="ml-1 text-sm text-gray-600">{set.rating}</span>
 												</div>
@@ -401,7 +398,7 @@ export default function Sets() {
 						{/* Pagination */}
 						<div className="flex items-center justify-center gap-2 mt-8 md:mt-12">
 							<button className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer">
-								<i className="ri-arrow-left-s-line text-sm md:text-base"></i>
+								<ChevronLeft className="size-[1em] text-sm md:text-base" />
 							</button>
 							{[1, 2, 3].map((page) => (
 								<button
@@ -413,7 +410,7 @@ export default function Sets() {
 								</button>
 							))}
 							<button className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer">
-								<i className="ri-arrow-right-s-line text-sm md:text-base"></i>
+								<ChevronRight className="size-[1em] text-sm md:text-base" />
 							</button>
 						</div>
 					</div>

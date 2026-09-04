@@ -19,6 +19,8 @@ import {
 
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { ChevronRight, Store, Truck } from 'lucide-react';
 
 interface AddressForm {
 	city: string;
@@ -873,9 +875,9 @@ export default function Checkout() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-sm mb-2">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/cart" className="text-gray-600 hover:text-red-600">Корзина</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Оформление заказа</span>
 				</div>
 
@@ -973,7 +975,7 @@ export default function Checkout() {
 										/>
 										<div className="flex-1">
 											<div className="flex items-center gap-3 mb-2">
-												<i className="ri-truck-line text-2xl text-red-600"></i>
+												<Truck className="size-[1em] text-2xl text-red-600" />
 												<span className="font-bold">Доставка курьером</span>
 											</div>
 											<p className="text-sm text-gray-600">Доставка по указанному адресу</p>
@@ -991,7 +993,7 @@ export default function Checkout() {
 											/>
 											<div className="flex-1">
 												<div className="flex items-center gap-3 mb-2">
-													<i className="ri-store-line text-2xl text-red-600"></i>
+													<Store className="size-[1em] text-2xl text-red-600" />
 													<span className="font-bold">Самовывоз из магазина</span>
 												</div>
 												<div className="text-sm text-gray-600 space-y-1">
@@ -1358,7 +1360,7 @@ export default function Checkout() {
 														<div className="flex items-center justify-between mb-2">
 															<div className="flex items-center gap-3">
 																{service.icon && (
-																	<i className={`${service.icon} text-2xl text-red-600`}></i>
+																	<Icon name={service.icon} className="size-[1em] text-2xl text-red-600" />
 																)}
 																<span className="font-bold">{service.name}</span>
 															</div>
@@ -1436,7 +1438,7 @@ export default function Checkout() {
 											/>
 											<div className="flex-1">
 												<div className="flex items-center gap-3 mb-2">
-													{method.icon && <i className={`${method.icon} text-2xl text-red-600`}></i>}
+													{method.icon && <Icon name={method.icon} className="size-[1em] text-2xl text-red-600" />}
 													<span className="font-bold">{method.name}</span>
 												</div>
 												{method.description && (

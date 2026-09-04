@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { organizationRequisites } from '../../data/organizationRequisites';
 import FooterRequisites from './FooterRequisites';
+import { VkIcon } from '../ui/icons/brands';
 
 export default function Footer() {
   return (
@@ -102,18 +103,26 @@ export default function Footer() {
 
         {/* Social Media */}
         <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4 mb-6 md:mb-8 pb-6 md:pb-8 border-b border-gray-800">
+          {/* Логотип из макета — это плашка: круг закрашен currentColor,
+              знак прорезан насквозь. Своя подложка ему не нужна, иначе
+              получается кружок в кружке. */}
           <a
             href="#"
-            className="w-10 h-10 flex items-center justify-center bg-gray-800 rounded-full hover:bg-red-600 transition-colors"
+            aria-label="ВКонтакте"
+            className="w-10 h-10 text-gray-400 hover:text-red-600 transition-colors"
           >
-            <i className="ri-vk-fill text-lg"></i>
+            <VkIcon className="w-full h-full" />
           </a>
+          {/* Telegram убран: логотипа нет ни в Lucide, ни в макете.
+              Вернуть вместе с SVG.
           <a
             href="#"
-            className="w-10 h-10 flex items-center justify-center bg-gray-800 rounded-full hover:bg-red-600 transition-colors"
+            aria-label="Telegram"
+            className="w-10 h-10 text-gray-400 hover:text-red-600 transition-colors"
           >
-            <i className="ri-telegram-fill text-lg"></i>
+            <TelegramIcon className="w-full h-full" />
           </a>
+          */}
         </div>
 
         <FooterRequisites />

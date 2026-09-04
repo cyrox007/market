@@ -4,6 +4,7 @@ import VariantAttributeSelector from '../product/VariantAttributeSelector';
 import type { CartItem, SelectedVariationItem } from '../../lib/api';
 import type { VariationAttributeOption } from '../../lib/api';
 import { getAttributeLabel, getValueLabel } from '../../utils/variationDisplay';
+import { Pencil, X } from 'lucide-react';
 
 export type VariationAttributesPayload = { attribute_slug: string; value_slug: string }[];
 
@@ -291,7 +292,7 @@ export default function CartItemVariants({
             onClick={handleOpen}
             className="w-full sm:w-auto text-sm text-red-600 hover:text-red-700 font-medium flex items-center justify-center gap-1 py-2.5 px-3 rounded-lg border border-red-200 hover:border-red-400 sm:border-transparent sm:py-0 sm:px-0"
           >
-            <i className="ri-edit-line"></i>
+            <Pencil className="size-[1em]" />
             Изменить вариант
           </button>
         </div>
@@ -315,7 +316,7 @@ export default function CartItemVariants({
                     </div>
                   )}
                   <button onClick={handleClose} className="text-sm text-gray-600 hover:text-gray-800">
-                    <i className="ri-close-line"></i>
+                    <X className="size-[1em]" />
                   </button>
                 </div>
               </div>

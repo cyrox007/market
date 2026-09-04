@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { api, type AboutPage } from '../../lib/api';
+import Icon from '../../components/ui/icons/Icon';
+import { ChevronRight, Star, User } from 'lucide-react';
 
 export default function About() {
   const [aboutData, setAboutData] = useState<AboutPage | null>(null);
@@ -96,7 +98,7 @@ export default function About() {
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
           <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-          <i className="ri-arrow-right-s-line text-gray-400"></i>
+          <ChevronRight className="size-[1em] text-gray-400" />
           <span className="text-gray-900">О нас</span>
         </div>
 
@@ -181,9 +183,9 @@ export default function About() {
                   <div key={advantage.id} className={`bg-white border-2 ${colors.border} rounded-2xl p-8`}>
                     <div className={`w-16 h-16 ${colors.bg} rounded-full flex items-center justify-center mb-6`}>
                       {advantage.icon ? (
-                        <i className={`${advantage.icon} text-3xl text-white`}></i>
+                        <Icon name={advantage.icon} className="size-[1em] text-3xl text-white" />
                       ) : (
-                        <i className="ri-star-line text-3xl text-white"></i>
+                        <Star className="size-[1em] text-3xl text-white" />
                       )}
                     </div>
                     <h3 className={`text-2xl font-bold mb-4 ${colors.text}`}>{advantage.title}</h3>
@@ -213,7 +215,7 @@ export default function About() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <i className="ri-user-line text-6xl"></i>
+                        <User className="size-[1em] text-6xl" />
                       </div>
                     )}
                   </div>

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ArrowLeftRight, Calendar, ChevronRight, Copy, Heart, ImageIcon, Minus, Plus, Share2, ShieldCheck, Star, Truck } from 'lucide-react';
+import { VkIcon, WhatsAppIcon } from '../../components/ui/icons/brands';
 
 const setData = {
 	1: {
@@ -205,11 +207,11 @@ export default function SetPage() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/sets" className="text-gray-600 hover:text-red-600">Готовые комплекты</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">{set.name}</span>
 				</div>
 
@@ -228,7 +230,7 @@ export default function SetPage() {
 									/>
 								) : (
 									<div className="w-full h-[500px] flex items-center justify-center">
-										<i className="ri-image-line text-3xl text-gray-400"></i>
+										<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 									</div>
 								)}
 
@@ -262,7 +264,7 @@ export default function SetPage() {
 											>
 												<div className="relative">
 													<div className="w-10 h-10 bg-red-500/90 rounded-full flex items-center justify-center animate-pulse-slow cursor-pointer">
-														<i className="ri-add-line text-white text-xl"></i>
+														<Plus className="size-[1em] text-white text-xl" />
 													</div>
 													<div className="absolute inset-0 w-10 h-10 bg-red-500/70 rounded-full animate-ping-slow"></div>
 												</div>
@@ -289,7 +291,7 @@ export default function SetPage() {
 																/>
 															) : (
 																<div className="w-full h-48 flex items-center justify-center rounded-lg cursor-pointer">
-																	<i className="ri-image-line text-3xl text-gray-400"></i>
+																	<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 																</div>
 															)}
 															<div className="absolute top-2 right-2 flex gap-2">
@@ -299,7 +301,7 @@ export default function SetPage() {
 																	}}
 																	className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
 																>
-																	<i className="ri-scales-3-line text-gray-600"></i>
+																	<ArrowLeftRight className="size-[1em] text-gray-600" />
 																</button>
 																<button
 																	onClick={(e) => {
@@ -308,7 +310,7 @@ export default function SetPage() {
 																	}}
 																	className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
 																>
-																	<i className={`${favorites.includes(item.id) ? 'ri-heart-fill text-red-500' : 'ri-heart-line text-gray-600'}`}></i>
+																	<Heart className={`size-[1em] ${favorites.includes(item.id) ? 'text-red-500' : 'text-gray-600'}`} fill={favorites.includes(item.id) ? 'currentColor' : 'none'} />
 																</button>
 															</div>
 														</div>
@@ -336,7 +338,7 @@ export default function SetPage() {
 																		}}
 																		className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
 																	>
-																		<i className="ri-subtract-line"></i>
+																		<Minus className="size-[1em]" />
 																	</button>
 																	<span className="text-lg font-bold flex-1 text-center">{quantities[item.id] || 1}</span>
 																	<button
@@ -346,7 +348,7 @@ export default function SetPage() {
 																		}}
 																		className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
 																	>
-																		<i className="ri-add-line"></i>
+																		<Plus className="size-[1em]" />
 																	</button>
 																</div>
 															)}
@@ -376,7 +378,7 @@ export default function SetPage() {
 												/>
 											) : (
 												<div className="w-full h-full flex items-center justify-center">
-													<i className="ri-image-line text-3xl text-gray-400"></i>
+													<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 												</div>
 											)}
 										</button>
@@ -393,7 +395,7 @@ export default function SetPage() {
 							<div className="grid grid-cols-2 gap-4">
 								<div className="flex items-center gap-3">
 									<div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-										<i className="ri-truck-line text-red-600 text-lg"></i>
+										<Truck className="size-[1em] text-red-600 text-lg" />
 									</div>
 									<div>
 										<p className="font-semibold text-sm">Доставка и сборка</p>
@@ -402,7 +404,7 @@ export default function SetPage() {
 								</div>
 								<div className="flex items-center gap-3">
 									<div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-										<i className="ri-shield-check-line text-green-600 text-lg"></i>
+										<ShieldCheck className="size-[1em] text-green-600 text-lg" />
 									</div>
 									<div>
 										<p className="font-semibold text-sm">Гарантия 3 года</p>
@@ -428,11 +430,7 @@ export default function SetPage() {
 						<div className="flex items-center gap-3 mb-6">
 							<div className="flex items-center gap-1">
 								{[...Array(5)].map((_, i) => (
-									<i
-										key={i}
-										className={`${i < Math.floor(set.rating) ? 'ri-star-fill' : 'ri-star-line'
-											} text-yellow-500 text-base`}
-									></i>
+									<Star className="size-[1em] text-yellow-500 text-base" fill={i < Math.floor(set.rating) ? 'currentColor' : 'none'} key={i} />
 								))}
 								<span className="ml-2 text-gray-900 font-medium">{set.rating}</span>
 							</div>
@@ -483,7 +481,7 @@ export default function SetPage() {
 											}}
 											className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
 										>
-											<i className="ri-subtract-line"></i>
+											<Minus className="size-[1em]" />
 										</button>
 										<span className="text-lg font-bold flex-1 text-center">{quantity}</span>
 										<button
@@ -493,7 +491,7 @@ export default function SetPage() {
 											}}
 											className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
 										>
-											<i className="ri-add-line"></i>
+											<Plus className="size-[1em]" />
 										</button>
 									</div>
 								)}
@@ -510,17 +508,17 @@ export default function SetPage() {
 								onClick={() => navigate('/checkout')}
 								className="w-full bg-white border-2 border-gray-300 text-gray-900 py-3 rounded-lg font-semibold hover:border-red-600 hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
 							>
-								<i className="ri-calendar-line text-lg"></i>
+								<Calendar className="size-[1em] text-lg" />
 								Оплата частями
 							</button>
 
 							<div className="flex gap-2">
 								<button className="flex-1 flex items-center justify-center gap-2 border-2 border-gray-300 rounded-lg py-2.5 hover:border-red-600 hover:bg-red-50 cursor-pointer transition-colors">
-									<i className="ri-heart-line text-lg text-red-600"></i>
+									<Heart className="size-[1em] text-lg text-red-600" />
 									<span className="text-sm font-medium">В избранное</span>
 								</button>
 								<button className="flex-1 flex items-center justify-center gap-2 border-2 border-gray-300 rounded-lg py-2.5 hover:border-red-600 hover:bg-red-50 cursor-pointer transition-colors">
-									<i className="ri-scales-3-line text-lg text-gray-700"></i>
+									<ArrowLeftRight className="size-[1em] text-lg text-gray-700" />
 									<span className="text-sm font-medium">Сравнить</span>
 								</button>
 							</div>
@@ -532,26 +530,28 @@ export default function SetPage() {
 								onClick={() => setShowShareMenu(!showShareMenu)}
 								className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2.5 hover:border-red-600 hover:bg-red-50 cursor-pointer transition-colors"
 							>
-								<i className="ri-share-line text-lg text-gray-700"></i>
+								<Share2 className="size-[1em] text-lg text-gray-700" />
 								<span className="text-sm font-medium">Поделиться</span>
 							</button>
 
 							{showShareMenu && (
 								<div className="absolute top-12 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-10">
 									<button onClick={() => handleShare('vk')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left">
-										<i className="ri-vk-fill text-xl text-blue-600"></i>
+										<VkIcon className="size-[1em] text-xl text-blue-600" />
 										<span className="text-sm">ВКонтакте</span>
 									</button>
+									{/* Отправка в Telegram временно убрана: нет логотипа. Вернуть вместе с SVG.
 									<button onClick={() => handleShare('telegram')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left">
-										<i className="ri-telegram-fill text-xl text-blue-500"></i>
+										<TelegramIcon className="size-[1em] text-xl text-blue-500" />
 										<span className="text-sm">Telegram</span>
 									</button>
+									*/}
 									<button onClick={() => handleShare('whatsapp')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left">
-										<i className="ri-whatsapp-fill text-xl text-green-600"></i>
+										<WhatsAppIcon className="size-[1em] text-xl text-green-600" />
 										<span className="text-sm">WhatsApp</span>
 									</button>
 									<button onClick={() => handleShare('copy')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left">
-										<i className="ri-file-copy-line text-xl text-gray-600"></i>
+										<Copy className="size-[1em] text-xl text-gray-600" />
 										<span className="text-sm">Копировать ссылку</span>
 									</button>
 								</div>
@@ -597,7 +597,7 @@ export default function SetPage() {
 											/>
 										) : (
 											<div className="w-full h-full flex items-center justify-center">
-												<i className="ri-image-line text-3xl text-gray-400"></i>
+												<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 											</div>
 										)}
 										{isInActiveSet && (
@@ -631,7 +631,7 @@ export default function SetPage() {
 												}}
 												className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer"
 											>
-												<i className="ri-scales-3-line text-base text-gray-600"></i>
+												<ArrowLeftRight className="size-[1em] text-base text-gray-600" />
 											</button>
 											<button
 												onClick={(e) => {
@@ -641,7 +641,7 @@ export default function SetPage() {
 												}}
 												className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer"
 											>
-												<i className={`text-base ${favorites.includes(item.id) ? 'ri-heart-fill text-red-500' : 'ri-heart-line text-red-600'}`}></i>
+												<Heart className={`size-[1em] text-base ${favorites.includes(item.id) ? 'text-red-500' : 'text-red-600'}`} fill={favorites.includes(item.id) ? 'currentColor' : 'none'} />
 											</button>
 										</div>
 									</div>

@@ -20,12 +20,15 @@ import { getProductKey } from '../../utils/ssr-to-swr';
 import { resolveProductStockBadge } from '../../utils/productUtils';
 import type { ProductDetail, Product, ProductVariant, Review, /* VariationAttributeOption, */ SelectedVariationItem, VariationAttributeOption } from '../../lib/api';
 import VariantColorSelector from '../../components/product/VariantColorSelector';
+import Icon from '../../components/ui/icons/Icon';
+import { VkIcon, WhatsAppIcon } from '../../components/ui/icons/brands';
+import { ArrowLeftRight, Calendar, ChevronRight, Copy, FileText, Heart, ListChecks, MessageCircle, Minus, Plus, Share2, Star, Truck } from 'lucide-react';
 
 const tabs = [
-	{ id: 'description', label: 'Описание', icon: 'ri-file-text-line' },
-	{ id: 'specs', label: 'Характеристики', icon: 'ri-list-check' },
-	{ id: 'delivery', label: 'Доставка', icon: 'ri-truck-line' },
-	{ id: 'reviews', label: 'Отзывы', icon: 'ri-chat-3-line' }
+	{ id: 'description', label: 'Описание', icon: FileText },
+	{ id: 'specs', label: 'Характеристики', icon: ListChecks },
+	{ id: 'delivery', label: 'Доставка', icon: Truck },
+	{ id: 'reviews', label: 'Отзывы', icon: MessageCircle }
 ];
 
 type ProductSpecification = { name: string; value: string; slug: string };
@@ -874,15 +877,15 @@ export default function Product() {
 				{/* Хлебные крошки */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
 					{product?.category && (
 						<>
-							<i className="ri-arrow-right-s-line text-gray-400"></i>
+							<ChevronRight className="size-[1em] text-gray-400" />
 							<Link to={`/catalog/${product.category.slug}`} className="text-gray-600 hover:text-red-600">{product.category.name}</Link>
 						</>
 					)}
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">{product?.name}</span>
 				</div>
 
@@ -928,7 +931,7 @@ export default function Product() {
 										: 'border-gray-300 hover:border-red-600 hover:bg-red-50'
 										}`}
 								>
-									<i className={`text-xl ${isInWishlist ? 'ri-heart-fill text-red-600' : 'ri-heart-line text-red-600'}`}></i>
+									<Heart className={`size-[1em] text-xl ${isInWishlist ? 'text-red-600' : 'text-red-600'}`} fill={isInWishlist ? 'currentColor' : 'none'} />
 									<span className="text-sm font-medium">{isInWishlist ? 'В избранном' : 'В избранное'}</span>
 								</button>
 								<button
@@ -966,7 +969,7 @@ export default function Product() {
 										: 'border-gray-300 hover:border-red-600 hover:bg-red-50'
 										}`}
 								>
-									<i className={`text-xl ${isInCompare ? 'ri-scales-3-fill text-red-600' : 'ri-scales-3-line text-gray-700'}`}></i>
+									<ArrowLeftRight className={`size-[1em] text-xl ${isInCompare ? 'text-red-600' : 'text-gray-700'}`} />
 									<span className="text-sm font-medium">{isInCompare ? 'В сравнении' : 'Сравнить'}</span>
 								</button>
 								<div className="relative">
@@ -974,7 +977,7 @@ export default function Product() {
 										onClick={() => setShowShareMenu(!showShareMenu)}
 										className="w-12 h-12 flex items-center justify-center border-2 border-gray-300 rounded-lg hover:border-red-600 hover:bg-red-50 cursor-pointer transition-colors"
 									>
-										<i className="ri-share-line text-lg text-gray-700"></i>
+										<Share2 className="size-[1em] text-lg text-gray-700" />
 									</button>
 									{showShareMenu && (
 										<div className="absolute right-0 top-14 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-10 w-48">
@@ -982,28 +985,32 @@ export default function Product() {
 												onClick={() => handleShare('vk')}
 												className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left"
 											>
-												<i className="ri-vk-fill text-xl text-blue-600"></i>
+												<VkIcon className="size-[1em] text-xl text-blue-600" />
 												<span className="text-sm">ВКонтакте</span>
 											</button>
+											{/* Отправка в Telegram временно убрана: нет логотипа.
+											    В Lucide брендов нет, в макете Telegram не нарисован.
+											    Вернуть, когда появится SVG — обработчик handleShare('telegram') на месте.
 											<button
 												onClick={() => handleShare('telegram')}
 												className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left"
 											>
-												<i className="ri-telegram-fill text-xl text-blue-500"></i>
+												<TelegramIcon className="size-[1em] text-xl text-blue-500" />
 												<span className="text-sm">Telegram</span>
 											</button>
+											*/}
 											<button
 												onClick={() => handleShare('whatsapp')}
 												className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left"
 											>
-												<i className="ri-whatsapp-fill text-xl text-green-600"></i>
+												<WhatsAppIcon className="size-[1em] text-xl text-green-600" />
 												<span className="text-sm">WhatsApp</span>
 											</button>
 											<button
 												onClick={() => handleShare('copy')}
 												className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer text-left"
 											>
-												<i className="ri-file-copy-line text-xl text-gray-600"></i>
+												<Copy className="size-[1em] text-xl text-gray-600" />
 												<span className="text-sm">Копировать ссылку</span>
 											</button>
 										</div>
@@ -1063,11 +1070,7 @@ export default function Product() {
 								<div className="flex items-center gap-4 flex-wrap">
 									<div className="flex items-center gap-1">
 										{[...Array(5)].map((_, i) => (
-											<i
-												key={i}
-												className={`${i < Math.floor(product?.rating || 0) ? 'ri-star-fill' : 'ri-star-line'
-													} text-yellow-500 text-base sm:text-lg`}
-											></i>
+											<Star className="size-[1em] text-yellow-500 text-base sm:text-lg" fill={i < Math.floor(product?.rating || 0) ? 'currentColor' : 'none'} key={i} />
 										))}
 										<span className="ml-2 text-gray-900 font-medium text-sm sm:text-base">{product?.rating ?? 0}</span>
 									</div>
@@ -1158,10 +1161,7 @@ export default function Product() {
 																className="w-full h-full object-contain"
 															/>
 														) : block.icon ? (
-															<i
-																className={`${block.icon} text-base sm:text-lg`}
-																style={{ color: iconColor }}
-															></i>
+															<Icon name={block.icon} className="size-[1em] text-base sm:text-lg" style={{ color: iconColor }} />
 														) : null}
 													</div>
 													<div>
@@ -1181,7 +1181,11 @@ export default function Product() {
 								onClick={() => scrollToProductDetails(hasDescriptionTab ? 'description' : 'specs')}
 								className="w-full border-2 border-red-600 text-red-600 py-3 rounded-lg font-medium hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
 							>
-								<i className={`${hasDescriptionTab ? 'ri-file-text-line' : 'ri-list-check'} text-lg`}></i>
+								{hasDescriptionTab ? (
+									<FileText className="size-[1em] text-lg" />
+								) : (
+									<ListChecks className="size-[1em] text-lg" />
+								)}
 								{hasDescriptionTab ? 'Перейти к описанию' : 'Перейти к характеристикам'}
 							</button>
 
@@ -1322,7 +1326,7 @@ export default function Product() {
 														disabled={isAddingToCart}
 														className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50"
 													>
-														<i className="ri-subtract-line"></i>
+														<Minus className="size-[1em]" />
 													</button>
 													<span className="text-lg font-bold flex-1 text-center">{currentCartQuantity}</span>
 													<button
@@ -1347,7 +1351,7 @@ export default function Product() {
 														disabled={isAddingToCart || !isProductAvailable}
 														className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50"
 													>
-														<i className="ri-add-line"></i>
+														<Plus className="size-[1em]" />
 													</button>
 												</div>
 											</>
@@ -1389,7 +1393,7 @@ export default function Product() {
 								onClick={() => navigate('/checkout')}
 								className="w-full bg-white border-2 border-gray-300 text-gray-900 py-3 rounded-lg font-semibold hover:border-red-600 hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
 							>
-								<i className="ri-calendar-line text-lg"></i>
+								<Calendar className="size-[1em] text-lg" />
 								Оплата частями
 							</button>
 						</div>
@@ -1409,7 +1413,7 @@ export default function Product() {
 										: 'border-transparent text-gray-600 hover:text-red-600'
 										}`}
 								>
-									<i className={`${tab.icon} text-xl`}></i>
+									<Icon name={tab.icon} className="size-[1em] text-xl" />
 									<span>{tab.label}</span>
 								</button>
 							))}
@@ -1492,10 +1496,7 @@ export default function Product() {
 																className="w-full h-full object-contain"
 															/>
 														) : block.icon ? (
-															<i
-																className={`${block.icon} text-2xl`}
-																style={{ color: iconColor }}
-															></i>
+															<Icon name={block.icon} className="size-[1em] text-2xl" style={{ color: iconColor }} />
 														) : null}
 													</div>
 													<div>
@@ -1536,7 +1537,7 @@ export default function Product() {
 								) : reviews.length === 0 ? (
 									<div className="text-center py-12">
 										<div className="mb-4">
-											<i className="ri-chat-3-line text-6xl text-gray-300"></i>
+											<MessageCircle className="size-[1em] text-6xl text-gray-300" />
 										</div>
 										<p className="text-gray-500 text-lg mb-2">Пока нет отзывов</p>
 										<p className="text-gray-400 text-sm mb-6">Будьте первым, кто оставит отзыв об этом товаре!</p>
@@ -1558,11 +1559,7 @@ export default function Product() {
 													</div>
 													<div className="flex gap-1">
 														{[...Array(5)].map((_, i) => (
-															<i
-																key={i}
-																className={`${i < review.rating ? 'ri-star-fill' : 'ri-star-line'
-																	} text-yellow-500 text-lg`}
-															></i>
+															<Star className="size-[1em] text-yellow-500 text-lg" fill={i < review.rating ? 'currentColor' : 'none'} key={i} />
 														))}
 													</div>
 												</div>

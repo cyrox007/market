@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ProductLink from './ProductLink';
 import type { Product } from '../../lib/api';
 import { isVariableParent } from '../../utils/cartProduct';
+import { ArrowLeftRight, Heart, ImageIcon, Minus, Plus } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -172,7 +173,7 @@ function ProductCard({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <i className="ri-image-line text-3xl text-gray-400"></i>
+              <ImageIcon className="size-[1em] text-3xl text-gray-400" />
             </div>
           )}
           <div className="absolute top-2 md:top-3 right-2 md:right-3 flex gap-2">
@@ -182,10 +183,7 @@ function ProductCard({
                 className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${isInCompare ? 'bg-red-50' : ''
                   }`}
               >
-                <i className={`text-base md:text-lg ${isInCompare
-                    ? 'ri-scales-3-fill text-red-600'
-                    : 'ri-scales-3-line text-gray-600'
-                  }`}></i>
+                <ArrowLeftRight className={`size-[1em] text-base md:text-lg ${isInCompare ? 'text-red-600' : 'text-gray-600'}`} />
               </button>
             )}
             {onToggleFavorite && (
@@ -194,10 +192,7 @@ function ProductCard({
                 className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${isFavorite ? 'bg-red-50' : ''
                   }`}
               >
-                <i className={`text-base md:text-lg ${isFavorite
-                    ? 'ri-heart-fill text-red-500'
-                    : 'ri-heart-line text-red-600'
-                  }`}></i>
+                <Heart className={`size-[1em] text-base md:text-lg ${isFavorite ? 'text-red-500' : 'text-red-600'}`} fill={isFavorite ? 'currentColor' : 'none'} />
               </button>
             )}
           </div>
@@ -244,7 +239,7 @@ function ProductCard({
                 disabled={isAdjustingCart}
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <i className="ri-subtract-line"></i>
+                <Minus className="size-[1em]" />
               </button>
               <span className="flex-1 text-center font-semibold text-sm md:text-base">{displayedCartQuantity}</span>
               <button
@@ -252,7 +247,7 @@ function ProductCard({
                 disabled={isAdjustingCart}
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <i className="ri-add-line"></i>
+                <Plus className="size-[1em]" />
               </button>
             </div>
           ) : (

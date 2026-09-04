@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ChevronRight } from 'lucide-react';
 
 function useQuery() {
 	return new URLSearchParams(useLocation().search);
@@ -76,11 +77,11 @@ export default function ResetPasswordPage() {
 					<Link to="/" className="text-gray-600 hover:text-red-600">
 						Главная
 					</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/login" className="text-gray-600 hover:text-red-600">
 						Вход
 					</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Новый пароль</span>
 				</div>
 

@@ -9,6 +9,7 @@ import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { api } from '../../lib/api';
 import type { Product } from '../../lib/api';
+import { ChevronRight, ImageIcon, Minus, Plus, ShoppingCart, X } from 'lucide-react';
 
 export default function Cart() {
   const { cart, isLoading, error, updateQuantity, updateVariant, removeFromCart, reloadCart, addToCart } = useCart();
@@ -209,7 +210,7 @@ export default function Cart() {
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-sm mb-2">
           <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-          <i className="ri-arrow-right-s-line text-gray-400"></i>
+          <ChevronRight className="size-[1em] text-gray-400" />
           <span className="text-gray-900">Корзина</span>
         </div>
 
@@ -218,7 +219,7 @@ export default function Cart() {
         {cartItems.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="ri-shopping-cart-line text-6xl text-gray-400"></i>
+              <ShoppingCart className="size-[1em] text-6xl text-gray-400" />
             </div>
             <h2 className="text-2xl font-bold mb-4">Корзина пуста</h2>
             <p className="text-gray-600 mb-8">Добавьте товары из каталога</p>
@@ -240,7 +241,7 @@ export default function Cart() {
                           <img src={item.image} alt={item.name} className="w-full h-full object-cover object-top" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="ri-image-line text-3xl text-gray-400"></i>
+                            <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                           </div>
                         )}
                       </ProductLink>
@@ -250,7 +251,7 @@ export default function Cart() {
                           <img src={item.image} alt={item.name} className="w-full h-full object-cover object-top" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="ri-image-line text-3xl text-gray-400"></i>
+                            <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                           </div>
                         )}
                       </div>
@@ -269,7 +270,7 @@ export default function Cart() {
                           disabled={removingItemId === item.id}
                           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
                         >
-                          <i className="ri-close-line text-2xl"></i>
+                          <X className="size-[1em] text-2xl" />
                         </button>
                       </div>
                       {/* Отображение текущих вариаций и возможность их изменения */}
@@ -296,7 +297,7 @@ export default function Cart() {
                             disabled={updatingItemId === item.id}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
-                            <i className="ri-subtract-line"></i>
+                            <Minus className="size-[1em]" />
                           </button>
                           <span className="w-12 text-center font-medium">{item.quantity}</span>
                           <button
@@ -304,7 +305,7 @@ export default function Cart() {
                             disabled={updatingItemId === item.id}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
-                            <i className="ri-add-line"></i>
+                            <Plus className="size-[1em]" />
                           </button>
                         </div>
                         <div className="w-full sm:w-auto text-left sm:text-right">
@@ -338,7 +339,7 @@ export default function Cart() {
                 </div>
                 {promoApplied && (
                   <p className="text-green-600 text-sm mt-2 flex items-center gap-2">
-                    <i className="ri-check-line"></i>
+                    <Check className="size-[1em]" />
                     Промокод успешно применен! Скидка 10%
                   </p>
                 )}

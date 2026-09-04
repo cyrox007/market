@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useCounters } from '../../hooks/useCounters';
 import RegionSelector from '../RegionSelector';
+import { ArrowLeftRight, ClipboardList, Heart, MenuIcon, Search, ShoppingCart, User, X } from 'lucide-react';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -146,7 +147,11 @@ export default function Header() {
                   aria-controls="mobile-nav"
                   aria-label={isMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
                 >
-                  <i className={`${isMenuOpen ? 'ri-close-line' : 'ri-menu-line'} text-2xl`}></i>
+                  {isMenuOpen ? (
+                    <X className="size-[24px]" />
+                  ) : (
+                    <MenuIcon className="size-[24px]" />
+                  )}
                 </button>
                 {/* ВАЖНО: НЕ МЕНЯТЬ ЛОГОТИП БЕЗ УКАЗАНИЯ ПОЛЬЗОВАТЕЛЯ */}
                 <Link to="/" className="flex items-center">
@@ -157,7 +162,7 @@ export default function Header() {
                   />
                 </Link>
                 <Link to="/catalog" className="hidden lg:flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
-                  <i className="ri-menu-line text-lg"></i>
+                  <MenuIcon className="size-[1em] text-lg" />
                   Каталог
                 </Link>
               </div>
@@ -180,21 +185,21 @@ export default function Header() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-12 py-2.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:border-red-600 transition-colors bg-white"
                   />
-                  <i className="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                  <Search className="size-[1em] absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
                       className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      <i className="ri-close-line text-lg"></i>
+                      <X className="size-[1em] text-lg" />
                     </button>
                   )}
                   <button
                     type="submit"
                     className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
                   >
-                    <i className="ri-search-line text-lg"></i>
+                    <Search className="size-[1em] text-lg" />
                   </button>
                 </form>
               </div>
@@ -210,7 +215,7 @@ export default function Header() {
                     className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-gray-200 rounded-full cursor-pointer transition-colors"
                     title="Избранное"
                   >
-                    <i className="ri-heart-line text-lg sm:text-xl"></i>
+                    <Heart className="size-[24px]" />
                     {wishlistCount > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-600 text-white text-[10px] sm:text-xs rounded-full flex items-center justify-center px-1 font-medium shadow-sm">
                         {wishlistCount > 99 ? '99+' : wishlistCount}
@@ -224,7 +229,7 @@ export default function Header() {
                     className="hidden min-[360px]:flex relative w-9 h-9 sm:w-10 sm:h-10 items-center justify-center hover:bg-gray-200 rounded-full cursor-pointer transition-colors"
                     title="Сравнение"
                   >
-                    <i className="ri-scales-3-line text-lg sm:text-xl"></i>
+                    <ArrowLeftRight className="size-[24px]" />
                     {compareCount > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-600 text-white text-[10px] sm:text-xs rounded-full flex items-center justify-center px-1 font-medium shadow-sm">
                         {compareCount > 99 ? '99+' : compareCount}
@@ -238,7 +243,7 @@ export default function Header() {
                     className="hidden md:flex w-9 h-9 sm:w-10 sm:h-10 items-center justify-center hover:bg-gray-200 rounded-full cursor-pointer transition-colors"
                     title="Заказы"
                   >
-                    <i className="ri-file-list-3-line text-lg sm:text-xl"></i>
+                    <ClipboardList className="size-[24px]" />
                   </Link>
 
                   {/* Profile */}
@@ -248,7 +253,7 @@ export default function Header() {
                       className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-gray-200 rounded-full cursor-pointer transition-colors"
                       title={user.name}
                     >
-                      <i className="ri-user-line text-lg sm:text-xl"></i>
+                      <User className="size-[24px]" />
                     </Link>
                   ) : !isLoading ? (
                     <Link
@@ -256,7 +261,7 @@ export default function Header() {
                       className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-gray-200 rounded-full cursor-pointer transition-colors"
                       title="Войти"
                     >
-                      <i className="ri-user-line text-lg sm:text-xl"></i>
+                      <User className="size-[24px]" />
                     </Link>
                   ) : (
                     <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center">
@@ -269,7 +274,7 @@ export default function Header() {
                     className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-gray-200 rounded-full cursor-pointer transition-colors"
                     title="Корзина"
                   >
-                    <i className="ri-shopping-cart-line text-lg sm:text-xl"></i>
+                    <ShoppingCart className="size-[24px]" />
                     {cartCount > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-600 text-white text-[10px] sm:text-xs rounded-full flex items-center justify-center px-1 font-medium shadow-sm">
                         {cartCount > 99 ? '99+' : cartCount}
@@ -298,21 +303,21 @@ export default function Header() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-12 py-2.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:border-red-600 bg-white"
                 />
-                <i className="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <Search className="size-[1em] absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
                     className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    <i className="ri-close-line text-lg"></i>
+                    <X className="size-[1em] text-lg" />
                   </button>
                 )}
                 <button
                   type="submit"
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
                 >
-                  <i className="ri-search-line text-lg"></i>
+                  <Search className="size-[1em] text-lg" />
                 </button>
               </form>
             </div>

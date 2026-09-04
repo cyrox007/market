@@ -1,5 +1,6 @@
 import { OrderItem } from '../../lib/api';
 import { Link } from 'react-router-dom';
+import { ImageIcon } from 'lucide-react';
 
 interface OrderItemsListProps {
   items: OrderItem[];
@@ -27,7 +28,7 @@ export default function OrderItemsList({ items }: OrderItemsListProps) {
               />
             ) : (
               <div className="w-20 h-16 flex items-center justify-center rounded-lg">
-                <i className="ri-image-line text-3xl text-gray-400"></i>
+                <ImageIcon className="size-[1em] text-3xl text-gray-400" />
               </div>
             )}
             <div className="flex-1">

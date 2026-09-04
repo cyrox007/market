@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRegion } from '../hooks/useRegion';
 import { api } from '../lib/api';
 import type { ShippingLocationTree, ShippingLocation } from '../lib/api';
+import { Check, ChevronDown, Search, TriangleAlert, X } from 'lucide-react';
 
 interface LocationModalProps {
   isOpen: boolean;
@@ -364,7 +365,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                 className="text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label="Закрыть"
               >
-                <i className="ri-close-line text-2xl"></i>
+                <X className="size-[1em] text-2xl" />
               </button>
             )}
           </div>
@@ -380,7 +381,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                 className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
                 autoFocus
               />
-              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+              <Search className="size-[1em] absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
             </div>
           </div>
 
@@ -393,7 +394,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
               </div>
             ) : error ? (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                <i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+                <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-red-600 text-sm mb-4">{error}</p>
                   <button
@@ -442,7 +443,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                           className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
                         >
                           <span className="font-semibold text-gray-900">{district.name}</span>
-                          <i className={`ri-arrow-down-s-line text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`}></i>
+                          <ChevronDown className={`size-[1em] text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`} />
                         </button>
                       ) : null}
 
@@ -471,7 +472,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                       <span className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
                                         {reg.name}
                                       </span>
-                                      <i className={`ri-arrow-down-s-line text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`}></i>
+                                      <ChevronDown className={`size-[1em] text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`} />
                                     </button>
                                   ) : (
                                     <button
@@ -485,7 +486,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                         {reg.name}
                                       </span>
                                       {isRegionSelected && (
-                                        <i className="ri-check-line text-red-600 text-lg"></i>
+                                        <Check className="size-[1em] text-red-600 text-lg" />
                                       )}
                                     </button>
                                   )}
@@ -511,7 +512,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                             {locality.name}
                                           </span>
                                           {isLocalitySelected && (
-                                            <i className="ri-check-line text-red-600 text-lg"></i>
+                                            <Check className="size-[1em] text-red-600 text-lg" />
                                           )}
                                         </button>
                                       );

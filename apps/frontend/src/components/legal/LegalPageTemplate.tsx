@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 
 type LegalPageTemplateProps = {
   title: string;
@@ -28,7 +29,7 @@ export default function LegalPageTemplate({
           <Link to="/" className="hover:text-red-600 transition-colors">
             Главная
           </Link>
-          <i className="ri-arrow-right-s-line text-gray-400 shrink-0" aria-hidden />
+          <ChevronRight className="size-[1em] text-gray-400 shrink-0" />
           <span className="text-gray-900">{breadcrumbLabel}</span>
         </nav>
 

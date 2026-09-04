@@ -20,6 +20,7 @@ import { normalizeListProduct } from '../../utils/cartProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ChevronLeft, ChevronRight, Search as SearchIcon, X } from 'lucide-react';
 
 export default function Search() {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -274,7 +275,7 @@ export default function Search() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs md:text-sm mb-4">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Поиск</span>
 				</div>
 
@@ -292,7 +293,7 @@ export default function Search() {
 								placeholder="Поиск товаров..."
 								className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-full text-sm md:text-base focus:outline-none focus:border-red-600 transition-colors bg-white"
 							/>
-							<i className="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+							<SearchIcon className="size-[1em] absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 							{searchQuery && (
 								<button
 									type="button"
@@ -302,14 +303,14 @@ export default function Search() {
 									}}
 									className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
 								>
-									<i className="ri-close-line text-lg"></i>
+									<X className="size-[1em] text-lg" />
 								</button>
 							)}
 							<button
 								type="submit"
 								className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-white bg-red-600 rounded-full hover:bg-red-700 transition-colors"
 							>
-								<i className="ri-search-line text-lg"></i>
+								<SearchIcon className="size-[1em] text-lg" />
 							</button>
 						</div>
 					</form>
@@ -329,7 +330,7 @@ export default function Search() {
 				{/* Results */}
 				{!query || query.trim().length < 2 ? (
 					<div className="text-center py-12">
-						<i className="ri-search-line text-6xl text-gray-300 mb-4"></i>
+						<SearchIcon className="size-[1em] text-6xl text-gray-300 mb-4" />
 						<p className="text-gray-500 text-lg mb-2">Введите запрос для поиска</p>
 						<p className="text-gray-400 text-sm">Минимум 2 символа</p>
 					</div>
@@ -341,7 +342,7 @@ export default function Search() {
 					</div>
 				) : products.length === 0 ? (
 					<div className="text-center py-12">
-						<i className="ri-search-line text-6xl text-gray-300 mb-4"></i>
+						<SearchIcon className="size-[1em] text-6xl text-gray-300 mb-4" />
 						<p className="text-gray-500 text-lg mb-2">Ничего не найдено</p>
 						<p className="text-gray-400 text-sm">Попробуйте изменить запрос или использовать другие ключевые слова</p>
 					</div>
@@ -391,7 +392,7 @@ export default function Search() {
 									disabled={currentPage === 1}
 									className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 								>
-									<i className="ri-arrow-left-s-line text-sm md:text-base"></i>
+									<ChevronLeft className="size-[1em] text-sm md:text-base" />
 								</button>
 								{(() => {
 									const pages: number[] = [];
@@ -423,7 +424,7 @@ export default function Search() {
 									disabled={currentPage === totalPages}
 									className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 								>
-									<i className="ri-arrow-right-s-line text-sm md:text-base"></i>
+									<ChevronRight className="size-[1em] text-sm md:text-base" />
 								</button>
 							</div>
 						)}

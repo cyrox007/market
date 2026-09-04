@@ -6,14 +6,16 @@ import { api, type Order, type Address, type BonusTransaction, type WishlistItem
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { Bell, Calendar, Check, ChevronRight, CircleCheck, ClipboardList, Gift, Heart, ImageIcon, Lock, LogOut, MapPin, Pencil, Plus, Save, Settings, ShoppingBag, Star, Trash2, TriangleAlert, User, UserPlus, X } from 'lucide-react';
 
 const menuItems = [
-	{ id: 'profile', label: 'Профиль', icon: 'ri-user-line' },
-	{ id: 'orders', label: 'Заказы', icon: 'ri-shopping-bag-line' },
-	{ id: 'favorites', label: 'Избранное', icon: 'ri-heart-line' },
-	{ id: 'addresses', label: 'Адреса доставки', icon: 'ri-map-pin-line' },
-	{ id: 'bonuses', label: 'Бонусы', icon: 'ri-gift-line' },
-	{ id: 'settings', label: 'Настройки', icon: 'ri-settings-line' }
+	{ id: 'profile', label: 'Профиль', icon: User },
+	{ id: 'orders', label: 'Заказы', icon: ShoppingBag },
+	{ id: 'favorites', label: 'Избранное', icon: Heart },
+	{ id: 'addresses', label: 'Адреса доставки', icon: MapPin },
+	{ id: 'bonuses', label: 'Бонусы', icon: Gift },
+	{ id: 'settings', label: 'Настройки', icon: Settings }
 ];
 
 function formatDate(dateString: string): string {
@@ -509,7 +511,7 @@ export default function Account() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-sm mb-2">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Личный кабинет</span>
 				</div>
 
@@ -550,7 +552,7 @@ export default function Account() {
 											: 'text-gray-700 hover:bg-gray-50'
 											}`}
 									>
-										<i className={`${item.icon} text-xl`}></i>
+										<Icon name={item.icon} className="size-[1em] text-xl" />
 										{item.label}
 									</button>
 								))}
@@ -567,7 +569,7 @@ export default function Account() {
 										</>
 									) : (
 										<>
-											<i className="ri-logout-box-line text-xl"></i>
+											<LogOut className="size-[1em] text-xl" />
 											Выйти
 										</>
 									)}
@@ -584,7 +586,7 @@ export default function Account() {
 								<div className="flex items-center justify-between mb-6">
 									<div className="flex items-center gap-3">
 										<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-											<i className="ri-user-line text-2xl text-red-600"></i>
+											<User className="size-[1em] text-2xl text-red-600" />
 										</div>
 										<h2 className="text-2xl font-bold">Личные данные</h2>
 									</div>
@@ -597,14 +599,14 @@ export default function Account() {
 
 								{profileError && (
 									<div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-										<i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+										<TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
 										<p className="text-red-600 text-sm flex-1">{profileError}</p>
 									</div>
 								)}
 
 								{profileSuccess && (
 									<div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-										<i className="ri-checkbox-circle-line text-xl text-green-600 mt-0.5"></i>
+										<CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
 										<p className="text-green-600 text-sm flex-1">Профиль успешно обновлен</p>
 									</div>
 								)}
@@ -665,7 +667,7 @@ export default function Account() {
 												</>
 											) : (
 												<>
-													<i className="ri-save-line"></i>
+													<Save className="size-[1em]" />
 													<span>Сохранить изменения</span>
 												</>
 											)}
@@ -684,7 +686,7 @@ export default function Account() {
 								<div className="flex items-center justify-between mb-6">
 									<div className="flex items-center gap-3">
 										<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-											<i className="ri-shopping-bag-line text-2xl text-red-600"></i>
+											<ShoppingBag className="size-[1em] text-2xl text-red-600" />
 										</div>
 										<div>
 											<h2 className="text-2xl font-bold">Мои заказы</h2>
@@ -705,7 +707,7 @@ export default function Account() {
 								) : orders.length === 0 ? (
 									<div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
 										<div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-											<i className="ri-shopping-bag-line text-4xl text-gray-400"></i>
+											<ShoppingBag className="size-[1em] text-4xl text-gray-400" />
 										</div>
 										<p className="text-gray-600 text-lg mb-2">У вас пока нет заказов</p>
 										<Link
@@ -726,11 +728,11 @@ export default function Account() {
 													<div className="flex items-start justify-between mb-4">
 														<div className="flex-1">
 															<div className="flex items-center gap-3 mb-2">
-																<i className="ri-file-list-3-line text-xl text-red-600"></i>
+																<ClipboardList className="size-[1em] text-xl text-red-600" />
 																<h3 className="font-bold text-lg">Заказ {order.number || `#${order.id}`}</h3>
 															</div>
 															<p className="text-sm text-gray-600 flex items-center gap-2">
-																<i className="ri-calendar-line"></i>
+																<Calendar className="size-[1em]" />
 																{formatDate(order.created_at)}
 															</p>
 														</div>
@@ -744,7 +746,7 @@ export default function Account() {
 																<img src={productImage} alt={firstItem.product?.name || 'Товар'} className="w-20 h-16 object-cover object-top rounded-lg" />
 															) : (
 																<div className="w-20 h-16 flex items-center justify-center rounded-lg">
-																	<i className="ri-image-line text-3xl text-gray-400"></i>
+																	<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 																</div>
 															)}
 															<div className="flex-1">
@@ -799,14 +801,14 @@ export default function Account() {
 															<img src={product.image} alt={product.name} className="w-full h-full object-cover object-top" />
 														) : (
 															<div className="w-full h-full flex items-center justify-center">
-																<i className="ri-image-line text-3xl text-gray-400"></i>
+																<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 															</div>
 														)}
 														<button
 															onClick={() => handleRemoveFavorite(product.id)}
 															className="absolute top-4 right-4 w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
 														>
-															<i className="ri-heart-fill text-xl text-white"></i>
+															<Heart className="size-[1em] text-xl text-white" fill="currentColor" />
 														</button>
 														{!product.in_stock && (
 															<div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -845,7 +847,7 @@ export default function Account() {
 								<div className="flex items-center justify-between mb-6">
 									<div className="flex items-center gap-3">
 										<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-											<i className="ri-map-pin-line text-2xl text-red-600"></i>
+											<MapPin className="size-[1em] text-2xl text-red-600" />
 										</div>
 										<h2 className="text-2xl font-bold">Адреса доставки</h2>
 									</div>
@@ -853,7 +855,7 @@ export default function Account() {
 										onClick={handleOpenAddAddress}
 										className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap flex items-center gap-2"
 									>
-										<i className="ri-add-line"></i>
+										<Plus className="size-[1em]" />
 										<span>Добавить адрес</span>
 									</button>
 								</div>
@@ -881,8 +883,8 @@ export default function Account() {
 														<div className="flex items-center gap-3 mb-2">
 															<div className={`w-10 h-10 rounded-full flex items-center justify-center ${addr.is_default ? 'bg-green-100' : 'bg-red-100'
 																}`}>
-																<i className={`ri-map-pin-2-line text-xl ${addr.is_default ? 'text-green-600' : 'text-red-600'
-																	}`}></i>
+																<MapPin className={`size-[1em] text-xl ${addr.is_default ? 'text-green-600' : 'text-red-600'
+ }`} />
 															</div>
 															<div className="flex-1">
 																{addr.title && <h3 className="font-bold text-lg">{addr.title}</h3>}
@@ -894,20 +896,20 @@ export default function Account() {
 														<div className="space-y-1">
 															{addr.shipping_location && (
 																<p className="text-sm font-medium text-red-600 flex items-center gap-1">
-																	<i className="ri-map-pin-3-line"></i>
+																	<MapPin className="size-[1em]" />
 																	{addr.shipping_location.name}
 																</p>
 															)}
 															<p className="text-gray-700 text-sm">{addr.full_address || addr.address}</p>
 															<p className="text-xs text-gray-500 flex items-center gap-1">
-																<i className="ri-calendar-line"></i>
+																<Calendar className="size-[1em]" />
 																Добавлен: {new Date(addr.created_at || '').toLocaleDateString('ru-RU')}
 															</p>
 														</div>
 													</div>
 													{addr.is_default && (
 														<span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-1 shadow-sm">
-															<i className="ri-check-line"></i>
+															<Check className="size-[1em]" />
 															Основной
 														</span>
 													)}
@@ -917,14 +919,14 @@ export default function Account() {
 														onClick={() => handleOpenEditAddress(addr)}
 														className="text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 transition-colors"
 													>
-														<i className="ri-edit-line"></i>
+														<Pencil className="size-[1em]" />
 														Редактировать
 													</button>
 													<button
 														onClick={() => setAddressToDelete(addr)}
 														className="text-gray-600 hover:text-red-600 hover:underline flex items-center gap-1 transition-colors"
 													>
-														<i className="ri-delete-bin-line"></i>
+														<Trash2 className="size-[1em]" />
 														Удалить
 													</button>
 													{!addr.is_default && (
@@ -932,7 +934,7 @@ export default function Account() {
 															onClick={() => handleSetDefaultAddress(addr.id)}
 															className="text-green-600 hover:text-green-700 hover:underline flex items-center gap-1 transition-colors"
 														>
-															<i className="ri-star-line"></i>
+															<Star className="size-[1em]" />
 															Сделать основным
 														</button>
 													)}
@@ -962,7 +964,7 @@ export default function Account() {
 													<p className="text-5xl font-bold">{bonusBalance.toLocaleString()} ₽</p>
 												</div>
 												<div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
-													<i className="ri-gift-line text-4xl"></i>
+													<Gift className="size-[1em] text-4xl" />
 												</div>
 											</div>
 											<p className="opacity-90">1 бонус = 1 рубль при оплате заказа</p>
@@ -973,7 +975,7 @@ export default function Account() {
 											<div className="space-y-4">
 												<div className="flex items-start gap-4">
 													<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-														<i className="ri-shopping-bag-line text-red-600 text-xl"></i>
+														<ShoppingBag className="size-[1em] text-red-600 text-xl" />
 													</div>
 													<div>
 														<h4 className="font-bold mb-1">За покупки</h4>
@@ -982,7 +984,7 @@ export default function Account() {
 												</div>
 												<div className="flex items-start gap-4">
 													<div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
-														<i className="ri-star-line text-yellow-600 text-xl"></i>
+														<Star className="size-[1em] text-yellow-600 text-xl" />
 													</div>
 													<div>
 														<h4 className="font-bold mb-1">За отзывы</h4>
@@ -991,7 +993,7 @@ export default function Account() {
 												</div>
 												<div className="flex items-start gap-4">
 													<div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-														<i className="ri-user-add-line text-green-600 text-xl"></i>
+														<UserPlus className="size-[1em] text-green-600 text-xl" />
 													</div>
 													<div>
 														<h4 className="font-bold mb-1">За друзей</h4>
@@ -1037,7 +1039,7 @@ export default function Account() {
 								<div className="bg-white border border-gray-200 rounded-2xl p-8">
 									<div className="flex items-center gap-3 mb-6">
 										<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-											<i className="ri-notification-line text-2xl text-red-600"></i>
+											<Bell className="size-[1em] text-2xl text-red-600" />
 										</div>
 										<h2 className="text-2xl font-bold">Настройки уведомлений</h2>
 									</div>
@@ -1051,14 +1053,14 @@ export default function Account() {
 										<>
 											{notificationError && (
 												<div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-													<i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+													<TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
 													<p className="text-red-600 text-sm flex-1">{notificationError}</p>
 												</div>
 											)}
 
 											{notificationSuccess && (
 												<div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-													<i className="ri-checkbox-circle-line text-xl text-green-600 mt-0.5"></i>
+													<CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
 													<p className="text-green-600 text-sm flex-1">Настройки уведомлений обновлены</p>
 												</div>
 											)}
@@ -1096,21 +1098,21 @@ export default function Account() {
 								<div className="bg-white border border-gray-200 rounded-2xl p-8">
 									<div className="flex items-center gap-3 mb-6">
 										<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-											<i className="ri-lock-password-line text-2xl text-red-600"></i>
+											<Lock className="size-[1em] text-2xl text-red-600" />
 										</div>
 										<h2 className="text-2xl font-bold">Изменить пароль</h2>
 									</div>
 
 									{passwordError && (
 										<div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-											<i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+											<TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
 											<p className="text-red-600 text-sm flex-1">{passwordError}</p>
 										</div>
 									)}
 
 									{passwordSuccess && (
 										<div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-											<i className="ri-checkbox-circle-line text-xl text-green-600 mt-0.5"></i>
+											<CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
 											<p className="text-green-600 text-sm flex-1">Пароль успешно изменен</p>
 										</div>
 									)}
@@ -1163,7 +1165,7 @@ export default function Account() {
 												</>
 											) : (
 												<>
-													<i className="ri-save-line"></i>
+													<Save className="size-[1em]" />
 													<span>Изменить пароль</span>
 												</>
 											)}
@@ -1188,13 +1190,13 @@ export default function Account() {
 								onClick={handleCloseAddressModal}
 								className="text-gray-400 hover:text-gray-600 transition-colors"
 							>
-								<i className="ri-close-line text-2xl"></i>
+								<X className="size-[1em] text-2xl" />
 							</button>
 						</div>
 
 						{addressError && (
 							<div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-								<i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+								<TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
 								<p className="text-red-600 text-sm flex-1">{addressError}</p>
 							</div>
 						)}
@@ -1309,7 +1311,7 @@ export default function Account() {
 										</>
 									) : (
 										<>
-											<i className="ri-save-line"></i>
+											<Save className="size-[1em]" />
 											<span>{editingAddress ? 'Сохранить изменения' : 'Добавить адрес'}</span>
 										</>
 									)}
@@ -1325,7 +1327,7 @@ export default function Account() {
 				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
 					<div className="bg-white rounded-2xl p-8 max-w-md w-full">
 						<div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-error-warning-line text-3xl text-red-600"></i>
+							<TriangleAlert className="size-[1em] text-3xl text-red-600" />
 						</div>
 						<h3 className="text-2xl font-bold text-center mb-2">Удалить адрес?</h3>
 						<p className="text-gray-600 text-center mb-6">

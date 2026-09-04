@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/hooks/useRegion';
 import LocationModal from './LocationModal';
+import { ChevronDown, MapPin } from 'lucide-react';
 
 export default function RegionSelector() {
   const { region, loading } = useRegion();
@@ -46,7 +47,7 @@ export default function RegionSelector() {
         className="relative flex items-center gap-1.5 text-xs md:text-sm text-gray-600 hover:text-gray-900 transition-colors group"
         title="Выберите регион доставки для корректного отображения цен и сроков доставки"
       >
-        <i className="ri-map-pin-line text-base"></i>
+        <MapPin className="size-[1em] text-base" />
         <span className="hidden lg:inline">Загрузка...</span>
         <span className="lg:hidden">...</span>
         {/* Tooltip */}
@@ -70,7 +71,7 @@ export default function RegionSelector() {
         className="relative flex w-full min-w-0 items-center gap-1.5 text-xs md:text-sm text-gray-600 hover:text-red-600 transition-colors group"
         title={regionTitle}
       >
-        <i className={`ri-map-pin-line text-base ${showAutoDetectedBadge ? 'text-red-600' : ''}`}></i>
+        <MapPin className={`size-[1em] text-base ${showAutoDetectedBadge ? 'text-red-600' : ''}`} />
         <span className="hidden min-w-0 flex-1 truncate font-medium md:inline">
           {regionName}
         </span>
@@ -82,7 +83,7 @@ export default function RegionSelector() {
             Авто
           </span>
         )}
-        <i className="ri-arrow-down-s-line text-gray-400 group-hover:text-gray-600 text-xs md:text-sm transition-colors flex-shrink-0"></i>
+        <ChevronDown className="size-[1em] text-gray-400 group-hover:text-gray-600 text-xs md:text-sm transition-colors flex-shrink-0" />
 
         {/* Tooltip - показываем только если регион не выбран */}
         {!region && (

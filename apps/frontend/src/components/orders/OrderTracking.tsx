@@ -1,5 +1,6 @@
 import { OrderStatusHistory } from '../../lib/api';
 import { formatDateTime } from '../../utils/orderUtils';
+import { CircleCheck } from 'lucide-react';
 
 interface OrderTrackingProps {
   statusHistory: OrderStatusHistory[];
@@ -25,9 +26,9 @@ export default function OrderTracking({ statusHistory, currentStatus }: OrderTra
             <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
               isActive ? 'bg-red-600' : 'bg-gray-200'
             }`}>
-              <i className={`ri-checkbox-circle-line text-xl ${
-                isActive ? 'text-white' : 'text-gray-400'
-              }`}></i>
+              <CircleCheck className={`size-[1em] text-xl ${
+ isActive ? 'text-white' : 'text-gray-400'
+ }`} />
             </div>
             <div className="flex-1">
               <p className={`font-medium ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>

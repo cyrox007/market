@@ -12,6 +12,7 @@ import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ChevronRight } from 'lucide-react';
 
 const COLLECTION_TITLE_FALLBACK: Record<string, string> = {
 	new: 'Новинки',
@@ -132,7 +133,7 @@ export default function CollectionPage() {
 						<Link to="/" className="text-gray-600 hover:text-red-600">
 							Главная
 						</Link>
-						<i className="ri-arrow-right-s-line text-gray-400" />
+						<ChevronRight className="size-[1em] text-gray-400" />
 						<Link to="/catalog" className="text-gray-600 hover:text-red-600">
 							Каталог
 						</Link>
@@ -153,11 +154,11 @@ export default function CollectionPage() {
 					<Link to="/" className="text-gray-600 hover:text-red-600">
 						Главная
 					</Link>
-					<i className="ri-arrow-right-s-line text-gray-400" />
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<Link to="/catalog" className="text-gray-600 hover:text-red-600">
 						Каталог
 					</Link>
-					<i className="ri-arrow-right-s-line text-gray-400" />
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">{title}</span>
 				</div>
 

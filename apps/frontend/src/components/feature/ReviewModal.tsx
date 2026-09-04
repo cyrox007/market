@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import Toast from '../ui/Toast';
+import { Star, X } from 'lucide-react';
 
 interface ReviewModalProps {
   productId: number;
@@ -104,7 +105,7 @@ export default function ReviewModal({ productId, productName, isOpen, onClose, o
               disabled={isSubmitting}
               className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 disabled:opacity-50"
             >
-              <i className="ri-close-line text-2xl"></i>
+              <X className="size-[1em] text-2xl" />
             </button>
           </div>
 
@@ -161,7 +162,7 @@ export default function ReviewModal({ productId, productName, isOpen, onClose, o
                       star <= rating ? 'text-yellow-500' : 'text-gray-300'
                     } hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    <i className={star <= rating ? 'ri-star-fill' : 'ri-star-line'}></i>
+                    <Star className="size-[1em]" fill={star <= rating ? 'currentColor' : 'none'} />
                   </button>
                 ))}
               </div>

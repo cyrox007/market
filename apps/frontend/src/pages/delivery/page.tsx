@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { Check, ChevronRight, MapPin, Phone, Settings, ShoppingCart, Truck, Wrench, Zap } from 'lucide-react';
 
 export default function Delivery() {
 	usePageSeo({
@@ -28,7 +30,7 @@ export default function Delivery() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Доставка</span>
 				</div>
 
@@ -36,22 +38,22 @@ export default function Delivery() {
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
 					<div className="bg-white border-2 border-red-600 rounded-2xl p-8 text-center">
 						<div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-truck-line text-4xl text-red-600"></i>
+							<Truck className="size-[1em] text-4xl text-red-600" />
 						</div>
 						<h3 className="text-2xl font-bold mb-4">Стандартная доставка</h3>
 						<p className="text-4xl font-bold text-red-600 mb-4">Бесплатно</p>
 						<p className="text-gray-600 mb-6">При заказе от 30 000 ₽</p>
 						<ul className="text-left space-y-2 text-gray-700">
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Доставка 1-3 дня
 							</li>
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Подъем на этаж
 							</li>
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Занос в квартиру
 							</li>
 						</ul>
@@ -59,22 +61,22 @@ export default function Delivery() {
 
 					<div className="bg-white border-2 border-yellow-600 rounded-2xl p-8 text-center">
 						<div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-flashlight-line text-4xl text-yellow-600"></i>
+							<Zap className="size-[1em] text-4xl text-yellow-600" />
 						</div>
 						<h3 className="text-2xl font-bold mb-4">Экспресс-доставка</h3>
 						<p className="text-4xl font-bold text-yellow-600 mb-4">1 500 ₽</p>
 						<p className="text-gray-600 mb-6">Доставка в день заказа</p>
 						<ul className="text-left space-y-2 text-gray-700">
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Доставка в течение 4 часов
 							</li>
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Приоритетная обработка
 							</li>
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Гарантированное время
 							</li>
 						</ul>
@@ -82,22 +84,22 @@ export default function Delivery() {
 
 					<div className="bg-white border-2 border-green-600 rounded-2xl p-8 text-center">
 						<div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-map-pin-line text-4xl text-green-600"></i>
+							<MapPin className="size-[1em] text-4xl text-green-600" />
 						</div>
 						<h3 className="text-2xl font-bold mb-4">Доставка в регионы</h3>
 						<p className="text-4xl font-bold text-green-600 mb-4">От 2 000 ₽</p>
 						<p className="text-gray-600 mb-6">По всей России</p>
 						<ul className="text-left space-y-2 text-gray-700">
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Доставка 3-7 дней
 							</li>
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Транспортные компании
 							</li>
 							<li className="flex items-center gap-2">
-								<i className="ri-check-line text-green-600"></i>
+								<Check className="size-[1em] text-green-600" />
 								Страхование груза
 							</li>
 						</ul>
@@ -111,7 +113,7 @@ export default function Delivery() {
 						<div className="bg-white rounded-xl p-6">
 							<div className="flex items-start gap-4 mb-4">
 								<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-									<i className="ri-tools-line text-red-600 text-xl"></i>
+									<Wrench className="size-[1em] text-red-600 text-xl" />
 								</div>
 								<div>
 									<h3 className="text-xl font-bold mb-2">Стандартная сборка</h3>
@@ -121,19 +123,19 @@ export default function Delivery() {
 							</div>
 							<ul className="space-y-2 text-gray-700">
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Сборка в день доставки
 								</li>
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Профессиональные мастера
 								</li>
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Гарантия на сборку 12 месяцев
 								</li>
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Вывоз упаковки
 								</li>
 							</ul>
@@ -142,7 +144,7 @@ export default function Delivery() {
 						<div className="bg-white rounded-xl p-6">
 							<div className="flex items-start gap-4 mb-4">
 								<div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
-									<i className="ri-settings-3-line text-yellow-600 text-xl"></i>
+									<Settings className="size-[1em] text-yellow-600 text-xl" />
 								</div>
 								<div>
 									<h3 className="text-xl font-bold mb-2">Премиум сборка</h3>
@@ -152,19 +154,19 @@ export default function Delivery() {
 							</div>
 							<ul className="space-y-2 text-gray-700">
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Все услуги стандартной сборки
 								</li>
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Установка на место
 								</li>
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Регулировка и настройка
 								</li>
 								<li className="flex items-center gap-2">
-									<i className="ri-check-line text-green-600"></i>
+									<Check className="size-[1em] text-green-600" />
 									Консультация по уходу
 								</li>
 							</ul>
@@ -181,34 +183,34 @@ export default function Delivery() {
 								step: '1',
 								title: 'Оформление заказа',
 								description: 'Выберите товар и оформите заказ на сайте или в магазине',
-								icon: 'ri-shopping-cart-line',
+								icon: ShoppingCart,
 								color: 'red'
 							},
 							{
 								step: '2',
 								title: 'Подтверждение',
 								description: 'Менеджер свяжется с вами для уточнения деталей',
-								icon: 'ri-phone-line',
+								icon: Phone,
 								color: 'yellow'
 							},
 							{
 								step: '3',
 								title: 'Доставка',
 								description: 'Доставим мебель в удобное для вас время',
-								icon: 'ri-truck-line',
+								icon: Truck,
 								color: 'green'
 							},
 							{
 								step: '4',
 								title: 'Сборка',
 								description: 'Соберем и установим мебель на место',
-								icon: 'ri-tools-line',
+								icon: Wrench,
 								color: 'red'
 							}
 						].map((item, idx) => (
 							<div key={idx} className="text-center">
 								<div className={`w-20 h-20 bg-${item.color}-100 rounded-full flex items-center justify-center mx-auto mb-4`}>
-									<i className={`${item.icon} text-4xl text-${item.color}-600`}></i>
+									<Icon name={item.icon} className={`size-[1em] text-4xl text-${item.color}-600`} />
 								</div>
 								<div className={`text-4xl font-bold text-${item.color}-600 mb-2`}>{item.step}</div>
 								<h3 className="text-xl font-bold mb-2">{item.title}</h3>

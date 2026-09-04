@@ -1,5 +1,6 @@
 import { buildTitle } from "../../constants/seo";
 import { usePageSeo } from "../../hooks/usePageSeo";
+import { Building2, ChevronRight, CircleCheck, MapPin, Megaphone, Snowflake, Sun, ThermometerSun } from 'lucide-react';
 
 export default function Rental() {
 	usePageSeo({
@@ -48,25 +49,25 @@ export default function Rental() {
 					<div className="bg-white border-2 border-gray-200 rounded-2xl p-8">
 						<div className="flex items-center gap-3 mb-6">
 							<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-								<i className="ri-map-pin-line text-red-600 text-2xl"></i>
+								<MapPin className="size-[1em] text-red-600 text-2xl" />
 							</div>
 							<h2 className="text-2xl font-bold">Требования к месторасположению</h2>
 						</div>
 						<ul className="space-y-4">
 							<li className="flex items-start gap-3">
-								<i className="ri-checkbox-circle-fill text-green-600 text-xl mt-1"></i>
+								<CircleCheck className="size-[1em] text-green-600 text-xl mt-1" />
 								<span className="text-gray-700">Пересечение крупных автомагистралей</span>
 							</li>
 							<li className="flex items-start gap-3">
-								<i className="ri-checkbox-circle-fill text-green-600 text-xl mt-1"></i>
+								<CircleCheck className="size-[1em] text-green-600 text-xl mt-1" />
 								<span className="text-gray-700">Близость транспортных узлов</span>
 							</li>
 							<li className="flex items-start gap-3">
-								<i className="ri-checkbox-circle-fill text-green-600 text-xl mt-1"></i>
+								<CircleCheck className="size-[1em] text-green-600 text-xl mt-1" />
 								<span className="text-gray-700">Удобство подъезда на личном и общественном транспорте, высокий пешеходный трафик</span>
 							</li>
 							<li className="flex items-start gap-3">
-								<i className="ri-checkbox-circle-fill text-green-600 text-xl mt-1"></i>
+								<CircleCheck className="size-[1em] text-green-600 text-xl mt-1" />
 								<span className="text-gray-700">Наличие автостоянки</span>
 							</li>
 						</ul>
@@ -76,7 +77,7 @@ export default function Rental() {
 					<div className="bg-white border-2 border-gray-200 rounded-2xl p-8">
 						<div className="flex items-center gap-3 mb-6">
 							<div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-								<i className="ri-building-line text-yellow-600 text-2xl"></i>
+								<Building2 className="size-[1em] text-yellow-600 text-2xl" />
 							</div>
 							<h2 className="text-2xl font-bold">Требования к объекту</h2>
 						</div>
@@ -108,25 +109,25 @@ export default function Rental() {
 					<div className="bg-white border-2 border-gray-200 rounded-2xl p-8">
 						<div className="flex items-center gap-3 mb-6">
 							<div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-								<i className="ri-advertisement-line text-green-600 text-2xl"></i>
+								<Megaphone className="size-[1em] text-green-600 text-2xl" />
 							</div>
 							<h2 className="text-2xl font-bold">Реклама</h2>
 						</div>
 						<ul className="space-y-3 text-gray-700">
 							<li className="flex items-start gap-2">
-								<i className="ri-arrow-right-s-line text-red-600 mt-1"></i>
+								<ChevronRight className="size-[1em] text-red-600 mt-1" />
 								<span>Бесплатное размещение наружного рекламного оформления магазина</span>
 							</li>
 							<li className="flex items-start gap-2">
-								<i className="ri-arrow-right-s-line text-red-600 mt-1"></i>
+								<ChevronRight className="size-[1em] text-red-600 mt-1" />
 								<span>Не менее 2х вывесок (на крыше и фасаде) + 2 баннера</span>
 							</li>
 							<li className="flex items-start gap-2">
-								<i className="ri-arrow-right-s-line text-red-600 mt-1"></i>
+								<ChevronRight className="size-[1em] text-red-600 mt-1" />
 								<span>Предусмотреть подвод электропитания к наружным рекламным конструкциям</span>
 							</li>
 							<li className="flex items-start gap-2">
-								<i className="ri-arrow-right-s-line text-red-600 mt-1"></i>
+								<ChevronRight className="size-[1em] text-red-600 mt-1" />
 								<span>Электропитание организовать от узла учёта Арендатора + выполнить закладные детали</span>
 							</li>
 						</ul>
@@ -136,14 +137,14 @@ export default function Rental() {
 					<div className="bg-white border-2 border-gray-200 rounded-2xl p-8">
 						<div className="flex items-center gap-3 mb-6">
 							<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-								<i className="ri-temp-hot-line text-red-600 text-2xl"></i>
+								<ThermometerSun className="size-[1em] text-red-600 text-2xl" />
 							</div>
 							<h2 className="text-2xl font-bold">Температура воздуха в помещениях</h2>
 						</div>
 						<div className="space-y-4">
 							<div className="bg-blue-50 rounded-lg p-4">
 								<div className="flex items-center gap-3">
-									<i className="ri-snowy-line text-blue-600 text-2xl"></i>
+									<Snowflake className="size-[1em] text-blue-600 text-2xl" />
 									<div>
 										<p className="font-bold text-gray-800">Зимнее время</p>
 										<p className="text-gray-700">Не ниже +18°C</p>
@@ -152,7 +153,7 @@ export default function Rental() {
 							</div>
 							<div className="bg-orange-50 rounded-lg p-4">
 								<div className="flex items-center gap-3">
-									<i className="ri-sun-line text-orange-600 text-2xl"></i>
+									<Sun className="size-[1em] text-orange-600 text-2xl" />
 									<div>
 										<p className="font-bold text-gray-800">Летнее время</p>
 										<p className="text-gray-700">Не выше +23°C</p>
@@ -187,7 +188,7 @@ export default function Rental() {
 								key={index}
 								className="bg-white rounded-xl p-4 text-center shadow-sm hover:shadow-md transition-shadow"
 							>
-								<i className="ri-map-pin-2-fill text-red-600 text-2xl mb-2"></i>
+								<MapPin className="size-[1em] text-red-600 text-2xl mb-2" />
 								<p className="font-semibold text-gray-800">{city}</p>
 							</div>
 						))}

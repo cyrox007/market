@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/hooks/useRegion';
 import LocationModal from './LocationModal';
+import { MapPin, X } from 'lucide-react';
 
 export default function RegionBanner() {
   const { region, loading } = useRegion();
@@ -42,7 +43,7 @@ export default function RegionBanner() {
         <div className="max-w-[1280px] mx-auto px-4 py-1.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <i className="ri-map-pin-line text-red-600 flex-shrink-0 text-base"></i>
+              <MapPin className="size-[1em] text-red-600 flex-shrink-0 text-base" />
               <span className="text-gray-600 truncate">
                 Ваш регион: <span className="font-medium text-gray-900">{region.name}</span>
               </span>
@@ -60,7 +61,7 @@ export default function RegionBanner() {
               className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 p-1"
               aria-label="Закрыть"
             >
-              <i className="ri-close-line text-lg"></i>
+              <X className="size-[1em] text-lg" />
             </button>
           </div>
         </div>

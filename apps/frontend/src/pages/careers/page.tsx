@@ -2,6 +2,7 @@ import { useState } from 'react';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { buildTitle } from '../../constants/seo';
 import { usePageSeo } from '../../hooks/usePageSeo';
+import { Building2, ChartLine, Check, CircleDollarSign, Clock, CloudUpload, GraduationCap, MapPin, Users } from 'lucide-react';
 
 const vacancies = [
 	{
@@ -162,28 +163,28 @@ export default function Careers() {
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 						<div className="bg-red-50 rounded-xl p-6 text-center">
 							<div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-								<i className="ri-money-dollar-circle-line text-3xl text-white"></i>
+								<CircleDollarSign className="size-[1em] text-3xl text-white" />
 							</div>
 							<h3 className="font-bold text-lg mb-2">Достойная зарплата</h3>
 							<p className="text-gray-600">Конкурентная оплата труда и бонусы</p>
 						</div>
 						<div className="bg-yellow-50 rounded-xl p-6 text-center">
 							<div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
-								<i className="ri-line-chart-line text-3xl text-white"></i>
+								<ChartLine className="size-[1em] text-3xl text-white" />
 							</div>
 							<h3 className="font-bold text-lg mb-2">Карьерный рост</h3>
 							<p className="text-gray-600">Возможности для развития</p>
 						</div>
 						<div className="bg-green-50 rounded-xl p-6 text-center">
 							<div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-								<i className="ri-graduation-cap-line text-3xl text-white"></i>
+								<GraduationCap className="size-[1em] text-3xl text-white" />
 							</div>
 							<h3 className="font-bold text-lg mb-2">Обучение</h3>
 							<p className="text-gray-600">Тренинги и курсы повышения квалификации</p>
 						</div>
 						<div className="bg-red-50 rounded-xl p-6 text-center">
 							<div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-								<i className="ri-team-line text-3xl text-white"></i>
+								<Users className="size-[1em] text-3xl text-white" />
 							</div>
 							<h3 className="font-bold text-lg mb-2">Дружный коллектив</h3>
 							<p className="text-gray-600">Комфортная атмосфера в команде</p>
@@ -202,15 +203,15 @@ export default function Careers() {
 										<h3 className="text-2xl font-bold mb-2">{vacancy.title}</h3>
 										<div className="flex flex-wrap gap-3">
 											<span className="flex items-center gap-2 text-gray-600">
-												<i className="ri-building-line"></i>
+												<Building2 className="size-[1em]" />
 												{vacancy.department}
 											</span>
 											<span className="flex items-center gap-2 text-gray-600">
-												<i className="ri-map-pin-line"></i>
+												<MapPin className="size-[1em]" />
 												{vacancy.location}
 											</span>
 											<span className="flex items-center gap-2 text-gray-600">
-												<i className="ri-time-line"></i>
+												<Clock className="size-[1em]" />
 												{vacancy.type}
 											</span>
 										</div>
@@ -227,7 +228,7 @@ export default function Careers() {
 										<ul className="space-y-2">
 											{vacancy.responsibilities.map((item, idx) => (
 												<li key={idx} className="flex items-start gap-2 text-gray-700">
-													<i className="ri-check-line text-green-600 flex-shrink-0 mt-1"></i>
+													<Check className="size-[1em] text-green-600 flex-shrink-0 mt-1" />
 													<span>{item}</span>
 												</li>
 											))}
@@ -238,7 +239,7 @@ export default function Careers() {
 										<ul className="space-y-2">
 											{vacancy.requirements.map((item, idx) => (
 												<li key={idx} className="flex items-start gap-2 text-gray-700">
-													<i className="ri-check-line text-green-600 flex-shrink-0 mt-1"></i>
+													<Check className="size-[1em] text-green-600 flex-shrink-0 mt-1" />
 													<span>{item}</span>
 												</li>
 											))}
@@ -310,7 +311,7 @@ export default function Careers() {
 						<div>
 							<label className="block text-sm font-medium mb-2">Резюме</label>
 							<div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-red-600 transition-colors cursor-pointer">
-								<i className="ri-upload-cloud-line text-4xl text-gray-400 mb-2"></i>
+								<CloudUpload className="size-[1em] text-4xl text-gray-400 mb-2" />
 								<p className="text-gray-600">Прикрепите файл резюме (PDF, DOC, DOCX)</p>
 								<p className="text-sm text-gray-400 mt-2">Максимальный размер: 5 МБ</p>
 							</div>

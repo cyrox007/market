@@ -5,6 +5,7 @@ import { useSSR } from '../../../contexts/SSRContext';
 import { usePrefetchCategory } from '../../../hooks/usePrefetchCategory';
 import type { Category } from '../../../lib/api';
 import { Link } from 'react-router-dom';
+import { ImageIcon } from 'lucide-react';
 
 const bgColors = ['bg-red-50', 'bg-yellow-50', 'bg-green-50', 'bg-blue-50', 'bg-purple-50', 'bg-pink-50'];
 
@@ -74,7 +75,7 @@ export default function Categories() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                      <i className="ri-image-line text-3xl text-gray-400"></i>
+                      <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                     </div>
                   )}
                 </div>

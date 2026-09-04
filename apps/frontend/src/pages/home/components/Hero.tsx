@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { getSliders } from '../../../lib/api-server';
 import { useSSR } from '../../../contexts/SSRContext';
 import type { Slider } from '../../../lib/api';
+import { ArrowRight, Zap } from 'lucide-react';
+import Icon from '../../../components/ui/icons/Icon';
 
 export default function Hero() {
   const ssrData = useSSR();
@@ -65,7 +67,7 @@ export default function Hero() {
   };
 
   const badgeText = displaySlider.badge_text ?? 'Помощь онлайн';
-  const badgeIcon = displaySlider.badge_icon ?? 'ri-flashlight-fill';
+  const badgeIcon = displaySlider.badge_icon ?? Zap;
   const showBadge = badgeText.length > 0;
 
   const imageUrl = displaySlider.image_hd || displaySlider.image || displaySlider.image_fullhd || '';
@@ -101,12 +103,12 @@ export default function Hero() {
                   href={displaySlider.badge_link}
                   className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full mb-6 hover:bg-yellow-300 transition-colors"
                 >
-                  <i className={badgeIcon}></i>
+                  <Icon name={badgeIcon} className="size-[1em]" />
                   <span className="font-semibold text-sm whitespace-nowrap">{badgeText}</span>
                 </a>
               ) : (
                 <div className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full mb-6">
-                  <i className={badgeIcon}></i>
+                  <Icon name={badgeIcon} className="size-[1em]" />
                   <span className="font-semibold text-sm whitespace-nowrap">{badgeText}</span>
                 </div>
               ))}
@@ -131,7 +133,7 @@ export default function Hero() {
                   className="inline-flex items-center gap-3 bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-all cursor-pointer whitespace-nowrap"
                 >
                   <span>{displaySlider.button_text || 'Перейти в каталог'}</span>
-                  <i className="ri-arrow-right-line text-xl"></i>
+                  <ArrowRight className="size-[1em] text-xl" />
                 </a>
               )}
             </div>

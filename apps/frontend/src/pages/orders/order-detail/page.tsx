@@ -15,6 +15,8 @@ import {
   showPaymentTabError,
   type GatewayClientConfig,
 } from '../../../utils/paymentUtils';
+import Icon from '../../../components/ui/icons/Icon';
+import { ChevronRight, Info, TriangleAlert } from 'lucide-react';
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -318,9 +320,9 @@ export default function OrderDetail() {
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-sm mb-2">
           <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-          <i className="ri-arrow-right-s-line text-gray-400"></i>
+          <ChevronRight className="size-[1em] text-gray-400" />
           <Link to="/orders" className="text-gray-600 hover:text-red-600">Мои заказы</Link>
-          <i className="ri-arrow-right-s-line text-gray-400"></i>
+          <ChevronRight className="size-[1em] text-gray-400" />
           <span className="text-gray-900">Заказ № {order.number}</span>
         </div>
 
@@ -497,7 +499,7 @@ export default function OrderDetail() {
                       <div key={service.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200">
                         <div className="flex items-center gap-3">
                           {service.icon && (
-                            <i className={`${service.icon} text-xl text-red-600`}></i>
+                            <Icon name={service.icon} className="size-[1em] text-xl text-red-600" />
                           )}
                           <span className="font-medium">{service.name}</span>
                         </div>
@@ -608,7 +610,7 @@ export default function OrderDetail() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-8 max-w-md w-full">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="ri-information-line text-3xl text-blue-600"></i>
+              <Info className="size-[1em] text-3xl text-blue-600" />
             </div>
             <h3 className="text-2xl font-bold text-center mb-2">Обновить профиль?</h3>
             <p className="text-gray-600 text-center mb-6">
@@ -654,7 +656,7 @@ export default function OrderDetail() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-8 max-w-md w-full">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="ri-error-warning-line text-3xl text-red-600"></i>
+              <TriangleAlert className="size-[1em] text-3xl text-red-600" />
             </div>
             <h3 className="text-2xl font-bold text-center mb-2">Отменить заказ?</h3>
             <p className="text-gray-600 text-center mb-6">

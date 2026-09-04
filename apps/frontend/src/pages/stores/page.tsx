@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import type { Store } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { ChevronRight, Clock, Eye, Gift, MapPin, Phone, Share2, Smile, Store as StoreIcon } from 'lucide-react';
 
 export default function Stores() {
 	const [selectedCity, setSelectedCity] = useState('Все города');
@@ -140,7 +141,7 @@ export default function Stores() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Магазины</span>
 				</div>
 
@@ -188,7 +189,7 @@ export default function Stores() {
 				{filteredStores.length === 0 ? (
 					<div className="text-center py-16">
 						<div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-store-line text-6xl text-gray-400"></i>
+							<StoreIcon className="size-[1em] text-6xl text-gray-400" />
 						</div>
 						<h2 className="text-2xl font-bold mb-4">Магазины не найдены</h2>
 						<p className="text-gray-600">В выбранном городе пока нет магазинов</p>
@@ -202,7 +203,7 @@ export default function Stores() {
 										<img src={store.image} alt={store.name} className="w-full h-full object-cover object-top" />
 									) : (
 										<div className="w-full h-full flex items-center justify-center text-gray-400">
-											<i className="ri-store-line text-6xl"></i>
+											<StoreIcon className="size-[1em] text-6xl" />
 										</div>
 									)}
 								</div>
@@ -213,13 +214,13 @@ export default function Stores() {
 									<div className="space-y-3 mb-6">
 										<div className="flex items-start gap-3">
 											<div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-												<i className="ri-map-pin-line text-red-600"></i>
+												<MapPin className="size-[1em] text-red-600" />
 											</div>
 											<p className="text-gray-700">{store.address}</p>
 										</div>
 										<div className="flex items-start gap-3">
 											<div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-												<i className="ri-phone-line text-red-600"></i>
+												<Phone className="size-[1em] text-red-600" />
 											</div>
 											<a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-gray-700 hover:text-red-600">
 												{store.phone}
@@ -228,7 +229,7 @@ export default function Stores() {
 										{store.hours && (
 											<div className="flex items-start gap-3">
 												<div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-													<i className="ri-time-line text-red-600"></i>
+													<Clock className="size-[1em] text-red-600" />
 												</div>
 												<p className="text-gray-700">{store.hours}</p>
 											</div>
@@ -252,7 +253,7 @@ export default function Stores() {
 											}}
 											className="w-12 h-12 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer"
 										>
-											<i className="ri-share-line text-xl"></i>
+											<Share2 className="size-[1em] text-xl" />
 										</button>
 									</div>
 								</div>
@@ -265,21 +266,21 @@ export default function Stores() {
 				<div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
 					<div className="text-center p-8 bg-red-50 rounded-2xl">
 						<div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-eye-line text-3xl text-white"></i>
+							<Eye className="size-[1em] text-3xl text-white" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">Посмотрите вживую</h3>
 						<p className="text-gray-600">Оцените качество материалов и удобство мебели в наших салонах</p>
 					</div>
 					<div className="text-center p-8 bg-yellow-50 rounded-2xl">
 						<div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-user-smile-line text-3xl text-white"></i>
+							<Smile className="size-[1em] text-3xl text-white" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">Консультация</h3>
 						<p className="text-gray-600">Наши специалисты помогут подобрать идеальную мебель для вас</p>
 					</div>
 					<div className="text-center p-8 bg-green-50 rounded-2xl">
 						<div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-gift-line text-3xl text-white"></i>
+							<Gift className="size-[1em] text-3xl text-white" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">Специальные предложения</h3>
 						<p className="text-gray-600">Эксклюзивные скидки для посетителей салонов</p>

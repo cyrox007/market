@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/hooks/useRegion';
 import LocationModal from './LocationModal';
+import { MapPin } from 'lucide-react';
 
 export default function FirstVisitRegionModal() {
   const { region } = useRegion();
@@ -84,7 +85,7 @@ export default function FirstVisitRegionModal() {
           <div className="relative z-50 bg-white rounded-2xl shadow-lg max-w-sm w-full p-5">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 text-red-600">
-                <i className="ri-map-pin-line text-2xl" />
+                <MapPin className="size-[1em] text-2xl" />
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-semibold text-gray-900">

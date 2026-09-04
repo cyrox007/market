@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { api, InteriorIdea, InteriorIdeaHotspot } from '@/lib/api';
 import { useSSR } from '@/contexts/SSRContext';
 import { useCartActions } from '@/hooks/useCartActions';
+import { ArrowLeftRight, Heart, ImageIcon, Info, Minus, Plus } from 'lucide-react';
 
 export default function InteriorIdeas() {
   const ssrData = useSSR();
@@ -173,7 +174,7 @@ export default function InteriorIdeas() {
                     {/* Pulsating Circle */}
                     <div className="relative">
                       <div className="w-10 h-10 bg-red-500/90 rounded-full flex items-center justify-center animate-pulse-slow">
-                        <i className="ri-add-line text-white text-xl"></i>
+                        <Plus className="size-[1em] text-white text-xl" />
                       </div>
                       <div className="absolute inset-0 w-10 h-10 bg-red-500/70 rounded-full animate-ping-slow"></div>
                     </div>
@@ -203,7 +204,7 @@ export default function InteriorIdeas() {
                                 />
                               ) : (
                                 <div className="w-full h-48 flex items-center justify-center rounded-lg cursor-pointer" onClick={() => goToProduct(hotspot.product!.id, hotspot.product!.full_path)}>
-                                  <i className="ri-image-line text-3xl text-gray-400"></i>
+                                  <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                                 </div>
                               )}
                               <div className="absolute top-2 right-2 flex gap-2">
@@ -211,7 +212,7 @@ export default function InteriorIdeas() {
                                   onClick={() => toggleFavorite(hotspot.product!.id)}
                                   className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
                                 >
-                                  <i className={`${favorites.includes(hotspot.product!.id) ? 'ri-heart-fill text-red-500' : 'ri-heart-line text-gray-600'}`}></i>
+                                  <Heart className={`size-[1em] ${favorites.includes(hotspot.product!.id) ? 'text-red-500' : 'text-gray-600'}`} fill={favorites.includes(hotspot.product!.id) ? 'currentColor' : 'none'} />
                                 </button>
                                 <button
                                   onClick={(e) => {
@@ -219,7 +220,7 @@ export default function InteriorIdeas() {
                                   }}
                                   className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
                                 >
-                                  <i className="ri-scales-3-line text-gray-600"></i>
+                                  <ArrowLeftRight className="size-[1em] text-gray-600" />
                                 </button>
                               </div>
                             </div>
@@ -271,7 +272,7 @@ export default function InteriorIdeas() {
                                         }}
                                         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
                                       >
-                                        <i className="ri-subtract-line"></i>
+                                        <Minus className="size-[1em]" />
                                       </button>
                                       <span className="text-lg font-bold flex-1 text-center">{quantities[hotspot.product!.id] || 1}</span>
                                       <button
@@ -281,7 +282,7 @@ export default function InteriorIdeas() {
                                         }}
                                         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
                                       >
-                                        <i className="ri-add-line"></i>
+                                        <Plus className="size-[1em]" />
                                       </button>
                                     </div>
                                   )}
@@ -302,7 +303,7 @@ export default function InteriorIdeas() {
         {/* Hint */}
         <div className="text-center mt-8">
           <p className="text-gray-500 text-sm">
-            <i className="ri-information-line mr-1"></i>
+            <Info className="size-[1em] mr-1" />
             Кликните на красные точки, чтобы увидеть товары
           </p>
         </div>

@@ -17,6 +17,8 @@ import {
 
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import Icon from '../../components/ui/icons/Icon';
+import { ChevronRight, ClipboardList, ImageIcon, TriangleAlert } from 'lucide-react';
 
 const iconColorClasses: Record<string, string> = {
 	green: 'text-green-600',
@@ -176,7 +178,7 @@ export default function Orders() {
 				{/* Breadcrumbs */}
 				<div className="flex items-center gap-2 text-sm mb-2">
 					<Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-					<i className="ri-arrow-right-s-line text-gray-400"></i>
+					<ChevronRight className="size-[1em] text-gray-400" />
 					<span className="text-gray-900">Мои заказы</span>
 				</div>
 
@@ -185,7 +187,7 @@ export default function Orders() {
 				{orders.length === 0 ? (
 					<div className="bg-white border border-gray-200 rounded-2xl p-20 text-center">
 						<div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<i className="ri-file-list-3-line text-6xl text-gray-400"></i>
+							<ClipboardList className="size-[1em] text-6xl text-gray-400" />
 						</div>
 						<h3 className="text-xl font-bold mb-2">У вас пока нет заказов</h3>
 						<p className="text-gray-600 mb-6">Начните делать покупки, чтобы увидеть свои заказы здесь</p>
@@ -218,7 +220,7 @@ export default function Orders() {
 												<h3 className="font-bold text-lg mb-1">Заказ № {order.number}</h3>
 												<p className="text-sm text-gray-600">{formatDate(order.created_at)}</p>
 											</div>
-											<i className={`${statusConfig.icon} text-2xl ${iconColor}`}></i>
+											<Icon name={statusConfig.icon} className={`size-[1em] text-2xl ${iconColor}`} />
 										</div>
 										<div className="mb-3">
 											<OrderStatusBadge status={order.status} />
@@ -233,7 +235,7 @@ export default function Orders() {
 													/>
 												) : (
 													<div className="w-16 h-12 flex items-center justify-center rounded-lg">
-														<i className="ri-image-line text-3xl text-gray-400"></i>
+														<ImageIcon className="size-[1em] text-3xl text-gray-400" />
 													</div>
 												)}
 												<div className="flex-1">
@@ -389,7 +391,7 @@ export default function Orders() {
 																<div key={service.id} className="flex items-center justify-between text-sm">
 																	<div className="flex items-center gap-2">
 																		{service.icon && (
-																			<i className={`${service.icon} text-red-600`}></i>
+																			<Icon name={service.icon} className="size-[1em] text-red-600" />
 																		)}
 																		<span>{service.name}</span>
 																	</div>
@@ -495,7 +497,7 @@ export default function Orders() {
 							) : (
 								<div className="bg-white border border-gray-200 rounded-2xl p-20 text-center">
 									<div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-										<i className="ri-file-list-3-line text-6xl text-gray-400"></i>
+										<ClipboardList className="size-[1em] text-6xl text-gray-400" />
 									</div>
 									<h3 className="text-xl font-bold mb-2">Выберите заказ</h3>
 									<p className="text-gray-600">Нажмите на заказ слева, чтобы увидеть детали</p>
@@ -511,7 +513,7 @@ export default function Orders() {
 				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
 					<div className="bg-white rounded-2xl p-8 max-w-md w-full">
 						<div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-							<i className="ri-error-warning-line text-3xl text-red-600"></i>
+							<TriangleAlert className="size-[1em] text-3xl text-red-600" />
 						</div>
 						<h3 className="text-2xl font-bold text-center mb-2">Отменить заказ?</h3>
 						<p className="text-gray-600 text-center mb-6">
