@@ -5,11 +5,7 @@ import { runCartMutation } from '../lib/cart-mutation-queue';
 import type { Cart, CartItem } from '../lib/api';
 import { useCounters } from './useCounters';
 import { useRegion } from './useRegion';
-import {
-  findCartLineForProduct,
-  mergeCartItem,
-  patchCartQuantity,
-} from '../utils/cartProduct';
+import { findCartLineForProduct, mergeCartItem, patchCartQuantity } from '../utils/cartProduct';
 
 export function useCart() {
   const { refreshCartCount, setCartCount } = useCounters();
@@ -20,17 +16,18 @@ export function useCart() {
   const regionId = regionIdRef.current;
   const cartKey = regionId ? `/api/cart?region_id=${regionId}` : '/api/cart';
 
-  const { data: cart, error, isLoading, mutate: mutateCart } = useSWR(
-    cartKey,
-    () => api.cart.get(regionId ? { region_id: regionId } : undefined),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: true,
-      revalidateIfStale: false,
-      keepPreviousData: true,
-      dedupingInterval: 5000,
-    },
-  );
+  const {
+    data: cart,
+    error,
+    isLoading,
+    mutate: mutateCart,
+  } = useSWR(cartKey, () => api.cart.get(regionId ? { region_id: regionId } : undefined), {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    revalidateIfStale: false,
+    keepPreviousData: true,
+    dedupingInterval: 5000,
+  });
 
   useEffect(() => {
     if (typeof cart?.item_count === 'number') {
@@ -80,9 +77,7 @@ export function useCart() {
             ...(variationAttributes?.length ? { variation_attributes: variationAttributes } : {}),
           });
 
-          await applyCartToCache((current) =>
-            mergeCartItem(current ?? null, result.item),
-          );
+          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
 
           return result;
         } catch (err) {
@@ -110,9 +105,7 @@ export function useCart() {
             quantity,
             region_id: rid ?? undefined,
           });
-          await applyCartToCache((current) =>
-            mergeCartItem(current ?? null, result.item),
-          );
+          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
           return result;
         } catch (err) {
           await syncCartFromServer();
@@ -136,9 +129,7 @@ export function useCart() {
             region_id: rid ?? undefined,
             ...(variationAttributes?.length ? { variation_attributes: variationAttributes } : {}),
           });
-          await applyCartToCache((current) =>
-            mergeCartItem(current ?? null, result.item),
-          );
+          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
           return result;
         } catch (err) {
           await syncCartFromServer();
@@ -193,11 +184,7 @@ export function useCart() {
    * «+» идёт через POST /cart (сервер суммирует), «−» через PUT/DELETE с реальным item.id.
    */
   const adjustCartQuantity = useCallback(
-    (
-      productId: number,
-      delta: number,
-      preview?: Partial<CartItem>,
-    ) =>
+    (productId: number, delta: number, preview?: Partial<CartItem>) =>
       runCartMutation(async () => {
         if (delta === 0) return;
 
@@ -213,9 +200,7 @@ export function useCart() {
               quantity: delta,
               region_id: rid ?? undefined,
             });
-            await applyCartToCache((current) =>
-              mergeCartItem(current ?? null, result.item),
-            );
+            await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
             return result;
           } catch (err) {
             await syncCartFromServer();
@@ -252,9 +237,7 @@ export function useCart() {
             quantity: newQty,
             region_id: rid ?? undefined,
           });
-          await applyCartToCache((current) =>
-            mergeCartItem(current ?? null, result.item),
-          );
+          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
           return result;
         } catch (err) {
           await syncCartFromServer();

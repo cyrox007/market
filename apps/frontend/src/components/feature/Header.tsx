@@ -1,10 +1,18 @@
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useCounters } from '../../hooks/useCounters';
 import RegionSelector from '../RegionSelector';
-import { ArrowLeftRight, ClipboardList, Heart, MenuIcon, Search, ShoppingCart, User, X } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  ClipboardList,
+  Heart,
+  MenuIcon,
+  Search,
+  ShoppingCart,
+  User,
+  X,
+} from 'lucide-react';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -96,27 +104,42 @@ export default function Header() {
 
   return (
     <>
-      <div className='hidden lg:flex justify-between items-center max-w-[1280px] w-full mx-auto px-4 py-2 border-b border-gray-200'>
+      <div className="hidden lg:flex justify-between items-center max-w-[1280px] w-full mx-auto px-4 py-2 border-b border-gray-200">
         {/* Region Selector - Desktop Only */}
         <div className="hidden lg:flex lg:min-w-0 lg:max-w-[220px] xl:max-w-[300px]">
           <RegionSelector />
         </div>
-        <div className='flex gap-10'>
-          <Link to="/about" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+        <div className="flex gap-10">
+          <Link
+            to="/about"
+            className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm"
+          >
             О нас
           </Link>
-          <Link to="/stores" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+          <Link
+            to="/stores"
+            className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm"
+          >
             Магазины
           </Link>
-          <Link to="/delivery" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+          <Link
+            to="/delivery"
+            className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm"
+          >
             Доставка
           </Link>
-          <Link to="/returns" className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm">
+          <Link
+            to="/returns"
+            className="text-gray-900 hover:text-red-600 transition-colors whitespace-nowrap text-sm"
+          >
             Возврат
           </Link>
         </div>
         <div className="flex flex-col items-center gap-1 text-sm">
-          <a href="tel:88002228586" className="text-gray-900 hover:text-red-600 font-semibold whitespace-nowrap">
+          <a
+            href="tel:88002228586"
+            className="text-gray-900 hover:text-red-600 font-semibold whitespace-nowrap"
+          >
             8 (800) 222-85-86
           </a>
           <span className="text-gray-400 text-xs">Ежедневно с 9:00 до 21:00</span>
@@ -161,7 +184,10 @@ export default function Header() {
                     className="h-10 md:h-12 object-contain"
                   />
                 </Link>
-                <Link to="/catalog" className="hidden lg:flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
+                <Link
+                  to="/catalog"
+                  className="hidden lg:flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                >
                   <MenuIcon className="size-[1em] text-lg" />
                   Каталог
                 </Link>
@@ -206,8 +232,6 @@ export default function Header() {
 
               {/* Right Container - Icons */}
               <div className="min-w-0 flex items-center justify-end gap-1.5 sm:gap-2 lg:gap-3">
-                
-
                 {/* Icons Container */}
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
                   <Link

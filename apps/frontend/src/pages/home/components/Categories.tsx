@@ -7,7 +7,14 @@ import type { Category } from '../../../lib/api';
 import { Link } from 'react-router-dom';
 import { ImageIcon } from 'lucide-react';
 
-const bgColors = ['bg-red-50', 'bg-yellow-50', 'bg-green-50', 'bg-blue-50', 'bg-purple-50', 'bg-pink-50'];
+const bgColors = [
+  'bg-red-50',
+  'bg-yellow-50',
+  'bg-green-50',
+  'bg-blue-50',
+  'bg-purple-50',
+  'bg-pink-50',
+];
 
 export default function Categories() {
   const ssrData = useSSR();
@@ -23,7 +30,7 @@ export default function Categories() {
       revalidateIfStale: true,
       revalidateOnFocus: false,
       dedupingInterval: 30_000,
-    }
+    },
   );
 
   const categories = categoriesData?.data || [];
@@ -65,7 +72,9 @@ export default function Categories() {
               onMouseEnter={() => prefetchCategory(category.slug)}
               onFocus={() => prefetchCategory(category.slug)}
             >
-              <div className={`${bgColors[index % bgColors.length]} rounded-2xl p-6 transition-all duration-300 group-hover:shadow-lg`}>
+              <div
+                className={`${bgColors[index % bgColors.length]} rounded-2xl p-6 transition-all duration-300 group-hover:shadow-lg`}
+              >
                 <div className="aspect-square mb-3 overflow-hidden rounded-xl">
                   {category.image_thumb || category.image_hd || category.image ? (
                     <img
@@ -79,9 +88,7 @@ export default function Categories() {
                     </div>
                   )}
                 </div>
-                <h3 className="text-center text-sm font-semibold text-gray-900">
-                  {category.name}
-                </h3>
+                <h3 className="text-center text-sm font-semibold text-gray-900">{category.name}</h3>
                 {category.products_count > 0 && (
                   <p className="text-center text-xs text-gray-500 mt-1">
                     {category.products_count} товаров

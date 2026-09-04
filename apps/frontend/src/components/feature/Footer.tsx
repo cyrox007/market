@@ -40,22 +40,34 @@ export default function Footer() {
             <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4">Каталог</h3>
             <ul className="space-y-2 text-sm md:text-base">
               <li>
-                <Link to="/catalog/divany-i-kresla" className="text-gray-400 hover:text-white transition-colors">
+                <Link
+                  to="/catalog/divany-i-kresla"
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
                   Диваны
                 </Link>
               </li>
               <li>
-                <Link to="/catalog/spalni" className="text-gray-400 hover:text-white transition-colors">
+                <Link
+                  to="/catalog/spalni"
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
                   Спальни
                 </Link>
               </li>
               <li>
-                <Link to="/catalog/kuhni" className="text-gray-400 hover:text-white transition-colors">
+                <Link
+                  to="/catalog/kuhni"
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
                   Кухни
                 </Link>
               </li>
               <li>
-                <Link to="/catalog/gostinye" className="text-gray-400 hover:text-white transition-colors">
+                <Link
+                  to="/catalog/gostinye"
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
                   Гостиные
                 </Link>
               </li>
@@ -132,7 +144,10 @@ export default function Footer() {
           <p className="text-center md:text-left">
             © {new Date().getFullYear()} {organizationRequisites.fullName}. Все права защищены.
           </p>
-          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label="Правовая информация">
+          <nav
+            className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
+            aria-label="Правовая информация"
+          >
             <Link to="/privacy" className="hover:text-white transition-colors whitespace-nowrap">
               Политика конфиденциальности
             </Link>

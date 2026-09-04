@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  formatStockDisplayText,
-  resolveProductStockBadge,
-} from './productUtils';
+import { formatStockDisplayText, resolveProductStockBadge } from './productUtils';
 import type { ProductDetail, ProductVariant } from '../lib/api';
 
 const stockSettings = {

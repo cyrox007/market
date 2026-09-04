@@ -12,31 +12,28 @@
  *
  */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
         // Brand/* — фирменные цвета
         brand: {
           yellow: '#FFD000', // основное действие
-          green: '#0A6044',  // hover основной кнопки, подвал
-          red: '#E23B2E',    // распродажа, ошибки
+          green: '#0A6044', // hover основной кнопки, подвал
+          red: '#E23B2E', // распродажа, ошибки
         },
         // Text/* — цвета текста
         ink: {
-          DEFAULT: '#141414',   // Text/Primary
+          DEFAULT: '#141414', // Text/Primary
           secondary: '#6B6B6B', // Text/Secondary
-          inverse: '#FFFFFF',   // Text/White
+          inverse: '#FFFFFF', // Text/White
         },
         // Surface/* — фоны и границы
         surface: {
           DEFAULT: '#FFFFFF', // Surface/White
-          grey: '#F5F3F1',    // Surface/Grey
-          border: '#E8E5E1',  // Surface/Border
-          stroke: '#141414',  // Surface/Stroke, применяется с прозрачностью
+          grey: '#F5F3F1', // Surface/Grey
+          border: '#E8E5E1', // Surface/Border
+          stroke: '#141414', // Surface/Stroke, применяется с прозрачностью
         },
       },
 
@@ -67,9 +64,9 @@ export default {
       },
 
       borderRadius: {
-        badge: '5px',   // мелкие лейблы «до −60%»
-        btn: '12px',    // кнопки
-        pill: '100px',  // поле поиска, круглые иконочные кнопки
+        badge: '5px', // мелкие лейблы «до −60%»
+        btn: '12px', // кнопки
+        pill: '100px', // поле поиска, круглые иконочные кнопки
       },
 
       boxShadow: {
@@ -89,4 +86,4 @@ export default {
     },
   },
   plugins: [],
-}
+};

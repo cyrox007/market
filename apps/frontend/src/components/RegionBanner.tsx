@@ -14,7 +14,7 @@ export default function RegionBanner() {
   useEffect(() => {
     const bannerDismissed = localStorage.getItem('region_banner_dismissed');
     const wasAutoDetected = localStorage.getItem('region_auto_detected');
-    
+
     // Показываем баннер если:
     // 1. Регион был автоматически определен
     // 2. Пользователь еще не закрывал баннер

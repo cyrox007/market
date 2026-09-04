@@ -44,14 +44,10 @@ export function getSortSelectValue(searchParams: URLSearchParams): string {
 }
 
 /** Парсит значение из <select> в безопасные sortBy и sortOrder. */
-export function parseSortSelectValue(
-  value: string
-): { sortBy: SortField; sortOrder: SortOrder } {
+export function parseSortSelectValue(value: string): { sortBy: SortField; sortOrder: SortOrder } {
   const [field, order] = value.split('-');
-  const sortBy = field && SORT_FIELDS.includes(field as SortField)
-    ? (field as SortField)
-    : DEFAULT_SORT_FIELD;
-  const sortOrder =
-    order === 'asc' || order === 'desc' ? order : DEFAULT_SORT_ORDER;
+  const sortBy =
+    field && SORT_FIELDS.includes(field as SortField) ? (field as SortField) : DEFAULT_SORT_FIELD;
+  const sortOrder = order === 'asc' || order === 'desc' ? order : DEFAULT_SORT_ORDER;
   return { sortBy, sortOrder };
 }

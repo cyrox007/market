@@ -12,13 +12,17 @@ interface CartItemVariantsProps {
   item: CartItem;
   regionId?: number;
   isUpdating: boolean;
-  onVariantChange: (itemId: number, quantity: number, variationAttributes?: VariationAttributesPayload) => Promise<void>;
+  onVariantChange: (
+    itemId: number,
+    quantity: number,
+    variationAttributes?: VariationAttributesPayload,
+  ) => Promise<void>;
 }
 
 /** Текущая выбранная комбинация: из корзины или из pending (при открытой форме) */
 function getCurrentSelection(
   item: CartItem,
-  pendingVariation: Record<string, string> | null
+  pendingVariation: Record<string, string> | null,
 ): Record<string, string> {
   if (pendingVariation && Object.keys(pendingVariation).length > 0) {
     return pendingVariation;
@@ -52,7 +56,15 @@ export default function CartItemVariants({
     if (!item.slug || !hasVariationAttributes) return;
     if (variationData || isLoading) return;
     void loadVariations(item.slug, item.id, regionId).catch(() => {});
-  }, [item.id, item.slug, regionId, hasVariationAttributes, variationData, isLoading, loadVariations]);
+  }, [
+    item.id,
+    item.slug,
+    regionId,
+    hasVariationAttributes,
+    variationData,
+    isLoading,
+    loadVariations,
+  ]);
 
   const handleOpen = async () => {
     setIsOpen(true);
@@ -84,13 +96,18 @@ export default function CartItemVariants({
     .join(',');
   useEffect(() => {
     if (!isOpen || !variants.length) return;
-    
+
     // Фильтруем только вариации в наличии
-    const inStock = (v: { in_stock?: boolean; stock?: number }) => (v.in_stock ?? true) && (v.stock ?? 0) > 0;
+    const inStock = (v: { in_stock?: boolean; stock?: number }) =>
+      (v.in_stock ?? true) && (v.stock ?? 0) > 0;
     const inStockVariants = variants.filter(inStock);
     if (inStockVariants.length === 0) return;
-    
-    const compatible = (v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) => {
+
+    const compatible = (v: {
+      variation_attributes?: SelectedVariationItem[];
+      in_stock?: boolean;
+      stock?: number;
+    }) => {
       const va = v.variation_attributes ?? [];
       if (va.length === 0) return Object.keys(selection).length === 0;
       for (const a of va) {
@@ -99,19 +116,27 @@ export default function CartItemVariants({
       }
       return true;
     };
-    
+
     const matching = inStockVariants.filter(compatible);
-    const variant = matching.length === 0 ? null : matching.reduce((best, v) =>
-      (v.variation_attributes?.length ?? 0) > (best.variation_attributes?.length ?? 0) ? v : best
-    );
-    
+    const variant =
+      matching.length === 0
+        ? null
+        : matching.reduce((best, v) =>
+            (v.variation_attributes?.length ?? 0) > (best.variation_attributes?.length ?? 0)
+              ? v
+              : best,
+          );
+
     if (!variant?.variation_attributes?.length) return;
-    
-    const fromVariant = variant.variation_attributes.reduce((acc: Record<string, string>, a: SelectedVariationItem) => {
-      acc[a.attribute_slug] = a.value_slug;
-      return acc;
-    }, {});
-    
+
+    const fromVariant = variant.variation_attributes.reduce(
+      (acc: Record<string, string>, a: SelectedVariationItem) => {
+        acc[a.attribute_slug] = a.value_slug;
+        return acc;
+      },
+      {},
+    );
+
     setPendingVariation((prev) => {
       const current = prev ?? selection;
       let same = true;
@@ -130,13 +155,14 @@ export default function CartItemVariants({
   const variantMatches = (
     sel: Record<string, string>,
     v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number },
-    availableOnly = true
+    availableOnly = true,
   ): boolean => {
     const va = v.variation_attributes ?? [];
     if (va.length === 0) return Object.keys(sel).length === 0;
     for (const a of va) {
       const selectedVal = sel[a.attribute_slug];
-      if (selectedVal === undefined || selectedVal === '' || a.value_slug !== selectedVal) return false;
+      if (selectedVal === undefined || selectedVal === '' || a.value_slug !== selectedVal)
+        return false;
     }
     if (availableOnly && !((v.in_stock ?? true) && (v.stock ?? 0) > 0)) return false;
     return true;
@@ -145,49 +171,72 @@ export default function CartItemVariants({
   /** Доступно ли значение (есть ли вариация в наличии с этой комбинацией) */
   const isValueAvailableForAttribute = (attributeSlug: string, valueSlug: string): boolean => {
     if (!variants.length) return true;
-    
+
     // Создаем временный выбор с новым значением
     const tempSelection = { ...selection, [attributeSlug]: valueSlug };
-    
-    return variants.some((v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) => {
-      // Проверяем наличие в наличии
-      if (!(v.in_stock ?? true) || (v.stock ?? 0) <= 0) return false;
-      
-      const va = v.variation_attributes ?? [];
-      if (va.length === 0) return Object.keys(tempSelection).length === 0;
-      
-      // Проверяем, что вариация имеет это значение
-      const hasThis = va.some((a: SelectedVariationItem) => a.attribute_slug === attributeSlug && a.value_slug === valueSlug);
-      if (!hasThis) return false;
-      
-      // Проверяем совместимость с остальными выбранными атрибутами
-      // Вариация совместима, если все её атрибуты не противоречат выбору
-      for (const a of va) {
-        const selectedVal = tempSelection[a.attribute_slug];
-        if (selectedVal !== undefined && selectedVal !== '' && a.value_slug !== selectedVal) {
-          return false;
+
+    return variants.some(
+      (v: {
+        variation_attributes?: SelectedVariationItem[];
+        in_stock?: boolean;
+        stock?: number;
+      }) => {
+        // Проверяем наличие в наличии
+        if (!(v.in_stock ?? true) || (v.stock ?? 0) <= 0) return false;
+
+        const va = v.variation_attributes ?? [];
+        if (va.length === 0) return Object.keys(tempSelection).length === 0;
+
+        // Проверяем, что вариация имеет это значение
+        const hasThis = va.some(
+          (a: SelectedVariationItem) =>
+            a.attribute_slug === attributeSlug && a.value_slug === valueSlug,
+        );
+        if (!hasThis) return false;
+
+        // Проверяем совместимость с остальными выбранными атрибутами
+        // Вариация совместима, если все её атрибуты не противоречат выбору
+        for (const a of va) {
+          const selectedVal = tempSelection[a.attribute_slug];
+          if (selectedVal !== undefined && selectedVal !== '' && a.value_slug !== selectedVal) {
+            return false;
+          }
         }
-      }
-      
-      return true;
-    });
+
+        return true;
+      },
+    );
   };
 
-  const handleSelectAttribute = (attributeSlug: string, valueSlug: string, isDisabledClick = false) => {
+  const handleSelectAttribute = (
+    attributeSlug: string,
+    valueSlug: string,
+    isDisabledClick = false,
+  ) => {
     if (isUpdating || isLoading) return;
 
     if (isDisabledClick) {
       const firstAvailable = variants.find(
-        (v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) =>
+        (v: {
+          variation_attributes?: SelectedVariationItem[];
+          in_stock?: boolean;
+          stock?: number;
+        }) =>
           (v.in_stock ?? true) &&
           (v.stock ?? 0) > 0 &&
-          v.variation_attributes?.some((a: SelectedVariationItem) => a.attribute_slug === attributeSlug && a.value_slug === valueSlug)
+          v.variation_attributes?.some(
+            (a: SelectedVariationItem) =>
+              a.attribute_slug === attributeSlug && a.value_slug === valueSlug,
+          ),
       );
       if (firstAvailable?.variation_attributes?.length) {
-        const next = firstAvailable.variation_attributes.reduce((acc: Record<string, string>, a: SelectedVariationItem) => {
-          acc[a.attribute_slug] = a.value_slug;
-          return acc;
-        }, {});
+        const next = firstAvailable.variation_attributes.reduce(
+          (acc: Record<string, string>, a: SelectedVariationItem) => {
+            acc[a.attribute_slug] = a.value_slug;
+            return acc;
+          },
+          {},
+        );
         setPendingVariation(next);
       }
       return;
@@ -197,10 +246,17 @@ export default function CartItemVariants({
       const attrSlugs = attrs.map((a: VariationAttributeOption) => a.attribute_slug);
 
       const variantsWithThis = variants.filter(
-        (v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) =>
+        (v: {
+          variation_attributes?: SelectedVariationItem[];
+          in_stock?: boolean;
+          stock?: number;
+        }) =>
           (v.in_stock ?? true) &&
           (v.stock ?? 0) > 0 &&
-          v.variation_attributes?.some((a: SelectedVariationItem) => a.attribute_slug === attributeSlug && a.value_slug === valueSlug)
+          v.variation_attributes?.some(
+            (a: SelectedVariationItem) =>
+              a.attribute_slug === attributeSlug && a.value_slug === valueSlug,
+          ),
       );
 
       if (variantsWithThis.length === 0) return prev ?? selection;
@@ -209,11 +265,17 @@ export default function CartItemVariants({
       for (const slug of attrSlugs) {
         if (slug === attributeSlug) continue;
         const current = next[slug];
-        const available = !current || variantsWithThis.some((v: { variation_attributes?: SelectedVariationItem[] }) =>
-          v.variation_attributes?.some((a: SelectedVariationItem) => a.attribute_slug === slug && a.value_slug === current)
-        );
+        const available =
+          !current ||
+          variantsWithThis.some((v: { variation_attributes?: SelectedVariationItem[] }) =>
+            v.variation_attributes?.some(
+              (a: SelectedVariationItem) => a.attribute_slug === slug && a.value_slug === current,
+            ),
+          );
         if (!available) {
-          const first = variantsWithThis[0].variation_attributes?.find((a: SelectedVariationItem) => a.attribute_slug === slug);
+          const first = variantsWithThis[0].variation_attributes?.find(
+            (a: SelectedVariationItem) => a.attribute_slug === slug,
+          );
           if (first) next[slug] = first.value_slug;
         }
       }
@@ -221,12 +283,18 @@ export default function CartItemVariants({
     });
   };
 
-  const matchingVariants = variants.filter((v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) =>
-    variantMatches(selection, v, true)
+  const matchingVariants = variants.filter(
+    (v: { variation_attributes?: SelectedVariationItem[]; in_stock?: boolean; stock?: number }) =>
+      variantMatches(selection, v, true),
   );
-  const matchingVariantForSelection = matchingVariants.length === 0 ? undefined : matchingVariants.reduce((best, v) =>
-    (v.variation_attributes?.length ?? 0) > (best.variation_attributes?.length ?? 0) ? v : best
-  );
+  const matchingVariantForSelection =
+    matchingVariants.length === 0
+      ? undefined
+      : matchingVariants.reduce((best, v) =>
+          (v.variation_attributes?.length ?? 0) > (best.variation_attributes?.length ?? 0)
+            ? v
+            : best,
+        );
 
   const currentItemKey = (item.variation_attributes ?? [])
     .map((a: SelectedVariationItem) => `${a.attribute_slug}:${a.value_slug}`)
@@ -250,17 +318,23 @@ export default function CartItemVariants({
       return;
     }
 
-    const newAttrs: VariationAttributesPayload = matchingVariant.variation_attributes.map((a: SelectedVariationItem) => ({
-      attribute_slug: a.attribute_slug,
-      value_slug: a.value_slug,
-    }));
+    const newAttrs: VariationAttributesPayload = matchingVariant.variation_attributes.map(
+      (a: SelectedVariationItem) => ({
+        attribute_slug: a.attribute_slug,
+        value_slug: a.value_slug,
+      }),
+    );
 
     try {
       await onVariantChange(item.id, item.quantity, newAttrs);
       handleClose();
     } catch (err: any) {
       console.error('Failed to update variant:', err);
-      const msg = err?.data?.message ?? (err?.status === 404 || String(err?.message || '').includes('404') ? 'Выбранная комбинация недоступна. Проверьте параметры.' : 'Не удалось изменить вариант');
+      const msg =
+        err?.data?.message ??
+        (err?.status === 404 || String(err?.message || '').includes('404')
+          ? 'Выбранная комбинация недоступна. Проверьте параметры.'
+          : 'Не удалось изменить вариант');
       setApplyError(typeof msg === 'string' ? msg : 'Не удалось изменить вариант');
     }
   };
@@ -310,31 +384,52 @@ export default function CartItemVariants({
                   {matchingVariantForSelection != null && (
                     <div className="text-sm font-semibold text-red-600">
                       {formatPrice(matchingVariantForSelection.price)}
-                      {matchingVariantForSelection.old_price != null && matchingVariantForSelection.old_price > matchingVariantForSelection.price && (
-                        <span className="ml-2 text-gray-400 font-normal line-through">{formatPrice(matchingVariantForSelection.old_price)}</span>
-                      )}
+                      {matchingVariantForSelection.old_price != null &&
+                        matchingVariantForSelection.old_price >
+                          matchingVariantForSelection.price && (
+                          <span className="ml-2 text-gray-400 font-normal line-through">
+                            {formatPrice(matchingVariantForSelection.old_price)}
+                          </span>
+                        )}
                     </div>
                   )}
-                  <button onClick={handleClose} className="text-sm text-gray-600 hover:text-gray-800">
+                  <button
+                    onClick={handleClose}
+                    className="text-sm text-gray-600 hover:text-gray-800"
+                  >
                     <X className="size-[1em]" />
                   </button>
                 </div>
               </div>
 
-              {attrs.filter((a: VariationAttributeOption) => a.values?.length).map((attr: VariationAttributeOption) => (
-                <VariantAttributeSelector
-                  key={attr.attribute_slug}
-                  attribute={attr}
-                  selectedValueSlug={matchingVariantForSelection ? (matchingVariantForSelection.variation_attributes?.find((a: SelectedVariationItem) => a.attribute_slug === attr.attribute_slug)?.value_slug ?? null) : null}
-                  isValueAvailable={(valueSlug) => isValueAvailableForAttribute(attr.attribute_slug, valueSlug)}
-                  onSelect={(valueSlug, isDisabledClick) => handleSelectAttribute(attr.attribute_slug, valueSlug, isDisabledClick)}
-                  isDisabled={isUpdating || isLoading}
-                />
-              ))}
+              {attrs
+                .filter((a: VariationAttributeOption) => a.values?.length)
+                .map((attr: VariationAttributeOption) => (
+                  <VariantAttributeSelector
+                    key={attr.attribute_slug}
+                    attribute={attr}
+                    selectedValueSlug={
+                      matchingVariantForSelection
+                        ? (matchingVariantForSelection.variation_attributes?.find(
+                            (a: SelectedVariationItem) => a.attribute_slug === attr.attribute_slug,
+                          )?.value_slug ?? null)
+                        : null
+                    }
+                    isValueAvailable={(valueSlug) =>
+                      isValueAvailableForAttribute(attr.attribute_slug, valueSlug)
+                    }
+                    onSelect={(valueSlug, isDisabledClick) =>
+                      handleSelectAttribute(attr.attribute_slug, valueSlug, isDisabledClick)
+                    }
+                    isDisabled={isUpdating || isLoading}
+                  />
+                ))}
 
-              {!selectionUnchanged && !matchingVariantForSelection && Object.keys(selection).some((k) => selection[k]) && (
-                <p className="text-sm text-amber-600">Выберите доступную комбинацию параметров</p>
-              )}
+              {!selectionUnchanged &&
+                !matchingVariantForSelection &&
+                Object.keys(selection).some((k) => selection[k]) && (
+                  <p className="text-sm text-amber-600">Выберите доступную комбинацию параметров</p>
+                )}
               {applyError && <p className="text-sm text-red-600">{applyError}</p>}
               <div className="flex justify-end pt-2">
                 <button

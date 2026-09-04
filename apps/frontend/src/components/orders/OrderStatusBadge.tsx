@@ -18,7 +18,9 @@ export default function OrderStatusBadge({ status, className = '' }: OrderStatus
   const colors = colorClasses[statusConfig.color] || colorClasses.gray;
 
   return (
-    <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${colors.bg} ${colors.text} ${className}`}>
+    <span
+      className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${colors.bg} ${colors.text} ${className}`}
+    >
       {statusConfig.label}
     </span>
   );

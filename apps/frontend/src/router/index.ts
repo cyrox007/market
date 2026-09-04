@@ -1,8 +1,7 @@
-
-import { useNavigate, type NavigateFunction, useLocation } from "react-router-dom";
-import { useRoutes } from "react-router-dom";
-import { useEffect, startTransition } from "react";
-import routes from "./config";
+import { useNavigate, type NavigateFunction, useLocation } from 'react-router-dom';
+import { useRoutes } from 'react-router-dom';
+import { useEffect, startTransition } from 'react';
+import routes from './config';
 
 let navigateResolver: (navigate: ReturnType<typeof useNavigate>) => void;
 

@@ -12,7 +12,11 @@ interface LocationModalProps {
   isFirstVisit?: boolean;
 }
 
-export default function LocationModal({ isOpen, onClose, isFirstVisit = false }: LocationModalProps) {
+export default function LocationModal({
+  isOpen,
+  onClose,
+  isFirstVisit = false,
+}: LocationModalProps) {
   const { region, selectRegion } = useRegion();
   const [tree, setTree] = useState<ShippingLocationTree[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,21 +38,21 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
       setLoading(true);
       setError(null);
       const response = await api.regions.tree();
-      
+
       if (!response || !response.data) {
         throw new Error('Неверный формат ответа от сервера');
       }
-      
+
       const locations = Array.isArray(response.data) ? response.data : [];
       setTree(locations);
-      
+
       // Автоматически раскрываем выбранный регион
       if (region) {
         locations.forEach((district) => {
           district.children?.forEach((reg) => {
-            if (reg.id === region.id || reg.children?.some(c => c.id === region.id)) {
-              setExpandedDistricts(prev => new Set(prev).add(district.id));
-              setExpandedRegions(prev => new Set(prev).add(reg.id));
+            if (reg.id === region.id || reg.children?.some((c) => c.id === region.id)) {
+              setExpandedDistricts((prev) => new Set(prev).add(district.id));
+              setExpandedRegions((prev) => new Set(prev).add(reg.id));
             }
           });
         });
@@ -69,38 +73,41 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
   };
 
   // Определение города пользователя по координатам браузера
-  const reverseGeocodeCity = useCallback(async (lat: number, lon: number): Promise<string | null> => {
-    try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ru`;
-      const response = await fetch(url, {
-        headers: {
-          // Помогаем сервису понять источник запросов
-          'Accept': 'application/json',
-        },
-      });
+  const reverseGeocodeCity = useCallback(
+    async (lat: number, lon: number): Promise<string | null> => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ru`;
+        const response = await fetch(url, {
+          headers: {
+            // Помогаем сервису понять источник запросов
+            Accept: 'application/json',
+          },
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
+          return null;
+        }
+
+        const data: any = await response.json();
+        if (!data?.address) return null;
+
+        const address = data.address;
+        // Пытаемся взять наиболее релевантное поле
+        return (
+          address.city ||
+          address.town ||
+          address.village ||
+          address.hamlet ||
+          address.municipality ||
+          address.county ||
+          null
+        );
+      } catch {
         return null;
       }
-
-      const data: any = await response.json();
-      if (!data?.address) return null;
-
-      const address = data.address;
-      // Пытаемся взять наиболее релевантное поле
-      return (
-        address.city ||
-        address.town ||
-        address.village ||
-        address.hamlet ||
-        address.municipality ||
-        address.county ||
-        null
-      );
-    } catch {
-      return null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Преобразуем ShippingLocationTree в ShippingLocation для сохранения
   const convertToShippingLocation = (treeItem: ShippingLocationTree): ShippingLocation => {
@@ -114,22 +121,25 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
     } as ShippingLocation;
   };
 
-  const handleSelectLocation = useCallback((location: ShippingLocationTree) => {
-    try {
-      const shippingLocation = convertToShippingLocation(location);
-      // Выбираем регион
-      selectRegion(shippingLocation);
-      
-      // Закрываем модалку, данные обновятся через region-changed и SWR-ключи.
-      onClose();
-      setSearchQuery('');
-    } catch {
-      alert('Ошибка при выборе локации. Пожалуйста, попробуйте снова.');
-    }
-  }, [selectRegion, onClose]);
+  const handleSelectLocation = useCallback(
+    (location: ShippingLocationTree) => {
+      try {
+        const shippingLocation = convertToShippingLocation(location);
+        // Выбираем регион
+        selectRegion(shippingLocation);
+
+        // Закрываем модалку, данные обновятся через region-changed и SWR-ключи.
+        onClose();
+        setSearchQuery('');
+      } catch {
+        alert('Ошибка при выборе локации. Пожалуйста, попробуйте снова.');
+      }
+    },
+    [selectRegion, onClose],
+  );
 
   const toggleDistrict = useCallback((districtId: number) => {
-    setExpandedDistricts(prev => {
+    setExpandedDistricts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(districtId)) {
         newSet.delete(districtId);
@@ -141,7 +151,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
   }, []);
 
   const toggleRegion = useCallback((regionId: number) => {
-    setExpandedRegions(prev => {
+    setExpandedRegions((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(regionId)) {
         newSet.delete(regionId);
@@ -276,15 +286,15 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
     });
 
     // Раскрываем найденные элементы
-    setExpandedDistricts(prev => {
+    setExpandedDistricts((prev) => {
       const newSet = new Set(prev);
-      districtsToExpand.forEach(id => newSet.add(id));
+      districtsToExpand.forEach((id) => newSet.add(id));
       return newSet;
     });
 
-    setExpandedRegions(prev => {
+    setExpandedRegions((prev) => {
       const newSet = new Set(prev);
-      regionsToExpand.forEach(id => newSet.add(id));
+      regionsToExpand.forEach((id) => newSet.add(id));
       return newSet;
     });
 
@@ -294,7 +304,9 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
       const modalContent = document.querySelector('[role="dialog"] .bg-white.rounded-2xl');
       if (modalContent) {
         // Находим первый найденный элемент (подсвеченный желтым или красным)
-        const firstMatch = modalContent.querySelector('[data-location-id].bg-yellow-50, [data-location-id].bg-red-50') as HTMLElement;
+        const firstMatch = modalContent.querySelector(
+          '[data-location-id].bg-yellow-50, [data-location-id].bg-red-50',
+        ) as HTMLElement;
         if (firstMatch) {
           firstMatch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -311,12 +323,12 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
         onClose();
       }
     };
-    
+
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     }
-    
+
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = '';
@@ -329,10 +341,10 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
   const isFederalDistricts = displayTree.length > 0 && displayTree[0]?.type === 'federal_district';
 
   return (
-    <div 
-      className="fixed inset-0 z-50 overflow-y-auto" 
-      aria-labelledby="modal-title" 
-      role="dialog" 
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto"
+      aria-labelledby="modal-title"
+      role="dialog"
       aria-modal="true"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isFirstVisit) {
@@ -345,7 +357,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
 
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div 
+        <div
           className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
           onClick={(e) => e.stopPropagation()}
         >
@@ -408,7 +420,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
             ) : displayTree.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-gray-500 mb-4">
-                  {searchQuery.trim() 
+                  {searchQuery.trim()
                     ? `По запросу "${searchQuery}" ничего не найдено`
                     : 'Локации не найдены. Проверьте, что в системе есть активные локации доставки.'}
                 </div>
@@ -435,7 +447,10 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                   const hasRegions = district.children && district.children.length > 0;
 
                   return (
-                    <div key={district.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div
+                      key={district.id}
+                      className="border border-gray-200 rounded-lg overflow-hidden"
+                    >
                       {/* Федеральный округ */}
                       {isFederalDistricts ? (
                         <button
@@ -443,7 +458,9 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                           className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
                         >
                           <span className="font-semibold text-gray-900">{district.name}</span>
-                          <ChevronDown className={`size-[1em] text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`} />
+                          <ChevronDown
+                            className={`size-[1em] text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`}
+                          />
                         </button>
                       ) : null}
 
@@ -454,11 +471,15 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                             const isRegionExpanded = expandedRegions.has(reg.id);
                             const hasLocalities = reg.children && reg.children.length > 0;
                             const isRegionSelected = region?.id === reg.id;
-                            const matchesSearch = searchQuery.trim() && 
+                            const matchesSearch =
+                              searchQuery.trim() &&
                               reg.name.toLowerCase().includes(searchQuery.toLowerCase());
 
                             return (
-                              <div key={reg.id} className="border-t border-gray-200 first:border-t-0">
+                              <div
+                                key={reg.id}
+                                className="border-t border-gray-200 first:border-t-0"
+                              >
                                 {/* Регион */}
                                 <div className="flex items-center">
                                   {hasLocalities ? (
@@ -469,20 +490,30 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                       }`}
                                       data-location-id={reg.id}
                                     >
-                                      <span className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                      <span
+                                        className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
+                                      >
                                         {reg.name}
                                       </span>
-                                      <ChevronDown className={`size-[1em] text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`} />
+                                      <ChevronDown
+                                        className={`size-[1em] text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`}
+                                      />
                                     </button>
                                   ) : (
                                     <button
                                       onClick={() => handleSelectLocation(reg)}
                                       className={`flex-1 text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                                        isRegionSelected ? 'bg-red-50' : matchesSearch ? 'bg-yellow-50' : ''
+                                        isRegionSelected
+                                          ? 'bg-red-50'
+                                          : matchesSearch
+                                            ? 'bg-yellow-50'
+                                            : ''
                                       }`}
                                       data-location-id={reg.id}
                                     >
-                                      <span className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                      <span
+                                        className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
+                                      >
                                         {reg.name}
                                       </span>
                                       {isRegionSelected && (
@@ -497,18 +528,27 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                   <div className="bg-gray-50 pl-8">
                                     {reg.children!.map((locality) => {
                                       const isLocalitySelected = region?.id === locality.id;
-                                      const matchesSearch = searchQuery.trim() && 
-                                        locality.name.toLowerCase().includes(searchQuery.toLowerCase());
+                                      const matchesSearch =
+                                        searchQuery.trim() &&
+                                        locality.name
+                                          .toLowerCase()
+                                          .includes(searchQuery.toLowerCase());
                                       return (
                                         <button
                                           key={locality.id}
                                           onClick={() => handleSelectLocation(locality)}
                                           className={`w-full text-left px-4 py-2.5 hover:bg-gray-100 transition-colors flex items-center justify-between ${
-                                            isLocalitySelected ? 'bg-red-50' : matchesSearch ? 'bg-yellow-50' : ''
+                                            isLocalitySelected
+                                              ? 'bg-red-50'
+                                              : matchesSearch
+                                                ? 'bg-yellow-50'
+                                                : ''
                                           }`}
                                           data-location-id={locality.id}
                                         >
-                                          <span className={`text-sm ${isLocalitySelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                          <span
+                                            className={`text-sm ${isLocalitySelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
+                                          >
                                             {locality.name}
                                           </span>
                                           {isLocalitySelected && (

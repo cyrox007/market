@@ -38,9 +38,14 @@ export function isVariableParent(product: {
 }
 
 /** API иногда отдаёт is_variable:false у вариативного родителя — нормализуем для карточек */
-export function normalizeListProduct<T extends { id: number; is_variable?: boolean; is_variant?: boolean; first_available_variant_id?: number | null }>(
-  product: T,
-): T {
+export function normalizeListProduct<
+  T extends {
+    id: number;
+    is_variable?: boolean;
+    is_variant?: boolean;
+    first_available_variant_id?: number | null;
+  },
+>(product: T): T {
   if (isVariableParent(product) && product.is_variable !== true) {
     return { ...product, is_variable: true, is_variant: false };
   }
@@ -100,9 +105,7 @@ export function getCartQuantityForProduct(items: CartItem[] | undefined, product
 export function mergeCartItem(cart: Cart | null | undefined, item: CartItem): Cart {
   const base: Cart = cart ?? { items: [], subtotal: 0, item_count: 0, is_empty: true };
   // Убираем временные строки (отрицательный id) для того же product_id
-  const items = base.items.filter(
-    (i) => !(i.product_id === item.product_id && i.id <= 0),
-  );
+  const items = base.items.filter((i) => !(i.product_id === item.product_id && i.id <= 0));
   const idx = items.findIndex((i) => i.product_id === item.product_id);
   if (idx >= 0) {
     const cachedQty = items[idx].quantity;
@@ -133,17 +136,19 @@ export function patchCartQuantity(
     if (delta <= 0 || !preview) return null;
     const qty = delta;
     const price = preview.price ?? 0;
-    const items: CartItem[] = [{
-      id: preview.id ?? -Date.now(),
-      product_id: productId,
-      name: preview.name ?? '',
-      slug: preview.slug ?? null,
-      price,
-      quantity: qty,
-      total: price * qty,
-      image: preview.image ?? null,
-      sku: preview.sku ?? null,
-    }];
+    const items: CartItem[] = [
+      {
+        id: preview.id ?? -Date.now(),
+        product_id: productId,
+        name: preview.name ?? '',
+        slug: preview.slug ?? null,
+        price,
+        quantity: qty,
+        total: price * qty,
+        image: preview.image ?? null,
+        sku: preview.sku ?? null,
+      },
+    ];
     return {
       items,
       subtotal: price * qty,

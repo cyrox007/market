@@ -180,19 +180,26 @@ function ProductCard({
             {onToggleCompare && (
               <button
                 onClick={handleCompareClick}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${isInCompare ? 'bg-red-50' : ''
-                  }`}
+                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${
+                  isInCompare ? 'bg-red-50' : ''
+                }`}
               >
-                <ArrowLeftRight className={`size-[1em] text-base md:text-lg ${isInCompare ? 'text-red-600' : 'text-gray-600'}`} />
+                <ArrowLeftRight
+                  className={`size-[1em] text-base md:text-lg ${isInCompare ? 'text-red-600' : 'text-gray-600'}`}
+                />
               </button>
             )}
             {onToggleFavorite && (
               <button
                 onClick={handleFavoriteClick}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${isFavorite ? 'bg-red-50' : ''
-                  }`}
+                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${
+                  isFavorite ? 'bg-red-50' : ''
+                }`}
               >
-                <Heart className={`size-[1em] text-base md:text-lg ${isFavorite ? 'text-red-500' : 'text-red-600'}`} fill={isFavorite ? 'currentColor' : 'none'} />
+                <Heart
+                  className={`size-[1em] text-base md:text-lg ${isFavorite ? 'text-red-500' : 'text-red-600'}`}
+                  fill={isFavorite ? 'currentColor' : 'none'}
+                />
               </button>
             )}
           </div>
@@ -206,11 +213,17 @@ function ProductCard({
           {product.category && (
             <p className="text-xs text-gray-500 mb-1">{product.category.name}</p>
           )}
-          <h3 className="font-semibold text-sm md:text-base mb-2 line-clamp-2 flex-1">{product.name}</h3>
+          <h3 className="font-semibold text-sm md:text-base mb-2 line-clamp-2 flex-1">
+            {product.name}
+          </h3>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg md:text-xl font-bold text-red-600">{formatPrice(product.price)}</span>
+            <span className="text-lg md:text-xl font-bold text-red-600">
+              {formatPrice(product.price)}
+            </span>
             {product.old_price && (
-              <span className="text-xs text-gray-400 line-through">{formatPrice(product.old_price)}</span>
+              <span className="text-xs text-gray-400 line-through">
+                {formatPrice(product.old_price)}
+              </span>
             )}
           </div>
         </div>
@@ -224,11 +237,14 @@ function ProductCard({
             >
               Выбрать
             </button>
-          ) : (!product.in_stock && !product.backorder) ? (
-            <button disabled className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-gray-400 text-white cursor-not-allowed">
+          ) : !product.in_stock && !product.backorder ? (
+            <button
+              disabled
+              className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-gray-400 text-white cursor-not-allowed"
+            >
               Недоступно
             </button>
-          ) : (product.backorder && (product.stock ?? 0) === 0) ? (
+          ) : product.backorder && (product.stock ?? 0) === 0 ? (
             <button className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-yellow-600 text-white hover:bg-yellow-700">
               Под заказ
             </button>
@@ -241,7 +257,9 @@ function ProductCard({
               >
                 <Minus className="size-[1em]" />
               </button>
-              <span className="flex-1 text-center font-semibold text-sm md:text-base">{displayedCartQuantity}</span>
+              <span className="flex-1 text-center font-semibold text-sm md:text-base">
+                {displayedCartQuantity}
+              </span>
               <button
                 onClick={handleIncreaseClick}
                 disabled={isAdjustingCart}
@@ -254,10 +272,11 @@ function ProductCard({
             <button
               onClick={handleButtonClick}
               disabled={isAddingToCart}
-              className={`w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm disabled:opacity-70 ${addedToCart
+              className={`w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm disabled:opacity-70 ${
+                addedToCart
                   ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
+              }`}
             >
               {isAddingToCart ? 'Добавляем…' : addedToCart ? 'Добавлено' : 'В корзину'}
             </button>

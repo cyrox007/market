@@ -8,7 +8,11 @@ interface AccountCreatedModalProps {
   orderId?: number;
 }
 
-export default function AccountCreatedModal({ isOpen, onClose, orderId }: AccountCreatedModalProps) {
+export default function AccountCreatedModal({
+  isOpen,
+  onClose,
+  orderId,
+}: AccountCreatedModalProps) {
   const navigate = useNavigate();
 
   // Блокируем скролл при открытии модалки
@@ -79,12 +83,8 @@ export default function AccountCreatedModal({ isOpen, onClose, orderId }: Accoun
             <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
               <CircleCheck className="size-[1em] text-4xl text-green-600" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
-              Аккаунт активирован!
-            </h3>
-            <p className="text-gray-600">
-              Для вас автоматически создан личный кабинет
-            </p>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Аккаунт активирован!</h3>
+            <p className="text-gray-600">Для вас автоматически создан личный кабинет</p>
           </div>
 
           {/* Content */}

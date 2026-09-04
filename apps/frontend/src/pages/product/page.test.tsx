@@ -13,7 +13,9 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('../../components/feature/ReviewModal', () => ({ default: () => null }));
-vi.mock('../../components/ui/ProductLink', () => ({ default: ({ children }: any) => <>{children}</> }));
+vi.mock('../../components/ui/ProductLink', () => ({
+  default: ({ children }: any) => <>{children}</>,
+}));
 vi.mock('../../components/ui/ProductCard', () => ({ default: () => null }));
 vi.mock('../../components/product/ProductGallery', () => ({ default: () => null }));
 vi.mock('../../components/product/VariantAttributeSelector', () => ({ default: () => null }));
@@ -77,7 +79,12 @@ vi.mock('../../lib/api', () => ({
     },
     stockSettings: {
       get: vi.fn(async () => ({
-        stock_settings: { stock_low_max: 1, stock_medium_max: 5, stock_high_max: 10, show_exact_above: 10 },
+        stock_settings: {
+          stock_low_max: 1,
+          stock_medium_max: 5,
+          stock_high_max: 10,
+          show_exact_above: 10,
+        },
       })),
     },
     wishlist: {
@@ -95,7 +102,7 @@ describe('Product page', () => {
     render(
       <MemoryRouter>
         <ProductPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText('Товар не найден')).toBeInTheDocument();

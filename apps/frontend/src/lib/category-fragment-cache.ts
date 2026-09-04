@@ -22,7 +22,11 @@ export function setCategoryFragment(slug: string, fragment: CategoryFragment): v
 }
 
 /** Заполнить кэш из объекта категории (после загрузки с API или SSR). */
-export function setCategoryFragmentFromCategory(category: { slug: string; name: string; seo?: SeoMeta | null }): void {
+export function setCategoryFragmentFromCategory(category: {
+  slug: string;
+  name: string;
+  seo?: SeoMeta | null;
+}): void {
   setCategoryFragment(category.slug, {
     name: category.name,
     seo: category.seo ?? null,

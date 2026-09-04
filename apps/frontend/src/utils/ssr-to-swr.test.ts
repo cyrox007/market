@@ -40,7 +40,12 @@ describe('ssr-to-swr utilities', () => {
   });
 
   it('builds search key with sort and region', () => {
-    const key = getSearchKey('диван', { page: 3, sort_by: 'price', sort_order: 'desc', region_id: 9 });
+    const key = getSearchKey('диван', {
+      page: 3,
+      sort_by: 'price',
+      sort_order: 'desc',
+      region_id: 9,
+    });
     expect(key).toContain('q=%D0%B4%D0%B8%D0%B2%D0%B0%D0%BD');
     expect(key).toContain('sort_by=price');
     expect(key).toContain('sort_order=desc');

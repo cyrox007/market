@@ -33,7 +33,7 @@ export const swrConfig: SWRConfiguration = {
   revalidateOnReconnect: true,
   revalidateIfStale: true,
   revalidateInterval: 60_000, // 1 мин — было 1.5 сек, из‑за этого страницы «подлагивали»
-  dedupingInterval: 15_000,  // 15 сек дедуп — не дергать один и тот же ключ при переходах
+  dedupingInterval: 15_000, // 15 сек дедуп — не дергать один и тот же ключ при переходах
   focusThrottleInterval: 10_000,
   errorRetryCount: 2,
   errorRetryInterval: 8000,

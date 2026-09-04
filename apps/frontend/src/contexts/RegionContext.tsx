@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useState,
-  useEffect,
-  useCallback,
-  useContext,
-} from 'react';
+import { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { api } from '@/lib/api';
 import type { ShippingLocation } from '@/lib/api';
 import type { ReactNode } from 'react';
@@ -72,7 +66,7 @@ export function RegionProvider({ children, initialRegion = null }: RegionProvide
             slug: selectedRegion.slug,
             type: selectedRegion.type,
             parent_id: selectedRegion.parent_id,
-          })
+          }),
         );
         localStorage.removeItem(REGION_DETECTED_KEY);
       } else {
@@ -85,42 +79,45 @@ export function RegionProvider({ children, initialRegion = null }: RegionProvide
     }
   }, []);
 
-  const detectRegion = useCallback(async (city?: string): Promise<ShippingLocation | null> => {
-    try {
-      if (city && regions.length > 0) {
-        const cityLower = city.toLowerCase().trim();
-        const foundRegion = regions.find((r) => {
-          const nameLower = r.name.toLowerCase();
-          const cleanName = nameLower.replace(/^(г\.|г\.\s|с\.|пос\.|пгт\.|ст\.)\s*/i, '');
-          const cleanCity = cityLower.replace(/^(г\.|г\.\s|с\.|пос\.|пгт\.|ст\.)\s*/i, '');
-          return (
-            cleanName === cleanCity ||
-            cleanName.includes(cleanCity) ||
-            cleanCity.includes(cleanName) ||
-            nameLower.includes(cityLower) ||
-            cityLower.includes(nameLower)
-          );
-        });
-        if (foundRegion) {
-          localStorage.setItem(REGION_DETECTED_KEY, 'true');
-          return foundRegion;
+  const detectRegion = useCallback(
+    async (city?: string): Promise<ShippingLocation | null> => {
+      try {
+        if (city && regions.length > 0) {
+          const cityLower = city.toLowerCase().trim();
+          const foundRegion = regions.find((r) => {
+            const nameLower = r.name.toLowerCase();
+            const cleanName = nameLower.replace(/^(г\.|г\.\s|с\.|пос\.|пгт\.|ст\.)\s*/i, '');
+            const cleanCity = cityLower.replace(/^(г\.|г\.\s|с\.|пос\.|пгт\.|ст\.)\s*/i, '');
+            return (
+              cleanName === cleanCity ||
+              cleanName.includes(cleanCity) ||
+              cleanCity.includes(cleanName) ||
+              nameLower.includes(cityLower) ||
+              cityLower.includes(nameLower)
+            );
+          });
+          if (foundRegion) {
+            localStorage.setItem(REGION_DETECTED_KEY, 'true');
+            return foundRegion;
+          }
         }
-      }
-      const detected = await api.regions.detect({ city });
-      if (detected.region) {
-        const foundInList = regions.find((r) => r.id === detected.region!.id);
-        if (foundInList) {
+        const detected = await api.regions.detect({ city });
+        if (detected.region) {
+          const foundInList = regions.find((r) => r.id === detected.region!.id);
+          if (foundInList) {
+            localStorage.setItem(REGION_DETECTED_KEY, 'true');
+            return foundInList;
+          }
           localStorage.setItem(REGION_DETECTED_KEY, 'true');
-          return foundInList;
+          return detected.region;
         }
-        localStorage.setItem(REGION_DETECTED_KEY, 'true');
-        return detected.region;
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
-    return null;
-  }, [regions]);
+      return null;
+    },
+    [regions],
+  );
 
   const loadSavedRegion = useCallback((): boolean => {
     try {
@@ -157,7 +154,7 @@ export function RegionProvider({ children, initialRegion = null }: RegionProvide
       }
       window.dispatchEvent(new CustomEvent('region-changed', { detail: selectedRegion }));
     },
-    [saveRegion]
+    [saveRegion],
   );
 
   useEffect(() => {

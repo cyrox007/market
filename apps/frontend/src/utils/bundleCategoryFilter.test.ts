@@ -7,7 +7,9 @@ import {
   sortBundleProductsWithUnavailableLast,
 } from './bundleCategoryFilter';
 
-const base = (overrides: Partial<Product> & { categories?: { id: number; name: string; slug: string }[] }): Product =>
+const base = (
+  overrides: Partial<Product> & { categories?: { id: number; name: string; slug: string }[] },
+): Product =>
   ({
     id: 1,
     name: 'Test',
@@ -51,7 +53,9 @@ describe('bundleCategoryFilter', () => {
   });
 
   it('detects unavailable by region or stock', () => {
-    expect(isBundleProductAvailable(base({ in_stock: true, is_visible_in_region: true }))).toBe(true);
+    expect(isBundleProductAvailable(base({ in_stock: true, is_visible_in_region: true }))).toBe(
+      true,
+    );
     expect(isBundleProductAvailable(base({ in_stock: false }))).toBe(false);
     expect(isBundleProductAvailable(base({ is_visible_in_region: false }))).toBe(false);
   });

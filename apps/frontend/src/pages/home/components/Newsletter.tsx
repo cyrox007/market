@@ -52,23 +52,24 @@ export default function Newsletter() {
       const response = await api.newsletter.subscribe(email.trim());
       setIsSuccess(true);
       setEmail('');
-      setToast({ 
-        type: 'success', 
-        message: response.message || 'Вы успешно подписались на рассылку!' 
+      setToast({
+        type: 'success',
+        message: response.message || 'Вы успешно подписались на рассылку!',
       });
-      
+
       // Сброс состояния успеха через 3 секунды
       setTimeout(() => {
         setIsSuccess(false);
       }, 3000);
     } catch (error: any) {
-      const errorMessage = error?.data?.message || 
-                          error?.data?.errors?.email?.[0] || 
-                          'Произошла ошибка. Попробуйте еще раз.';
+      const errorMessage =
+        error?.data?.message ||
+        error?.data?.errors?.email?.[0] ||
+        'Произошла ошибка. Попробуйте еще раз.';
       setEmailError(errorMessage);
-      setToast({ 
-        type: 'error', 
-        message: errorMessage 
+      setToast({
+        type: 'error',
+        message: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -93,9 +94,11 @@ export default function Newsletter() {
             <div className="relative z-10">
               {/* Иконка */}
               <div className="mb-6 flex justify-center">
-                <div className={`w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-500 ${
-                  isSuccess ? 'scale-110 rotate-360' : ''
-                }`}>
+                <div
+                  className={`w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-500 ${
+                    isSuccess ? 'scale-110 rotate-360' : ''
+                  }`}
+                >
                   {isSuccess ? (
                     <CircleCheck className="size-[1em] text-3xl text-white" />
                   ) : (
@@ -107,21 +110,22 @@ export default function Newsletter() {
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
                 {isSuccess ? 'Спасибо за подписку!' : 'Подпишитесь на рассылку'}
               </h2>
-              
+
               <p className="text-white/90 text-lg mb-8 max-w-2xl mx-auto">
-                {isSuccess 
+                {isSuccess
                   ? 'Мы отправим вам эксклюзивные предложения и новости на указанный email'
-                  : 'Получайте эксклюзивные предложения, новости о новинках и советы по дизайну интерьера'
-                }
+                  : 'Получайте эксклюзивные предложения, новости о новинках и советы по дизайну интерьера'}
               </p>
-              
+
               {!isSuccess && (
                 <form onSubmit={handleSubmit} className="max-w-md mx-auto">
                   <div className="space-y-3">
                     <div className="relative">
-                      <div className={`flex gap-3 transition-all duration-300 ${
-                        isFocused ? 'scale-[1.02]' : ''
-                      }`}>
+                      <div
+                        className={`flex gap-3 transition-all duration-300 ${
+                          isFocused ? 'scale-[1.02]' : ''
+                        }`}
+                      >
                         <div className="flex-1 relative">
                           <Mail className="size-[1em] absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 text-lg pointer-events-none" />
                           <input
@@ -158,7 +162,7 @@ export default function Newsletter() {
                           )}
                         </button>
                       </div>
-                      
+
                       {/* Сообщение об ошибке */}
                       {emailError && (
                         <div className="mt-2 text-left pl-5 animate-[slideDown_0.2s_ease-out]">

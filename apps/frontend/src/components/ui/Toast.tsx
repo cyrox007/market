@@ -28,7 +28,9 @@ export default function Toast({ message, type, isVisible, onClose, duration = 40
 
   return (
     <div className="fixed top-4 right-4 z-[9999] animate-[slideIn_0.3s_ease-out]">
-      <div className={`${bgColor} ${textColor} border-2 rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 min-w-[300px] max-w-[500px]`}>
+      <div
+        className={`${bgColor} ${textColor} border-2 rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 min-w-[300px] max-w-[500px]`}
+      >
         <Icon name={icon} className="size-[1em] text-2xl flex-shrink-0" />
         <p className="flex-1 text-sm font-medium">{message}</p>
         <button
@@ -53,5 +55,3 @@ export default function Toast({ message, type, isVisible, onClose, duration = 40
     </div>
   );
 }
-
-

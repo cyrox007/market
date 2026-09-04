@@ -1,6 +1,15 @@
 import { Order } from '../lib/api';
 import type { LucideIcon } from 'lucide-react';
-import { CircleCheck, CircleHelp, CircleX, CreditCard, FilePlus, Ship, Truck, Wrench } from 'lucide-react';
+import {
+  CircleCheck,
+  CircleHelp,
+  CircleX,
+  CreditCard,
+  FilePlus,
+  Ship,
+  Truck,
+  Wrench,
+} from 'lucide-react';
 
 export interface OrderStatusConfig {
   label: string;
@@ -10,72 +19,74 @@ export interface OrderStatusConfig {
 
 export function formatOrderStatus(status: string): OrderStatusConfig {
   const statusMap: Record<string, OrderStatusConfig> = {
-    'new': {
+    new: {
       label: 'Новый',
       color: 'blue',
       icon: FilePlus,
     },
-    'awaiting_payment': {
+    awaiting_payment: {
       label: 'Ожидание оплаты',
       color: 'yellow',
       icon: CreditCard,
     },
-    'accepted': {
+    accepted: {
       label: 'Принят',
       color: 'blue',
       icon: CircleCheck,
     },
-    'assembled': {
+    assembled: {
       label: 'Собран',
       color: 'yellow',
       icon: Wrench,
     },
-    'shipped': {
+    shipped: {
       label: 'Отправлен',
       color: 'blue',
       icon: Ship,
     },
-    'in_transit': {
+    in_transit: {
       label: 'В пути',
       color: 'blue',
       icon: Truck,
     },
-    'delivered': {
+    delivered: {
       label: 'Доставлен',
       color: 'green',
       icon: CircleCheck,
     },
-    'cancelled': {
+    cancelled: {
       label: 'Отменен',
       color: 'red',
       icon: CircleX,
     },
   };
 
-  return statusMap[status] || {
-    label: status,
-    color: 'gray',
-    icon: CircleHelp,
-  };
+  return (
+    statusMap[status] || {
+      label: status,
+      color: 'gray',
+      icon: CircleHelp,
+    }
+  );
 }
 
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString('ru-RU', { 
-    day: 'numeric', 
-    month: 'long', 
-    year: 'numeric' 
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
   });
 }
 
 export function formatDateTime(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString('ru-RU', { 
-    day: 'numeric', 
-    month: 'long', 
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 }
 

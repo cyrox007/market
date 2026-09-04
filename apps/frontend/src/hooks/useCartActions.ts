@@ -13,7 +13,14 @@ const TOAST_DEBOUNCE_MS = 1200;
 
 type CartProductInput = Pick<
   Product,
-  'id' | 'name' | 'slug' | 'price' | 'is_variable' | 'is_variant' | 'first_available_variant_id' | 'in_stock'
+  | 'id'
+  | 'name'
+  | 'slug'
+  | 'price'
+  | 'is_variable'
+  | 'is_variant'
+  | 'first_available_variant_id'
+  | 'in_stock'
 > & {
   thumbnail?: string | null;
   image?: string | null;
@@ -67,9 +74,7 @@ export function useCartActions() {
 
       try {
         const result = await cart.addToCart(productId, quantity, variationAttributes, preview);
-        scheduleSuccessToast(
-          result.was_adjusted ? result.message : 'Товар добавлен в корзину',
-        );
+        scheduleSuccessToast(result.was_adjusted ? result.message : 'Товар добавлен в корзину');
         return result;
       } catch (error) {
         if (successToastTimerRef.current) {
@@ -111,9 +116,7 @@ export function useCartActions() {
       try {
         const result = await cart.adjustCartQuantity(productId, delta, preview);
         if (delta > 0 && result) {
-          scheduleSuccessToast(
-            result.was_adjusted ? result.message : 'Количество обновлено',
-          );
+          scheduleSuccessToast(result.was_adjusted ? result.message : 'Количество обновлено');
         }
         return result;
       } catch (error) {

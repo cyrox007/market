@@ -47,6 +47,6 @@ export function usePrefetchCategory() {
         .then((data) => mutate(productsKey, data))
         .catch(() => {});
     },
-    [region?.id]
+    [region?.id],
   );
 }

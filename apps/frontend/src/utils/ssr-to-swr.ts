@@ -116,7 +116,10 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
 /**
  * Создает ключ SWR для товара
  */
-export function getProductKey(slug: string, options?: { color?: string; size?: string; region_id?: number }): string {
+export function getProductKey(
+  slug: string,
+  options?: { color?: string; size?: string; region_id?: number },
+): string {
   const params = new URLSearchParams();
   if (options?.color) params.append('color', options.color);
   if (options?.size) params.append('size', options.size);
@@ -159,7 +162,7 @@ export interface CategoryProductsKeyOptions {
  */
 export function getCategoryProductsKey(
   categorySlug: string,
-  options?: CategoryProductsKeyOptions
+  options?: CategoryProductsKeyOptions,
 ): string {
   const params = new URLSearchParams();
   params.append('category_slug', categorySlug);
@@ -184,7 +187,7 @@ export function getCategoryProductsKey(
  * Парсит ключ SWR обратно в параметры для api.products.list (для fetcher в useSWRInfinite).
  */
 export function parseCategoryProductsKey(
-  key: string
+  key: string,
 ): { category_slug: string; page: number; per_page: number; [k: string]: unknown } | null {
   const q = key.indexOf('?');
   if (q === -1) return null;
@@ -234,7 +237,7 @@ export function getSearchKey(
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
     region_id?: number;
-  }
+  },
 ): string {
   const params = new URLSearchParams();
   params.append('q', query);

@@ -24,7 +24,8 @@ export default function VariantColorSelector({
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-1 block">
-        Цвет: <span className="text-gray-600 font-normal">{selectedColor?.name || 'Выберите цвет'}</span>
+        Цвет:{' '}
+        <span className="text-gray-600 font-normal">{selectedColor?.name || 'Выберите цвет'}</span>
       </label>
       <div className="flex flex-wrap gap-2">
         {colors.map((color, index) => {
@@ -51,14 +52,18 @@ export default function VariantColorSelector({
                 isSelected
                   ? 'border-red-600 scale-110 ring-2 ring-red-200 cursor-default'
                   : isColorDisabled
-                  ? 'border-gray-200 cursor-pointer hover:opacity-50'
-                  : 'border-gray-300 hover:border-red-600 cursor-pointer'
+                    ? 'border-gray-200 cursor-pointer hover:opacity-50'
+                    : 'border-gray-300 hover:border-red-600 cursor-pointer'
               } ${isDisabled && !isColorDisabled ? 'cursor-wait' : ''}`}
               style={{
                 backgroundColor: color.code || '#f5f5f5',
-                opacity: isColorDisabled ? 0.3 : (isDisabled && !isColorDisabled ? 0.5 : 1),
+                opacity: isColorDisabled ? 0.3 : isDisabled && !isColorDisabled ? 0.5 : 1,
               }}
-              title={isColorDisabled ? `Нажмите, чтобы выбрать доступный размер для цвета "${color.name}"` : color.name || ''}
+              title={
+                isColorDisabled
+                  ? `Нажмите, чтобы выбрать доступный размер для цвета "${color.name}"`
+                  : color.name || ''
+              }
             />
           );
         })}

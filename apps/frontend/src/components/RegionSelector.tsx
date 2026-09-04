@@ -60,7 +60,8 @@ export default function RegionSelector() {
   }
 
   const regionName = isHydrated && region ? region.name : 'Выбрать город';
-  const regionTitle = isHydrated && region ? `Локация доставки: ${region.name}` : 'Выберите регион доставки';
+  const regionTitle =
+    isHydrated && region ? `Локация доставки: ${region.name}` : 'Выберите регион доставки';
   const showAutoDetectedBadge = isHydrated && wasAutoDetected && region;
 
   return (
@@ -72,12 +73,8 @@ export default function RegionSelector() {
         title={regionTitle}
       >
         <MapPin className={`size-[1em] text-base ${showAutoDetectedBadge ? 'text-red-600' : ''}`} />
-        <span className="hidden min-w-0 flex-1 truncate font-medium md:inline">
-          {regionName}
-        </span>
-        <span className="min-w-0 flex-1 truncate font-medium md:hidden">
-          {regionName}
-        </span>
+        <span className="hidden min-w-0 flex-1 truncate font-medium md:inline">{regionName}</span>
+        <span className="min-w-0 flex-1 truncate font-medium md:hidden">{regionName}</span>
         {showAutoDetectedBadge && (
           <span className="hidden lg:inline text-[10px] text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
             Авто

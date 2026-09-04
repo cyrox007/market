@@ -24,7 +24,10 @@ export default function VariantSizeSelector({
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-1 block">
-        Размер: <span className="text-gray-600 font-normal">{selectedSize?.name || selectedSize?.value || 'Выберите размер'}</span>
+        Размер:{' '}
+        <span className="text-gray-600 font-normal">
+          {selectedSize?.name || selectedSize?.value || 'Выберите размер'}
+        </span>
       </label>
       <div className="flex flex-wrap gap-2">
         {sizes.map((size, index) => {
@@ -51,13 +54,17 @@ export default function VariantSizeSelector({
                 isSelected
                   ? 'border-red-600 bg-red-50 text-red-600 font-semibold cursor-default'
                   : isSizeDisabled
-                  ? 'border-gray-200 text-gray-400 cursor-pointer hover:opacity-50'
-                  : 'border-gray-300 hover:border-red-600 cursor-pointer'
+                    ? 'border-gray-200 text-gray-400 cursor-pointer hover:opacity-50'
+                    : 'border-gray-300 hover:border-red-600 cursor-pointer'
               } ${isDisabled && !isSizeDisabled ? 'cursor-wait' : ''}`}
               style={{
-                opacity: isSizeDisabled ? 0.3 : (isDisabled && !isSizeDisabled ? 0.5 : 1),
+                opacity: isSizeDisabled ? 0.3 : isDisabled && !isSizeDisabled ? 0.5 : 1,
               }}
-              title={isSizeDisabled ? `Нажмите, чтобы выбрать доступный цвет для размера "${size.name || size.value}"` : size.name || size.value || ''}
+              title={
+                isSizeDisabled
+                  ? `Нажмите, чтобы выбрать доступный цвет для размера "${size.name || size.value}"`
+                  : size.name || size.value || ''
+              }
             >
               {size.name || size.value || size.slug}
             </button>

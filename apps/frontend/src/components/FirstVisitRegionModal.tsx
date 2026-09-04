@@ -63,7 +63,7 @@ export default function FirstVisitRegionModal() {
         }, 300);
       }
     };
-    
+
     window.addEventListener('region-changed', handleRegionChange);
     return () => {
       window.removeEventListener('region-changed', handleRegionChange);
@@ -88,9 +88,7 @@ export default function FirstVisitRegionModal() {
                 <MapPin className="size-[1em] text-2xl" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-gray-900">
-                  Мы определили ваш регион
-                </h3>
+                <h3 className="text-base font-semibold text-gray-900">Мы определили ваш регион</h3>
                 <p className="mt-1 text-sm text-gray-600">
                   <span className="font-medium text-gray-900">{region.name}</span>
                 </p>
@@ -120,11 +118,7 @@ export default function FirstVisitRegionModal() {
       )}
 
       {/* Полноценная модалка выбора региона для первого визита */}
-      <LocationModal
-        isOpen={isLocationModalOpen}
-        onClose={handleClose}
-        isFirstVisit={true}
-      />
+      <LocationModal isOpen={isLocationModalOpen} onClose={handleClose} isFirstVisit={true} />
     </>
   );
 }
