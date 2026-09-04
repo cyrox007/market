@@ -23,21 +23,32 @@ export default function LocationModal({
   const [isGeoDetecting, setIsGeoDetecting] = useState(false);
   const [expandedDistricts, setExpandedDistricts] = useState<Set<number>>(new Set());
   const [expandedRegions, setExpandedRegions] = useState<Set<number>>(new Set());
+  // До первой попытки загрузки список пуст просто потому, что запрос ещё не ушёл.
+  // Без этого флага окно на один кадр считалось бы тупиковым.
+  const [loadAttempted, setLoadAttempted] = useState(false);
+
+  /**
+   * Выбирать нечего: список либо не загрузился, либо пришёл пустым.
+   *
+   * Второй случай тупиковый не меньше первого — API ответил успешно, ошибки
+   * нет, а городов всё равно нет. Считаем по `tree`, а не по отфильтрованному
+   * `displayTree`: пустой результат поиска выходом из окна быть не должен.
+   */
+  const nothingToPick = error !== null || (loadAttempted && !loading && tree.length === 0);
 
   /**
    * Можно ли закрыть окно.
    *
    * При первом визите выбор города обязателен — это осознанное требование.
-   * Но если список городов не загрузился, выбирать физически не из чего,
-   * и запрет на закрытие превращается в тупик: посетитель видит затемнённый
-   * экран и не может ни закрыть окно, ни посмотреть каталог. Под это попадает
-   * каждый, у кого пустой localStorage — первый заход, приватное окно,
-   * очищенный кэш.
+   * Но когда выбирать не из чего, запрет превращается в тупик: посетитель
+   * видит затемнённый экран и не может ни закрыть окно, ни посмотреть каталог.
+   * Под это попадает каждый, у кого пустой localStorage — первый заход,
+   * приватное окно, очищенный кэш.
    *
-   * Поэтому в состоянии ошибки окно закрывается, а при живом API
+   * Поэтому в тупиковом состоянии окно закрывается, а при живом API
    * поведение прежнее.
    */
-  const canDismiss = !isFirstVisit || error !== null;
+  const canDismiss = !isFirstVisit || nothingToPick;
 
   // Загружаем дерево локаций только при открытии модалки
   useEffect(() => {
@@ -88,6 +99,7 @@ export default function LocationModal({
       setTree([]);
     } finally {
       setLoading(false);
+      setLoadAttempted(true);
     }
   };
 
@@ -428,12 +440,23 @@ export default function LocationModal({
                 <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-red-600 text-sm mb-4">{error}</p>
-                  <button
-                    onClick={loadTree}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Попробовать снова
-                  </button>
+                  {/* Выход из тупика: без городов выбрать нечего, но сайтом
+                      пользоваться можно — предложение указать город останется
+                      в баннере сверху. */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={loadTree}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Попробовать снова
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Выбрать позже
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : displayTree.length === 0 ? (
@@ -441,7 +464,7 @@ export default function LocationModal({
                 <div className="text-gray-500 mb-4">
                   {searchQuery.trim()
                     ? `По запросу "${searchQuery}" ничего не найдено`
-                    : 'Локации не найдены. Проверьте, что в системе есть активные локации доставки.'}
+                    : 'Список городов сейчас недоступен. Попробуйте позже.'}
                 </div>
                 {searchQuery.trim() ? (
                   <button
@@ -451,12 +474,20 @@ export default function LocationModal({
                     Очистить поиск
                   </button>
                 ) : (
-                  <button
-                    onClick={loadTree}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Попробовать снова
-                  </button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button
+                      onClick={loadTree}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Попробовать снова
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Выбрать позже
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (

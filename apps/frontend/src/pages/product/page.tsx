@@ -896,18 +896,61 @@ export default function Product() {
   );
 
   if (!isProductResolved) {
-    if (isProductFetching || isLoading) {
+    // Скелетон показываем, только пока запрос ещё в работе. Если он уже упал,
+    // ждать нечего: `isLoading` сбрасывается в эффекте, который при ошибке
+    // выходит на первой строке, и без этой проверки состояние остаётся
+    // «загружается» навсегда — посетитель видит серые прямоугольники вместо
+    // объяснения, что случилось.
+    if ((isProductFetching || isLoading) && !productLoadError) {
       return productPageSkeleton;
     }
-    if (!product) {
+
+    // Товара нет и не будет: 404 от API либо пустой ответ.
+    if (productLoadError?.status === 404 || (!productLoadError && !product)) {
       return (
         <div className="min-h-screen bg-white">
           <div className="max-w-[1280px] mx-auto px-4 py-12">
-            <h1 className="text-2xl font-bold">Товар не найден</h1>
+            <h1 className="text-2xl font-bold mb-3">Товар не найден</h1>
+            <p className="text-gray-600 mb-6">Возможно, он снят с продажи или ссылка устарела.</p>
+            <Link
+              to="/catalog"
+              className="inline-block px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Перейти в каталог
+            </Link>
           </div>
         </div>
       );
     }
+
+    // Всё остальное — сбой связи или ошибка сервера.
+    if (productLoadError) {
+      return (
+        <div className="min-h-screen bg-white">
+          <div className="max-w-[1280px] mx-auto px-4 py-12">
+            <h1 className="text-2xl font-bold mb-3">Не удалось загрузить товар</h1>
+            <p className="text-gray-600 mb-6">
+              Проверьте соединение и попробуйте ещё раз. Если не поможет, зайдите чуть позже.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => mutateProduct()}
+                className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Попробовать снова
+              </button>
+              <Link
+                to="/catalog"
+                className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Перейти в каталог
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return productPageSkeleton;
   }
 
