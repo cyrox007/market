@@ -42,6 +42,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Проверка IP источника callback Райффайзен (защита от подделки, Р-1)
+    |--------------------------------------------------------------------------
+    | Официальный IP уведомлений Raif Pay: 193.28.44.23 (см. pay.raif.ru/doc/ecom.html).
+    | Применяется к обоим потокам (acquiring и e-commerce).
+    | RAIFFEISEN_CALLBACK_ALLOWED_IPS — список через запятую (пусто = проверка выключена).
+    | RAIFFEISEN_CALLBACK_IP_ENFORCE:
+    |   true (по умолчанию) — жёсткий режим: callback с чужого IP отклоняется
+    |     (согласно документации банка — уведомления приходят с 193.28.44.23);
+    |   false — мягкий режим: несоответствие только логируется (запасной вариант,
+    |     если банк сменит/расширит пул IP).
+    */
+    'raiffeisen_callback_allowed_ips' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('RAIFFEISEN_CALLBACK_ALLOWED_IPS', '193.28.44.23'))
+    ))),
+    'raiffeisen_callback_ip_enforce' => (bool) env('RAIFFEISEN_CALLBACK_IP_ENFORCE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Sberbank e-commerce acquiring (register.do)
     |--------------------------------------------------------------------------
     | Тест: https://ecomtest.sberbank.ru — POST /ecomm/gw/partner/api/v1/register.do (JSON)

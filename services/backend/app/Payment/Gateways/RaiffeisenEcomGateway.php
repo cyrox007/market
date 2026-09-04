@@ -6,20 +6,16 @@ namespace App\Payment\Gateways;
 
 use App\Models\Payment\PaymentMethod as AppPaymentMethod;
 use App\Services\Payment\RaiffeisenEcomClient;
-use Illuminate\Http\Request;
 use Vanilo\Contracts\Address;
 use Vanilo\Payment\Contracts\Payment;
-use Vanilo\Payment\Contracts\PaymentGateway;
 use Vanilo\Payment\Contracts\PaymentRequest;
-use Vanilo\Payment\Contracts\PaymentResponse;
-use Vanilo\Payment\Contracts\TransactionHandler;
-use Vanilo\Payment\Models\PaymentStatusProxy;
 
 /**
  * Шлюз Raiffeisen e-commerce API (pay.raif.ru).
  * Доступен для всех регионов. Тестовый контур: pay-test.raif.ru.
+ * Приём callback наследуется от AbstractRaiffeisenGateway (единый механизм Raif Pay).
  */
-class RaiffeisenEcomGateway implements PaymentGateway
+class RaiffeisenEcomGateway extends AbstractRaiffeisenGateway
 {
     public static function getName(): string
     {
@@ -39,67 +35,15 @@ class RaiffeisenEcomGateway implements PaymentGateway
         return new RaiffeisenEcomPaymentRequest($payment);
     }
 
-    private const SUCCESS_STATUSES = ['CONFIRMED', 'PAID', 'SUCCESS', 'COMPLETED', 'CAPTURED'];
-    private const FAIL_STATUSES = ['DECLINED', 'CANCELLED', 'CANCELED', 'FAILED', 'REJECTED', 'EXPIRED'];
-
-    public function processPaymentResponse(Request $request, array $options = []): PaymentResponse
-    {
-        $payment = $options['payment'] ?? null;
-        $paymentId = $payment ? $payment->getPaymentId() : '';
-
-        $payload = $request->all();
-        if (empty($payload)) {
-            $raw = $request->getContent();
-            if (is_string($raw)) {
-                $payload = json_decode($raw, true) ?? [];
-            }
-        }
-
-        // Webhook format: event "PAYMENT", data: { order: { id }, status: { value }, amount }
-        $data = $payload['data'] ?? $payload;
-        $orderId = $data['order']['id'] ?? $data['orderId'] ?? $data['order_id'] ?? null;
-        $status = strtoupper((string) ($data['status']['value'] ?? $data['status'] ?? $data['state'] ?? ''));
-        $amount = (float) ($data['amount'] ?? $data['transactionAmount'] ?? 0);
-        $transactionId = $data['id'] ?? $data['transactionId'] ?? $data['paymentId'] ?? null;
-        $message = $data['message'] ?? $data['errorMessage'] ?? null;
-
-        $wasSuccessful = in_array($status, self::SUCCESS_STATUSES, true);
-        $isFailed = in_array($status, self::FAIL_STATUSES, true);
-
-        if ($wasSuccessful) {
-            $vaniloStatus = PaymentStatusProxy::PAID();
-        } elseif ($isFailed) {
-            $vaniloStatus = in_array($status, ['CANCELLED', 'CANCELED', 'EXPIRED'], true)
-                ? PaymentStatusProxy::CANCELLED()
-                : PaymentStatusProxy::DECLINED();
-        } else {
-            $vaniloStatus = PaymentStatusProxy::PENDING();
-        }
-
-        return new RaiffeisenPaymentResponse(
-            paymentId: $paymentId,
-            wasSuccessful: $wasSuccessful,
-            status: $vaniloStatus,
-            message: $message,
-            transactionId: $transactionId ? (string) $transactionId : null,
-            transactionAmount: $amount > 0 ? $amount : ($payment ? (float) $payment->getAmount() : 0.0)
-        );
-    }
-
-    public function transactionHandler(): ?TransactionHandler
-    {
-        return null;
-    }
-
-    public function isOffline(): bool
-    {
-        return false;
-    }
-
     /**
      * Возвращает payformUrl после вызова API создания заказа.
      * Для e-commerce API ссылка формируется на стороне банка.
      */
+    public function gatewayLogId(): string
+    {
+        return 'raiffeisen_ecom';
+    }
+
     public function getClientConfig(AppPaymentMethod $method, ?\App\Models\Order\Order $order = null): ?array
     {
         $config = $method->configuration() ?? [];
