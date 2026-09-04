@@ -46,7 +46,7 @@ class EnqueueOrders1CSyncCommand extends Command
             $count++;
         });
 
-        $queue = config('services.onec.orders_queue', 'integration-1c');
+        $queue = config('services.integration_1c.orders_queue', 'integration-1c');
         $this->info("В очередь «{$queue}» поставлено заказов: {$count}");
         $this->line('Обработка: php8.4 artisan queue:work --queue=default,integration-1c');
 

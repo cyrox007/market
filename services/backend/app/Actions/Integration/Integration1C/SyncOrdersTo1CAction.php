@@ -14,9 +14,7 @@ class SyncOrdersTo1CAction
             return true;
         }
 
-        $configPrefix = (bool) config('services.integration_1c.enabled', false)
-            ? 'services.integration_1c'
-            : 'services.onec';
+        $configPrefix = 'services.integration_1c';
 
         if (! (bool) config($configPrefix . '.enabled', false)) {
             return false;
