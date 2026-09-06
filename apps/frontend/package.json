@@ -35,7 +35,7 @@
     "react-geolocated": "^4.4.0",
     "react-i18next": "^15.6.0",
     "react-imask": "^7.6.1",
-    "react-router-dom": "^7.6.3",
+    "react-router-dom": "^7.18.3",
     "swr": "^2.3.8",
     "tsx": "^4.7.0"
   },
