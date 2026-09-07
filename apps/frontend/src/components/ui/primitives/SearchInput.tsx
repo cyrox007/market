@@ -16,7 +16,14 @@ type SearchInputProps = SearchInputOwnProps &
   Omit<InputHTMLAttributes<HTMLInputElement>, keyof SearchInputOwnProps | 'size' | 'type'>;
 
 /**
- * Поле поиска из шапки: пилюля на сером фоне с жёлтой круглой кнопкой внутри.
+ * Поле поиска из шапки. Замерено с макета 07.09.2026:
+ * высота 44, кегль 14, строка 17, круглая жёлтая кнопка 36 с иконкой 20,
+ * в покое светлая рамка, в фокусе тёмная.
+ *
+ * Ширина адаптивная: максимум 475 на десктопе, дальше сжимается по экрану.
+ * Здесь она НЕ задана — поле занимает ширину родителя, а ограничение ставится
+ * в месте использования: className="w-full max-w-[475px]".
+ *
  * Обёрнуто в <form>, чтобы Enter отправлял запрос без своего обработчика клавиш.
  */
 const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
@@ -39,16 +46,17 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
         {...rest}
         name="q"
         type="search"
+        tone="white"
         className={cn('[&::-webkit-search-cancel-button]:appearance-none', className)}
         rightSlot={
           <IconButton
             type="submit"
             label={submitLabel}
             variant="yellow"
-            size="md"
+            size="sm"
             disabled={rest.disabled}
           >
-            <Search className="size-[1em] text-18" />
+            <Search className="size-5" />
           </IconButton>
         }
       />

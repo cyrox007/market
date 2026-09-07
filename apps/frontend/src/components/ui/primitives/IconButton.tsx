@@ -19,8 +19,17 @@ interface IconButtonOwnProps {
 type IconButtonProps = IconButtonOwnProps &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof IconButtonOwnProps>;
 
+/**
+ * Замерено с макета 07.09.2026:
+ *   sm 36 — жёлтая кнопка внутри поля поиска, иконка 20
+ *   md 40 — свёрнутые «Каталог» и «Комнаты» ниже 980, иконка 20
+ *   lg 48 — ⚠️ не замерен, оставлен как был
+ *
+ * Раньше шкала была 32 / 40 / 48 и целиком выведена. 32 убран: ни одного
+ * подтверждения ему в макете не нашлось, а 36 подтверждён.
+ */
 const SIZE: Record<IconButtonSize, string> = {
-  sm: 'size-8',
+  sm: 'size-9',
   md: 'size-10',
   lg: 'size-12',
 };
@@ -73,7 +82,9 @@ export default function IconButton({
         disabled
           ? 'cursor-not-allowed bg-surface-grey text-ink-secondary'
           : cn('cursor-pointer', isActive ? ACTIVE[variant] : VARIANT[variant]),
-        elevated && 'shadow-card',
+        // shadow-btn — замеренная тень круглых кнопок на карточке товара,
+        // не путать с shadow-card: та крупнее и стоит под самой карточкой
+        elevated && 'shadow-btn',
         className,
       )}
     >
