@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import TopBar from './bars/TopBar';
 import MainBar from './bars/MainBar';
 import CategoryBar from './bars/CategoryBar';
@@ -26,7 +26,7 @@ interface HeaderProps {
 }
 
 /**
- * Шапка по макету. К `RootLayout` пока не подключена.
+ * Шапка по макету. Подключена к `RootLayout` через `HeaderConnected`.
  * Замеры, адаптив и открытые вопросы — market-docs/13-header.md.
  */
 
@@ -51,15 +51,9 @@ export default function Header({
   // Содержимое должно дожить до конца анимации закрытия
   const [shownMenu, setShownMenu] = useState<Exclude<OpenMenu, null>>('catalog');
 
-  // Закрытая панель `invisible`, иначе её ссылки ловят фокус табом
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    if (openMenu) {
-      setShownMenu(openMenu);
-      setMounted(true);
-    }
-  }, [openMenu]);
+  // Правка в рендере, а не в эффекте: иначе при смене меню мелькает кадр
+  // со старым содержимым, а useLayoutEffect ругается при серверном рендеринге
+  if (openMenu && openMenu !== shownMenu) setShownMenu(openMenu);
 
   const toggle = (menu: Exclude<OpenMenu, null>) =>
     setOpenMenu((current) => (current === menu ? null : menu));
@@ -86,18 +80,15 @@ export default function Header({
 
       {sections?.length ? (
         <div
-          aria-hidden={!openMenu}
-          onTransitionEnd={() => {
-            if (!openMenu) setMounted(false);
-          }}
+          // Закрытая панель выпадает из табуляции, кликов и дерева доступности.
+          // Раньше это делал `invisible` по концу анимации — market-docs/16-код-ревью.md
+          inert={!openMenu}
           className={cn(
             'absolute inset-x-0 z-50 grid',
             MENU_TOP,
             // 0fr → 1fr даёт настоящую высоту содержимого без max-height
             'transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none',
             openMenu ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
-            !openMenu && !mounted && 'invisible',
-            !openMenu && 'pointer-events-none',
           )}
         >
           <div className="overflow-hidden">
