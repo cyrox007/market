@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { AppRoutes } from './router/index.tsx';
 import { I18nextProvider } from 'react-i18next';
 import i18n from './i18n';
@@ -9,7 +9,8 @@ import { RegionProvider } from './contexts/RegionContext';
 import { SSRProvider } from './contexts/SSRContext';
 import PageContentFallback from './components/layout/PageContentFallback';
 import ErrorBoundary from './components/ErrorBoundary';
-import { swrConfig } from './lib/swr-config';
+import { createSwrConfig } from './lib/swr-config';
+import { ssrToSwrFallback } from './utils/ssr-to-swr';
 import { subscribeToRevalidate, revalidateCache } from './lib/revalidate-cache';
 import type { SSRContext } from './types/ssr';
 import FirstVisitRegionModal from './components/FirstVisitRegionModal';
@@ -27,6 +28,9 @@ function App({ ssrContext, Router, routerProps = {} }: AppProps = {}) {
     return subscribeToRevalidate((keys) => revalidateCache(keys));
   }, []);
 
+  // На сервере window нет, поэтому данные рендера берём из пропа, а не из __INITIAL_STATE__
+  const swrValue = useMemo(() => createSwrConfig(ssrToSwrFallback(ssrContext)), [ssrContext]);
+
   if (!Router) {
     // Fallback если Router не передан
     throw new Error('Router component is required');
@@ -39,7 +43,7 @@ function App({ ssrContext, Router, routerProps = {} }: AppProps = {}) {
     <I18nextProvider i18n={i18n}>
       <RouterComponent {...routerPropsWithBasename}>
         <ErrorBoundary>
-          <SWRConfig value={swrConfig}>
+          <SWRConfig value={swrValue}>
             <SSRProvider data={ssrContext || {}}>
               <AuthProvider initialUser={ssrContext?.user}>
                 <CountersProvider initialCounters={ssrContext?.counters}>

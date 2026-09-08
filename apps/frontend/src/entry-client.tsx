@@ -37,8 +37,9 @@ window.addEventListener(
   true,
 );
 
-// Если есть отрендеренный SSR-контент — гидратируем, иначе рендерим с нуля (избегаем hydration mismatch и слёта стилей)
-const hasRenderedContent = rootElement.hasChildNodes();
+// Считаем только элементы: заглушка <!--ssr-outlet--> в index.html — тоже узел,
+// и hasChildNodes() принимал её за серверную разметку. Разбор — market-docs/16.
+const hasRenderedContent = rootElement.children.length > 0;
 
 if (hasRenderedContent) {
   hydrateRoot(

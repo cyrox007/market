@@ -64,7 +64,12 @@ export default function CategoryBar({
           const shared = 'inline-flex items-center gap-2 whitespace-nowrap';
 
           return disabled ? (
-            <span key={to} aria-disabled="true" className={cn(shared, DISABLED_LINK)}>
+            // «Распродажа» держит акцент даже без маршрута: это промо-ссылка, а не раздел
+            <span
+              key={to}
+              aria-disabled="true"
+              className={cn(shared, accent ? 'cursor-default text-brand-red' : DISABLED_LINK)}
+            >
               {content}
             </span>
           ) : (

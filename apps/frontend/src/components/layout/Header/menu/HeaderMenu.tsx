@@ -44,7 +44,7 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
       className={cn(
         'w-full border-t border-surface-border bg-surface shadow-card',
         // Шапка липкая: те же отступы сверху, что в Header, иначе меню уедет за низ
-        'max-h-[calc(100dvh-116px)] overflow-y-auto max-md:max-h-[calc(100dvh-151px)]',
+        'max-h-[calc(100dvh-116px)] overflow-y-auto max-md:max-h-[calc(100dvh-151px)] max-vsm:max-h-[calc(100dvh-116px)]',
         className,
       )}
       role="region"

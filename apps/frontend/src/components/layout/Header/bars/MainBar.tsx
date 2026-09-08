@@ -54,7 +54,7 @@ export default function MainBar({
           />
         </Link>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3 max-vsm:gap-4">
           {/* Кнопка поиска только ниже 550: там поле убрано и разворачивается по клику */}
           <button
             type="button"
