@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { MenuGroup, MenuLink, MenuSection } from '../lib/menu-types';
-import { DISABLED_LINK, HEADER_CONTAINER } from '../lib/container';
+import { DISABLED_LINK } from '../lib/container';
+import { PAGE_CONTAINER } from '../../../../lib/layout';
 import { useMediaQuery } from '../../../../hooks/useMediaQuery';
 import { cn } from '../../../../lib/cn';
 
@@ -50,7 +51,7 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
       role="region"
       aria-label={label}
     >
-      <div className={cn(HEADER_CONTAINER, isAccordion ? 'py-4' : 'flex gap-8 py-6')}>
+      <div className={cn(PAGE_CONTAINER, isAccordion ? 'py-4' : 'flex gap-8 py-6')}>
         <ul
           className={cn(
             'flex flex-col gap-1',

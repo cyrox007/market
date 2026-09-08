@@ -5,7 +5,7 @@ import { Button, SearchInput } from '../../../ui/primitives';
 import UserActions from '../menu/UserActions';
 import { useMediaQuery } from '../../../../hooks/useMediaQuery';
 import { cn } from '../../../../lib/cn';
-import { HEADER_CONTAINER } from '../lib/container';
+import { PAGE_CONTAINER } from '../../../../lib/layout';
 
 interface MainBarProps {
   catalogOpen?: boolean;
@@ -45,7 +45,7 @@ export default function MainBar({
 
   return (
     <div className={cn('bg-surface', className)}>
-      <div className={cn(HEADER_CONTAINER, 'flex h-20 items-center justify-between')}>
+      <div className={cn(PAGE_CONTAINER, 'flex h-20 items-center justify-between')}>
         <Link to="/" className="inline-flex shrink-0 outline-none" aria-label="На главную">
           <img
             src="/logo.png"
@@ -113,7 +113,7 @@ export default function MainBar({
       </div>
 
       {searchOpen && (
-        <div className={cn(HEADER_CONTAINER, 'hidden pb-4 max-vsm:block')}>
+        <div className={cn(PAGE_CONTAINER, 'hidden pb-4 max-vsm:block')}>
           <SearchInput placeholder="Поиск по каталогу" onSearch={onSearch} />
         </div>
       )}

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Badge } from '../../../ui/primitives';
 import { cn } from '../../../../lib/cn';
-import { DISABLED_LINK, HEADER_CONTAINER } from '../lib/container';
+import { DISABLED_LINK } from '../lib/container';
+import { PAGE_CONTAINER } from '../../../../lib/layout';
 
 export interface HeaderCategory {
   to: string;
@@ -42,7 +43,7 @@ export default function CategoryBar({
       <nav
         aria-label="Категории"
         className={cn(
-          HEADER_CONTAINER,
+          PAGE_CONTAINER,
           'flex h-full items-center justify-between',
           // Прячем стилем, а не срезом массива: срез даёт рассинхрон гидрации
           'max-md:[&>*:nth-child(n+9)]:hidden',

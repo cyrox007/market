@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ChevronDown, Clock, MapPin, Phone } from 'lucide-react';
 import { cn } from '../../../../lib/cn';
-import { DISABLED_LINK, HEADER_CONTAINER } from '../lib/container';
+import { DISABLED_LINK } from '../lib/container';
+import { PAGE_CONTAINER } from '../../../../lib/layout';
 
 interface TopBarLink {
   to: string;
@@ -43,7 +44,7 @@ export default function TopBar({
         className,
       )}
     >
-      <div className={cn(HEADER_CONTAINER, 'flex h-full items-center justify-between')}>
+      <div className={cn(PAGE_CONTAINER, 'flex h-full items-center justify-between')}>
         <div className="flex items-center gap-6">
           <button
             type="button"

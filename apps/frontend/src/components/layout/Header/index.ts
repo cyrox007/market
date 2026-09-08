@@ -19,5 +19,3 @@ export type { PromoProduct } from './menu/MenuPromo';
 export type { MenuLink, MenuGroup, MenuSection } from './lib/menu-types';
 
 export { ROOMS_SECTIONS } from './lib/rooms';
-
-export { HEADER_CONTAINER } from './lib/container';

@@ -86,12 +86,15 @@ export default {
         '8': ['8px', { lineHeight: 'normal' }], // замерено: счётчик цветов «+8» на карточке
         '10': ['10px', { lineHeight: 'normal' }],
         '12': ['12px', { lineHeight: 'normal' }],
+        '13': ['13px', { lineHeight: 'normal' }], // подпись слайдера ниже 550
         '14': ['14px', { lineHeight: 'normal' }],
         '15': ['15px', { lineHeight: 'normal' }], // замерено: левая колонка меню шапки
         '16': ['16px', { lineHeight: 'normal' }],
         '18': ['18px', { lineHeight: 'normal' }],
         '20': ['20px', { lineHeight: 'normal' }], // замерено: цена на карточке товара
         '24': ['24px', { lineHeight: 'normal' }],
+        '32': ['32px', { lineHeight: 'normal' }], // заголовок слайдера ниже 550
+        '44': ['44px', { lineHeight: 'normal' }], // заголовок слайдера ниже 980
         '52': ['52px', { lineHeight: 'normal' }],
       },
 
@@ -100,6 +103,7 @@ export default {
         badge: '6px', // замерено: бейдж «до −60%» в навигации, единственный не-пилюля
         btn: '12px', // кнопки
         pill: '100px', // поле поиска, круглые иконочные кнопки
+        card: '20px', // из Figma: карточки промо-блока главной
       },
 
       boxShadow: {
