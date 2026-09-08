@@ -520,7 +520,8 @@ export interface SeoMeta {
   title: string | null;
   description: string | null;
   image: string | null;
-  canonical_url: string | null;
+  /** Необязателен: страницы его не задают, applySeoMeta подставляет текущий адрес */
+  canonical_url?: string | null;
   robots: string | null;
   open_graph_title: string | null;
   locale: string | null;

@@ -14,7 +14,6 @@ export default function Home() {
     description:
       'Интернет-магазин качественной мебели. Диваны, кровати, шкафы, кухни и многое другое. Доставка по всей России.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Главная'),
     locale: 'ru_RU',

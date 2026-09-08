@@ -35,7 +35,6 @@ export default function Favorites() {
     title: buildTitle('Избранное'),
     description: 'Ваши избранные товары в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Избранное'),
     locale: 'ru_RU',

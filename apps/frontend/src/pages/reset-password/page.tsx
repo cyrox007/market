@@ -27,7 +27,6 @@ export default function ResetPasswordPage() {
     title: buildTitle('Сброс пароля'),
     description: 'Сброс пароля в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Сброс пароля'),
     locale: 'ru_RU',

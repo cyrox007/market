@@ -20,7 +20,6 @@ export default function Returns() {
     title: buildTitle('Возврат'),
     description: 'Условия возврата товаров в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Возврат'),
     locale: 'ru_RU',

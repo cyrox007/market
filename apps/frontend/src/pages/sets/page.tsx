@@ -155,7 +155,6 @@ export default function Sets() {
     title: buildTitle('Готовые комплекты мебели'),
     description: 'Готовые комплекты мебели в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Готовые комплекты мебели'),
     locale: 'ru_RU',

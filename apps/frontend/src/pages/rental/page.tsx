@@ -16,7 +16,6 @@ export default function Rental() {
     title: buildTitle('Аренда'),
     description: 'Аренда мебели в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Аренда'),
     locale: 'ru_RU',

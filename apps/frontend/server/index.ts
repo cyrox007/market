@@ -154,6 +154,13 @@ async function createServer() {
             () => ssrApi.compare.count(),
             { ttl: 30 },
           ),
+          // Дерево категорий нужно шапке на каждом маршруте. Кэш общий для всех
+          // посетителей, поэтому бэкенд получает один запрос в 5 минут.
+          withCacheSWR(
+            createCacheKey('/categories/tree', undefined, undefined),
+            () => ssrApi.categories.tree(),
+            { ttl: 300 },
+          ),
         ];
 
         if (hasAuthSession) {
@@ -181,6 +188,12 @@ async function createServer() {
         const cartCountResponse = parallelResults[resultOffset++];
         const wishlistCountResponse = parallelResults[resultOffset++];
         const compareCountResponse = parallelResults[resultOffset++];
+        const categoryTreeResponse = parallelResults[resultOffset++];
+
+        if (categoryTreeResponse.status === 'fulfilled') {
+          const tree = (categoryTreeResponse.value as { tree?: unknown[] })?.tree;
+          if (tree?.length) ssrContext.categoryTree = tree;
+        }
 
         if (
           regionResponse.status === 'fulfilled' &&

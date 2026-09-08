@@ -149,7 +149,6 @@ export default function Careers() {
     title: buildTitle('Вакансии'),
     description: 'Работа в компании Светофор-Мебель. Вакансии и условия.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Вакансии'),
     locale: 'ru_RU',

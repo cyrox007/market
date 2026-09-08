@@ -15,7 +15,6 @@ export default function ForgotPasswordPage() {
     title: buildTitle('Восстановление пароля'),
     description: 'Восстановление пароля в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Восстановление пароля'),
     locale: 'ru_RU',

@@ -20,26 +20,27 @@ export function applySeoMeta(seo: SeoMeta | null | undefined): void {
   // robots
   setMetaTag('name', 'robots', seo.robots ?? undefined);
 
+  // Адрес берём из данных, иначе из браузера. Страницы его не передают: на
+  // сервере window нет, а функция и так вызывается только из эффекта.
+  const canonical =
+    seo.canonical_url ?? (typeof window !== 'undefined' ? window.location.href : undefined);
+
   // Open Graph
   setMetaTag('property', 'og:title', seo.open_graph_title ?? seo.title ?? undefined);
   setMetaTag('property', 'og:description', seo.description ?? undefined);
   setMetaTag('property', 'og:image', seo.image ?? undefined);
-  setMetaTag(
-    'property',
-    'og:url',
-    seo.canonical_url ?? (typeof window !== 'undefined' ? window.location.href : undefined),
-  );
+  setMetaTag('property', 'og:url', canonical);
   setMetaTag('property', 'og:type', 'website');
 
   // canonical
   let link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-  if (seo.canonical_url) {
+  if (canonical) {
     if (!link) {
       link = document.createElement('link');
       link.rel = 'canonical';
       document.head.appendChild(link);
     }
-    link.href = seo.canonical_url;
+    link.href = canonical;
   } else if (link) {
     link.remove();
   }

@@ -13,6 +13,11 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
 
   const fallback: Record<string, any> = {};
 
+  // Шапка: дерево категорий есть на любом маршруте
+  if (ssrContext.categoryTree?.length) {
+    fallback['/api/categories/tree'] = { tree: ssrContext.categoryTree };
+  }
+
   // Главная страница
   if (ssrContext.home) {
     const regionId = ssrContext.region?.id;
