@@ -1,8 +1,7 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/hooks/useRegion';
 import LocationModal from './LocationModal';
+import { ChevronDown, MapPin } from 'lucide-react';
 
 export default function RegionSelector() {
   const { region, loading } = useRegion();
@@ -46,7 +45,7 @@ export default function RegionSelector() {
         className="relative flex items-center gap-1.5 text-xs md:text-sm text-gray-600 hover:text-gray-900 transition-colors group"
         title="Выберите регион доставки для корректного отображения цен и сроков доставки"
       >
-        <i className="ri-map-pin-line text-base"></i>
+        <MapPin className="size-[1em] text-base" />
         <span className="hidden lg:inline">Загрузка...</span>
         <span className="lg:hidden">...</span>
         {/* Tooltip */}
@@ -59,7 +58,8 @@ export default function RegionSelector() {
   }
 
   const regionName = isHydrated && region ? region.name : 'Выбрать город';
-  const regionTitle = isHydrated && region ? `Локация доставки: ${region.name}` : 'Выберите регион доставки';
+  const regionTitle =
+    isHydrated && region ? `Локация доставки: ${region.name}` : 'Выберите регион доставки';
   const showAutoDetectedBadge = isHydrated && wasAutoDetected && region;
 
   return (
@@ -70,19 +70,15 @@ export default function RegionSelector() {
         className="relative flex w-full min-w-0 items-center gap-1.5 text-xs md:text-sm text-gray-600 hover:text-red-600 transition-colors group"
         title={regionTitle}
       >
-        <i className={`ri-map-pin-line text-base ${showAutoDetectedBadge ? 'text-red-600' : ''}`}></i>
-        <span className="hidden min-w-0 flex-1 truncate font-medium md:inline">
-          {regionName}
-        </span>
-        <span className="min-w-0 flex-1 truncate font-medium md:hidden">
-          {regionName}
-        </span>
+        <MapPin className={`size-[1em] text-base ${showAutoDetectedBadge ? 'text-red-600' : ''}`} />
+        <span className="hidden min-w-0 flex-1 truncate font-medium md:inline">{regionName}</span>
+        <span className="min-w-0 flex-1 truncate font-medium md:hidden">{regionName}</span>
         {showAutoDetectedBadge && (
           <span className="hidden lg:inline text-[10px] text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
             Авто
           </span>
         )}
-        <i className="ri-arrow-down-s-line text-gray-400 group-hover:text-gray-600 text-xs md:text-sm transition-colors flex-shrink-0"></i>
+        <ChevronDown className="size-[1em] text-gray-400 group-hover:text-gray-600 text-xs md:text-sm transition-colors flex-shrink-0" />
 
         {/* Tooltip - показываем только если регион не выбран */}
         {!region && (

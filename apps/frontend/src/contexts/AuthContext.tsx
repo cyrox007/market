@@ -6,7 +6,13 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { name: string; email: string; password: string; password_confirmation: string; phone?: string }) => Promise<void>;
+  register: (data: {
+    name: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+    phone?: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: { name?: string; phone?: string }) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -54,16 +60,18 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
 
     // Загружаем пользователя при монтировании только если нет initialUser
     let mounted = true;
-    
-    refreshUser().then((success) => {
-      if (mounted) {
-        setIsLoading(false);
-      }
-    }).catch(() => {
-      if (mounted) {
-        setIsLoading(false);
-      }
-    });
+
+    refreshUser()
+      .then((success) => {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
       mounted = false;
@@ -77,10 +85,19 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
     setIsLoading(false);
   }, []);
 
-  const register = useCallback(async (data: { name: string; email: string; password: string; password_confirmation: string; phone?: string }) => {
-    const response = await api.auth.register(data);
-    setUser(response.user);
-  }, []);
+  const register = useCallback(
+    async (data: {
+      name: string;
+      email: string;
+      password: string;
+      password_confirmation: string;
+      phone?: string;
+    }) => {
+      const response = await api.auth.register(data);
+      setUser(response.user);
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -98,16 +115,19 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
   }, []);
 
   // Мемоизируем value, чтобы избежать лишних ререндеров
-  const value: AuthContextType = useMemo(() => ({
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    login,
-    register,
-    logout,
-    updateProfile,
-    refreshUser,
-  }), [user, isLoading, login, register, logout, updateProfile, refreshUser]);
+  const value: AuthContextType = useMemo(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated: !!user,
+      login,
+      register,
+      logout,
+      updateProfile,
+      refreshUser,
+    }),
+    [user, isLoading, login, register, logout, updateProfile, refreshUser],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

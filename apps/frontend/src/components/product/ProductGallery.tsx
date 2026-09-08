@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, ImageIcon, X, ZoomIn } from 'lucide-react';
 
 export interface ProductGalleryProps {
   images: string[];
@@ -96,7 +97,7 @@ export default function ProductGallery({
   if (!images.length) {
     return (
       <div className="bg-gray-50 rounded-2xl overflow-hidden flex items-center justify-center w-full min-h-[300px]">
-        <i className="ri-image-line text-3xl text-gray-400" aria-hidden />
+        <ImageIcon className="size-[1em] text-3xl text-gray-400" />
       </div>
     );
   }
@@ -124,7 +125,7 @@ export default function ProductGallery({
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                    <i className="ri-image-line text-2xl text-gray-400" aria-hidden />
+                    <ImageIcon className="size-[1em] text-2xl text-gray-400" />
                   </div>
                 )}
               </button>
@@ -149,14 +150,16 @@ export default function ProductGallery({
               {currentImage ? (
                 <img
                   src={currentImage}
-                  alt={selectedIndex === 0 ? productName : `${productName} — фото ${selectedIndex + 1}`}
+                  alt={
+                    selectedIndex === 0 ? productName : `${productName} — фото ${selectedIndex + 1}`
+                  }
                   className="w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[550px] object-cover object-top"
                   loading={selectedIndex === 0 ? 'eager' : 'lazy'}
                   draggable={false}
                 />
               ) : (
                 <div className="w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[550px] flex items-center justify-center">
-                  <i className="ri-image-line text-3xl text-gray-400" aria-hidden />
+                  <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                 </div>
               )}
             </button>
@@ -178,7 +181,7 @@ export default function ProductGallery({
 
             {/* Подсказка про зум на десктопе */}
             <div className="absolute top-3 right-3 rounded-lg bg-black/40 text-white p-2 pointer-events-none hidden md:block">
-              <i className="ri-zoom-in-line text-xl" aria-hidden />
+              <ZoomIn className="size-[1em] text-xl" />
             </div>
           </div>
         </div>
@@ -195,30 +198,39 @@ export default function ProductGallery({
         >
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              closeLightbox();
+            }}
             className="absolute top-4 right-4 z-10 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors cursor-pointer"
             aria-label="Закрыть"
           >
-            <i className="ri-close-line text-2xl" aria-hidden />
+            <X className="size-[1em] text-2xl" />
           </button>
 
           {hasMultiple && (
             <>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); goPrev(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goPrev();
+                }}
                 className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors cursor-pointer"
                 aria-label="Предыдущее фото"
               >
-                <i className="ri-arrow-left-s-line text-2xl" aria-hidden />
+                <ChevronLeft className="size-[1em] text-2xl" />
               </button>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); goNext(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goNext();
+                }}
                 className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors cursor-pointer"
                 aria-label="Следующее фото"
               >
-                <i className="ri-arrow-right-s-line text-2xl" aria-hidden />
+                <ChevronRight className="size-[1em] text-2xl" />
               </button>
             </>
           )}
@@ -231,7 +243,10 @@ export default function ProductGallery({
           >
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setLightboxZoom((z) => !z); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxZoom((z) => !z);
+              }}
               className="block max-w-full max-h-full focus:outline-none focus:ring-2 focus:ring-white rounded-lg overflow-hidden cursor-zoom-in"
               aria-label={lightboxZoom ? 'Уменьшить' : 'Увеличить'}
             >

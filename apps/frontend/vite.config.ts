@@ -1,9 +1,9 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react-swc'
-import { resolve } from 'node:path'
-import AutoImport from 'unplugin-auto-import/vite'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import { resolve } from 'node:path';
+import AutoImport from 'unplugin-auto-import/vite';
 
-const base = process.env.BASE_PATH || '/'
+const base = process.env.BASE_PATH || '/';
 const isPreview = process.env.IS_PREVIEW ? true : false;
 
 /** В проде убираем ранний link на /src/index.css — в сборке CSS инжектится из бандла */
@@ -11,17 +11,17 @@ function earlyCssPlugin() {
   return {
     name: 'early-css-build',
     transformIndexHtml(html: string, ctx: { server?: unknown }) {
-      if (ctx.server) return html // dev: оставляем link на /src/index.css
-      return html.replace(/<link\s+rel="stylesheet"\s+href="\/src\/index\.css"\s*\/?>\s*/i, '')
+      if (ctx.server) return html; // dev: оставляем link на /src/index.css
+      return html.replace(/<link\s+rel="stylesheet"\s+href="\/src\/index\.css"\s*\/?>\s*/i, '');
     },
-  }
+  };
 }
 
 // https://vite.dev/config/
 export default defineConfig({
   define: {
     __BASE_PATH__: JSON.stringify(base),
-    __IS_PREVIEW__: JSON.stringify(isPreview)
+    __IS_PREVIEW__: JSON.stringify(isPreview),
   },
   plugins: [
     earlyCssPlugin(),
@@ -29,7 +29,7 @@ export default defineConfig({
     AutoImport({
       imports: [
         {
-          'react': [
+          react: [
             'React',
             'useState',
             'useEffect',
@@ -53,8 +53,8 @@ export default defineConfig({
             'createContext',
             'createElement',
             'cloneElement',
-            'isValidElement'
-          ]
+            'isValidElement',
+          ],
         },
         {
           'react-router-dom': [
@@ -65,16 +65,13 @@ export default defineConfig({
             'Link',
             'NavLink',
             'Navigate',
-            'Outlet'
-          ]
+            'Outlet',
+          ],
         },
         // React i18n
         {
-          'react-i18next': [
-            'useTranslation',
-            'Trans'
-          ]
-        }
+          'react-i18next': ['useTranslation', 'Trans'],
+        },
       ],
       dts: true,
     }),
@@ -104,8 +101,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
-    }
+      '@': resolve(__dirname, './src'),
+    },
   },
   server: {
     port: 3000,
@@ -117,4 +114,4 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
-})
+});

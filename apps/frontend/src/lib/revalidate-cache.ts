@@ -86,9 +86,7 @@ const REVALIDATE_EVENT = 'swr-revalidate';
  * window.dispatchEvent(new CustomEvent(REVALIDATE_EVENT, { detail: ['/api/sliders'] }));
  * // или обновить всё: detail: undefined
  */
-export function subscribeToRevalidate(
-  handler: (keys?: string[]) => void
-): () => void {
+export function subscribeToRevalidate(handler: (keys?: string[]) => void): () => void {
   if (typeof window === 'undefined') return () => {};
 
   const listener = (e: Event) => {

@@ -128,9 +128,12 @@ export const ssrCache = new SSRCache();
 
 // Периодическая очистка устаревших записей (каждые 5 минут)
 if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    ssrCache.cleanup();
-  }, 5 * 60 * 1000);
+  setInterval(
+    () => {
+      ssrCache.cleanup();
+    },
+    5 * 60 * 1000,
+  );
 }
 
 /**
@@ -142,14 +145,14 @@ if (typeof setInterval !== 'undefined') {
 export function createCacheKey(
   endpoint: string,
   params?: Record<string, any>,
-  userId?: number
+  userId?: number,
 ): string {
   const parts = [endpoint];
 
   if (params) {
     const sortedParams = Object.keys(params)
       .sort()
-      .map(key => `${key}=${JSON.stringify(params[key])}`)
+      .map((key) => `${key}=${JSON.stringify(params[key])}`)
       .join('&');
     if (sortedParams) {
       parts.push(sortedParams);
@@ -169,7 +172,7 @@ export function createCacheKey(
 export async function withCache<T>(
   key: string,
   fetcher: () => Promise<T>,
-  options?: CacheOptions
+  options?: CacheOptions,
 ): Promise<T> {
   // Проверяем кеш
   const cached = ssrCache.get<T>(key);
@@ -205,7 +208,7 @@ const revalidating = new Set<string>();
 export async function withCacheSWR<T>(
   key: string,
   fetcher: () => Promise<T>,
-  options?: CacheOptions
+  options?: CacheOptions,
 ): Promise<T> {
   const stale = ssrCache.getStale<T>(key);
   const fresh = ssrCache.get<T>(key);

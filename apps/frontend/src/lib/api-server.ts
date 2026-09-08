@@ -25,7 +25,7 @@ interface CacheOptions {
 export async function fetchWithCache<T>(
   key: string,
   fetcher: () => Promise<T>,
-  options: CacheOptions = {}
+  options: CacheOptions = {},
 ): Promise<T> {
   const revalidate = options.revalidate ?? CACHE_REVALIDATE_TIME;
   const cached = CACHE_STORAGE.get(key);
@@ -66,11 +66,7 @@ export function invalidateCache(tag: string): void {
  * Get sliders with caching
  */
 export async function getSliders(options?: CacheOptions): Promise<Slider[]> {
-  const data = await fetchWithCache(
-    'sliders:list',
-    () => api.sliders.list(),
-    options
-  );
+  const data = await fetchWithCache('sliders:list', () => api.sliders.list(), options);
   return data.data;
 }
 
@@ -78,11 +74,7 @@ export async function getSliders(options?: CacheOptions): Promise<Slider[]> {
  * Get single slider with caching
  */
 export async function getSlider(slug: string, options?: CacheOptions): Promise<Slider> {
-  const data = await fetchWithCache(
-    `sliders:${slug}`,
-    () => api.sliders.get(slug),
-    options
-  );
+  const data = await fetchWithCache(`sliders:${slug}`, () => api.sliders.get(slug), options);
   return data.slider;
 }
 
@@ -90,11 +82,7 @@ export async function getSlider(slug: string, options?: CacheOptions): Promise<S
  * Get categories with caching
  */
 export async function getCategories(options?: CacheOptions): Promise<Category[]> {
-  const data = await fetchWithCache(
-    'categories:list',
-    () => api.categories.list(),
-    options
-  );
+  const data = await fetchWithCache('categories:list', () => api.categories.list(), options);
   return data.data;
 }
 
@@ -102,11 +90,7 @@ export async function getCategories(options?: CacheOptions): Promise<Category[]>
  * Get category tree with caching
  */
 export async function getCategoryTree(options?: CacheOptions): Promise<Category[]> {
-  const data = await fetchWithCache(
-    'categories:tree',
-    () => api.categories.tree(),
-    options
-  );
+  const data = await fetchWithCache('categories:tree', () => api.categories.tree(), options);
   return data.tree;
 }
 
@@ -114,11 +98,7 @@ export async function getCategoryTree(options?: CacheOptions): Promise<Category[
  * Get featured products with caching
  */
 export async function getFeaturedProducts(options?: CacheOptions): Promise<Product[]> {
-  const data = await fetchWithCache(
-    'products:featured',
-    () => api.products.featured(),
-    options
-  );
+  const data = await fetchWithCache('products:featured', () => api.products.featured(), options);
   return data.data;
 }
 
@@ -126,11 +106,7 @@ export async function getFeaturedProducts(options?: CacheOptions): Promise<Produ
  * Get new products with caching
  */
 export async function getNewProducts(options?: CacheOptions): Promise<Product[]> {
-  const data = await fetchWithCache(
-    'products:new',
-    () => api.products.new(),
-    options
-  );
+  const data = await fetchWithCache('products:new', () => api.products.new(), options);
   return data.data;
 }
 
@@ -138,10 +114,6 @@ export async function getNewProducts(options?: CacheOptions): Promise<Product[]>
  * Get sale products with caching
  */
 export async function getSaleProducts(options?: CacheOptions): Promise<Product[]> {
-  const data = await fetchWithCache(
-    'products:sale',
-    () => api.products.sale(),
-    options
-  );
+  const data = await fetchWithCache('products:sale', () => api.products.sale(), options);
   return data.data;
 }

@@ -81,11 +81,7 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       inFlightRef.current = true;
       lastRefreshAtRef.current = now;
       setIsLoading(true);
-      await Promise.all([
-        refreshCartCount(),
-        refreshWishlistCount(),
-        refreshCompareCount(),
-      ]);
+      await Promise.all([refreshCartCount(), refreshWishlistCount(), refreshCompareCount()]);
     } catch {
       // ignore
     } finally {

@@ -30,7 +30,7 @@ export function useWishlistAndCompare() {
       revalidateOnFocus: false, // Не обновляем при фокусе
       revalidateIfStale: false, // Не обновляем устаревшие данные автоматически
       dedupingInterval: 5000, // Дедупликация 5 секунд
-    }
+    },
   );
 
   // Загружаем compare
@@ -41,7 +41,7 @@ export function useWishlistAndCompare() {
       revalidateOnFocus: false,
       revalidateIfStale: false,
       dedupingInterval: 5000,
-    }
+    },
   );
 
   // Вычисляем списки ID товаров
@@ -49,9 +49,9 @@ export function useWishlistAndCompare() {
     const wishlistItems: WishlistItem[] = wishlistData?.data || [];
     const compareProducts: Product[] = compareData?.products || [];
 
-    const wishlistProductIds = wishlistItems.map(
-      (item) => item.product_id || item.product?.id
-    ).filter((id): id is number => id !== undefined);
+    const wishlistProductIds = wishlistItems
+      .map((item) => item.product_id || item.product?.id)
+      .filter((id): id is number => id !== undefined);
 
     const compareProductIds = compareProducts.map((p) => p.id);
 

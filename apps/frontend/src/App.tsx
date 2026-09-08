@@ -1,20 +1,19 @@
-
-import { Suspense, useEffect } from "react";
-import { AppRoutes } from "./router/index.tsx";
-import { I18nextProvider } from "react-i18next";
-import i18n from "./i18n";
-import { SWRConfig } from "swr";
-import { AuthProvider } from "./contexts/AuthContext";
-import { CountersProvider } from "./contexts/CountersContext";
-import { RegionProvider } from "./contexts/RegionContext";
-import { SSRProvider } from "./contexts/SSRContext";
-import PageContentFallback from "./components/layout/PageContentFallback";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { swrConfig } from "./lib/swr-config";
-import { subscribeToRevalidate, revalidateCache } from "./lib/revalidate-cache";
-import type { SSRContext } from "./types/ssr";
-import FirstVisitRegionModal from "./components/FirstVisitRegionModal";
-import { CartToastProvider } from "./contexts/CartToastContext";
+import { Suspense, useEffect } from 'react';
+import { AppRoutes } from './router/index.tsx';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './i18n';
+import { SWRConfig } from 'swr';
+import { AuthProvider } from './contexts/AuthContext';
+import { CountersProvider } from './contexts/CountersContext';
+import { RegionProvider } from './contexts/RegionContext';
+import { SSRProvider } from './contexts/SSRContext';
+import PageContentFallback from './components/layout/PageContentFallback';
+import ErrorBoundary from './components/ErrorBoundary';
+import { swrConfig } from './lib/swr-config';
+import { subscribeToRevalidate, revalidateCache } from './lib/revalidate-cache';
+import type { SSRContext } from './types/ssr';
+import FirstVisitRegionModal from './components/FirstVisitRegionModal';
+import { CartToastProvider } from './contexts/CartToastContext';
 
 interface AppProps {
   ssrContext?: SSRContext;
@@ -30,7 +29,7 @@ function App({ ssrContext, Router, routerProps = {} }: AppProps = {}) {
 
   if (!Router) {
     // Fallback если Router не передан
-    throw new Error('Router component is required')
+    throw new Error('Router component is required');
   }
 
   const RouterComponent = Router;

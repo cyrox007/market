@@ -21,8 +21,12 @@ import {
   CATALOG_PRODUCTS_PER_PAGE,
 } from '../../lib/catalog-sort';
 import { normalizeListProduct } from '../../utils/cartProduct';
-import { getCategoryFragment, setCategoryFragmentFromCategory } from '../../lib/category-fragment-cache';
+import {
+  getCategoryFragment,
+  setCategoryFragmentFromCategory,
+} from '../../lib/category-fragment-cache';
 import type { Category, Product, FiltersMeta } from '../../lib/api';
+import { ChevronRight, ListFilter, X } from 'lucide-react';
 
 export default function CatalogCategory() {
   const { category: categorySlug } = useParams<{ category: string }>();
@@ -45,10 +49,20 @@ export default function CatalogCategory() {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { region } = useRegion();
-  const { cart, addProductToCart, changeProductQuantity, isLoading: isCartLoading } = useCartActions();
+  const {
+    cart,
+    addProductToCart,
+    changeProductQuantity,
+    isLoading: isCartLoading,
+  } = useCartActions();
 
   // Используем централизованный хук для wishlist и compare
-  const { wishlistProductIds: favorites, compareProductIds: compareList, mutateWishlist, mutateCompare } = useWishlistAndCompare();
+  const {
+    wishlistProductIds: favorites,
+    compareProductIds: compareList,
+    mutateWishlist,
+    mutateCompare,
+  } = useWishlistAndCompare();
   const prefetchCategory = usePrefetchCategory();
   const prefetchProduct = usePrefetchProduct();
 
@@ -67,7 +81,11 @@ export default function CatalogCategory() {
   }, [initialCategory, categorySlug]);
 
   // Используем SWR для загрузки категории (keepPreviousData: показываем предыдущую категорию при смене, пока грузится новая)
-  const { data: categoryData, error: categoryError, isLoading: isLoadingCategory } = useSWR(
+  const {
+    data: categoryData,
+    error: categoryError,
+    isLoading: isLoadingCategory,
+  } = useSWR(
     categorySlug && (!initialCategory || initialCategory.slug !== categorySlug)
       ? `/api/categories/${categorySlug}`
       : null,
@@ -76,7 +94,7 @@ export default function CatalogCategory() {
       fallbackData: initialCategory ? { category: initialCategory } : undefined,
       revalidateOnMount: !initialCategory,
       keepPreviousData: true,
-    }
+    },
   );
 
   useEffect(() => {
@@ -180,34 +198,55 @@ export default function CatalogCategory() {
     initialCategory?.slug === categorySlug &&
     productsParams &&
     !hasNonDefaultFilters &&
-    isSameRegionAsSSR
+    isSameRegionAsSSR,
   );
 
-  const firstPageKey = baseRequestOptions && categorySlug
-    ? getCategoryProductsKey(categorySlug, { ...baseRequestOptions, page: 1 })
-    : null;
+  const firstPageKey =
+    baseRequestOptions && categorySlug
+      ? getCategoryProductsKey(categorySlug, { ...baseRequestOptions, page: 1 })
+      : null;
 
   const infiniteFallbackData = useMemo(() => {
     if (!shouldUseSSRProducts || !initialProducts || !firstPageKey) return undefined;
-    return [{
-      data: initialProducts.data || [],
-      current_page: initialProducts.meta?.current_page ?? 1,
-      last_page: initialProducts.meta?.last_page ?? 1,
-      per_page: initialProducts.meta?.per_page ?? 20,
-      total: initialProducts.meta?.total ?? 0,
-      meta: initialProducts.meta,
-    }];
+    return [
+      {
+        data: initialProducts.data || [],
+        current_page: initialProducts.meta?.current_page ?? 1,
+        last_page: initialProducts.meta?.last_page ?? 1,
+        per_page: initialProducts.meta?.per_page ?? 20,
+        total: initialProducts.meta?.total ?? 0,
+        meta: initialProducts.meta,
+      },
+    ];
   }, [shouldUseSSRProducts, initialProducts, firstPageKey]);
 
-  const isLastPage = (page: { current_page?: number; last_page?: number; meta?: { current_page?: number; last_page?: number } } | null) => {
+  const isLastPage = (
+    page: {
+      current_page?: number;
+      last_page?: number;
+      meta?: { current_page?: number; last_page?: number };
+    } | null,
+  ) => {
     if (!page) return false;
     const current = page.current_page ?? page.meta?.current_page;
     const last = page.last_page ?? page.meta?.last_page;
     return current != null && last != null && current >= last;
   };
 
-  const { data: pagesData, setSize, isLoading: isLoadingInfinite, isValidating } = useSWRInfinite(
-    (pageIndex: number, previousPageData: { current_page?: number; last_page?: number; meta?: { current_page?: number; last_page?: number } } | null) => {
+  const {
+    data: pagesData,
+    setSize,
+    isLoading: isLoadingInfinite,
+    isValidating,
+  } = useSWRInfinite(
+    (
+      pageIndex: number,
+      previousPageData: {
+        current_page?: number;
+        last_page?: number;
+        meta?: { current_page?: number; last_page?: number };
+      } | null,
+    ) => {
       if (!firstPageKey || !baseRequestOptions) return null;
       if (isLastPage(previousPageData)) return null;
       return getCategoryProductsKey(categorySlug!, { ...baseRequestOptions, page: pageIndex + 1 });
@@ -223,7 +262,7 @@ export default function CatalogCategory() {
       revalidateOnFocus: false,
       dedupingInterval: 10_000,
       fallbackData: infiniteFallbackData,
-    }
+    },
   );
 
   const previousPagesDataRef = useRef<typeof pagesData>(undefined);
@@ -235,9 +274,8 @@ export default function CatalogCategory() {
       previousPagesDataRef.current = pagesData;
     }
   }
-  const displayPagesData = (pagesData != null && pagesData.length > 0)
-    ? pagesData
-    : previousPagesDataRef.current;
+  const displayPagesData =
+    pagesData != null && pagesData.length > 0 ? pagesData : previousPagesDataRef.current;
 
   const productsDataFirstPage = displayPagesData?.[0];
   const products = useMemo(() => {
@@ -248,14 +286,18 @@ export default function CatalogCategory() {
       .map((p) => normalizeListProduct(p));
   }, [displayPagesData]);
 
-  const total = productsDataFirstPage != null
-    ? (productsDataFirstPage.total ?? (productsDataFirstPage as { meta?: { total?: number } }).meta?.total ?? 0)
-    : 0;
+  const total =
+    productsDataFirstPage != null
+      ? (productsDataFirstPage.total ??
+        (productsDataFirstPage as { meta?: { total?: number } }).meta?.total ??
+        0)
+      : 0;
   const getLastPage = (page: unknown) => {
     const p = page as { last_page?: number; meta?: { last_page?: number } } | undefined;
     return p?.last_page ?? p?.meta?.last_page ?? 1;
   };
-  const hasMore = pagesData != null && pagesData.length > 0 && pagesData.length < getLastPage(pagesData[0]);
+  const hasMore =
+    pagesData != null && pagesData.length > 0 && pagesData.length < getLastPage(pagesData[0]);
   const isLoadingProducts = isLoadingInfinite && pagesData == null;
   const isLoadingMore = isValidating && (pagesData?.length ?? 0) > 0;
 
@@ -285,8 +327,10 @@ export default function CatalogCategory() {
 
   useEffect(() => {
     if (!productsParams) return;
-    if (productsParams.price_min !== undefined) setPriceRange(prev => [productsParams.price_min!, prev[1]]);
-    if (productsParams.price_max !== undefined) setPriceRange(prev => [prev[0], productsParams.price_max!]);
+    if (productsParams.price_min !== undefined)
+      setPriceRange((prev) => [productsParams.price_min!, prev[1]]);
+    if (productsParams.price_max !== undefined)
+      setPriceRange((prev) => [prev[0], productsParams.price_max!]);
     setSelectedColors(productsParams.colors);
     setSelectedSizes(productsParams.sizes);
     setSelectedAttributes(productsParams.attributes);
@@ -308,7 +352,7 @@ export default function CatalogCategory() {
       (entries) => {
         if (entries[0]?.isIntersecting) loadMoreCbRef.current();
       },
-      { rootMargin: '200px', threshold: 0.1 }
+      { rootMargin: '200px', threshold: 0.1 },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -471,7 +515,7 @@ export default function CatalogCategory() {
       // Обновляем кэш SWR через mutate
       await mutateCompare();
       // Небольшая задержка, чтобы дать время API обновиться
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await refreshCompareCount();
     } catch (error: any) {
       console.error('Failed to toggle compare:', error);
@@ -481,9 +525,12 @@ export default function CatalogCategory() {
     }
   };
 
-
   // Показываем «Категория не найдена» только когда загрузка категории завершена и категория не найдена (404 или пустой ответ)
-  const categoryNotFound = categorySlug && !isLoadingCategory && !category && (categoryError != null || (categoryData != null && !categoryData.category));
+  const categoryNotFound =
+    categorySlug &&
+    !isLoadingCategory &&
+    !category &&
+    (categoryError != null || (categoryData != null && !categoryData.category));
 
   if (categoryNotFound) {
     return (
@@ -497,16 +544,19 @@ export default function CatalogCategory() {
 
   return (
     <div className="min-h-screen bg-white">
-
       <div className="max-w-[1280px] mx-auto px-4 py-4 md:py-6">
         <div className="flex items-start justify-between gap-6 mb-4 md:mb-6">
           <div className="flex-1">
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-sm mb-2">
-              <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-              <i className="ri-arrow-right-s-line text-gray-400"></i>
-              <Link to="/catalog" className="text-gray-600 hover:text-red-600">Каталог</Link>
-              <i className="ri-arrow-right-s-line text-gray-400"></i>
+              <Link to="/" className="text-gray-600 hover:text-red-600">
+                Главная
+              </Link>
+              <ChevronRight className="size-[1em] text-gray-400" />
+              <Link to="/catalog" className="text-gray-600 hover:text-red-600">
+                Каталог
+              </Link>
+              <ChevronRight className="size-[1em] text-gray-400" />
               <span className="text-gray-900">{displayName}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold">{displayName}</h1>
@@ -535,21 +585,23 @@ export default function CatalogCategory() {
           onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
           className="lg:hidden w-full mb-4 bg-red-600 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 whitespace-nowrap"
         >
-          <i className="ri-filter-3-line"></i>
+          <ListFilter className="size-[1em]" />
           Фильтры
         </button>
 
         {/* Filters and Products */}
         <div className="flex gap-6">
           {/* Sidebar Filters */}
-          <div className={`${isMobileFilterOpen ? 'fixed inset-0 z-50 bg-white overflow-y-auto' : 'hidden'} lg:block lg:w-52 lg:flex-shrink-0`}>
+          <div
+            className={`${isMobileFilterOpen ? 'fixed inset-0 z-50 bg-white overflow-y-auto' : 'hidden'} lg:block lg:w-52 lg:flex-shrink-0`}
+          >
             <div className="lg:hidden flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold text-lg">Фильтры</h3>
               <button
                 onClick={() => setIsMobileFilterOpen(false)}
                 className="w-8 h-8 flex items-center justify-center"
               >
-                <i className="ri-close-line text-2xl"></i>
+                <X className="size-[1em] text-2xl" />
               </button>
             </div>
 
@@ -648,7 +700,7 @@ export default function CatalogCategory() {
                                     : 'border-gray-300 hover:border-red-600'
                               }`}
                               style={{ backgroundColor: color.code || '#f5f5f5' }}
-                              title={disabled ? 'Нет товаров' : (color.name || '')}
+                              title={disabled ? 'Нет товаров' : color.name || ''}
                             />
                           );
                         })}
@@ -687,31 +739,35 @@ export default function CatalogCategory() {
                   )}
 
                   {/* Attributes — все опции категории, недоступные (count === 0) серыми */}
-                  {filtersMetaDisplay?.attributes && filtersMetaDisplay.attributes.length > 0 && filtersMetaDisplay.attributes.map((attr) => (
-                    <div className="mb-5" key={attr.slug}>
-                      <label className="block text-sm font-medium mb-2">{attr.name}</label>
-                      <div className="space-y-2">
-                        {attr.values.map((val) => {
-                          const disabled = val.count !== undefined && val.count === 0;
-                          return (
-                            <label
-                              key={`${attr.slug}-${val.slug}`}
-                              className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={(selectedAttributes[attr.slug] || []).includes(val.slug)}
-                                onChange={() => !disabled && handleAttributeToggle(attr.slug, val.slug)}
-                                disabled={disabled}
-                                className="w-4 h-4 text-red-600 rounded disabled:opacity-50"
-                              />
-                              <span className="text-sm text-gray-700">{val.name}</span>
-                            </label>
-                          );
-                        })}
+                  {filtersMetaDisplay?.attributes &&
+                    filtersMetaDisplay.attributes.length > 0 &&
+                    filtersMetaDisplay.attributes.map((attr) => (
+                      <div className="mb-5" key={attr.slug}>
+                        <label className="block text-sm font-medium mb-2">{attr.name}</label>
+                        <div className="space-y-2">
+                          {attr.values.map((val) => {
+                            const disabled = val.count !== undefined && val.count === 0;
+                            return (
+                              <label
+                                key={`${attr.slug}-${val.slug}`}
+                                className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={(selectedAttributes[attr.slug] || []).includes(val.slug)}
+                                  onChange={() =>
+                                    !disabled && handleAttributeToggle(attr.slug, val.slug)
+                                  }
+                                  disabled={disabled}
+                                  className="w-4 h-4 text-red-600 rounded disabled:opacity-50"
+                                />
+                                <span className="text-sm text-gray-700">{val.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
 
                   {/* Сброс фильтров */}
                   <button
@@ -759,7 +815,10 @@ export default function CatalogCategory() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5" data-product-shop>
+                <div
+                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5"
+                  data-product-shop
+                >
                   {products.map((product, index) => (
                     <ProductCard
                       key={product.id}
@@ -802,7 +861,6 @@ export default function CatalogCategory() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }

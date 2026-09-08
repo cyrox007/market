@@ -9,5 +9,12 @@ import { applySeoMeta } from '../utils/seo';
 export function usePageSeo(seo: SeoMeta | null | undefined): void {
   useEffect(() => {
     applySeoMeta(seo);
-  }, [seo?.title, seo?.description, seo?.image, seo?.canonical_url, seo?.robots, seo?.open_graph_title]);
+  }, [
+    seo?.title,
+    seo?.description,
+    seo?.image,
+    seo?.canonical_url,
+    seo?.robots,
+    seo?.open_graph_title,
+  ]);
 }

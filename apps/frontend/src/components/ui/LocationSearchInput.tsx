@@ -36,23 +36,28 @@ export default function LocationSearchInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const searchLocations = useCallback(async (searchQuery: string) => {
-    const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults(safeInitialLocations.slice(0, INITIAL_LIST_LIMIT));
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const response = await api.shipping.getLocations({ type: 'locality', search: q }) as { data?: ShippingLocation[] };
-      setSearchResults(Array.isArray(response?.data) ? response.data : []);
-    } catch (err) {
-      console.error('Location search failed:', err);
-      setSearchResults([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [safeInitialLocations]);
+  const searchLocations = useCallback(
+    async (searchQuery: string) => {
+      const q = searchQuery.trim();
+      if (!q) {
+        setSearchResults(safeInitialLocations.slice(0, INITIAL_LIST_LIMIT));
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const response = (await api.shipping.getLocations({ type: 'locality', search: q })) as {
+          data?: ShippingLocation[];
+        };
+        setSearchResults(Array.isArray(response?.data) ? response.data : []);
+      } catch (err) {
+        console.error('Location search failed:', err);
+        setSearchResults([]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [safeInitialLocations],
+  );
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -66,15 +71,20 @@ export default function LocationSearchInput({
     };
   }, [query, isOpen, searchLocations]);
 
-  const displayList = query.trim() ? searchResults : safeInitialLocations.slice(0, INITIAL_LIST_LIMIT);
+  const displayList = query.trim()
+    ? searchResults
+    : safeInitialLocations.slice(0, INITIAL_LIST_LIMIT);
   const showDropdown = isOpen && (displayList.length > 0 || isLoading);
 
-  const handleSelect = useCallback((loc: ShippingLocation) => {
-    onChange(loc);
-    setQuery('');
-    setIsOpen(false);
-    setHighlightIndex(-1);
-  }, [onChange]);
+  const handleSelect = useCallback(
+    (loc: ShippingLocation) => {
+      onChange(loc);
+      setQuery('');
+      setIsOpen(false);
+      setHighlightIndex(-1);
+    },
+    [onChange],
+  );
 
   const handleFocus = useCallback(() => {
     setIsOpen(true);
@@ -102,28 +112,31 @@ export default function LocationSearchInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!showDropdown) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightIndex((i) => (i < displayList.length - 1 ? i + 1 : 0));
-      return;
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightIndex((i) => (i > 0 ? i - 1 : displayList.length - 1));
-      return;
-    }
-    if (e.key === 'Enter' && highlightIndex >= 0 && displayList[highlightIndex]) {
-      e.preventDefault();
-      handleSelect(displayList[highlightIndex]);
-      return;
-    }
-    if (e.key === 'Escape') {
-      setIsOpen(false);
-      setHighlightIndex(-1);
-    }
-  }, [showDropdown, displayList, highlightIndex, handleSelect]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!showDropdown) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightIndex((i) => (i < displayList.length - 1 ? i + 1 : 0));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightIndex((i) => (i > 0 ? i - 1 : displayList.length - 1));
+        return;
+      }
+      if (e.key === 'Enter' && highlightIndex >= 0 && displayList[highlightIndex]) {
+        e.preventDefault();
+        handleSelect(displayList[highlightIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+        setHighlightIndex(-1);
+      }
+    },
+    [showDropdown, displayList, highlightIndex, handleSelect],
+  );
 
   const isShowingSelection = value != null && selectedDisplayName && !isOpen;
 
@@ -155,8 +168,19 @@ export default function LocationSearchInput({
           {isLoading ? (
             <span className="animate-pulse">...</span>
           ) : (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           )}
         </span>

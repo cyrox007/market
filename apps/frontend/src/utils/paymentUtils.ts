@@ -1,15 +1,10 @@
 /** Способы оплаты с онлайн-эквайрингом (редирект на форму банка) */
-export const ONLINE_CARD_PAYMENT_METHODS = [
-  'card_in_store',
-  'card_ecom',
-  'card_sberbank',
-] as const;
+export const ONLINE_CARD_PAYMENT_METHODS = ['card_in_store', 'card_ecom', 'card_sberbank'] as const;
 
 export type OnlineCardPaymentMethod = (typeof ONLINE_CARD_PAYMENT_METHODS)[number];
 
 export type GatewayClientConfig =
-  | { publicId: string; url: string; useSdk?: boolean }
-  | { payformUrl: string; useEcomApi?: true };
+  { publicId: string; url: string; useSdk?: boolean } | { payformUrl: string; useEcomApi?: true };
 
 /** Имя целевого окна — повторное открытие переиспользует ту же вкладку оплаты */
 const PAYMENT_TAB_TARGET = 'mebelvdar_payment';
@@ -37,10 +32,7 @@ const PAYMENT_TAB_LOADING_HTML = `<!DOCTYPE html>
 export function isOnlineCardPaymentMethod(
   code: string | undefined | null,
 ): code is OnlineCardPaymentMethod {
-  return (
-    code != null &&
-    (ONLINE_CARD_PAYMENT_METHODS as readonly string[]).includes(code)
-  );
+  return code != null && (ONLINE_CARD_PAYMENT_METHODS as readonly string[]).includes(code);
 }
 
 export function buildPaymentUrl(

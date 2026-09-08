@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Check, CircleCheck, Mail } from 'lucide-react';
 
 interface AccountCreatedModalProps {
   isOpen: boolean;
@@ -7,7 +8,11 @@ interface AccountCreatedModalProps {
   orderId?: number;
 }
 
-export default function AccountCreatedModal({ isOpen, onClose, orderId }: AccountCreatedModalProps) {
+export default function AccountCreatedModal({
+  isOpen,
+  onClose,
+  orderId,
+}: AccountCreatedModalProps) {
   const navigate = useNavigate();
 
   // Блокируем скролл при открытии модалки
@@ -76,21 +81,17 @@ export default function AccountCreatedModal({ isOpen, onClose, orderId }: Accoun
           {/* Header */}
           <div className="text-center mb-6">
             <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-              <i className="ri-checkbox-circle-line text-4xl text-green-600"></i>
+              <CircleCheck className="size-[1em] text-4xl text-green-600" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
-              Аккаунт активирован!
-            </h3>
-            <p className="text-gray-600">
-              Для вас автоматически создан личный кабинет
-            </p>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Аккаунт активирован!</h3>
+            <p className="text-gray-600">Для вас автоматически создан личный кабинет</p>
           </div>
 
           {/* Content */}
           <div className="mb-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <div className="flex items-start">
-                <i className="ri-mail-line text-blue-600 text-xl mr-3 mt-0.5"></i>
+                <Mail className="size-[1em] text-blue-600 text-xl mr-3 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-blue-900 font-medium mb-1">
                     Данные для входа отправлены на email
@@ -104,15 +105,15 @@ export default function AccountCreatedModal({ isOpen, onClose, orderId }: Accoun
 
             <div className="space-y-3 text-sm text-gray-600">
               <div className="flex items-center">
-                <i className="ri-check-line text-green-600 mr-2"></i>
+                <Check className="size-[1em] text-green-600 mr-2" />
                 <span>Заказ успешно оформлен</span>
               </div>
               <div className="flex items-center">
-                <i className="ri-check-line text-green-600 mr-2"></i>
+                <Check className="size-[1em] text-green-600 mr-2" />
                 <span>Личный кабинет готов к использованию</span>
               </div>
               <div className="flex items-center">
-                <i className="ri-check-line text-green-600 mr-2"></i>
+                <Check className="size-[1em] text-green-600 mr-2" />
                 <span>Вы можете отслеживать заказы в личном кабинете</span>
               </div>
             </div>

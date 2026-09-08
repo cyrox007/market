@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { getSliders } from '../../../lib/api-server';
 import { useSSR } from '../../../contexts/SSRContext';
 import type { Slider } from '../../../lib/api';
+import { ArrowRight, Zap } from 'lucide-react';
+import Icon from '../../../components/ui/icons/Icon';
 
 export default function Hero() {
   const ssrData = useSSR();
   const initialSliders = ssrData?.home?.sliders || [];
-  const initialSlider = initialSliders.length > 0 ? (initialSliders.find((s) => s) || initialSliders[0] || null) : null;
+  const initialSlider =
+    initialSliders.length > 0 ? initialSliders.find((s) => s) || initialSliders[0] || null : null;
 
   const [slider, setSlider] = useState<Slider | null>(initialSlider);
   const [isLoading, setIsLoading] = useState(!initialSlider);
@@ -49,7 +52,8 @@ export default function Hero() {
   const displaySlider: Slider = slider || {
     id: 0,
     title: 'Светофор мебель',
-    description: 'Преобразите ваше жилое пространство с нашей коллекцией современной и стильной мебели',
+    description:
+      'Преобразите ваше жилое пространство с нашей коллекцией современной и стильной мебели',
     link: '/catalog',
     button_text: 'Перейти в каталог',
     badge_text: null,
@@ -65,10 +69,11 @@ export default function Hero() {
   };
 
   const badgeText = displaySlider.badge_text ?? 'Помощь онлайн';
-  const badgeIcon = displaySlider.badge_icon ?? 'ri-flashlight-fill';
+  const badgeIcon = displaySlider.badge_icon ?? Zap;
   const showBadge = badgeText.length > 0;
 
-  const imageUrl = displaySlider.image_hd || displaySlider.image || displaySlider.image_fullhd || '';
+  const imageUrl =
+    displaySlider.image_hd || displaySlider.image || displaySlider.image_fullhd || '';
 
   return (
     <section className="px-6 lg:px-12 pt-6">
@@ -84,9 +89,7 @@ export default function Hero() {
         )}
 
         {/* Loading Overlay */}
-        {isLoading && (
-          <div className="absolute inset-0 bg-gray-200 animate-pulse" />
-        )}
+        {isLoading && <div className="absolute inset-0 bg-gray-200 animate-pulse" />}
 
         {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent"></div>
@@ -96,20 +99,21 @@ export default function Hero() {
           <div className="w-full max-w-7xl mx-auto px-8 lg:px-12">
             <div className="max-w-xl">
               {/* Badge */}
-              {showBadge && (displaySlider.badge_link ? (
-                <a
-                  href={displaySlider.badge_link}
-                  className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full mb-6 hover:bg-yellow-300 transition-colors"
-                >
-                  <i className={badgeIcon}></i>
-                  <span className="font-semibold text-sm whitespace-nowrap">{badgeText}</span>
-                </a>
-              ) : (
-                <div className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full mb-6">
-                  <i className={badgeIcon}></i>
-                  <span className="font-semibold text-sm whitespace-nowrap">{badgeText}</span>
-                </div>
-              ))}
+              {showBadge &&
+                (displaySlider.badge_link ? (
+                  <a
+                    href={displaySlider.badge_link}
+                    className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full mb-6 hover:bg-yellow-300 transition-colors"
+                  >
+                    <Icon name={badgeIcon} className="size-[1em]" />
+                    <span className="font-semibold text-sm whitespace-nowrap">{badgeText}</span>
+                  </a>
+                ) : (
+                  <div className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full mb-6">
+                    <Icon name={badgeIcon} className="size-[1em]" />
+                    <span className="font-semibold text-sm whitespace-nowrap">{badgeText}</span>
+                  </div>
+                ))}
 
               {/* Title */}
               <h1 className="text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
@@ -131,7 +135,7 @@ export default function Hero() {
                   className="inline-flex items-center gap-3 bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-all cursor-pointer whitespace-nowrap"
                 >
                   <span>{displaySlider.button_text || 'Перейти в каталог'}</span>
-                  <i className="ri-arrow-right-line text-xl"></i>
+                  <ArrowRight className="size-[1em] text-xl" />
                 </a>
               )}
             </div>

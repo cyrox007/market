@@ -1,8 +1,7 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/hooks/useRegion';
 import LocationModal from './LocationModal';
+import { MapPin } from 'lucide-react';
 
 export default function FirstVisitRegionModal() {
   const { region } = useRegion();
@@ -62,7 +61,7 @@ export default function FirstVisitRegionModal() {
         }, 300);
       }
     };
-    
+
     window.addEventListener('region-changed', handleRegionChange);
     return () => {
       window.removeEventListener('region-changed', handleRegionChange);
@@ -84,12 +83,10 @@ export default function FirstVisitRegionModal() {
           <div className="relative z-50 bg-white rounded-2xl shadow-lg max-w-sm w-full p-5">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 text-red-600">
-                <i className="ri-map-pin-line text-2xl" />
+                <MapPin className="size-[1em] text-2xl" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-gray-900">
-                  Мы определили ваш регион
-                </h3>
+                <h3 className="text-base font-semibold text-gray-900">Мы определили ваш регион</h3>
                 <p className="mt-1 text-sm text-gray-600">
                   <span className="font-medium text-gray-900">{region.name}</span>
                 </p>
@@ -119,11 +116,7 @@ export default function FirstVisitRegionModal() {
       )}
 
       {/* Полноценная модалка выбора региона для первого визита */}
-      <LocationModal
-        isOpen={isLocationModalOpen}
-        onClose={handleClose}
-        isFirstVisit={true}
-      />
+      <LocationModal isOpen={isLocationModalOpen} onClose={handleClose} isFirstVisit={true} />
     </>
   );
 }

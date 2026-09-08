@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../lib/api';
 import Toast from '../../../components/ui/Toast';
+import { CircleCheck, LoaderCircle, Mail, Send, TriangleAlert } from 'lucide-react';
 
 export default function Newsletter() {
   const [email, setEmail] = useState('');
@@ -51,23 +52,24 @@ export default function Newsletter() {
       const response = await api.newsletter.subscribe(email.trim());
       setIsSuccess(true);
       setEmail('');
-      setToast({ 
-        type: 'success', 
-        message: response.message || 'Вы успешно подписались на рассылку!' 
+      setToast({
+        type: 'success',
+        message: response.message || 'Вы успешно подписались на рассылку!',
       });
-      
+
       // Сброс состояния успеха через 3 секунды
       setTimeout(() => {
         setIsSuccess(false);
       }, 3000);
     } catch (error: any) {
-      const errorMessage = error?.data?.message || 
-                          error?.data?.errors?.email?.[0] || 
-                          'Произошла ошибка. Попробуйте еще раз.';
+      const errorMessage =
+        error?.data?.message ||
+        error?.data?.errors?.email?.[0] ||
+        'Произошла ошибка. Попробуйте еще раз.';
       setEmailError(errorMessage);
-      setToast({ 
-        type: 'error', 
-        message: errorMessage 
+      setToast({
+        type: 'error',
+        message: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -92,35 +94,40 @@ export default function Newsletter() {
             <div className="relative z-10">
               {/* Иконка */}
               <div className="mb-6 flex justify-center">
-                <div className={`w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-500 ${
-                  isSuccess ? 'scale-110 rotate-360' : ''
-                }`}>
-                  <i className={`text-3xl text-white ${
-                    isSuccess ? 'ri-checkbox-circle-fill' : 'ri-mail-send-line'
-                  }`}></i>
+                <div
+                  className={`w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-500 ${
+                    isSuccess ? 'scale-110 rotate-360' : ''
+                  }`}
+                >
+                  {isSuccess ? (
+                    <CircleCheck className="size-[1em] text-3xl text-white" />
+                  ) : (
+                    <Mail className="size-[1em] text-3xl text-white" />
+                  )}
                 </div>
               </div>
 
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
                 {isSuccess ? 'Спасибо за подписку!' : 'Подпишитесь на рассылку'}
               </h2>
-              
+
               <p className="text-white/90 text-lg mb-8 max-w-2xl mx-auto">
-                {isSuccess 
+                {isSuccess
                   ? 'Мы отправим вам эксклюзивные предложения и новости на указанный email'
-                  : 'Получайте эксклюзивные предложения, новости о новинках и советы по дизайну интерьера'
-                }
+                  : 'Получайте эксклюзивные предложения, новости о новинках и советы по дизайну интерьера'}
               </p>
-              
+
               {!isSuccess && (
                 <form onSubmit={handleSubmit} className="max-w-md mx-auto">
                   <div className="space-y-3">
                     <div className="relative">
-                      <div className={`flex gap-3 transition-all duration-300 ${
-                        isFocused ? 'scale-[1.02]' : ''
-                      }`}>
+                      <div
+                        className={`flex gap-3 transition-all duration-300 ${
+                          isFocused ? 'scale-[1.02]' : ''
+                        }`}
+                      >
                         <div className="flex-1 relative">
-                          <i className="ri-mail-line absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 text-lg pointer-events-none"></i>
+                          <Mail className="size-[1em] absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 text-lg pointer-events-none" />
                           <input
                             type="email"
                             placeholder="Ваш email"
@@ -144,23 +151,23 @@ export default function Newsletter() {
                         >
                           {isLoading ? (
                             <>
-                              <i className="ri-loader-4-line animate-spin text-lg"></i>
+                              <LoaderCircle className="size-[1em] animate-spin text-lg" />
                               <span className="hidden md:inline">Отправка...</span>
                             </>
                           ) : (
                             <>
-                              <i className="ri-send-plane-fill text-lg"></i>
+                              <Send className="size-[1em] text-lg" fill="currentColor" />
                               <span>Подписаться</span>
                             </>
                           )}
                         </button>
                       </div>
-                      
+
                       {/* Сообщение об ошибке */}
                       {emailError && (
                         <div className="mt-2 text-left pl-5 animate-[slideDown_0.2s_ease-out]">
                           <div className="flex items-center gap-2 text-red-100 text-sm">
-                            <i className="ri-error-warning-line"></i>
+                            <TriangleAlert className="size-[1em]" />
                             <span>{emailError}</span>
                           </div>
                         </div>
@@ -174,7 +181,7 @@ export default function Newsletter() {
                 <div className="max-w-md mx-auto animate-[fadeInUp_0.5s_ease-out]">
                   <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 border border-white/30">
                     <div className="flex items-center justify-center gap-3 text-white">
-                      <i className="ri-checkbox-circle-fill text-3xl"></i>
+                      <CircleCheck className="size-[1em] text-3xl" />
                       <p className="text-lg font-medium">Подписка оформлена!</p>
                     </div>
                   </div>

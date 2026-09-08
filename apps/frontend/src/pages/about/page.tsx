@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { api, type AboutPage } from '../../lib/api';
+import Icon from '../../components/ui/icons/Icon';
+import { ChevronRight, Star, User } from 'lucide-react';
 
 export default function About() {
   const [aboutData, setAboutData] = useState<AboutPage | null>(null);
@@ -68,7 +70,6 @@ export default function About() {
 
   return (
     <div className="min-h-screen bg-white">
-
       {/* Hero */}
       <div className="relative h-[500px] overflow-hidden">
         {aboutData.hero_image ? (
@@ -82,11 +83,11 @@ export default function About() {
         )}
         <div className="absolute inset-0 bg-gradient-to-r from-red-600/90 to-yellow-500/90 flex items-center">
           <div className="max-w-7xl mx-auto px-4 text-white">
-            <h1 className="text-5xl font-bold mb-4">{aboutData.hero_title || 'О компании Светофор Мебели'}</h1>
+            <h1 className="text-5xl font-bold mb-4">
+              {aboutData.hero_title || 'О компании Светофор Мебели'}
+            </h1>
             {aboutData.hero_description && (
-              <p className="text-xl opacity-90 max-w-2xl">
-                {aboutData.hero_description}
-              </p>
+              <p className="text-xl opacity-90 max-w-2xl">{aboutData.hero_description}</p>
             )}
           </div>
         </div>
@@ -95,8 +96,10 @@ export default function About() {
       <div className="max-w-7xl mx-auto px-4 py-16">
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-xs sm:text-sm mb-6">
-          <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-          <i className="ri-arrow-right-s-line text-gray-400"></i>
+          <Link to="/" className="text-gray-600 hover:text-red-600">
+            Главная
+          </Link>
+          <ChevronRight className="size-[1em] text-gray-400" />
           <span className="text-gray-900">О нас</span>
         </div>
 
@@ -135,25 +138,33 @@ export default function About() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
             {statistics.years && (
               <div className="bg-red-50 rounded-2xl p-8 text-center">
-                <div className="text-4xl font-bold text-red-600 mb-2">{formatNumber(statistics.years)}</div>
+                <div className="text-4xl font-bold text-red-600 mb-2">
+                  {formatNumber(statistics.years)}
+                </div>
                 <p className="text-gray-700">лет на рынке</p>
               </div>
             )}
             {statistics.stores && (
               <div className="bg-yellow-50 rounded-2xl p-8 text-center">
-                <div className="text-4xl font-bold text-yellow-600 mb-2">{formatNumber(statistics.stores)}</div>
+                <div className="text-4xl font-bold text-yellow-600 mb-2">
+                  {formatNumber(statistics.stores)}
+                </div>
                 <p className="text-gray-700">магазинов</p>
               </div>
             )}
             {statistics.clients && (
               <div className="bg-green-50 rounded-2xl p-8 text-center">
-                <div className="text-4xl font-bold text-green-600 mb-2">{formatNumber(statistics.clients)}</div>
+                <div className="text-4xl font-bold text-green-600 mb-2">
+                  {formatNumber(statistics.clients)}
+                </div>
                 <p className="text-gray-700">довольных клиентов</p>
               </div>
             )}
             {statistics.products && (
               <div className="bg-red-50 rounded-2xl p-8 text-center">
-                <div className="text-4xl font-bold text-red-600 mb-2">{formatNumber(statistics.products)}</div>
+                <div className="text-4xl font-bold text-red-600 mb-2">
+                  {formatNumber(statistics.products)}
+                </div>
                 <p className="text-gray-700">товаров в каталоге</p>
               </div>
             )}
@@ -170,20 +181,33 @@ export default function About() {
                 const getColorClasses = (color: string) => {
                   const colorMap: Record<string, { border: string; bg: string; text: string }> = {
                     red: { border: 'border-red-600', bg: 'bg-red-600', text: 'text-red-600' },
-                    yellow: { border: 'border-yellow-600', bg: 'bg-yellow-600', text: 'text-yellow-600' },
-                    green: { border: 'border-green-600', bg: 'bg-green-600', text: 'text-green-600' },
+                    yellow: {
+                      border: 'border-yellow-600',
+                      bg: 'bg-yellow-600',
+                      text: 'text-yellow-600',
+                    },
+                    green: {
+                      border: 'border-green-600',
+                      bg: 'bg-green-600',
+                      text: 'text-green-600',
+                    },
                     blue: { border: 'border-blue-600', bg: 'bg-blue-600', text: 'text-blue-600' },
                   };
                   return colorMap[color] || colorMap.red;
                 };
                 const colors = getColorClasses(colorClass);
                 return (
-                  <div key={advantage.id} className={`bg-white border-2 ${colors.border} rounded-2xl p-8`}>
-                    <div className={`w-16 h-16 ${colors.bg} rounded-full flex items-center justify-center mb-6`}>
+                  <div
+                    key={advantage.id}
+                    className={`bg-white border-2 ${colors.border} rounded-2xl p-8`}
+                  >
+                    <div
+                      className={`w-16 h-16 ${colors.bg} rounded-full flex items-center justify-center mb-6`}
+                    >
                       {advantage.icon ? (
-                        <i className={`${advantage.icon} text-3xl text-white`}></i>
+                        <Icon name={advantage.icon} className="size-[1em] text-3xl text-white" />
                       ) : (
-                        <i className="ri-star-line text-3xl text-white"></i>
+                        <Star className="size-[1em] text-3xl text-white" />
                       )}
                     </div>
                     <h3 className={`text-2xl font-bold mb-4 ${colors.text}`}>{advantage.title}</h3>
@@ -213,7 +237,7 @@ export default function About() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <i className="ri-user-line text-6xl"></i>
+                        <User className="size-[1em] text-6xl" />
                       </div>
                     )}
                   </div>
@@ -225,7 +249,6 @@ export default function About() {
           </div>
         )}
 
-
         {/* CTA */}
         <div className="bg-gradient-to-r from-red-600 to-yellow-500 text-white rounded-2xl p-12 text-center">
           <h2 className="text-3xl font-bold mb-4">Станьте частью нашей истории</h2>
@@ -233,16 +256,21 @@ export default function About() {
             Посетите наши салоны и убедитесь в качестве нашей мебели
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link to="/stores" className="bg-white text-red-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition-colors whitespace-nowrap">
+            <Link
+              to="/stores"
+              className="bg-white text-red-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition-colors whitespace-nowrap"
+            >
               Наши магазины
             </Link>
-            <Link to="/catalog" className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-white/10 transition-colors whitespace-nowrap">
+            <Link
+              to="/catalog"
+              className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
               Каталог товаров
             </Link>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

@@ -38,10 +38,7 @@ function ProductBundleSection({
   const categoryChips = useMemo(() => collectBundleCategoryChips(products), [products]);
 
   useEffect(() => {
-    if (
-      selectedCategoryId !== null &&
-      !categoryChips.some((c) => c.id === selectedCategoryId)
-    ) {
+    if (selectedCategoryId !== null && !categoryChips.some((c) => c.id === selectedCategoryId)) {
       setSelectedCategoryId(null);
     }
   }, [categoryChips, selectedCategoryId]);
@@ -101,7 +98,10 @@ function ProductBundleSection({
       {filteredProducts.length === 0 ? (
         <p className="text-gray-500 text-center py-8">Нет товаров в выбранной категории</p>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5" data-product-shop>
+        <div
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5"
+          data-product-shop
+        >
           {filteredProducts.map((item, index) => (
             <ProductCard
               key={item.id}

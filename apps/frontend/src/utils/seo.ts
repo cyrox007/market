@@ -24,7 +24,11 @@ export function applySeoMeta(seo: SeoMeta | null | undefined): void {
   setMetaTag('property', 'og:title', seo.open_graph_title ?? seo.title ?? undefined);
   setMetaTag('property', 'og:description', seo.description ?? undefined);
   setMetaTag('property', 'og:image', seo.image ?? undefined);
-  setMetaTag('property', 'og:url', seo.canonical_url ?? (typeof window !== 'undefined' ? window.location.href : undefined));
+  setMetaTag(
+    'property',
+    'og:url',
+    seo.canonical_url ?? (typeof window !== 'undefined' ? window.location.href : undefined),
+  );
   setMetaTag('property', 'og:type', 'website');
 
   // canonical
@@ -41,11 +45,7 @@ export function applySeoMeta(seo: SeoMeta | null | undefined): void {
   }
 }
 
-function setMetaTag(
-  attr: 'name' | 'property',
-  key: string,
-  value: string | undefined
-): void {
+function setMetaTag(attr: 'name' | 'property', key: string, value: string | undefined): void {
   let el = document.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
   if (value) {
     if (!el) {

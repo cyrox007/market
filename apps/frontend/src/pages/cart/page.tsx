@@ -9,12 +9,27 @@ import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { api } from '../../lib/api';
 import type { Product } from '../../lib/api';
+import { ChevronRight, ImageIcon, Minus, Plus, ShoppingCart, X } from 'lucide-react';
 
 export default function Cart() {
-  const { cart, isLoading, error, updateQuantity, updateVariant, removeFromCart, reloadCart, addToCart } = useCart();
+  const {
+    cart,
+    isLoading,
+    error,
+    updateQuantity,
+    updateVariant,
+    removeFromCart,
+    reloadCart,
+    addToCart,
+  } = useCart();
   const { changeProductQuantity } = useCartActions();
   const { region } = useRegion();
-  const { wishlistProductIds: favorites, compareProductIds: compareList, mutateWishlist, mutateCompare } = useWishlistAndCompare();
+  const {
+    wishlistProductIds: favorites,
+    compareProductIds: compareList,
+    mutateWishlist,
+    mutateCompare,
+  } = useWishlistAndCompare();
 
   const promoApplied = false;
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
@@ -40,9 +55,9 @@ export default function Cart() {
   const handleVariantChange = async (
     itemId: number,
     quantity: number,
-    variationAttributes?: { attribute_slug: string; value_slug: string }[]
+    variationAttributes?: { attribute_slug: string; value_slug: string }[],
   ) => {
-    const cartItem = cart?.items.find(item => item.id === itemId);
+    const cartItem = cart?.items.find((item) => item.id === itemId);
     if (!cartItem) {
       console.error('Item not found in cart:', itemId);
       return;
@@ -54,7 +69,9 @@ export default function Cart() {
       await reloadCart();
     } catch (err: any) {
       console.error('Failed to update variant:', err);
-      await reloadCart().catch(reloadErr => console.error('Failed to reload cart after error:', reloadErr));
+      await reloadCart().catch((reloadErr) =>
+        console.error('Failed to reload cart after error:', reloadErr),
+      );
       throw err;
     } finally {
       setUpdatingItemId(null);
@@ -204,12 +221,13 @@ export default function Cart() {
 
   return (
     <div className="min-h-screen bg-white">
-
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-sm mb-2">
-          <Link to="/" className="text-gray-600 hover:text-red-600">Главная</Link>
-          <i className="ri-arrow-right-s-line text-gray-400"></i>
+          <Link to="/" className="text-gray-600 hover:text-red-600">
+            Главная
+          </Link>
+          <ChevronRight className="size-[1em] text-gray-400" />
           <span className="text-gray-900">Корзина</span>
         </div>
 
@@ -218,11 +236,14 @@ export default function Cart() {
         {cartItems.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="ri-shopping-cart-line text-6xl text-gray-400"></i>
+              <ShoppingCart className="size-[1em] text-6xl text-gray-400" />
             </div>
             <h2 className="text-2xl font-bold mb-4">Корзина пуста</h2>
             <p className="text-gray-600 mb-8">Добавьте товары из каталога</p>
-            <Link to="/catalog" className="inline-block bg-red-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-red-700 transition-colors whitespace-nowrap">
+            <Link
+              to="/catalog"
+              className="inline-block bg-red-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-red-700 transition-colors whitespace-nowrap"
+            >
               Перейти в каталог
             </Link>
           </div>
@@ -230,27 +251,37 @@ export default function Cart() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
-
               {cartItems.map((item) => (
                 <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-6">
                   <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
                     {item.slug ? (
-                      <ProductLink to={`/product/${item.slug}`} className="w-full sm:w-32 h-40 sm:h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 hover:opacity-90 transition-opacity block">
+                      <ProductLink
+                        to={`/product/${item.slug}`}
+                        className="w-full sm:w-32 h-40 sm:h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 hover:opacity-90 transition-opacity block"
+                      >
                         {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover object-top" />
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-full h-full object-cover object-top"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="ri-image-line text-3xl text-gray-400"></i>
+                            <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                           </div>
                         )}
                       </ProductLink>
                     ) : (
                       <div className="w-full sm:w-32 h-40 sm:h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover object-top" />
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-full h-full object-cover object-top"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="ri-image-line text-3xl text-gray-400"></i>
+                            <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                           </div>
                         )}
                       </div>
@@ -258,7 +289,10 @@ export default function Cart() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-2">
                         {item.slug ? (
-                          <ProductLink to={`/product/${item.slug}`} className="font-bold text-lg hover:text-red-600 transition-colors flex-1">
+                          <ProductLink
+                            to={`/product/${item.slug}`}
+                            className="font-bold text-lg hover:text-red-600 transition-colors flex-1"
+                          >
                             {item.name}
                           </ProductLink>
                         ) : (
@@ -269,7 +303,7 @@ export default function Cart() {
                           disabled={removingItemId === item.id}
                           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
                         >
-                          <i className="ri-close-line text-2xl"></i>
+                          <X className="size-[1em] text-2xl" />
                         </button>
                       </div>
                       {/* Отображение текущих вариаций и возможность их изменения */}
@@ -281,12 +315,8 @@ export default function Cart() {
                       />
                       {!item.is_variant && (item.color || item.size) && (
                         <div className="text-sm text-gray-600 mb-3">
-                          {item.color && (
-                            <p>Цвет: {item.color.name || item.color.slug}</p>
-                          )}
-                          {item.size && (
-                            <p>Размер: {item.size.name || item.size.slug}</p>
-                          )}
+                          {item.color && <p>Цвет: {item.color.name || item.color.slug}</p>}
+                          {item.size && <p>Размер: {item.size.name || item.size.slug}</p>}
                         </div>
                       )}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-3">
@@ -296,7 +326,7 @@ export default function Cart() {
                             disabled={updatingItemId === item.id}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
-                            <i className="ri-subtract-line"></i>
+                            <Minus className="size-[1em]" />
                           </button>
                           <span className="w-12 text-center font-medium">{item.quantity}</span>
                           <button
@@ -304,11 +334,13 @@ export default function Cart() {
                             disabled={updatingItemId === item.id}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
-                            <i className="ri-add-line"></i>
+                            <Plus className="size-[1em]" />
                           </button>
                         </div>
                         <div className="w-full sm:w-auto text-left sm:text-right">
-                          <p className="text-2xl font-bold text-red-600">{item.total.toLocaleString()} ₽</p>
+                          <p className="text-2xl font-bold text-red-600">
+                            {item.total.toLocaleString()} ₽
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -338,7 +370,7 @@ export default function Cart() {
                 </div>
                 {promoApplied && (
                   <p className="text-green-600 text-sm mt-2 flex items-center gap-2">
-                    <i className="ri-check-line"></i>
+                    <Check className="size-[1em]" />
                     Промокод успешно применен! Скидка 10%
                   </p>
                 )}
@@ -351,7 +383,9 @@ export default function Cart() {
                 <h3 className="text-xl font-bold mb-6">Итого</h3>
                 <div className="space-y-4 mb-6">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Товары ({cartItems.reduce((sum, item) => sum + item.quantity, 0)})</span>
+                    <span className="text-gray-600">
+                      Товары ({cartItems.reduce((sum, item) => sum + item.quantity, 0)})
+                    </span>
                     <span className="font-medium">{subtotal.toLocaleString()} ₽</span>
                   </div>
                   {promoApplied && (
@@ -363,15 +397,23 @@ export default function Cart() {
                   <div className="border-t border-gray-200 pt-4">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-bold">Всего</span>
-                      <span className="text-3xl font-bold text-red-600">{total.toLocaleString()} ₽</span>
+                      <span className="text-3xl font-bold text-red-600">
+                        {total.toLocaleString()} ₽
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <Link to="/checkout" className="block w-full bg-red-600 text-white py-4 rounded-lg font-medium text-center hover:bg-red-700 transition-colors mb-3 whitespace-nowrap">
+                <Link
+                  to="/checkout"
+                  className="block w-full bg-red-600 text-white py-4 rounded-lg font-medium text-center hover:bg-red-700 transition-colors mb-3 whitespace-nowrap"
+                >
                   Оформить заказ
                 </Link>
-                <Link to="/catalog" className="block w-full bg-white border-2 border-gray-300 text-gray-900 py-4 rounded-lg font-medium text-center hover:border-red-600 transition-colors whitespace-nowrap">
+                <Link
+                  to="/catalog"
+                  className="block w-full bg-white border-2 border-gray-300 text-gray-900 py-4 rounded-lg font-medium text-center hover:border-red-600 transition-colors whitespace-nowrap"
+                >
                   Продолжить покупки
                 </Link>
 
@@ -388,7 +430,10 @@ export default function Cart() {
             {isLoadingRecommended ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[...Array(4)].map((_, idx) => (
-                  <div key={idx} className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-pulse">
+                  <div
+                    key={idx}
+                    className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-pulse"
+                  >
                     <div className="h-48 bg-gray-200"></div>
                     <div className="p-4">
                       <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
@@ -399,14 +444,21 @@ export default function Cart() {
                 ))}
               </div>
             ) : recommendedProducts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" data-product-shop>
+              <div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                data-product-shop
+              >
                 {recommendedProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
                     onAddToCart={handleAddRecommendedToCart}
-                    onIncreaseCart={(productId) => updateRecommendedCartQuantityByProduct(productId, 1)}
-                    onDecreaseCart={(productId) => updateRecommendedCartQuantityByProduct(productId, -1)}
+                    onIncreaseCart={(productId) =>
+                      updateRecommendedCartQuantityByProduct(productId, 1)
+                    }
+                    onDecreaseCart={(productId) =>
+                      updateRecommendedCartQuantityByProduct(productId, -1)
+                    }
                     onToggleFavorite={toggleFavorite}
                     onToggleCompare={toggleCompare}
                     addedToCart={addingToCartId === product.id}
@@ -420,7 +472,6 @@ export default function Cart() {
           </div>
         )}
       </div>
-
     </div>
   );
 }

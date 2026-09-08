@@ -7,7 +7,6 @@ export default function FooterRequisites() {
       aria-label="Реквизиты организации"
       className="mx-auto text-center md:text-left text-xs text-gray-500 leading-relaxed space-y-2"
     >
-
       <p>
         ИНН {r.inn}, КПП {r.kpp}, ОГРН {r.ogrn}, ОКПО {r.okpo}
       </p>

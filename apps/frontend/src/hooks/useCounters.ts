@@ -25,10 +25,10 @@ const defaultCountersValue = {
 
 export function useCounters() {
   const context = useContext(CountersContext);
-  
+
   if (!context) {
     return defaultCountersValue;
   }
-  
+
   return context;
 }

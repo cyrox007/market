@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { api, InteriorIdea, InteriorIdeaHotspot } from '@/lib/api';
 import { useSSR } from '@/contexts/SSRContext';
 import { useCartActions } from '@/hooks/useCartActions';
+import { ArrowLeftRight, Heart, ImageIcon, Info, Minus, Plus } from 'lucide-react';
 
 export default function InteriorIdeas() {
   const ssrData = useSSR();
@@ -23,7 +24,7 @@ export default function InteriorIdeas() {
       fallbackData: initialRooms.length > 0 ? { data: initialRooms } : undefined,
       revalidateOnMount: initialRooms.length === 0,
       revalidateIfStale: true,
-    }
+    },
   );
 
   const rooms = interiorIdeasData?.data || [];
@@ -48,10 +49,8 @@ export default function InteriorIdeas() {
   }
 
   const toggleFavorite = (productId: number) => {
-    setFavorites(prev =>
-      prev.includes(productId)
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
+    setFavorites((prev) =>
+      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId],
     );
   };
 
@@ -62,7 +61,7 @@ export default function InteriorIdeas() {
     if (isAddingToCart[product.id]) return;
 
     try {
-      setIsAddingToCart(prev => ({ ...prev, [product.id]: true }));
+      setIsAddingToCart((prev) => ({ ...prev, [product.id]: true }));
 
       const quantity = quantities[product.id] || 1;
       await addProductToCart(
@@ -89,7 +88,7 @@ export default function InteriorIdeas() {
     } catch {
       // toast показывается в useCartActions
     } finally {
-      setIsAddingToCart(prev => {
+      setIsAddingToCart((prev) => {
         const newState = { ...prev };
         delete newState[product.id];
         return newState;
@@ -101,23 +100,23 @@ export default function InteriorIdeas() {
     const newQuantity = Math.max(1, (quantities[productId] || 1) + delta);
 
     // Обновляем локальное состояние сразу для быстрого отклика
-    setQuantities(prev => ({
+    setQuantities((prev) => ({
       ...prev,
-      [productId]: newQuantity
+      [productId]: newQuantity,
     }));
 
     // Если товар уже в корзине, обновляем количество через API
     if (addedToCart.includes(productId) && cart) {
-      const cartItem = cart.items.find(item => item.product_id === productId);
+      const cartItem = cart.items.find((item) => item.product_id === productId);
       if (cartItem) {
         try {
           await updateCartQuantity(cartItem.id, newQuantity);
         } catch (error) {
           console.error('Ошибка обновления количества:', error);
           // Откатываем изменение при ошибке
-          setQuantities(prev => ({
+          setQuantities((prev) => ({
             ...prev,
-            [productId]: quantities[productId] || 1
+            [productId]: quantities[productId] || 1,
           }));
         }
       }
@@ -155,145 +154,176 @@ export default function InteriorIdeas() {
                 />
 
                 {/* Hotspots */}
-                {room.hotspots?.filter(h => h.product).map((hotspot) => (
-                  <div
-                    key={hotspot.id}
-                    className="absolute cursor-pointer"
-                    style={{
-                      left: `${hotspot.x}%`,
-                      top: `${hotspot.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                      zIndex: activeHotspot === `${room.id}-${hotspot.id}` ? 50 : 10
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveHotspot(activeHotspot === `${room.id}-${hotspot.id}` ? null : `${room.id}-${hotspot.id}`);
-                    }}
-                  >
-                    {/* Pulsating Circle */}
-                    <div className="relative">
-                      <div className="w-10 h-10 bg-red-500/90 rounded-full flex items-center justify-center animate-pulse-slow">
-                        <i className="ri-add-line text-white text-xl"></i>
+                {room.hotspots
+                  ?.filter((h) => h.product)
+                  .map((hotspot) => (
+                    <div
+                      key={hotspot.id}
+                      className="absolute cursor-pointer"
+                      style={{
+                        left: `${hotspot.x}%`,
+                        top: `${hotspot.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: activeHotspot === `${room.id}-${hotspot.id}` ? 50 : 10,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveHotspot(
+                          activeHotspot === `${room.id}-${hotspot.id}`
+                            ? null
+                            : `${room.id}-${hotspot.id}`,
+                        );
+                      }}
+                    >
+                      {/* Pulsating Circle */}
+                      <div className="relative">
+                        <div className="w-10 h-10 bg-red-500/90 rounded-full flex items-center justify-center animate-pulse-slow">
+                          <Plus className="size-[1em] text-white text-xl" />
+                        </div>
+                        <div className="absolute inset-0 w-10 h-10 bg-red-500/70 rounded-full animate-ping-slow"></div>
                       </div>
-                      <div className="absolute inset-0 w-10 h-10 bg-red-500/70 rounded-full animate-ping-slow"></div>
-                    </div>
 
-                    {/* Product Card */}
-                    {activeHotspot === `${room.id}-${hotspot.id}` && (
-                      <div
-                        className="absolute bg-white rounded-xl shadow-2xl p-4 w-64"
-                        style={{
-                          left: hotspot.x > 50 ? 'auto' : '50%',
-                          right: hotspot.x > 50 ? '50%' : 'auto',
-                          top: '50%',
-                          transform: hotspot.x > 50 ? 'translate(50%, -50%)' : 'translate(-50%, -50%)',
-                          zIndex: 100
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {hotspot.product && (
-                          <>
-                            <div className="relative mb-3">
-                              {hotspot.product.image || hotspot.product.image_thumb ? (
-                                <img
-                                  src={hotspot.product.image || hotspot.product.image_thumb || ''}
-                                  alt={hotspot.product.name}
-                                  className="w-full h-48 object-cover object-top rounded-lg cursor-pointer"
-                                  onClick={() => goToProduct(hotspot.product!.id, hotspot.product!.full_path)}
-                                />
-                              ) : (
-                                <div className="w-full h-48 flex items-center justify-center rounded-lg cursor-pointer" onClick={() => goToProduct(hotspot.product!.id, hotspot.product!.full_path)}>
-                                  <i className="ri-image-line text-3xl text-gray-400"></i>
-                                </div>
-                              )}
-                              <div className="absolute top-2 right-2 flex gap-2">
-                                <button
-                                  onClick={() => toggleFavorite(hotspot.product!.id)}
-                                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
-                                >
-                                  <i className={`${favorites.includes(hotspot.product!.id) ? 'ri-heart-fill text-red-500' : 'ri-heart-line text-gray-600'}`}></i>
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
-                                >
-                                  <i className="ri-scales-3-line text-gray-600"></i>
-                                </button>
-                              </div>
-                            </div>
-                            <h3
-                              className="font-bold text-lg mb-2 cursor-pointer hover:text-red-500 transition-colors"
-                              onClick={() => goToProduct(hotspot.product!.id, hotspot.product!.full_path)}
-                            >
-                              {hotspot.product.name}
-                            </h3>
-                            <p className="text-red-500 font-bold text-xl mb-3">{hotspot.product.price.toLocaleString()} ₽</p>
-
-                            <div className="flex gap-2">
-                              {isVariantParent(hotspot.product) ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    goToProduct(hotspot.product!.id, hotspot.product!.full_path);
-                                  }}
-                                  className="py-2 rounded-lg font-medium transition-all w-full bg-red-500 text-white hover:bg-red-600 cursor-pointer"
-                                >
-                                  Выбрать
-                                </button>
-                              ) : (
-                                <>
+                      {/* Product Card */}
+                      {activeHotspot === `${room.id}-${hotspot.id}` && (
+                        <div
+                          className="absolute bg-white rounded-xl shadow-2xl p-4 w-64"
+                          style={{
+                            left: hotspot.x > 50 ? 'auto' : '50%',
+                            right: hotspot.x > 50 ? '50%' : 'auto',
+                            top: '50%',
+                            transform:
+                              hotspot.x > 50 ? 'translate(50%, -50%)' : 'translate(-50%, -50%)',
+                            zIndex: 100,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {hotspot.product && (
+                            <>
+                              <div className="relative mb-3">
+                                {hotspot.product.image || hotspot.product.image_thumb ? (
+                                  <img
+                                    src={hotspot.product.image || hotspot.product.image_thumb || ''}
+                                    alt={hotspot.product.name}
+                                    className="w-full h-48 object-cover object-top rounded-lg cursor-pointer"
+                                    onClick={() =>
+                                      goToProduct(hotspot.product!.id, hotspot.product!.full_path)
+                                    }
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-full h-48 flex items-center justify-center rounded-lg cursor-pointer"
+                                    onClick={() =>
+                                      goToProduct(hotspot.product!.id, hotspot.product!.full_path)
+                                    }
+                                  >
+                                    <ImageIcon className="size-[1em] text-3xl text-gray-400" />
+                                  </div>
+                                )}
+                                <div className="absolute top-2 right-2 flex gap-2">
+                                  <button
+                                    onClick={() => toggleFavorite(hotspot.product!.id)}
+                                    className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
+                                  >
+                                    <Heart
+                                      className={`size-[1em] ${favorites.includes(hotspot.product!.id) ? 'text-red-500' : 'text-gray-600'}`}
+                                      fill={
+                                        favorites.includes(hotspot.product!.id)
+                                          ? 'currentColor'
+                                          : 'none'
+                                      }
+                                    />
+                                  </button>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      addToCart(hotspot.product!);
                                     }}
-                                    disabled={isAddingToCart[hotspot.product!.id]}
-                                    className={`py-2 rounded-lg font-medium transition-all whitespace-nowrap cursor-pointer ${
-                                      addedToCart.includes(hotspot.product!.id)
-                                        ? 'bg-red-500 text-white hover:bg-red-600 flex-shrink-0'
-                                        : 'bg-red-500 text-white hover:bg-red-600 w-full'
-                                    } ${isAddingToCart[hotspot.product!.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    style={addedToCart.includes(hotspot.product!.id) ? { width: '120px' } : {}}
+                                    className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 transition-colors cursor-pointer"
                                   >
-                                    {isAddingToCart[hotspot.product!.id]
-                                      ? 'Добавление...'
-                                      : 'Добавить'}
+                                    <ArrowLeftRight className="size-[1em] text-gray-600" />
                                   </button>
+                                </div>
+                              </div>
+                              <h3
+                                className="font-bold text-lg mb-2 cursor-pointer hover:text-red-500 transition-colors"
+                                onClick={() =>
+                                  goToProduct(hotspot.product!.id, hotspot.product!.full_path)
+                                }
+                              >
+                                {hotspot.product.name}
+                              </h3>
+                              <p className="text-red-500 font-bold text-xl mb-3">
+                                {hotspot.product.price.toLocaleString()} ₽
+                              </p>
 
-                                  {addedToCart.includes(hotspot.product!.id) && (
-                                    <div className="flex items-center gap-3 flex-1 rounded-lg px-2 animate-[fadeIn_0.3s_ease-in-out]">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          updateQuantity(hotspot.product!.id, -1);
-                                        }}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
-                                      >
-                                        <i className="ri-subtract-line"></i>
-                                      </button>
-                                      <span className="text-lg font-bold flex-1 text-center">{quantities[hotspot.product!.id] || 1}</span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          updateQuantity(hotspot.product!.id, 1);
-                                        }}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
-                                      >
-                                        <i className="ri-add-line"></i>
-                                      </button>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                              <div className="flex gap-2">
+                                {isVariantParent(hotspot.product) ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      goToProduct(hotspot.product!.id, hotspot.product!.full_path);
+                                    }}
+                                    className="py-2 rounded-lg font-medium transition-all w-full bg-red-500 text-white hover:bg-red-600 cursor-pointer"
+                                  >
+                                    Выбрать
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addToCart(hotspot.product!);
+                                      }}
+                                      disabled={isAddingToCart[hotspot.product!.id]}
+                                      className={`py-2 rounded-lg font-medium transition-all whitespace-nowrap cursor-pointer ${
+                                        addedToCart.includes(hotspot.product!.id)
+                                          ? 'bg-red-500 text-white hover:bg-red-600 flex-shrink-0'
+                                          : 'bg-red-500 text-white hover:bg-red-600 w-full'
+                                      } ${isAddingToCart[hotspot.product!.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                      style={
+                                        addedToCart.includes(hotspot.product!.id)
+                                          ? { width: '120px' }
+                                          : {}
+                                      }
+                                    >
+                                      {isAddingToCart[hotspot.product!.id]
+                                        ? 'Добавление...'
+                                        : 'Добавить'}
+                                    </button>
+
+                                    {addedToCart.includes(hotspot.product!.id) && (
+                                      <div className="flex items-center gap-3 flex-1 rounded-lg px-2 animate-[fadeIn_0.3s_ease-in-out]">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateQuantity(hotspot.product!.id, -1);
+                                          }}
+                                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                                        >
+                                          <Minus className="size-[1em]" />
+                                        </button>
+                                        <span className="text-lg font-bold flex-1 text-center">
+                                          {quantities[hotspot.product!.id] || 1}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateQuantity(hotspot.product!.id, 1);
+                                          }}
+                                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                                        >
+                                          <Plus className="size-[1em]" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
             </div>
           ))}
@@ -302,7 +332,7 @@ export default function InteriorIdeas() {
         {/* Hint */}
         <div className="text-center mt-8">
           <p className="text-gray-500 text-sm">
-            <i className="ri-information-line mr-1"></i>
+            <Info className="size-[1em] mr-1" />
             Кликните на красные точки, чтобы увидеть товары
           </p>
         </div>
@@ -310,10 +340,7 @@ export default function InteriorIdeas() {
 
       {/* Overlay to close cards */}
       {activeHotspot && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setActiveHotspot(null)}
-        />
+        <div className="fixed inset-0 z-40" onClick={() => setActiveHotspot(null)} />
       )}
     </section>
   );

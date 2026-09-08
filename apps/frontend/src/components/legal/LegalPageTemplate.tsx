@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 
 type LegalPageTemplateProps = {
   title: string;
@@ -19,16 +20,21 @@ export default function LegalPageTemplate({
       <div className="bg-gradient-to-r from-red-600 to-yellow-500 text-white py-14 md:py-20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h1 className="text-3xl md:text-5xl font-bold mb-3">{title}</h1>
-          {heroSubtitle ? <p className="text-base md:text-xl opacity-90 max-w-2xl mx-auto">{heroSubtitle}</p> : null}
+          {heroSubtitle ? (
+            <p className="text-base md:text-xl opacity-90 max-w-2xl mx-auto">{heroSubtitle}</p>
+          ) : null}
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-10 md:py-14">
-        <nav className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-8" aria-label="Хлебные крошки">
+        <nav
+          className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-8"
+          aria-label="Хлебные крошки"
+        >
           <Link to="/" className="hover:text-red-600 transition-colors">
             Главная
           </Link>
-          <i className="ri-arrow-right-s-line text-gray-400 shrink-0" aria-hidden />
+          <ChevronRight className="size-[1em] text-gray-400 shrink-0" />
           <span className="text-gray-900">{breadcrumbLabel}</span>
         </nav>
 

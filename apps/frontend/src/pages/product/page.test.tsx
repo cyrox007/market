@@ -1,7 +1,14 @@
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SWRConfig } from 'swr';
 import ProductPage from './page';
+
+// Управляем поведением запроса из каждого теста отдельно.
+const productsGet = vi.hoisted(() => vi.fn());
+
+/** Ошибка в том виде, в каком её бросает клиент API: со статусом ответа. */
+const apiError = (status: number) => Object.assign(new Error(`API Error: ${status}`), { status });
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<any>('react-router-dom');
@@ -13,7 +20,9 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('../../components/feature/ReviewModal', () => ({ default: () => null }));
-vi.mock('../../components/ui/ProductLink', () => ({ default: ({ children }: any) => <>{children}</> }));
+vi.mock('../../components/ui/ProductLink', () => ({
+  default: ({ children }: any) => <>{children}</>,
+}));
 vi.mock('../../components/ui/ProductCard', () => ({ default: () => null }));
 vi.mock('../../components/product/ProductGallery', () => ({ default: () => null }));
 vi.mock('../../components/product/VariantAttributeSelector', () => ({ default: () => null }));
@@ -66,9 +75,7 @@ vi.mock('../../utils/productUtils', () => ({
 vi.mock('../../lib/api', () => ({
   api: {
     products: {
-      get: vi.fn(async () => {
-        throw new Error('not found');
-      }),
+      get: productsGet,
       related: vi.fn(async () => ({ data: [] })),
       bundle: vi.fn(async () => ({ data: [] })),
     },
@@ -77,7 +84,12 @@ vi.mock('../../lib/api', () => ({
     },
     stockSettings: {
       get: vi.fn(async () => ({
-        stock_settings: { stock_low_max: 1, stock_medium_max: 5, stock_high_max: 10, show_exact_above: 10 },
+        stock_settings: {
+          stock_low_max: 1,
+          stock_medium_max: 5,
+          stock_high_max: 10,
+          show_exact_above: 10,
+        },
       })),
     },
     wishlist: {
@@ -90,14 +102,41 @@ vi.mock('../../lib/api', () => ({
   },
 }));
 
-describe('Product page', () => {
-  it('shows not found state when product is unavailable', async () => {
-    render(
+// Своё хранилище SWR на каждый рендер, иначе тесты переиспользуют
+// результат друг друга: ключ запроса у них одинаковый.
+const renderPage = () =>
+  render(
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
       <MemoryRouter>
         <ProductPage />
       </MemoryRouter>
-    );
+    </SWRConfig>,
+  );
+
+describe('Product page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('404 — товар не найден', async () => {
+    productsGet.mockRejectedValue(apiError(404));
+    renderPage();
 
     expect(await screen.findByText('Товар не найден')).toBeInTheDocument();
+  });
+
+  it('ошибка сервера — не «не найден», а «не удалось загрузить»', async () => {
+    productsGet.mockRejectedValue(apiError(500));
+    renderPage();
+
+    expect(await screen.findByText('Не удалось загрузить товар')).toBeInTheDocument();
+    expect(screen.queryByText('Товар не найден')).toBeNull();
+  });
+
+  it('сбой сети — тоже «не удалось загрузить», а не бесконечный скелетон', async () => {
+    productsGet.mockRejectedValue(new TypeError('Failed to fetch'));
+    renderPage();
+
+    expect(await screen.findByText('Не удалось загрузить товар')).toBeInTheDocument();
   });
 });

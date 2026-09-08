@@ -8,19 +8,25 @@ import { useCounters } from '../../../hooks/useCounters';
 import { useWishlistAndCompare } from '../../../hooks/useWishlistAndCompare';
 import { useRegion } from '../../../hooks/useRegion';
 import { getHomeProductsKey } from '../../../utils/ssr-to-swr';
+import { ArrowRight } from 'lucide-react';
 
 export default function FeaturedProducts() {
   const ssrData = useSSR();
   const initialNewProducts = ssrData?.home?.newProducts || [];
   const initialFeaturedProducts = ssrData?.home?.featuredProducts || [];
   const initialSaleProducts = ssrData?.home?.saleProducts || [];
-  
+
   const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { getRegionId } = useRegion();
   const regionId = getRegionId();
-  
+
   // Используем централизованный хук для wishlist и compare
-  const { wishlistProductIds: favorites, compareProductIds: compareList, mutateWishlist, mutateCompare } = useWishlistAndCompare();
+  const {
+    wishlistProductIds: favorites,
+    compareProductIds: compareList,
+    mutateWishlist,
+    mutateCompare,
+  } = useWishlistAndCompare();
 
   // Используем SWR для загрузки данных с fallback из SSR
   const { data: newProductsData, isLoading: isLoadingNew } = useSWR(
@@ -30,17 +36,18 @@ export default function FeaturedProducts() {
       fallbackData: initialNewProducts.length > 0 ? { data: initialNewProducts } : undefined,
       revalidateOnMount: initialNewProducts.length === 0, // Ревалидируем только если нет SSR данных
       revalidateIfStale: true,
-    }
+    },
   );
 
   const { data: featuredProductsData, isLoading: isLoadingFeatured } = useSWR(
     getHomeProductsKey('featured', regionId),
     () => api.products.featured(regionId ? { region_id: regionId } : undefined),
     {
-      fallbackData: initialFeaturedProducts.length > 0 ? { data: initialFeaturedProducts } : undefined,
+      fallbackData:
+        initialFeaturedProducts.length > 0 ? { data: initialFeaturedProducts } : undefined,
       revalidateOnMount: initialFeaturedProducts.length === 0,
       revalidateIfStale: true,
-    }
+    },
   );
 
   const { data: saleProductsData, isLoading: isLoadingSale } = useSWR(
@@ -50,13 +57,14 @@ export default function FeaturedProducts() {
       fallbackData: initialSaleProducts.length > 0 ? { data: initialSaleProducts } : undefined,
       revalidateOnMount: initialSaleProducts.length === 0,
       revalidateIfStale: true,
-    }
+    },
   );
 
   const newProducts = newProductsData?.data || [];
   const featuredProducts = featuredProductsData?.data || [];
   const saleProducts = saleProductsData?.data || [];
-  const hasAnyData = newProducts.length > 0 || featuredProducts.length > 0 || saleProducts.length > 0;
+  const hasAnyData =
+    newProducts.length > 0 || featuredProducts.length > 0 || saleProducts.length > 0;
   const isLoading = (isLoadingNew || isLoadingFeatured || isLoadingSale) && !hasAnyData;
 
   const sections = [
@@ -100,7 +108,7 @@ export default function FeaturedProducts() {
       const productIdToAdd = getProductIdForWishlist(product);
 
       const response = await api.wishlist.toggle(productIdToAdd);
-      
+
       // Оптимистично обновляем SWR кеш
       await mutateWishlist(async (current: any) => {
         const wishlistItems = current?.data || [];
@@ -109,14 +117,14 @@ export default function FeaturedProducts() {
           return { data: [...wishlistItems, { product_id: productIdToAdd }] };
         } else {
           // Удаляем товар
-          return { 
-            data: wishlistItems.filter((item: any) => 
-              (item.product_id || item.product?.id) !== productIdToAdd
-            ) 
+          return {
+            data: wishlistItems.filter(
+              (item: any) => (item.product_id || item.product?.id) !== productIdToAdd,
+            ),
           };
         }
       }, false); // false = не ревалидировать сразу
-      
+
       await refreshWishlistCount();
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
@@ -131,14 +139,14 @@ export default function FeaturedProducts() {
       const productIdToAdd = getProductIdForCompare(product);
 
       const isInCompare = compareList.includes(productIdToAdd);
-      
+
       // Оптимистично обновляем SWR кеш
       if (isInCompare) {
         await api.compare.remove(productIdToAdd);
         await mutateCompare(async (current: any) => {
           const products = current?.products || [];
-          return { 
-            products: products.filter((p: Product) => p.id !== productIdToAdd) 
+          return {
+            products: products.filter((p: Product) => p.id !== productIdToAdd),
           };
         }, false);
       } else {
@@ -146,7 +154,7 @@ export default function FeaturedProducts() {
         // Для добавления нужно загрузить данные товара, поэтому просто ревалидируем
         await mutateCompare();
       }
-      
+
       await refreshCompareCount();
     } catch (error: any) {
       console.error('Failed to toggle compare:', error);
@@ -157,7 +165,6 @@ export default function FeaturedProducts() {
       }
     }
   };
-
 
   if (isLoading) {
     return (
@@ -200,7 +207,7 @@ export default function FeaturedProducts() {
                   className="text-red-600 hover:text-red-700 font-semibold flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
                   <span>Смотреть все</span>
-                  <i className="ri-arrow-right-line"></i>
+                  <ArrowRight className="size-[1em]" />
                 </Link>
               </div>
 

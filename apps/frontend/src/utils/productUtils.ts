@@ -8,9 +8,9 @@ import type { Product, ProductDetail, ProductVariant, ColorOption, SizeOption } 
 export function isProductAvailable(product: Product | ProductDetail): boolean | undefined {
   // Для вариативных товаров проверяем наличие хотя бы одной доступной вариации
   if (product.is_variable && !product.is_variant && 'variants' in product && product.variants) {
-    return product.variants.some(v => v.in_stock && (v.stock > 0 || v.backorder));
+    return product.variants.some((v) => v.in_stock && (v.stock > 0 || v.backorder));
   }
-  
+
   // Для обычных товаров и вариаций проверяем напрямую
   return product.in_stock && (product.stock > 0 || product.backorder);
 }
@@ -24,9 +24,9 @@ export function getFirstAvailableVariant(product: ProductDetail): ProductVariant
   if (!product.variants || product.variants.length === 0) {
     return null;
   }
-  
+
   // Ищем первую доступную вариацию (в наличии или под заказ)
-  return product.variants.find(v => v.in_stock && (v.stock > 0 || v.backorder)) || null;
+  return product.variants.find((v) => v.in_stock && (v.stock > 0 || v.backorder)) || null;
 }
 
 /**
@@ -39,31 +39,35 @@ export function getFirstAvailableVariant(product: ProductDetail): ProductVariant
 export function getVariantByColorAndSize(
   variants: ProductVariant[],
   color: ColorOption | null,
-  size: SizeOption | null
+  size: SizeOption | null,
 ): ProductVariant | null {
   if (!variants || variants.length === 0) {
     return null;
   }
-  
+
   if (!color && !size) {
     return null;
   }
-  
-  return variants.find(v => {
-    const colorMatch = !color || (
-      (v.color?.name === color.name || v.color?.slug === color.slug) ||
-      (color.name && v.color?.name === color.name) ||
-      (color.slug && v.color?.slug === color.slug)
-    );
-    
-    const sizeMatch = !size || (
-      (v.size?.value === size.value || v.size?.slug === size.slug) ||
-      (size.value && v.size?.value === size.value) ||
-      (size.slug && v.size?.slug === size.slug)
-    );
-    
-    return colorMatch && sizeMatch;
-  }) || null;
+
+  return (
+    variants.find((v) => {
+      const colorMatch =
+        !color ||
+        v.color?.name === color.name ||
+        v.color?.slug === color.slug ||
+        (color.name && v.color?.name === color.name) ||
+        (color.slug && v.color?.slug === color.slug);
+
+      const sizeMatch =
+        !size ||
+        v.size?.value === size.value ||
+        v.size?.slug === size.slug ||
+        (size.value && v.size?.value === size.value) ||
+        (size.slug && v.size?.slug === size.slug);
+
+      return colorMatch && sizeMatch;
+    }) || null
+  );
 }
 
 /**
@@ -79,27 +83,30 @@ export function getProductStockStatus(product: Product | ProductDetail): {
 } {
   // Для вариативных товаров проверяем вариации
   if (product.is_variable && !product.is_variant && 'variants' in product && product.variants) {
-    const availableVariants = product.variants.filter(v => v.in_stock && (v.stock > 0 || v.backorder));
-    const maxStock = availableVariants.length > 0
-      ? Math.max(...availableVariants.map((v) => Math.max(0, Math.floor(Number(v.stock) || 0))))
-      : 0;
-    const hasBackorder = availableVariants.some(v => v.backorder);
+    const availableVariants = product.variants.filter(
+      (v) => v.in_stock && (v.stock > 0 || v.backorder),
+    );
+    const maxStock =
+      availableVariants.length > 0
+        ? Math.max(...availableVariants.map((v) => Math.max(0, Math.floor(Number(v.stock) || 0))))
+        : 0;
+    const hasBackorder = availableVariants.some((v) => v.backorder);
 
     return {
       available: availableVariants.length > 0,
       stock: maxStock,
       backorder: hasBackorder,
-      status: hasBackorder ? 'backorder' : (maxStock > 0 ? 'in_stock' : 'out_of_stock'),
+      status: hasBackorder ? 'backorder' : maxStock > 0 ? 'in_stock' : 'out_of_stock',
     };
   }
-  
+
   // Для обычных товаров
   const available = (product.in_stock ?? false) && (product.stock > 0 || product.backorder);
   return {
     available: available ?? false,
     stock: product.stock || 0,
     backorder: product.backorder || false,
-    status: product.backorder ? 'backorder' : (product.stock > 0 ? 'in_stock' : 'out_of_stock'),
+    status: product.backorder ? 'backorder' : product.stock > 0 ? 'in_stock' : 'out_of_stock',
   };
 }
 
@@ -157,7 +164,12 @@ export function resolveProductStockBadge(params: {
   let inStock = Boolean(product.in_stock);
   let backorder = Boolean(product.backorder);
 
-  if (product.is_variable && !product.is_variant && 'variants' in product && product.variants?.length) {
+  if (
+    product.is_variable &&
+    !product.is_variant &&
+    'variants' in product &&
+    product.variants?.length
+  ) {
     if (selectedVariant) {
       stock = Math.max(0, Math.floor(Number(selectedVariant.stock) || 0));
       inStock = Boolean(selectedVariant.in_stock);

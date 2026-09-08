@@ -1,9 +1,8 @@
-'use client';
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRegion } from '../hooks/useRegion';
 import { api } from '../lib/api';
 import type { ShippingLocationTree, ShippingLocation } from '../lib/api';
+import { Check, ChevronDown, Search, TriangleAlert, X } from 'lucide-react';
 
 interface LocationModalProps {
   isOpen: boolean;
@@ -11,7 +10,11 @@ interface LocationModalProps {
   isFirstVisit?: boolean;
 }
 
-export default function LocationModal({ isOpen, onClose, isFirstVisit = false }: LocationModalProps) {
+export default function LocationModal({
+  isOpen,
+  onClose,
+  isFirstVisit = false,
+}: LocationModalProps) {
   const { region, selectRegion } = useRegion();
   const [tree, setTree] = useState<ShippingLocationTree[]>([]);
   const [loading, setLoading] = useState(false);
@@ -20,6 +23,32 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
   const [isGeoDetecting, setIsGeoDetecting] = useState(false);
   const [expandedDistricts, setExpandedDistricts] = useState<Set<number>>(new Set());
   const [expandedRegions, setExpandedRegions] = useState<Set<number>>(new Set());
+  // До первой попытки загрузки список пуст просто потому, что запрос ещё не ушёл.
+  // Без этого флага окно на один кадр считалось бы тупиковым.
+  const [loadAttempted, setLoadAttempted] = useState(false);
+
+  /**
+   * Выбирать нечего: список либо не загрузился, либо пришёл пустым.
+   *
+   * Второй случай тупиковый не меньше первого — API ответил успешно, ошибки
+   * нет, а городов всё равно нет. Считаем по `tree`, а не по отфильтрованному
+   * `displayTree`: пустой результат поиска выходом из окна быть не должен.
+   */
+  const nothingToPick = error !== null || (loadAttempted && !loading && tree.length === 0);
+
+  /**
+   * Можно ли закрыть окно.
+   *
+   * При первом визите выбор города обязателен — это осознанное требование.
+   * Но когда выбирать не из чего, запрет превращается в тупик: посетитель
+   * видит затемнённый экран и не может ни закрыть окно, ни посмотреть каталог.
+   * Под это попадает каждый, у кого пустой localStorage — первый заход,
+   * приватное окно, очищенный кэш.
+   *
+   * Поэтому в тупиковом состоянии окно закрывается, а при живом API
+   * поведение прежнее.
+   */
+  const canDismiss = !isFirstVisit || nothingToPick;
 
   // Загружаем дерево локаций только при открытии модалки
   useEffect(() => {
@@ -33,73 +62,83 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
       setLoading(true);
       setError(null);
       const response = await api.regions.tree();
-      
+
       if (!response || !response.data) {
         throw new Error('Неверный формат ответа от сервера');
       }
-      
+
       const locations = Array.isArray(response.data) ? response.data : [];
       setTree(locations);
-      
+
       // Автоматически раскрываем выбранный регион
       if (region) {
         locations.forEach((district) => {
           district.children?.forEach((reg) => {
-            if (reg.id === region.id || reg.children?.some(c => c.id === region.id)) {
-              setExpandedDistricts(prev => new Set(prev).add(district.id));
-              setExpandedRegions(prev => new Set(prev).add(reg.id));
+            if (reg.id === region.id || reg.children?.some((c) => c.id === region.id)) {
+              setExpandedDistricts((prev) => new Set(prev).add(district.id));
+              setExpandedRegions((prev) => new Set(prev).add(reg.id));
             }
           });
         });
       }
     } catch (err: any) {
       console.error('Failed to load locations tree:', err);
-      let errorMessage = 'Не удалось загрузить список локаций';
+
+      // Покупателю показываем человеческий текст, а не сырую ошибку браузера.
+      // При недоступной сети fetch бросает TypeError с сообщением вида
+      // «Failed to fetch» — оно ничего не объясняет и выглядит поломкой.
+      // Технические подробности остаются в консоли выше.
+      let errorMessage =
+        'Не удалось загрузить список городов. Проверьте соединение и попробуйте снова.';
       if (err?.status === 404) {
         errorMessage = 'Маршрут API не найден. Проверьте настройки сервера.';
-      } else if (err?.message) {
+      } else if (err?.message && !(err instanceof TypeError)) {
         errorMessage = err.message;
       }
       setError(errorMessage);
       setTree([]);
     } finally {
       setLoading(false);
+      setLoadAttempted(true);
     }
   };
 
   // Определение города пользователя по координатам браузера
-  const reverseGeocodeCity = useCallback(async (lat: number, lon: number): Promise<string | null> => {
-    try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ru`;
-      const response = await fetch(url, {
-        headers: {
-          // Помогаем сервису понять источник запросов
-          'Accept': 'application/json',
-        },
-      });
+  const reverseGeocodeCity = useCallback(
+    async (lat: number, lon: number): Promise<string | null> => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ru`;
+        const response = await fetch(url, {
+          headers: {
+            // Помогаем сервису понять источник запросов
+            Accept: 'application/json',
+          },
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
+          return null;
+        }
+
+        const data: any = await response.json();
+        if (!data?.address) return null;
+
+        const address = data.address;
+        // Пытаемся взять наиболее релевантное поле
+        return (
+          address.city ||
+          address.town ||
+          address.village ||
+          address.hamlet ||
+          address.municipality ||
+          address.county ||
+          null
+        );
+      } catch {
         return null;
       }
-
-      const data: any = await response.json();
-      if (!data?.address) return null;
-
-      const address = data.address;
-      // Пытаемся взять наиболее релевантное поле
-      return (
-        address.city ||
-        address.town ||
-        address.village ||
-        address.hamlet ||
-        address.municipality ||
-        address.county ||
-        null
-      );
-    } catch {
-      return null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Преобразуем ShippingLocationTree в ShippingLocation для сохранения
   const convertToShippingLocation = (treeItem: ShippingLocationTree): ShippingLocation => {
@@ -113,22 +152,25 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
     } as ShippingLocation;
   };
 
-  const handleSelectLocation = useCallback((location: ShippingLocationTree) => {
-    try {
-      const shippingLocation = convertToShippingLocation(location);
-      // Выбираем регион
-      selectRegion(shippingLocation);
-      
-      // Закрываем модалку, данные обновятся через region-changed и SWR-ключи.
-      onClose();
-      setSearchQuery('');
-    } catch {
-      alert('Ошибка при выборе локации. Пожалуйста, попробуйте снова.');
-    }
-  }, [selectRegion, onClose]);
+  const handleSelectLocation = useCallback(
+    (location: ShippingLocationTree) => {
+      try {
+        const shippingLocation = convertToShippingLocation(location);
+        // Выбираем регион
+        selectRegion(shippingLocation);
+
+        // Закрываем модалку, данные обновятся через region-changed и SWR-ключи.
+        onClose();
+        setSearchQuery('');
+      } catch {
+        alert('Ошибка при выборе локации. Пожалуйста, попробуйте снова.');
+      }
+    },
+    [selectRegion, onClose],
+  );
 
   const toggleDistrict = useCallback((districtId: number) => {
-    setExpandedDistricts(prev => {
+    setExpandedDistricts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(districtId)) {
         newSet.delete(districtId);
@@ -140,7 +182,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
   }, []);
 
   const toggleRegion = useCallback((regionId: number) => {
-    setExpandedRegions(prev => {
+    setExpandedRegions((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(regionId)) {
         newSet.delete(regionId);
@@ -275,15 +317,15 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
     });
 
     // Раскрываем найденные элементы
-    setExpandedDistricts(prev => {
+    setExpandedDistricts((prev) => {
       const newSet = new Set(prev);
-      districtsToExpand.forEach(id => newSet.add(id));
+      districtsToExpand.forEach((id) => newSet.add(id));
       return newSet;
     });
 
-    setExpandedRegions(prev => {
+    setExpandedRegions((prev) => {
       const newSet = new Set(prev);
-      regionsToExpand.forEach(id => newSet.add(id));
+      regionsToExpand.forEach((id) => newSet.add(id));
       return newSet;
     });
 
@@ -293,7 +335,9 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
       const modalContent = document.querySelector('[role="dialog"] .bg-white.rounded-2xl');
       if (modalContent) {
         // Находим первый найденный элемент (подсвеченный желтым или красным)
-        const firstMatch = modalContent.querySelector('[data-location-id].bg-yellow-50, [data-location-id].bg-red-50') as HTMLElement;
+        const firstMatch = modalContent.querySelector(
+          '[data-location-id].bg-yellow-50, [data-location-id].bg-red-50',
+        ) as HTMLElement;
         if (firstMatch) {
           firstMatch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -303,24 +347,24 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
     return () => clearTimeout(scrollTimer);
   }, [searchQuery, filteredTree]);
 
-  // Обработка закрытия по Escape (только если не первый визит)
+  // Обработка закрытия по Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isFirstVisit) {
+      if (e.key === 'Escape' && isOpen && canDismiss) {
         onClose();
       }
     };
-    
+
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     }
-    
+
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = '';
     };
-  }, [isOpen, onClose, isFirstVisit]);
+  }, [isOpen, onClose, canDismiss]);
 
   if (!isOpen) return null;
 
@@ -328,13 +372,13 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
   const isFederalDistricts = displayTree.length > 0 && displayTree[0]?.type === 'federal_district';
 
   return (
-    <div 
-      className="fixed inset-0 z-50 overflow-y-auto" 
-      aria-labelledby="modal-title" 
-      role="dialog" 
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto"
+      aria-labelledby="modal-title"
+      role="dialog"
       aria-modal="true"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isFirstVisit) {
+        if (e.target === e.currentTarget && canDismiss) {
           onClose();
         }
       }}
@@ -344,7 +388,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
 
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div 
+        <div
           className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
           onClick={(e) => e.stopPropagation()}
         >
@@ -358,13 +402,13 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                 </p>
               )}
             </div>
-            {!isFirstVisit && (
+            {canDismiss && (
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label="Закрыть"
               >
-                <i className="ri-close-line text-2xl"></i>
+                <X className="size-[1em] text-2xl" />
               </button>
             )}
           </div>
@@ -380,7 +424,7 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                 className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
                 autoFocus
               />
-              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+              <Search className="size-[1em] absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
             </div>
           </div>
 
@@ -393,23 +437,34 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
               </div>
             ) : error ? (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                <i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+                <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-red-600 text-sm mb-4">{error}</p>
-                  <button
-                    onClick={loadTree}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Попробовать снова
-                  </button>
+                  {/* Выход из тупика: без городов выбрать нечего, но сайтом
+                      пользоваться можно — предложение указать город останется
+                      в баннере сверху. */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={loadTree}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Попробовать снова
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Выбрать позже
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : displayTree.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-gray-500 mb-4">
-                  {searchQuery.trim() 
+                  {searchQuery.trim()
                     ? `По запросу "${searchQuery}" ничего не найдено`
-                    : 'Локации не найдены. Проверьте, что в системе есть активные локации доставки.'}
+                    : 'Список городов сейчас недоступен. Попробуйте позже.'}
                 </div>
                 {searchQuery.trim() ? (
                   <button
@@ -419,12 +474,20 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                     Очистить поиск
                   </button>
                 ) : (
-                  <button
-                    onClick={loadTree}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Попробовать снова
-                  </button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button
+                      onClick={loadTree}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Попробовать снова
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Выбрать позже
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -434,7 +497,10 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                   const hasRegions = district.children && district.children.length > 0;
 
                   return (
-                    <div key={district.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div
+                      key={district.id}
+                      className="border border-gray-200 rounded-lg overflow-hidden"
+                    >
                       {/* Федеральный округ */}
                       {isFederalDistricts ? (
                         <button
@@ -442,7 +508,9 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                           className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
                         >
                           <span className="font-semibold text-gray-900">{district.name}</span>
-                          <i className={`ri-arrow-down-s-line text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`}></i>
+                          <ChevronDown
+                            className={`size-[1em] text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`}
+                          />
                         </button>
                       ) : null}
 
@@ -453,11 +521,15 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                             const isRegionExpanded = expandedRegions.has(reg.id);
                             const hasLocalities = reg.children && reg.children.length > 0;
                             const isRegionSelected = region?.id === reg.id;
-                            const matchesSearch = searchQuery.trim() && 
+                            const matchesSearch =
+                              searchQuery.trim() &&
                               reg.name.toLowerCase().includes(searchQuery.toLowerCase());
 
                             return (
-                              <div key={reg.id} className="border-t border-gray-200 first:border-t-0">
+                              <div
+                                key={reg.id}
+                                className="border-t border-gray-200 first:border-t-0"
+                              >
                                 {/* Регион */}
                                 <div className="flex items-center">
                                   {hasLocalities ? (
@@ -468,24 +540,34 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                       }`}
                                       data-location-id={reg.id}
                                     >
-                                      <span className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                      <span
+                                        className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
+                                      >
                                         {reg.name}
                                       </span>
-                                      <i className={`ri-arrow-down-s-line text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`}></i>
+                                      <ChevronDown
+                                        className={`size-[1em] text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`}
+                                      />
                                     </button>
                                   ) : (
                                     <button
                                       onClick={() => handleSelectLocation(reg)}
                                       className={`flex-1 text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                                        isRegionSelected ? 'bg-red-50' : matchesSearch ? 'bg-yellow-50' : ''
+                                        isRegionSelected
+                                          ? 'bg-red-50'
+                                          : matchesSearch
+                                            ? 'bg-yellow-50'
+                                            : ''
                                       }`}
                                       data-location-id={reg.id}
                                     >
-                                      <span className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                      <span
+                                        className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
+                                      >
                                         {reg.name}
                                       </span>
                                       {isRegionSelected && (
-                                        <i className="ri-check-line text-red-600 text-lg"></i>
+                                        <Check className="size-[1em] text-red-600 text-lg" />
                                       )}
                                     </button>
                                   )}
@@ -496,22 +578,31 @@ export default function LocationModal({ isOpen, onClose, isFirstVisit = false }:
                                   <div className="bg-gray-50 pl-8">
                                     {reg.children!.map((locality) => {
                                       const isLocalitySelected = region?.id === locality.id;
-                                      const matchesSearch = searchQuery.trim() && 
-                                        locality.name.toLowerCase().includes(searchQuery.toLowerCase());
+                                      const matchesSearch =
+                                        searchQuery.trim() &&
+                                        locality.name
+                                          .toLowerCase()
+                                          .includes(searchQuery.toLowerCase());
                                       return (
                                         <button
                                           key={locality.id}
                                           onClick={() => handleSelectLocation(locality)}
                                           className={`w-full text-left px-4 py-2.5 hover:bg-gray-100 transition-colors flex items-center justify-between ${
-                                            isLocalitySelected ? 'bg-red-50' : matchesSearch ? 'bg-yellow-50' : ''
+                                            isLocalitySelected
+                                              ? 'bg-red-50'
+                                              : matchesSearch
+                                                ? 'bg-yellow-50'
+                                                : ''
                                           }`}
                                           data-location-id={locality.id}
                                         >
-                                          <span className={`text-sm ${isLocalitySelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                          <span
+                                            className={`text-sm ${isLocalitySelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
+                                          >
                                             {locality.name}
                                           </span>
                                           {isLocalitySelected && (
-                                            <i className="ri-check-line text-red-600 text-lg"></i>
+                                            <Check className="size-[1em] text-red-600 text-lg" />
                                           )}
                                         </button>
                                       );

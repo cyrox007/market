@@ -13,7 +13,14 @@ interface ProductLinkProps {
 
 const PRODUCT_PATH = /^\/product\/([^/?#]+)/;
 
-export default function ProductLink({ to, children, className, onClick, onMouseEnter, ...props }: ProductLinkProps) {
+export default function ProductLink({
+  to,
+  children,
+  className,
+  onClick,
+  onMouseEnter,
+  ...props
+}: ProductLinkProps) {
   const prefetchProduct = usePrefetchProduct();
 
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
