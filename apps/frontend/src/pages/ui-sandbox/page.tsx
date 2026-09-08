@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Button, IconButton, Badge, Input, SearchInput } from '../../components/ui/primitives';
 import { QuantityStepper, Price, ColorSwatches } from '../../components/ui/composites';
+import { Header, UserActions } from '../../components/layout/Header';
+import { CATALOG_SECTIONS, ROOMS_SECTIONS } from './header-demo-data';
 import { cn } from '../../lib/cn';
 
 /**
@@ -123,6 +125,28 @@ export default function UiSandbox() {
 
   return (
     <div className="min-h-screen bg-surface">
+      {/* Шапка показана на всю ширину: внутри неё свой max-w-[1440px] и px-[100px],
+          и в колонке песочницы шириной 1200 замеры были бы неверными */}
+      <section className="border-b border-surface-border">
+        <div className="mx-auto max-w-[1440px] px-[100px] pb-4 pt-10">
+          <h2 className="text-24 font-semibold text-ink">Шапка по макету</h2>
+          <p className="mt-1 max-w-[70ch] text-14 text-ink-secondary">
+            Замеры 07.09.2026: полосы 36 / 80 / 35, контейнер 1440 с отступами 100, правая группа
+            298 × 43 с промежутком 20, служебные ссылки с промежутком 24. Крупные блоки разложены
+            justify-between — в макете расстояния между ними неровные, значит это распределение.
+            Нажми «Каталог» или «Комнаты» — меню раскрывается под шапкой. Ниже 550 оно превращается
+            в гармошку.
+          </p>
+        </div>
+        <Header
+          wishlistCount={1}
+          cartCount={1}
+          compareCount={0}
+          catalogSections={CATALOG_SECTIONS}
+          roomsSections={ROOMS_SECTIONS}
+        />
+      </section>
+
       <div
         className={
           outline
@@ -149,6 +173,18 @@ export default function UiSandbox() {
         </header>
 
         <div className="flex flex-col gap-10 pb-20">
+          <Section
+            title="Шапка · проверка размера подписи"
+            hint="Группа в макете 298 × 43. Размер подписи напрямую не замерен, поэтому сверяем шириной: какой вариант даёт 298, тот и верный."
+          >
+            <Spec label="подпись 14" note="ожидание 298 × 43">
+              <UserActions wishlistCount={1} cartCount={1} />
+            </Spec>
+            <Spec label="подпись 12" note="для сравнения">
+              <UserActions wishlistCount={1} cartCount={1} className="[&_a]:!text-12" />
+            </Spec>
+          </Section>
+
           <Section
             title="Как писать брейкпоинты"
             hint="Брейкпоинты объявлены как min-width (vsm 550, sm 769, md 980), а макет описан сверху вниз — поэтому пишем через max-*. Ширина под каждым пробником настоящая: сузь окно и смотри, какое написание ведёт себя как надо."

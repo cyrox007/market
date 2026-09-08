@@ -13,6 +13,12 @@ interface PriceOwnProps {
    * цена: в макете акционная цена и зачёркнутая нарисованы одним красным.
    */
   accent?: boolean;
+  /**
+   * Обозначение валюты. На карточках товара в макете «46 210р.» — слитно и с
+   * точкой, а в промо-блоке меню шапки «12 030 ₽» — со знаком и пробелом.
+   * Два разных написания в одном макете, поэтому вынесено в проп.
+   */
+  currency?: string;
   className?: string;
 }
 
@@ -32,17 +38,23 @@ type PriceProps = PriceOwnProps & Omit<HTMLAttributes<HTMLSpanElement>, keyof Pr
  *
  * Размер 20 в шкале отсутствовал и добавлен в конфиг ради этого места.
  *
- * Разделитель разрядов ставит Intl: неразрывный пробел, как в макете. Рубль
- * пишется слитно с числом («46 210р.»), тоже как в макете, — это не опечатка
- * и не нарушение типографики, а воспроизведение того, что нарисовано.
+ * Само число и старая цена не переносятся внутри себя, а вот друг под друга
+ * встают: в узких местах вроде мини-карточек в меню шапки старая цена иначе
+ * вылезала за границу блока.
+ *
+ * Разделитель разрядов ставит Intl: неразрывный пробел, как в макете. Рубль по
+ * умолчанию пишется слитно с числом («46 210р.»), как нарисовано на карточках;
+ * в промо-блоке меню шапки другое написание, для него есть проп `currency`.
  */
-const format = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)}р.`;
+const format = (value: number, currency: string) =>
+  `${new Intl.NumberFormat('ru-RU').format(value)}${currency}`;
 
 export default function Price({
   value,
   oldValue,
   from = false,
   accent,
+  currency = 'р.',
   className,
   ...rest
 }: PriceProps) {
@@ -50,18 +62,25 @@ export default function Price({
   const tone = isAccent ? 'text-brand-red' : 'text-ink';
 
   return (
-    <span {...rest} className={cn('inline-flex items-baseline gap-2 font-bold', tone, className)}>
+    <span
+      {...rest}
+      className={cn(
+        'inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-bold',
+        tone,
+        className,
+      )}
+    >
       <span className="inline-flex items-baseline gap-1">
         {from && <span className="text-16">от</span>}
-        <span className="text-20">{format(value)}</span>
+        <span className="whitespace-nowrap text-20">{format(value, currency)}</span>
       </span>
 
       {/* У <s> класс line-through стоит один: если рядом написать no-underline,
           они конфликтуют и зачёркивание гаснет — проверено замером */}
       {oldValue !== undefined && (
-        <s className="inline-flex items-baseline gap-1 text-14 line-through">
+        <s className="inline-flex items-baseline gap-1 whitespace-nowrap text-14 line-through">
           {from && <span>от</span>}
-          {format(oldValue)}
+          {format(oldValue, currency)}
         </s>
       )}
     </span>

@@ -87,6 +87,7 @@ export default {
         '10': ['10px', { lineHeight: 'normal' }],
         '12': ['12px', { lineHeight: 'normal' }],
         '14': ['14px', { lineHeight: 'normal' }],
+        '15': ['15px', { lineHeight: 'normal' }], // замерено: левая колонка меню шапки
         '16': ['16px', { lineHeight: 'normal' }],
         '18': ['18px', { lineHeight: 'normal' }],
         '20': ['20px', { lineHeight: 'normal' }], // замерено: цена на карточке товара
