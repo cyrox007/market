@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-import { Badge, Button } from '../../ui/primitives';
-import { Price } from '../../ui/composites';
-import { cn } from '../../../lib/cn';
+import { Badge, Button } from '../../../ui/primitives';
+import { Price } from '../../../ui/composites';
+import { cn } from '../../../../lib/cn';
 
 export interface PromoProduct {
   to: string;
@@ -23,17 +23,7 @@ interface MenuPromoProps {
   className?: string;
 }
 
-/**
- * Блок распродажи под колонками в меню «Комнаты».
- *
- * Замерено с макета 07.09.2026: блок **908 × 210**, тянется на всю ширину правой
- * панели. Высота считается содержимым, поэтому не задана.
- *
- * ⚠️ Не замерено почти ничего внутри: цвет подложки (взят `brand-yellow/10`),
- * отступы, размеры шрифтов названия и мини-карточек. Цены собраны компонентом
- * `Price` с замеренными размерами 20 и 14, но со знаком «₽» вместо «р.» —
- * в макете здесь другое написание, чем на карточках товара.
- */
+/** Блок распродажи в меню «Комнаты». Замеры — market-docs/13-header.md */
 export default function MenuPromo({
   badge,
   title,

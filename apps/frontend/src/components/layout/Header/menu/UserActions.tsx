@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeftRight, Heart, ShoppingCart, User } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import CounterBadge from './CounterBadge';
-import { cn } from '../../../lib/cn';
+import { cn } from '../../../../lib/cn';
 
 interface UserActionsProps {
   compareCount?: number;
@@ -20,22 +20,7 @@ interface ActionItem {
   count?: number;
 }
 
-/**
- * Правая группа шапки: Сравнить, Избранное, Корзина, Войти.
- *
- * Замерено с макета 07.09.2026: группа целиком **298 × 43**, промежуток между
- * элементами **20**, иконки 24.
- *
- * Размер подписи выведен из ширины, а не замерен напрямую: при 14 четыре слова
- * с промежутками дают около 298, при 12 — заметно меньше. Проверяется в песочнице
- * замером ширины группы, там же стоит вариант с 12 для сравнения.
- *
- * ⚠️ Не замерено: промежуток между иконкой и подписью (стоит 2, выводится из
- * высоты 43 = 24 + 2 + 17).
- *
- * Адаптив: ниже 980 подписи пропадают, остаются иконки со счётчиками. Ниже 550
- * группа исчезает целиком — это делает MainBar, а не сам компонент.
- */
+/** Правая группа шапки. Замеры — market-docs/13-header.md */
 export default function UserActions({
   compareCount = 0,
   wishlistCount = 0,

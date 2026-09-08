@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom';
 import { ChevronDown, Clock, MapPin, Phone } from 'lucide-react';
-import { cn } from '../../../lib/cn';
-import { HEADER_CONTAINER } from './container';
+import { cn } from '../../../../lib/cn';
+import { DISABLED_LINK, HEADER_CONTAINER } from '../lib/container';
 
 interface TopBarLink {
   to: string;
   label: string;
+  /** Маршрута под раздел ещё нет: рисуем приглушённым и не кликаем */
+  disabled?: boolean;
 }
 
 interface TopBarProps {
@@ -20,29 +22,12 @@ interface TopBarProps {
 const DEFAULT_LINKS: TopBarLink[] = [
   { to: '/stores', label: 'Магазины' },
   { to: '/delivery', label: 'Доставка и сборка' },
-  { to: '/credit', label: 'Кредит и рассрочка' },
+  // Маршрута /credit в router/config.tsx нет — ссылка увела бы на 404
+  { to: '/credit', label: 'Кредит и рассрочка', disabled: true },
   { to: '/contacts', label: 'Контакты' },
 ];
 
-/**
- * Верхняя полоса шапки: выбор города, служебные ссылки, телефон и режим работы.
- *
- * Замерено с макета 07.09.2026: высота полосы **36**, промежуток **24**.
- *
- * ⚠️ Не замерено: размер шрифта (стоит 14), размер иконок (16), цвет подложки.
- * На скриншоте полоса чуть серее белого — взят `surface-grey`.
- *
- * Адаптив по макету:
- *   ниже 1280  пропадает режим работы — раньше всего остального
- *   ниже 980   размер шрифта становится 12
- *   ниже 769   пропадают служебные ссылки, остаются город и телефон
- *
- * Порог 769 — это `sm`, он был в конфиге. В макете нарисовано только состояние
- * ниже 550; владелец попросил включать его раньше, примерно с 740.
- *
- * `whitespace-nowrap` на всей полосе: между 1440 и 980 макета нет, а без запрета
- * переноса ссылки ломаются по словам уже на 1152.
- */
+/** Верхняя полоса шапки. Замеры и адаптив — market-docs/13-header.md */
 export default function TopBar({
   city = 'Липецк',
   onCityClick,
@@ -71,15 +56,21 @@ export default function TopBar({
           </button>
 
           {/* Ниже 769 остаются только город и телефон */}
-          {links.map(({ to, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className="outline-none hover:text-brand-green focus-visible:text-brand-green max-sm:hidden"
-            >
-              {label}
-            </Link>
-          ))}
+          {links.map(({ to, label, disabled }) =>
+            disabled ? (
+              <span key={to} aria-disabled="true" className={cn(DISABLED_LINK, 'max-sm:hidden')}>
+                {label}
+              </span>
+            ) : (
+              <Link
+                key={to}
+                to={to}
+                className="outline-none hover:text-brand-green focus-visible:text-brand-green max-sm:hidden"
+              >
+                {label}
+              </Link>
+            ),
+          )}
         </div>
 
         <div className="flex items-center gap-6">

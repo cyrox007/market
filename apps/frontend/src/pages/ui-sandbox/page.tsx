@@ -125,8 +125,17 @@ export default function UiSandbox() {
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* Шапка показана на всю ширину: внутри неё свой max-w-[1440px] и px-[100px],
-          и в колонке песочницы шириной 1200 замеры были бы неверными */}
+      {/* Шапка первым потомком страницы, а не внутри секции: она sticky,
+          а sticky держится только в пределах родителя. В RootLayout она тоже
+          прямой потомок высокой обёртки, так что превью соответствует бою. */}
+      <Header
+        wishlistCount={1}
+        cartCount={1}
+        compareCount={0}
+        catalogSections={CATALOG_SECTIONS}
+        roomsSections={ROOMS_SECTIONS}
+      />
+
       <section className="border-b border-surface-border">
         <div className="mx-auto max-w-[1440px] px-[100px] pb-4 pt-10">
           <h2 className="text-24 font-semibold text-ink">Шапка по макету</h2>
@@ -138,13 +147,6 @@ export default function UiSandbox() {
             в гармошку.
           </p>
         </div>
-        <Header
-          wishlistCount={1}
-          cartCount={1}
-          compareCount={0}
-          catalogSections={CATALOG_SECTIONS}
-          roomsSections={ROOMS_SECTIONS}
-        />
       </section>
 
       <div

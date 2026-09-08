@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import type { MenuGroup, MenuSection } from './menu-types';
-import { HEADER_CONTAINER } from './container';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { cn } from '../../../lib/cn';
+import type { MenuGroup, MenuLink, MenuSection } from '../lib/menu-types';
+import { DISABLED_LINK, HEADER_CONTAINER } from '../lib/container';
+import { useMediaQuery } from '../../../../hooks/useMediaQuery';
+import { cn } from '../../../../lib/cn';
 
 interface HeaderMenuProps {
   sections: MenuSection[];
@@ -15,31 +15,14 @@ interface HeaderMenuProps {
 }
 
 /**
- * Выпадающее меню шапки. Один компонент на оба: «Каталог» и «Комнаты» —
- * у них одинаковое устройство и разные данные.
- *
- * Замерено с макета 07.09.2026:
- *   левая колонка   300
- *   заголовок       20
- *   ссылки справа   14
- *   левая колонка   15 и 14
- *   высота          652 у каталога, 508 у комнат — считается содержимым
- *
- * Три состояния:
- *   ≥ 980   две колонки: список слева, раскрытый раздел справа
- *   ≤ 979   те же две колонки, левая уже, справа два столбца вместо трёх-четырёх
- *   ≤ 549   одна колонка: список превращается в гармошку, раздел раскрывается
- *           прямо под своим пунктом
- *
- * ⚠️ Не замерено: отступы внутри меню, высота строки списка, отступ правой панели
- * от разделителя (стоит 32), ширина левой колонки ниже 980 (стоит 230).
+ * Выпадающее меню шапки, одно на «Каталог» и «Комнаты».
+ * Замеры, три состояния и открытые вопросы — market-docs/13-header.md.
  */
 export default function HeaderMenu({ sections, label, onClose, className }: HeaderMenuProps) {
   const firstExpandable = sections.find((section) => section.groups?.length);
   const [activeId, setActiveId] = useState(firstExpandable?.id ?? sections[0]?.id);
 
-  // Гармошка вместо двух колонок. Хук безопасен: меню открывается по клику,
-  // то есть к первому показу значение уже уточнено и мигания не будет.
+  // Хук, а не CSS: раскладки слишком разные. Мигания нет — меню закрыто до клика
   const isAccordion = useMediaQuery('(max-width: 549.98px)');
 
   useEffect(() => {
@@ -50,11 +33,20 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  const active = sections.find((section) => section.id === activeId);
+  const explicit = sections.find((section) => section.id === activeId);
+
+  // Разделы приезжают асинхронно: на первом рендере их ещё нет, и выбранным
+  // оказывается пункт без содержимого. Поэтому падаем на первый раскрываемый.
+  const active = isAccordion || explicit?.groups?.length ? explicit : firstExpandable;
 
   return (
     <div
-      className={cn('w-full border-t border-surface-border bg-surface shadow-card', className)}
+      className={cn(
+        'w-full border-t border-surface-border bg-surface shadow-card',
+        // Шапка липкая: те же отступы сверху, что в Header, иначе меню уедет за низ
+        'max-h-[calc(100dvh-116px)] overflow-y-auto max-md:max-h-[calc(100dvh-151px)]',
+        className,
+      )}
       role="region"
       aria-label={label}
     >
@@ -68,11 +60,22 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
         >
           {sections.map((section) => {
             const expandable = Boolean(section.groups?.length);
-            const isActive = section.id === activeId;
+            const isActive = isAccordion ? section.id === activeId : section.id === active?.id;
 
             return (
               <li key={section.id}>
-                {section.to && !expandable ? (
+                {section.disabled ? (
+                  <span
+                    aria-disabled="true"
+                    className={cn(
+                      'block rounded-btn px-3 py-2',
+                      DISABLED_LINK,
+                      section.emphasized ? 'text-15 font-semibold' : 'text-14',
+                    )}
+                  >
+                    {section.label}
+                  </span>
+                ) : section.to && !expandable ? (
                   <Link
                     to={section.to}
                     onClick={onClose}
@@ -143,21 +146,31 @@ function MenuPanelGroups({
 }) {
   const flowing = groups.length === 1 && !groups[0].title;
 
-  const link = (to: string, label: string) => (
-    <Link
-      key={to}
-      to={to}
-      onClick={onNavigate}
-      className="block py-1.5 text-14 text-ink-secondary outline-none hover:text-ink focus-visible:text-ink"
-    >
-      {label}
-    </Link>
-  );
+  // Ключ по адресу и подписи: у неактивных ссылок адреса нет, все они «#»
+  const link = ({ to, label, disabled }: MenuLink) =>
+    disabled ? (
+      <span
+        key={`${to}:${label}`}
+        aria-disabled="true"
+        className={cn('block py-1.5 text-14', DISABLED_LINK)}
+      >
+        {label}
+      </span>
+    ) : (
+      <Link
+        key={`${to}:${label}`}
+        to={to}
+        onClick={onNavigate}
+        className="block py-1.5 text-14 text-ink-secondary outline-none hover:text-ink focus-visible:text-ink"
+      >
+        {label}
+      </Link>
+    );
 
   if (flowing) {
     return (
       <div className={cn(inset ? 'pl-3' : 'columns-3 gap-8 max-md:columns-2')}>
-        {groups[0].links.map(({ to, label }) => link(to, label))}
+        {groups[0].links.map(link)}
       </div>
     );
   }
@@ -167,7 +180,7 @@ function MenuPanelGroups({
       {groups.map((group) => (
         <div key={group.title ?? 'group'}>
           {group.title && <h3 className="mb-2 text-14 font-semibold text-ink">{group.title}</h3>}
-          {group.links.map(({ to, label }) => link(to, label))}
+          {group.links.map(link)}
         </div>
       ))}
     </div>

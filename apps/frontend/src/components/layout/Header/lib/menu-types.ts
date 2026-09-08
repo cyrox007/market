@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 export interface MenuLink {
   to: string;
   label: string;
+  /** Маршрута под раздел ещё нет: рисуем приглушённым и не кликаем */
+  disabled?: boolean;
 }
 
 export interface MenuGroup {
@@ -21,6 +23,8 @@ export interface MenuSection {
   /** Заголовок правой панели, если отличается от подписи пункта */
   heading?: string;
   groups?: MenuGroup[];
+  /** Раздел без источника данных: приглушён и не раскрывается */
+  disabled?: boolean;
   /** Блок распродажи под колонками — есть только у «Комнат» */
   promo?: ReactNode;
 }

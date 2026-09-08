@@ -1,4 +1,4 @@
-import { cn } from '../../../lib/cn';
+import { cn } from '../../../../lib/cn';
 
 interface CounterBadgeProps {
   count: number;
@@ -7,12 +7,7 @@ interface CounterBadgeProps {
   className?: string;
 }
 
-/**
- * Красный кружок со счётчиком на иконке избранного, сравнения и корзины.
- *
- * ⚠️ Размеры НЕ замерены: диаметр 16, цифра 10, смещение вправо-вверх на 4.
- * Взяты на глаз со скриншота шапки. Это первое, что нужно сверить.
- */
+/** Счётчик на иконке. ⚠️ Размеры на глаз, не замерены — market-docs/13-header.md */
 export default function CounterBadge({ count, max = 99, className }: CounterBadgeProps) {
   if (count <= 0) return null;
 
