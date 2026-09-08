@@ -5,6 +5,7 @@ import AutoImport from 'unplugin-auto-import/vite';
 
 const base = process.env.BASE_PATH || '/';
 const isPreview = process.env.IS_PREVIEW ? true : false;
+const apiProxyTarget = process.env.API_PROXY || 'http://localhost:8000';
 
 /** В проде убираем ранний link на /src/index.css — в сборке CSS инжектится из бандла */
 function earlyCssPlugin() {
@@ -107,6 +108,12 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    proxy: {
+      '/api': apiProxyTarget,
+      '/api-docs': apiProxyTarget,
+      '/admin_sv': apiProxyTarget,
+      '/storage': apiProxyTarget,
+    }
   },
   test: {
     environment: 'jsdom',
