@@ -26,4 +26,7 @@ return [
 
     'metrics_route_enabled' => env('API_METRICS_ROUTE_ENABLED', true),
 
+    // Р-5: доступ к публичному роуту метрик только по токену. Пусто = роут закрыт (fail-closed).
+    'token' => env('API_METRICS_TOKEN', ''),
+
 ];
