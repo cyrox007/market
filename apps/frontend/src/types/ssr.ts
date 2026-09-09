@@ -1,3 +1,5 @@
+import type { Category } from '../lib/api';
+
 /** SEO для текущей страницы (товар, категория и т.д.) — подставляется в <head> при SSR */
 export interface SeoMetaSSR {
   title: string | null;
@@ -25,6 +27,8 @@ export interface SSRContext {
     related?: { data: any[] };
   };
   region?: any;
+  /** Дерево категорий для шапки — грузится на всех маршрутах */
+  categoryTree?: Category[];
   // Главная страница
   home?: {
     categories?: any[];

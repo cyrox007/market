@@ -119,7 +119,6 @@ export default function Documents() {
     title: buildTitle('Документы'),
     description: 'Документы интернет-магазина Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Документы'),
     locale: 'ru_RU',

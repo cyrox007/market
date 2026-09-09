@@ -30,7 +30,6 @@ export default function Register() {
     title: buildTitle('Регистрация'),
     description: 'Регистрация в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Регистрация'),
     locale: 'ru_RU',

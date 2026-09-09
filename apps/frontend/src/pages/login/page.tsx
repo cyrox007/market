@@ -24,7 +24,6 @@ export default function Login() {
     title: buildTitle('Вход'),
     description: 'Вход в личный кабинет интернет-магазина Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Вход'),
     locale: 'ru_RU',

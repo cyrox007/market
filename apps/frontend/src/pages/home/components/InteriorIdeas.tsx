@@ -31,7 +31,7 @@ export default function InteriorIdeas() {
 
   if (loading && rooms.length === 0) {
     return (
-      <section className="py-16 md:py-24 bg-gray-50 relative z-10">
+      <section className="py-16 md:py-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Идеи для интерьера</h2>
@@ -136,7 +136,7 @@ export default function InteriorIdeas() {
     product != null && product.is_variable === true && product.is_variant !== true;
 
   return (
-    <section className="py-16 md:py-24 bg-gray-50 relative z-10">
+    <section className="py-16 md:py-24 relative z-10">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Идеи для интерьера</h2>

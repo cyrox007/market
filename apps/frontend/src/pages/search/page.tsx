@@ -70,7 +70,6 @@ export default function Search() {
     title: buildTitle('Поиск'),
     description: 'Результаты поиска в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Поиск'),
     locale: 'ru_RU',

@@ -46,7 +46,6 @@ export default function Orders() {
     title: buildTitle('Мои заказы'),
     description: 'История ваших заказов в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Мои заказы'),
     locale: 'ru_RU',

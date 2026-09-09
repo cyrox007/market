@@ -26,7 +26,6 @@ export default function Contacts() {
     description:
       'Контакты интернет-магазина Светофор-Мебель. Адреса магазинов, телефоны, режим работы.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Контакты'),
     locale: 'ru_RU',

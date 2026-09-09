@@ -121,7 +121,6 @@ export default function Chats() {
     title: buildTitle('Чаты с продавцами'),
     description: 'Чаты поддержки в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Чаты с продавцами'),
     locale: 'ru_RU',

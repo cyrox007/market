@@ -60,7 +60,6 @@ function CategoryCard({
     description:
       'Широкий выбор мебели для дома и офиса. Диваны, кровати, шкафы, столы, стулья и другие товары.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Каталог'),
     locale: 'ru_RU',
