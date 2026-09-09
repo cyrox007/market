@@ -65,7 +65,6 @@ export default function Checkout() {
     description:
       'Оформление заказа в интернет-магазине Светофор-Мебель. Быстрая доставка, удобная оплата.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Оформление заказа'),
     locale: 'ru_RU',

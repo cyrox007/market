@@ -35,7 +35,6 @@ export default function Compare() {
     title: buildTitle('Сравнение'),
     description: 'Сравнение товаров в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Сравнение'),
     locale: 'ru_RU',

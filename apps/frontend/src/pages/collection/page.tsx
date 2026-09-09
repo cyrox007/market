@@ -63,7 +63,6 @@ export default function CollectionPage() {
     title: buildTitle('Коллекции'),
     description: 'Коллекции мебели в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Коллекции'),
     locale: 'ru_RU',

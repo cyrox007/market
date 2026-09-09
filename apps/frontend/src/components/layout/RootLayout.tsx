@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import Header from '../feature/Header';
+import Header from './Header/HeaderConnected';
 import Footer from '../feature/Footer';
 import CookieConsentBanner from '../CookieConsentBanner';
 

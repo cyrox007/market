@@ -131,7 +131,6 @@ export default function SetPage() {
     title: buildTitle('Набор'),
     description: 'Готовые наборы мебели в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Набор'),
     locale: 'ru_RU',

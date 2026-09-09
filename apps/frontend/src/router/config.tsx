@@ -35,7 +35,24 @@ const Search = lazy(() => import('../pages/search/page'));
 const Collection = lazy(() => import('../pages/collection/page.tsx'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 
+/**
+ * Песочница UI-примитивов, маршрут /__ui. Отдельно от RootLayout: шапка и
+ * подвал сидят на генерических палитрах Tailwind и мешали бы сверять цвета.
+ *
+ * lazy() вызывается ВНУТРИ условия намеренно. На уровне модуля сборщик выпускает
+ * чанк для любого динамического импорта, даже если маршрут не зарегистрирован, —
+ * проверено, песочница уезжала в прод отдельным файлом. Внутри `if` с константой
+ * import.meta.env.DEV вся ветка вырезается вместе с импортом.
+ */
+const devRoutes: RouteObject[] = [];
+
+if (import.meta.env.DEV) {
+  const UiSandbox = lazy(() => import('../pages/ui-sandbox/page'));
+  devRoutes.push({ path: '__ui', element: <UiSandbox /> });
+}
+
 const routes: RouteObject[] = [
+  ...devRoutes,
   {
     element: <RootLayout />,
     children: [

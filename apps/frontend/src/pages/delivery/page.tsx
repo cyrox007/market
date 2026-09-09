@@ -19,7 +19,6 @@ export default function Delivery() {
     title: buildTitle('Доставка'),
     description: 'Условия доставки в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Доставка'),
     locale: 'ru_RU',

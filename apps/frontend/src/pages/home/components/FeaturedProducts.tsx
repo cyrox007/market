@@ -168,7 +168,7 @@ export default function FeaturedProducts() {
 
   if (isLoading) {
     return (
-      <section className="px-4 lg:px-12 py-16 bg-gray-50">
+      <section className="px-4 lg:px-12 py-16">
         <div className="max-w-7xl mx-auto space-y-16">
           {[...Array(3)].map((_, i) => (
             <div key={i}>
@@ -193,7 +193,7 @@ export default function FeaturedProducts() {
   }
 
   return (
-    <section className="px-4 lg:px-12 py-16 bg-gray-50">
+    <section className="px-4 lg:px-12 py-16">
       <div className="max-w-7xl mx-auto space-y-16">
         {sections.map((section, sectionIndex) => {
           if (section.products.length === 0) return null;

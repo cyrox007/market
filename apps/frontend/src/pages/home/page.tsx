@@ -1,5 +1,5 @@
-import Hero from './components/Hero';
-import Categories from './components/Categories';
+import { PromoBoardConnected } from './components/PromoBoard';
+import { CategoryCarouselConnected } from './components/CategoryCarousel';
 import FeaturedProducts from './components/FeaturedProducts';
 import InteriorIdeas from './components/InteriorIdeas';
 import WhyChooseUs from './components/WhyChooseUs';
@@ -14,7 +14,6 @@ export default function Home() {
     description:
       'Интернет-магазин качественной мебели. Диваны, кровати, шкафы, кухни и многое другое. Доставка по всей России.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Главная'),
     locale: 'ru_RU',
@@ -22,8 +21,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Hero />
-      <Categories />
+      <PromoBoardConnected />
+      <CategoryCarouselConnected />
       <FeaturedProducts />
       <InteriorIdeas />
       <WhyChooseUs />

@@ -140,7 +140,6 @@ export default function Account() {
     title: buildTitle('Личный кабинет'),
     description: 'Личный кабинет покупателя в интернет-магазине Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'noindex, follow',
     open_graph_title: buildTitle('Личный кабинет'),
     locale: 'ru_RU',

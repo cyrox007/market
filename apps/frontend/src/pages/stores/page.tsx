@@ -53,7 +53,6 @@ export default function Stores() {
     title: buildTitle('Магазины'),
     description: 'Адреса и контакты магазинов Светофор-Мебель.',
     image: '/logo.png',
-    canonical_url: window.location.href,
     robots: 'index, follow',
     open_graph_title: buildTitle('Магазины'),
     locale: 'ru_RU',
