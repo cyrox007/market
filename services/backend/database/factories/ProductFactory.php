@@ -28,7 +28,9 @@ class ProductFactory extends Factory
             'state' => 'active',
             'description' => fake()->paragraph(),
             'excerpt' => fake()->sentence(),
-            'stock' => fake()->numberBetween(0, 100),
+            // Keep the default factory deterministic and purchasable. Tests that
+            // exercise out-of-stock behavior should opt into stock=0 explicitly.
+            'stock' => 100,
             'backorder' => false,
             'units_sold' => fake()->numberBetween(0, 1000),
         ];

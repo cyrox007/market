@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehouseStockResolver;
 use App\Services\Product\ProductRegionRuleService;
+use App\Services\Product\ProductVariationAttributeService;
 use App\Services\Seo\SeoApiTransformer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -30,6 +31,7 @@ class ProductResource extends JsonResource
         }
 
         $regionRuleService = app(ProductRegionRuleService::class);
+        $variationAttributeService = app(ProductVariationAttributeService::class);
         $warehouseStockResolver = app(WarehouseStockResolver::class);
 
         // Для вариативных товаров получаем минимальную цену из вариаций
@@ -53,31 +55,17 @@ class ProductResource extends JsonResource
                     return ['variant' => $variant, 'price' => $variantPrice];
                 });
                 $minPrice = $variantsWithPrices->min('price');
-                $maxPrice = $variantsWithPrices->max('price');
                 if ($minPrice !== null) {
                     $price = (float) $minPrice;
                 }
-                // Вариация с минимальной ценой — для подсветки цвета/размера в карточке
+
+                // Цвет и коммерческий размер берём только из канонических атрибутов вариации.
+                // length/width/height остаются физическими габаритами и не участвуют в выборе размера.
                 $cheapestEntry = $variantsWithPrices->where('price', $minPrice)->first();
                 if ($cheapestEntry) {
-                    $v = $cheapestEntry['variant'];
-                    if ($v->color) {
-                        $defaultColor = [
-                            'id' => null,
-                            'name' => $v->color,
-                            'slug' => Str::slug($v->color),
-                            'code' => $v->color_code ?? null,
-                        ];
-                    }
-                    if ($v->length && $v->width) {
-                        $sizeStr = "{$v->length}x{$v->width}";
-                        $defaultSize = [
-                            'id' => null,
-                            'name' => "{$v->length} x {$v->width} см",
-                            'slug' => Str::slug($sizeStr),
-                            'value' => $sizeStr,
-                        ];
-                    }
+                    $selected = $variationAttributeService->selectedForVariant($cheapestEntry['variant']);
+                    $defaultColor = $selected['color'];
+                    $defaultSize = $selected['size'];
                 }
 
                 // Получаем срок доставки из правил (берем первый доступный)
@@ -107,7 +95,7 @@ class ProductResource extends JsonResource
         // Для списка карточек не рассчитываем палитру цветов — эти данные не используются в ProductCard.
         $colors = [];
         if (!$isListView) {
-            $colorValues = $this->getAvailableColors();
+            $colorValues = $variationAttributeService->colors($this->resource);
             $colors = $colorValues->take(10)->map(function ($value) {
                 return [
                     'id' => $value->id ?? null,

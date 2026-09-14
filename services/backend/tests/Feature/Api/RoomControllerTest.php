@@ -149,8 +149,30 @@ class RoomControllerTest extends TestCase
     public function test_user_color_forbidden_by_room_yields_empty(): void
     {
         $category = Category::factory()->create(['slug' => 'divany-color']);
-        $this->makeProduct($category, ['color' => 'Серый']);
-        $this->makeProduct($category, ['color' => 'Бежевый']);
+        $color = Attribute::create([
+            'name' => 'Цвет',
+            'slug' => Attribute::SLUG_COLOR,
+            'type' => 'color',
+            'is_filterable' => true,
+            'is_use_in_variations' => true,
+        ]);
+        $gray = AttributeValue::create([
+            'attribute_id' => $color->id,
+            'value' => 'Серый',
+            'slug' => 'seryi',
+            'color_code' => '#808080',
+        ]);
+        $beige = AttributeValue::create([
+            'attribute_id' => $color->id,
+            'value' => 'Бежевый',
+            'slug' => 'bezevyi',
+            'color_code' => '#d8c3a5',
+        ]);
+
+        $grayProduct = $this->makeProduct($category);
+        $grayProduct->attributes()->attach($color->id, ['attribute_value_id' => $gray->id]);
+        $beigeProduct = $this->makeProduct($category);
+        $beigeProduct->attributes()->attach($color->id, ['attribute_value_id' => $beige->id]);
 
         $room = $this->makeRoom('Диваны', 'gostinaya-divany-color');
         $room->productCategories()->sync([$category->id]);

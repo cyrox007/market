@@ -1,0 +1,69 @@
+name: Backend tests
+
+on:
+  pull_request:
+    paths:
+      - 'services/backend/**'
+      - '.github/workflows/backend-tests.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'services/backend/**'
+      - '.github/workflows/backend-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, exif, zip, dom, xml, xmlreader, xmlwriter, simplexml, curl, fileinfo
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-${{ hashFiles('services/backend/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        id: composer_install
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          composer install --no-interaction --prefer-dist --no-progress 2>&1 | tee /tmp/composer-install.log
+
+      - name: Upload Composer diagnostics
+        if: steps.composer_install.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-install-log
+          path: /tmp/composer-install.log
+          retention-days: 1
+
+      - name: Stop on Composer failure
+        if: steps.composer_install.outcome == 'failure'
+        run: exit 1
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run backend test suite
+        run: composer test

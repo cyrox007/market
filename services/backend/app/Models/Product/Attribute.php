@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Attribute extends Model
 {
@@ -14,8 +15,27 @@ class Attribute extends Model
     /** Slug атрибута «Производитель» (импорт из 1С, фильтры, карточка товара) */
     public const SLUG_MANUFACTURER = 'proizvoditel';
 
+    /** Slug атрибута «Цвет». Единственный канонический источник цвета для вариаций. */
+    public const SLUG_COLOR = 'color';
+
+    /** Slug коммерческого атрибута «Размер». Не связан с физическими length/width/height. */
+    public const SLUG_SIZE = 'size';
+
     /** Slug атрибута «Вариант» — используется в вариациях, значение вручную или из импорта (опции) */
     public const SLUG_VARIANT = 'variant';
+
+    /**
+     * Нормализовать имена системных характеристик из внешних источников.
+     * Узкие точные соответствия не затрагивают «Размер упаковки», «Цвет каркаса» и т.п.
+     */
+    public static function canonicalSlugForName(string $name): string
+    {
+        return match (mb_strtolower(trim($name))) {
+            'цвет', 'color' => self::SLUG_COLOR,
+            'размер', 'size' => self::SLUG_SIZE,
+            default => Str::slug($name),
+        };
+    }
 
     protected $table = 'product_attributes';
 
@@ -136,4 +156,3 @@ class Attribute extends Model
     }
 
 }
-
