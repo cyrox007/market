@@ -44,4 +44,13 @@ class ProductOperatorPocFormSmokeTest extends TestCase
             $this->assertInstanceOf(Section::class, $method->invoke(null));
         }
     }
+
+    public function test_editor_section_navigation_blade_can_render(): void
+    {
+        $html = view('filament.resources.products.components.editor-section-nav')->render();
+
+        $this->assertStringContainsString('Основное', $html);
+        $this->assertStringContainsString('Характеристики', $html);
+        $this->assertStringContainsString('#product-media', $html);
+    }
 }
