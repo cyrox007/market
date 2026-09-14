@@ -3,6 +3,12 @@
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Products\RelationManagers\OperatorProductVariationAttributeSelectionRelationManager;
+use App\Filament\Resources\Products\RelationManagers\ProductBundleProductsRelationManager;
+use App\Filament\Resources\Products\RelationManagers\ProductRegionRulesRelationManager;
+use App\Filament\Resources\Products\RelationManagers\ProductReviewsRelationManager;
+use App\Filament\Resources\Products\RelationManagers\RelatedProductsRelationManager;
+use App\Filament\Resources\Products\RelationManagers\VariantRegionRulesRelationManager;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
 use App\Services\Product\ProductAttributeSyncService;
@@ -11,14 +17,19 @@ use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
+use Livewire\Attributes\Url;
 
 class EditProduct extends EditRecord
 {
     protected static string $resource = ProductResource::class;
 
     protected array $productAttributesData = [];
+
+    #[Url(as: 'workspace')]
+    public ?string $productWorkspace = null;
 
     protected function getHeaderActions(): array
     {
@@ -49,54 +60,108 @@ class EditProduct extends EditRecord
                     $service = app(OneCProductSyncService::class);
                     $product = $service->syncProductByExternalId($externalId);
                     if (! $product) {
-                        Notification::make()
-                            ->title('Товар не найден в 1С')
-                            ->danger()
-                            ->send();
-
+                        Notification::make()->title('Товар не найден в 1С')->danger()->send();
                         return;
                     }
 
                     $livewire->form->fill($product->toArray());
                     $livewire->save();
 
-                    Notification::make()
-                        ->title('Товар успешно обновлён из 1С')
-                        ->success()
-                        ->send();
+                    Notification::make()->title('Товар успешно обновлён из 1С')->success()->send();
                 }),
 
-            DeleteAction::make()
-                ->label('Удалить'),
+            DeleteAction::make()->label('Удалить'),
         ];
     }
 
-    /**
-     * POC: меняем только композицию EditRecord, не lifecycle Filament.
-     * Навигация по разделам — обычный Blade view внутри schema.
-     */
     public function content(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                View::make('filament.resources.products.components.editor-section-nav')
+        $workspace = $this->getActiveProductWorkspace();
+
+        if ($workspace !== null) {
+            return $schema->components([
+                View::make('filament.resources.products.components.product-workspace-header')
+                    ->viewData([
+                        'title' => $workspace['title'],
+                        'description' => $workspace['description'],
+                    ])
                     ->columnSpanFull(),
-                $this->getFormContentComponent(),
-                $this->getRelationManagersContentComponent(),
+                LivewireComponent::make($workspace['manager'], [
+                    'ownerRecord' => $this->getRecord(),
+                    'pageClass' => static::class,
+                ])
+                    ->key('product-workspace-' . $this->productWorkspace . '-' . $this->getRecord()->getKey())
+                    ->columnSpanFull(),
             ]);
+        }
+
+        return $schema->components([
+            View::make('filament.resources.products.components.editor-section-nav')->columnSpanFull(),
+            $this->getFormContentComponent(),
+        ]);
     }
 
-    /**
-     * Основное сохранение живёт в header, поэтому нижнюю панель действий убираем.
-     */
+    public function openProductWorkspace(string $workspace): void
+    {
+        if (array_key_exists($workspace, $this->getProductWorkspaceDefinitions())) {
+            $this->productWorkspace = $workspace;
+        }
+    }
+
+    public function closeProductWorkspace(): void
+    {
+        $this->productWorkspace = null;
+    }
+
+    protected function getProductWorkspaceDefinitions(): array
+    {
+        $regionRulesManager = $this->getRecord()->isVariant()
+            ? VariantRegionRulesRelationManager::class
+            : ProductRegionRulesRelationManager::class;
+
+        return [
+            'variation-attributes' => [
+                'title' => 'Параметры вариаций',
+                'description' => 'Выберите характеристики, которые отличают варианты этого товара.',
+                'manager' => OperatorProductVariationAttributeSelectionRelationManager::class,
+            ],
+            'reviews' => [
+                'title' => 'Отзывы товара',
+                'description' => 'Просмотр, модерация и редактирование отзывов этого товара.',
+                'manager' => ProductReviewsRelationManager::class,
+            ],
+            'region-rules' => [
+                'title' => 'Правила продажи',
+                'description' => 'Региональные цены, видимость товара и сроки доставки.',
+                'manager' => $regionRulesManager,
+            ],
+            'related-products' => [
+                'title' => 'Сопутствующие товары',
+                'description' => 'Связанные товары, которые показываются покупателю рядом с текущим товаром.',
+                'manager' => RelatedProductsRelationManager::class,
+            ],
+            'bundles' => [
+                'title' => 'Наборы и комплекты',
+                'description' => 'Состав набора и порядок связанных товаров.',
+                'manager' => ProductBundleProductsRelationManager::class,
+            ],
+        ];
+    }
+
+    protected function getActiveProductWorkspace(): ?array
+    {
+        if ($this->productWorkspace === null) {
+            return null;
+        }
+
+        return $this->getProductWorkspaceDefinitions()[$this->productWorkspace] ?? null;
+    }
+
     protected function getFormActions(): array
     {
         return [];
     }
 
-    /**
-     * Одна колонка в корне — композиция задаётся ProductOperatorPocForm.
-     */
     public function defaultForm(Schema $schema): Schema
     {
         return $schema
@@ -148,9 +213,7 @@ class EditProduct extends EditRecord
         $product = $this->record;
         if ($product) {
             app(ProductAttributeSyncService::class)->sync($product, $this->productAttributesData);
-        }
 
-        if ($product) {
             $variantsCount = $product->variants()->count();
             if ($variantsCount > 0 && ! $product->is_variable) {
                 $product->update(['is_variable' => true]);
