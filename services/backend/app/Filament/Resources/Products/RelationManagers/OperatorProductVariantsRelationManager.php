@@ -8,7 +8,7 @@ use function Filament\authorize;
 
 class OperatorProductVariantsRelationManager extends ProductVariantsRelationManager
 {
-    protected static ?string $title = 'Вариации';
+    protected static ?string $title = 'Варианты';
 
     public static function canViewForRecord($ownerRecord, string $pageClass): bool
     {
