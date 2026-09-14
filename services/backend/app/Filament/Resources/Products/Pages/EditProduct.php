@@ -11,6 +11,8 @@ use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Schemas\Components\View;
+use Filament\Schemas\Schema;
 
 class EditProduct extends EditRecord
 {
@@ -21,7 +23,11 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            $this->getSaveFormAction()
+                ->label('Сохранить')
+                ->icon('heroicon-m-check')
+                ->formId('form'),
+
             Action::make('viewOnSite')
                 ->label('Просмотр на сайте')
                 ->icon('heroicon-o-eye')
@@ -31,7 +37,7 @@ class EditProduct extends EditRecord
             Action::make('syncFrom1C')
                 ->label('Загрузить из 1С')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('primary')
+                ->color('gray')
                 ->form([
                     TextInput::make('external_id')
                         ->label('Код товара в 1С')
@@ -47,6 +53,7 @@ class EditProduct extends EditRecord
                             ->title('Товар не найден в 1С')
                             ->danger()
                             ->send();
+
                         return;
                     }
 
@@ -58,13 +65,39 @@ class EditProduct extends EditRecord
                         ->success()
                         ->send();
                 }),
+
+            DeleteAction::make()
+                ->label('Удалить'),
         ];
     }
 
     /**
-     * Одна колонка в корне — двухколоночная раскладка задаётся в ProductClassicForm через Grid.
+     * POC: меняем только композицию EditRecord, не lifecycle Filament.
+     * Навигация по разделам — обычный Blade view внутри schema.
      */
-    public function defaultForm(\Filament\Schemas\Schema $schema): \Filament\Schemas\Schema
+    public function content(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                View::make('filament.resources.products.components.editor-section-nav')
+                    ->columnSpanFull(),
+                $this->getFormContentComponent(),
+                $this->getRelationManagersContentComponent(),
+            ]);
+    }
+
+    /**
+     * Основное сохранение живёт в header, поэтому нижнюю панель действий убираем.
+     */
+    protected function getFormActions(): array
+    {
+        return [];
+    }
+
+    /**
+     * Одна колонка в корне — композиция задаётся ProductOperatorPocForm.
+     */
+    public function defaultForm(Schema $schema): Schema
     {
         return $schema
             ->columns(1)
@@ -143,6 +176,6 @@ class EditProduct extends EditRecord
 
     protected function getRedirectUrl(): ?string
     {
-        return ProductResource::getUrl('index');
+        return null;
     }
 }
