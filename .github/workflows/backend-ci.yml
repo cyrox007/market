@@ -44,17 +44,21 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Prepare application key
+      - name: Prepare test application
         run: |
           cp .env.example .env
           php artisan key:generate
+          mkdir -p public
+          printf '<!doctype html><html><body>Backend CI</body></html>\n' > public/index.html
 
-      - name: PHP syntax check for integration job
-        run: php -l app/Jobs/Integration/SyncOrderTo1CJob.php
-
-      - name: Run Laravel tests
-        run: php artisan test
+      - name: PHP syntax checks
+        run: |
+          php -l app/Jobs/Integration/SyncOrderTo1CJob.php
+          php -l app/Http/Controllers/Api/AuthController.php
 
       - name: Validate Docker Compose
         working-directory: .
         run: docker compose config --quiet
+
+      - name: Run Laravel tests
+        run: php artisan test
