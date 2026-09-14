@@ -34,36 +34,10 @@ class ProductForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                // Две колонки на ПК: слева — основное, справа — категории, цены, изображения и т.д.
-                Grid::make(['default' => 1, 'lg' => 2])
-                    ->schema([
-                        // Левая колонка
-                        Group::make([
-                            self::mainInfoSection(),
-                            self::stockSection(),
-                            self::warehouseStocksSection(),
-                            self::colorSection(),
-                            self::dimensionsSection(),
-                            self::seoSection(),
-                        ]),
-
-                        // Правая колонка (изображения здесь, не сверху)
-                        Group::make([
-                            self::categoriesSection(),
-                            /* self::manufacturerSection(), */
-                            self::statusPriceSection(),
-                            self::imagesSection(),
-                            self::taxShippingSection(),
-                            self::importSection(),
-                        ]),
-                    ])
-                    ->columnSpanFull(),
-
-                // Характеристики товара — на всю ширину, отдельным блоком ниже, с возможностью свернуть
-                self::attributesSection()->columnSpanFull(),
-            ]);
+        // ProductResource uses ProductTabbedForm directly. Keep this legacy entrypoint
+        // delegated to the same schema so the old two-column form with duplicate color
+        // fields can never be reintroduced by another caller accidentally.
+        return ProductTabbedForm::configure($schema);
     }
 
     protected static function mainInfoSection(): Section
@@ -341,296 +315,38 @@ class ProductForm
                 // Для простых товаров – Repeater для редактирования
                 WarehouseStocksFormComponents::warehouseStocksRepeater()
                     ->visible(fn($record) => !$record || !$record->is_variable)
-                    ->helperText('Склады создаются при синхронизации из 1С...'),
+                    ->helperText('Склады создаются при синхронизации из 1С. Остатки по каждому складу обновляются автоматически.'),
             ]);
     }
 
     protected static function imagesSection(): Section
     {
         return Section::make('Изображения товара')
-            ->description('Загрузка главного изображения и галереи. Превью в ряд, компактно.')
+            ->description('Загрузка главного изображения и галереи')
             ->schema([
-                SpatieMediaLibraryFileUpload::make('images')
-                    ->collection('images')
+                SpatieMediaLibraryFileUpload::make('main_image')
                     ->label('Главное изображение')
-                    ->helperText('Основное изображение товара для карточки и страницы товара. Миниатюра 300×300 px создаётся автоматически.')
+                    ->collection('main_image')
                     ->image()
                     ->imageEditor()
-                    ->conversion('thumb')
+                    ->imageCropAspectRatio('1:1')
                     ->maxSize(10240)
-                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp']),
+                    ->helperText('Рекомендуемый размер: 800x800px. Максимальный размер файла: 10MB')
+                    ->columnSpanFull(),
 
                 SpatieMediaLibraryFileUpload::make('gallery')
+                    ->label(__('filament/admin_sv/product_resource.images'))
                     ->collection('gallery')
-                    ->label('Галерея изображений')
-                    ->helperText('Дополнительные фото товара (до 20). Превью в ряд. Порядок сохраняется как при загрузке.')
                     ->multiple()
+                    ->reorderable()
                     ->image()
                     ->imageEditor()
-                    ->conversion('thumb')
                     ->maxFiles(20)
                     ->maxSize(10240)
-                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
-                    ->panelLayout('grid')
-                    ->reorderable(),
-                    
-            ])
-            ->columns(2);
-    }
-
-    protected static function attributesSection(): Section
-    {
-        return Section::make('Характеристики товара')
-            ->description('Характеристики с значениями (материал, производитель и т.д.). Компактное отображение.')
-            ->collapsible()
-            ->collapsed()
-            ->schema([
-                Repeater::make('product_attributes')
-                    ->label('Характеристики')
-                    ->afterStateHydrated(function (callable $set, callable $get, ?Product $record): void {
-                        $current = $get('product_attributes') ?? [];
-                        if (!empty($current)) {
-                            return;
-                        }
-
-                        if (!$record) {
-                            return;
-                        }
-
-                        $record->loadMissing('taxons');
-                        $taxons = $record->taxons;
-
-                        if ($taxons->isEmpty()) {
-                            return;
-                        }
-
-                        $slugs = $taxons->pluck('slug')->filter()->unique()->values()->all();
-                        if (empty($slugs)) {
-                            return;
-                        }
-
-                        $categories = Category::query()
-                            ->whereIn('slug', $slugs)
-                            ->with('variationAttributes')
-                            ->get();
-
-                        $defaultAttributes = $categories
-                            ->flatMap(fn(Category $category) => $category->variationAttributes ?? collect())
-                            ->unique('id')
-                            ->values();
-
-                        if ($defaultAttributes->isEmpty()) {
-                            return;
-                        }
-
-                        $initial = [];
-                        foreach ($defaultAttributes as $attribute) {
-                            $initial[] = [
-                                'attribute_id' => $attribute->id,
-                                'attribute_value_id' => null,
-                            ];
-                        }
-
-                        if (!empty($initial)) {
-                            $set('product_attributes', $initial);
-                        }
-                    })
-                    ->schema([
-                        Select::make('attribute_id')
-                            ->label('Характеристика')
-                            ->options(Attribute::orderBy('name')->pluck('name', 'id'))
-                            ->searchable()
-                            ->preload()
-                            ->required()
-                            ->reactive()
-                            ->afterStateUpdated(function ($set) {
-                                $set('attribute_value_id', null);
-                                $set('custom_value', null);
-                            })
-                            // 👇 INLINE-СОЗДАНИЕ ХАРАКТЕРИСТИКИ
-                            ->createOptionForm([
-                                TextInput::make('name')
-                                    ->label('Название характеристики')
-                                    ->required()
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(fn($state, callable $set) => $set('slug', Str::slug($state))),
-                                TextInput::make('slug')
-                                    ->label('Слаг')
-                                    ->required()
-                                    ->unique(ignoreRecord: true)
-                                    ->helperText('Оставьте пустым для автоматической генерации'),
-                                Select::make('type')
-                                    ->label('Тип')
-                                    ->options([
-                                        'select' => 'Список',
-                                        'color' => 'Цвет',
-                                        'string' => 'Строка',
-                                        'text' => 'Текст',
-                                        'number' => 'Число',
-                                    ])
-                                    ->default('select')
-                                    ->required(),
-                                TextInput::make('sort_order')
-                                    ->label('Порядок')
-                                    ->numeric()
-                                    ->default(0),
-                                Toggle::make('is_use_in_variations')
-                                    ->label('Участвует в вариациях')
-                                    ->default(false),
-                                Toggle::make('is_filterable')
-                                    ->label('Показывать в фильтрах')
-                                    ->default(true),
-                                Toggle::make('is_multiple')
-                                    ->label('Множественный выбор')
-                                    ->default(false)
-                                    ->visible(fn($get) => $get('type') === 'color' || in_array($get('type'), ['select', 'string'], true)),
-                                Toggle::make('allow_custom_value')
-                                    ->label('Разрешить ручной ввод')
-                                    ->default(false)
-                                    ->visible(fn($get) => $get('type') !== 'color'),
-                            ])
-                            ->createOptionUsing(function (array $data): int {
-                                $attribute = Attribute::create($data);
-                                return $attribute->id;
-                            }),
-
-                        Select::make('attribute_value_id')
-                            ->label('Значение (из списка)')
-                            ->options(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                if (!$attributeId) return [];
-
-                                return AttributeValue::where('attribute_id', $attributeId)
-                                    ->orderBy('sort_order')
-                                    ->orderBy('value')
-                                    ->pluck('value', 'id')
-                                    ->toArray();
-                            })
-                            ->searchable()
-                            ->multiple(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                if (!$attributeId) return false;
-                                $attribute = Attribute::find($attributeId);
-                                return $attribute && $attribute->is_multiple;
-                            })
-                            ->live()
-                            ->afterStateUpdated(function ($state, $set) {
-                                if (!empty($state)) {
-                                    $set('custom_value', null);
-                                }
-                            })
-                            ->required(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                if (!$attributeId) return false;
-                                $attribute = Attribute::find($attributeId);
-                                return ($attribute->is_required ?? false) && empty($get('custom_value'));
-                            })
-                            ->disabled(fn($get) => !$get('attribute_id'))
-
-                            ->createOptionForm(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                $attribute = $attributeId ? Attribute::find($attributeId) : null;
-                                $isColor = $attribute && $attribute->type === 'color';
-                                $isString = $attribute && in_array($attribute->type, ['string', 'text'], true);
-
-                                $fields = [
-                                    TextInput::make('value')
-                                        ->label('Название значения')
-                                        ->required()
-                                        ->live(onBlur: true)
-                                        ->afterStateUpdated(fn($state, callable $set) => $set('slug', Str::slug($state))),
-                                    TextInput::make('slug')
-                                        ->label('Слаг')
-                                        ->helperText('Оставьте пустым для автоматической генерации'),
-                                ];
-
-                                if ($isColor) {
-                                    $fields[] = ColorPicker::make('color_code')
-                                        ->label('HEX цвета')
-                                        ->helperText('Цвет чипа на карточке товара');
-                                }
-
-                                if ($isString || !$isColor) {
-                                    $fields[] = TextInput::make('sort_order')
-                                        ->label('Порядок')
-                                        ->numeric()
-                                        ->default(0);
-                                }
-
-                                return $fields;
-                            })
-                            ->createOptionUsing(function (array $data, $get): int {
-                                $attributeId = $get('attribute_id');
-                                $data['attribute_id'] = $attributeId;
-                                $value = AttributeValue::create($data);
-                                return $value->id;
-                            }),
-
-                        TextInput::make('custom_value')
-                            ->label('Значение (ручной ввод)')
-                            ->maxLength(500)
-                            ->visible(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                if (!$attributeId) return false;
-                                $attribute = Attribute::find($attributeId);
-                                return $attribute && $attribute->allow_custom_value
-                                    && in_array($attribute->type, ['string', 'text', 'number_input'], true);
-                            })
-                            ->live()
-                            ->afterStateUpdated(function ($state, $set) {
-                                if ($state !== null && $state !== '') {
-                                    $set('attribute_value_id', null);
-                                }
-                            })
-                            ->required(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                if (!$attributeId) return false;
-                                $attribute = Attribute::find($attributeId);
-                                return ($attribute->is_required ?? false) && empty($get('attribute_value_id'));
-                            }),
-                    ])
-                    ->columns(1)
-                    ->compact()
-                    ->defaultItems(0)
-                    ->addActionLabel('Добавить характеристику')
-                    ->collapsible()
-                    ->itemLabel(
-                        fn(array $state): ?string => ($attribute = Attribute::find($state['attribute_id'] ?? null))
-                            ? $attribute->name .
-                            (isset($state['attribute_value_id']) && !empty($state['attribute_value_id'])
-                                ? (is_array($state['attribute_value_id'])
-                                    ? ' (несколько значений)'
-                                    : (($value = AttributeValue::find($state['attribute_value_id']))
-                                        ? ': ' . $value->value
-                                        : ''))
-                                : '')
-                            : 'Новая характеристика'
-                    )
-                    ->helperText('Выберите характеристику и её значение. Для добавления новых значений используйте раздел "Характеристики" в меню.')
+                    ->helperText('Дополнительные изображения товара. Можно менять порядок перетаскиванием. Максимум 20 файлов по 10MB')
                     ->columnSpanFull(),
-            ]);
-    }
-
-    protected static function colorSection(): Section
-    {
-        return Section::make('Цвет')
-            ->description('Для невариативных товаров: цвет для фильтров каталога. У вариативных товаров цвет задаётся в вариациях.')
-            ->schema([
-                TextInput::make('color')
-                    ->label(__('filament/admin_sv/product_resource.color'))
-                    ->maxLength(255)
-                    ->helperText('Название цвета для фильтров (например: Серый, Синий)'),
-
-                TextInput::make('color_code')
-                    ->label(__('filament/admin_sv/product_resource.color_code'))
-                    ->maxLength(7)
-                    ->placeholder('#808080')
-                    ->helperText('HEX код цвета для отображения на сайте'),
             ])
-            ->columns(2)
-            ->collapsible()
-            ->collapsed()
-            ->visible(fn($record) => !$record || !$record->is_variable);
+            ->columns(1);
     }
 
     protected static function dimensionsSection(): Section
@@ -642,27 +358,65 @@ class ProductForm
                     ->label(__('filament/admin_sv/product_resource.length'))
                     ->numeric()
                     ->suffix('см')
-                    ->helperText('Длина товара в сантиметрах'),
+                    ->minValue(0)
+                    ->step(0.01)
+                    ->helperText('Длина в сантиметрах'),
 
                 TextInput::make('width')
                     ->label(__('filament/admin_sv/product_resource.width'))
                     ->numeric()
                     ->suffix('см')
-                    ->helperText('Ширина товара в сантиметрах'),
+                    ->minValue(0)
+                    ->step(0.01)
+                    ->helperText('Ширина в сантиметрах'),
 
                 TextInput::make('height')
                     ->label(__('filament/admin_sv/product_resource.height'))
                     ->numeric()
                     ->suffix('см')
-                    ->helperText('Высота товара в сантиметрах'),
+                    ->minValue(0)
+                    ->step(0.01)
+                    ->helperText('Высота в сантиметрах'),
 
                 TextInput::make('weight')
                     ->label(__('filament/admin_sv/product_resource.weight'))
                     ->numeric()
                     ->suffix('кг')
-                    ->helperText('Вес товара в килограммах'),
+                    ->minValue(0)
+                    ->step(0.01)
+                    ->helperText('Вес в килограммах'),
             ])
-            ->columns(4)
+            ->columns(2);
+    }
+
+    protected static function colorSection(): Section
+    {
+        return Section::make('Цвет товара')
+            ->description('Цвет для обычного (не вариативного) товара')
+            ->visible(fn($record) => !$record || !$record->is_variable)
+            ->schema([
+                TextInput::make('color')
+                    ->label('Название цвета')
+                    ->maxLength(100)
+                    ->helperText('Например: Серый, Белый, Дуб сонома'),
+
+                ColorPicker::make('color_code')
+                    ->label('Код цвета')
+                    ->helperText('HEX-код цвета для визуального отображения (опционально)'),
+            ])
+            ->columns(2);
+    }
+
+    protected static function seoSection(): Section
+    {
+        return Section::make('SEO')
+            ->description('Поисковая оптимизация товара')
+            ->schema([
+                SEO::make('seo')
+                    ->hiddenLabel()
+                    ->columnSpanFull(),
+            ])
+            ->columns(1)
             ->collapsible()
             ->collapsed();
     }
@@ -670,86 +424,248 @@ class ProductForm
     protected static function taxShippingSection(): Section
     {
         return Section::make('Налоги и доставка')
-            ->description('Категории для расчёта налогов и стоимости доставки')
+            ->description('Категории налогообложения и доставки')
             ->schema([
                 Select::make('tax_category_id')
-                    ->label(__('filament/admin_sv/product_resource.tax_category_id'))
+                    ->label(__('filament/admin_sv/product_resource.tax_category'))
                     ->options(TaxCategory::all()->pluck('name', 'id'))
                     ->searchable()
-                    ->preload()
-                    ->nullable()
-                    ->helperText('Категория для расчета налогов'),
+                    ->helperText('Категория для расчета налогов (если применяется)')
+                    ->columnSpanFull(),
 
                 Select::make('shipping_category_id')
-                    ->label(__('filament/admin_sv/product_resource.shipping_category_id'))
+                    ->label(__('filament/admin_sv/product_resource.shipping_category'))
                     ->options(ModelsShippingCategory::all()->pluck('name', 'id'))
                     ->searchable()
-                    ->preload()
-                    ->nullable()
-                    ->helperText('Категория для расчета стоимости доставки'),
+                    ->helperText('Категория для расчета стоимости доставки')
+                    ->columnSpanFull(),
             ])
-            ->columns(2)
-            ->collapsible()
-            ->collapsed();
+            ->columns(1);
     }
 
     protected static function importSection(): Section
     {
         return Section::make('Импорт 1С')
-            ->description('Идентификаторы для сопоставления при импорте каталога')
+            ->description('Данные для синхронизации с 1С')
             ->schema([
                 TextInput::make('external_id')
-                    ->label('Внешний ID 1С (external_id)')
+                    ->label(__('filament/admin_sv/product_resource.external_id'))
                     ->maxLength(255)
-                    ->helperText('UUID товара/вариации в кэше 1С. Нужен для загрузки остатков по складам (GET …/products/{id}/stocks). У вариаций — свой ID в карточке вариации.')
-                    ->columnSpanFull()
-                    ->suffixAction(
-                        Action::make('syncFrom1C')
-                            ->label('Загрузить')
-                            ->icon('heroicon-o-arrow-down-tray')
-                            ->action(function ($state, $set, $get, $livewire) {
-                                $externalId = $state;
-                                if (empty($externalId)) {
-                                    Notification::make()
-                                        ->title('Введите external_id')
-                                        ->warning()
-                                        ->send();
-                                    return;
-                                }
+                    ->disabled()
+                    ->dehydrated(true)
+                    ->helperText('Внешний ID товара в 1С (только для чтения)'),
 
-                                $service = app(OneCProductSyncService::class);
-                                $product = $service->syncProductByExternalId($externalId);
-                                if (!$product) {
-                                    Notification::make()
-                                        ->title('Товар не найден в 1С')
-                                        ->danger()
-                                        ->send();
-                                    return;
-                                }
+                Action::make('load_from_1c')
+                    ->label('Загрузить данные из 1С')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->modalHeading('Загрузка данных из 1С')
+                    ->modalDescription('Данные товара будут загружены из 1С и заменят текущие значения. Продолжить?')
+                    ->action(function ($record, $livewire) {
+                        if (!$record || !$record->exists) {
+                            Notification::make()
+                                ->title('Ошибка')
+                                ->body('Сначала сохраните товар')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
 
+                        if (!$record->external_id) {
+                            Notification::make()
+                                ->title('Ошибка')
+                                ->body('У товара не указан внешний ID для 1С')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        try {
+                            $syncService = app(OneCProductSyncService::class);
+                            $result = $syncService->syncProductFrom1C($record);
+
+                            if ($result['success']) {
                                 Notification::make()
-                                    ->title('Товар успешно загружен из 1С')
+                                    ->title('Данные загружены')
+                                    ->body($result['message'])
                                     ->success()
                                     ->send();
 
-                                // Перенаправление на страницу редактирования
-                                $livewire->redirect(route('filament.admin_sv.resources.products.edit', ['record' => $product->id]));
-                            })
-                    ),
+                                // Перенаправляем для обновления формы
+                                $livewire->redirect($livewire->getResource()::getUrl('edit', ['record' => $record]));
+                            } else {
+                                Notification::make()
+                                    ->title('Ошибка загрузки')
+                                    ->body($result['message'])
+                                    ->danger()
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Ошибка')
+                                ->body('Произошла ошибка при загрузке данных: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->visible(fn($record) => $record && $record->exists && $record->external_id),
             ])
+            ->columns(1)
             ->collapsible()
             ->collapsed();
     }
 
-    protected static function seoSection(): Section
+    protected static function attributesSection(): Section
     {
-        return Section::make('SEO настройки')
-            ->description('Мета-теги для поисковых систем')
+        return Section::make('Характеристики товара')
+            ->description('Материал, стиль, производитель и другие характеристики')
             ->schema([
-                SEO::make()
+                Repeater::make('product_attributes')
+                    ->label('Характеристики')
+                    ->schema([
+                        Select::make('attribute_id')
+                            ->label('Характеристика')
+                            ->options(Attribute::orderBy('sort_order')->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set) {
+                                $set('attribute_value_id', null);
+                                $set('custom_value', null);
+                            })
+                            ->createOptionForm([
+                                TextInput::make('name')->label('Название')->required()->maxLength(255),
+                                Select::make('type')
+                                    ->label('Тип')
+                                    ->options([
+                                        'text' => 'Текст',
+                                        'select' => 'Список',
+                                        'color' => 'Цвет',
+                                        'number' => 'Число',
+                                    ])
+                                    ->default('text')
+                                    ->required(),
+                                Toggle::make('is_use_in_variations')->label('Участвует в вариациях')->default(false),
+                                Toggle::make('is_filterable')->label('Показывать в фильтрах')->default(false),
+                                Toggle::make('is_multiple')->label('Множественный выбор')->default(false),
+                                Toggle::make('allow_custom_value')->label('Разрешить ручной ввод')->default(false),
+                            ])
+                            ->createOptionUsing(function (array $data) {
+                                $slug = Str::slug($data['name']);
+                                $base = $slug;
+                                $i = 2;
+                                while (Attribute::where('slug', $slug)->exists()) {
+                                    $slug = $base . '-' . $i++;
+                                }
+                                return Attribute::create([
+                                    'name' => $data['name'],
+                                    'slug' => $slug,
+                                    'type' => $data['type'] ?? 'text',
+                                    'is_use_in_variations' => (bool) ($data['is_use_in_variations'] ?? false),
+                                    'is_filterable' => (bool) ($data['is_filterable'] ?? false),
+                                    'is_multiple' => (bool) ($data['is_multiple'] ?? false),
+                                    'allow_custom_value' => (bool) ($data['allow_custom_value'] ?? false),
+                                ])->id;
+                            }),
+
+                        Select::make('attribute_value_id')
+                            ->label('Значение')
+                            ->options(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) {
+                                    return [];
+                                }
+                                $attr = Attribute::find($attributeId);
+                                if (!$attr) {
+                                    return [];
+                                }
+                                return $attr->values()->orderBy('sort_order')->pluck('value', 'id');
+                            })
+                            ->multiple(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) {
+                                    return false;
+                                }
+                                return (bool) Attribute::find($attributeId)?->is_multiple;
+                            })
+                            ->searchable()
+                            ->live()
+                            ->disabled(fn($get) => !$get('attribute_id'))
+                            ->afterStateUpdated(function ($state, $set) {
+                                if ($state !== null && $state !== '' && $state !== []) {
+                                    $set('custom_value', null);
+                                }
+                            })
+                            ->createOptionForm([
+                                TextInput::make('value')->label('Значение')->required()->maxLength(255),
+                                ColorPicker::make('color_code')
+                                    ->label('Цвет')
+                                    ->visible(function ($get) {
+                                        $attrId = $get('../../attribute_id');
+                                        return $attrId && Attribute::find($attrId)?->type === 'color';
+                                    }),
+                            ])
+                            ->createOptionUsing(function (array $data, $get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) {
+                                    return null;
+                                }
+                                $slug = Str::slug($data['value']);
+                                $base = $slug;
+                                $i = 2;
+                                while (AttributeValue::where('attribute_id', $attributeId)->where('slug', $slug)->exists()) {
+                                    $slug = $base . '-' . $i++;
+                                }
+                                return AttributeValue::create([
+                                    'attribute_id' => $attributeId,
+                                    'value' => $data['value'],
+                                    'slug' => $slug,
+                                    'color_code' => $data['color_code'] ?? null,
+                                ])->id;
+                            }),
+
+                        TextInput::make('custom_value')
+                            ->label('Своё значение')
+                            ->maxLength(1000)
+                            ->visible(function ($get) {
+                                $attributeId = $get('attribute_id');
+                                if (!$attributeId) {
+                                    return false;
+                                }
+                                return (bool) Attribute::find($attributeId)?->allow_custom_value;
+                            })
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set) {
+                                if ($state !== null && trim((string) $state) !== '') {
+                                    $set('attribute_value_id', null);
+                                }
+                            }),
+                    ])
+                    ->columns(3)
+                    ->collapsible()
+                    ->defaultItems(0)
+                    ->addActionLabel('Добавить характеристику')
+                    ->itemLabel(function (array $state): ?string {
+                        $attr = Attribute::find($state['attribute_id'] ?? null);
+                        if (!$attr) {
+                            return 'Характеристика';
+                        }
+                        $valueId = $state['attribute_value_id'] ?? null;
+                        if (is_array($valueId)) {
+                            $values = AttributeValue::whereIn('id', $valueId)->pluck('value')->all();
+                            $valueLabel = $values ? implode(', ', $values) : null;
+                        } else {
+                            $value = $valueId ? AttributeValue::find($valueId) : null;
+                            $valueLabel = $value?->value;
+                        }
+                        $custom = trim((string) ($state['custom_value'] ?? ''));
+                        return $attr->name . ($valueLabel ? ': ' . $valueLabel : ($custom !== '' ? ': ' . $custom : ''));
+                    })
+                    ->columnSpanFull(),
             ])
-            ->columns(2)
             ->collapsible()
-            ->collapsed();
+            ->collapsed(false);
     }
 }
