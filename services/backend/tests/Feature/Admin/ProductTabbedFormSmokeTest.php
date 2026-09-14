@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Filament\Resources\Products\Pages\OperatorEditProduct;
 use App\Filament\Resources\Products\Schemas\ProductTabbedForm;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -17,13 +18,28 @@ class ProductTabbedFormSmokeTest extends TestCase
         $this->assertInstanceOf(Schema::class, $schema);
     }
 
-    public function test_product_editor_seo_section_can_be_built(): void
+    public function test_product_editor_compact_sections_can_be_built(): void
     {
-        $method = new ReflectionMethod(ProductTabbedForm::class, 'seoSection');
-        $method->setAccessible(true);
+        foreach ([
+            'coreSection',
+            'technicalSection',
+            'descriptionSection',
+            'operatorAttributesSection',
+            'mediaSection',
+            'seoSection',
+        ] as $methodName) {
+            $method = new ReflectionMethod(ProductTabbedForm::class, $methodName);
+            $method->setAccessible(true);
 
-        $section = $method->invoke(null);
+            $this->assertInstanceOf(Section::class, $method->invoke(null), $methodName);
+        }
+    }
 
-        $this->assertInstanceOf(Section::class, $section);
+    public function test_product_editor_does_not_use_sticky_footer_actions(): void
+    {
+        $this->assertFalse(OperatorEditProduct::$formActionsAreSticky);
+
+        $method = new ReflectionMethod(OperatorEditProduct::class, 'getFormActions');
+        $this->assertSame(OperatorEditProduct::class, $method->getDeclaringClass()->getName());
     }
 }
