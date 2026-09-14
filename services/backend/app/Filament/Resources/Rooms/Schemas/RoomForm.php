@@ -36,31 +36,36 @@ class RoomForm
                             }),
                         TextInput::make('slug')
                             ->label('URL (slug)')
+                            ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
                         Select::make('parent_id')
                             ->label('Родительская комната')
-                            ->options(fn () => Room::query()->orderBy('name')->get()
-                                ->filter(fn (Room $r) => $r->depth() < Room::MAX_DEPTH)
-                                ->mapWithKeys(function (Room $r) {
-                                    $root = $r->rootAncestor()->name;
-                                    $label = $r->name === $root
-                                        ? e($r->name)
-                                        : e($r->name) . ' <span style="color:#9ca3af;font-size:.85em">' . e($root) . '</span>';
+                            ->options(function ($record) {
+                                // На редактировании не предлагаем саму комнату и её потомков:
+                                // выбор любого из них создал бы цикл в дереве.
+                                $excludedIds = $record instanceof Room
+                                    ? $record->getAllDescendantIds()
+                                    : [];
 
-                                    return [$r->id => $label];
-                                })
-                                ->all())
+                                return Room::query()->orderBy('name')->get()
+                                    ->filter(fn (Room $r) => $r->depth() < Room::MAX_DEPTH
+                                        && ! in_array($r->id, $excludedIds, true))
+                                    ->mapWithKeys(function (Room $r) {
+                                        $root = $r->rootAncestor()->name;
+                                        $label = $r->name === $root
+                                            ? e($r->name)
+                                            : e($r->name) . ' <span style="color:#9ca3af;font-size:.85em">' . e($root) . '</span>';
+
+                                        return [$r->id => $label];
+                                    })
+                                    ->all();
+                            })
                             ->allowHtml()
                             ->searchable()
                             ->placeholder('Корневая')
-                            ->helperText('Максимальная вложенность — 4 уровня')
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, $set, $get) {
-                                if ($state && $state == $get('id')) {
-                                    $set('parent_id', null);
-                                }
-                            }),
+                            ->helperText('Максимальная вложенность — 4 уровня. Текущая комната и её потомки исключены из списка.')
+                            ->reactive(),
                         TextInput::make('priority')
                             ->label('Приоритет')
                             ->numeric()
