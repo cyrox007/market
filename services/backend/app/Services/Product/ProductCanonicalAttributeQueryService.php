@@ -45,15 +45,14 @@ class ProductCanonicalAttributeQueryService
                     ->whereColumn('ppa.product_id', 'products.id')
                     ->where('ppa.attribute_id', $attribute->id)
                     ->where(fn ($values) => $this->applyResolvedValueCondition($values, 'ppa', $valueIds, $customValues));
-            })->orWhereHas('variants', function (Builder $variants) use ($attribute, $valueIds, $customValues) {
-                $variants->active()
-                    ->whereExists(function ($sub) use ($attribute, $valueIds, $customValues) {
-                        $sub->selectRaw('1')
-                            ->from('product_variant_attributes as pva')
-                            ->whereColumn('pva.product_id', 'products.id')
-                            ->where('pva.attribute_id', $attribute->id)
-                            ->where(fn ($values) => $this->applyResolvedValueCondition($values, 'pva', $valueIds, $customValues));
-                    });
+            })->orWhereExists(function ($sub) use ($attribute, $valueIds, $customValues) {
+                $sub->selectRaw('1')
+                    ->from('products as canonical_variants')
+                    ->join('product_variant_attributes as pva', 'pva.product_id', '=', 'canonical_variants.id')
+                    ->whereColumn('canonical_variants.parent_product_id', 'products.id')
+                    ->where('canonical_variants.state', Product::ACTIVE)
+                    ->where('pva.attribute_id', $attribute->id)
+                    ->where(fn ($values) => $this->applyResolvedValueCondition($values, 'pva', $valueIds, $customValues));
             });
         });
     }
