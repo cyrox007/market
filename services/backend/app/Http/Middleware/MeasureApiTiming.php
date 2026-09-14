@@ -39,7 +39,7 @@ class MeasureApiTiming
                 'threshold_ms' => $threshold,
             ]);
         }
-
+        \Log::info('[MeasureApiTiming] recording', ['route_key' => $routeKey, 'duration' => $durationMs]);
         $this->collector->record($routeKey, $durationMs);
 
         return $response;
