@@ -12,6 +12,8 @@ use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
 use RalphJSmit\Filament\SEO\SEO;
@@ -22,155 +24,170 @@ class RoomForm
     {
         return $schema
             ->components([
-                Section::make('Основная информация')
-                    ->schema([
-                        TextInput::make('name')
-                            ->label('Название')
-                            ->required()
-                            ->maxLength(255)
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(function ($state, $set) {
-                                if ($state) {
-                                    $set('slug', \Str::slug($state));
-                                }
-                            }),
-                        TextInput::make('slug')
-                            ->label('URL (slug)')
-                            ->required()
-                            ->maxLength(255)
-                            ->unique(ignoreRecord: true),
-                        Select::make('parent_id')
-                            ->label('Родительская комната')
-                            ->options(function ($record) {
-                                // На редактировании не предлагаем саму комнату и её потомков:
-                                // выбор любого из них создал бы цикл в дереве.
-                                $excludedIds = $record instanceof Room
-                                    ? $record->getAllDescendantIds()
-                                    : [];
-
-                                return Room::query()->orderBy('name')->get()
-                                    ->filter(fn (Room $r) => $r->depth() < Room::MAX_DEPTH
-                                        && ! in_array($r->id, $excludedIds, true))
-                                    ->mapWithKeys(function (Room $r) {
-                                        $root = $r->rootAncestor()->name;
-                                        $label = $r->name === $root
-                                            ? e($r->name)
-                                            : e($r->name) . ' <span style="color:#9ca3af;font-size:.85em">' . e($root) . '</span>';
-
-                                        return [$r->id => $label];
-                                    })
-                                    ->all();
-                            })
-                            ->allowHtml()
-                            ->searchable()
-                            ->placeholder('Корневая')
-                            ->helperText('Максимальная вложенность — 4 уровня. Текущая комната и её потомки исключены из списка.')
-                            ->reactive(),
-                        TextInput::make('priority')
-                            ->label('Приоритет')
-                            ->numeric()
-                            ->default(0)
-                            ->helperText('Чем меньше число, тем выше в списке'),
-                        Toggle::make('is_active')
-                            ->label('Активна')
-                            ->default(true),
-                    ])->columns(2),
-
-                Section::make('Продуктовые категории')
-                    ->description('Категории каталога, товары которых показываются в этой комнате')
-                    ->schema([
-                        Select::make('productCategories')
-                            ->label('Категории')
-                            ->relationship('productCategories', 'name')
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
-                            ->helperText('Товары выбранных категорий (с потомками) попадут в комнату'),
-                    ])
-                    ->collapsible(),
-
-                Section::make('Фильтр товаров')
-                    ->description('Необязательный фильтр, применяемый к товарам комнаты по умолчанию')
-                    ->schema([
-                        TextInput::make('filters.price_min')
-                            ->label('Цена от')
-                            ->numeric()
-                            ->minValue(fn (Get $get) => self::parentEffectiveFilters($get('parent_id'))['price_min'] ?? null)
-                            ->helperText(fn (Get $get) => ($v = self::parentEffectiveFilters($get('parent_id'))['price_min'] ?? null)
-                                ? "Наследуется от родителя: не ниже {$v}" : null),
-                        TextInput::make('filters.price_max')
-                            ->label('Цена до')
-                            ->numeric()
-                            ->maxValue(fn (Get $get) => self::parentEffectiveFilters($get('parent_id'))['price_max'] ?? null)
-                            ->helperText(fn (Get $get) => ($v = self::parentEffectiveFilters($get('parent_id'))['price_max'] ?? null)
-                                ? "Наследуется от родителя: не выше {$v}" : null),
-                        Select::make('filters.colors')
-                            ->label('Цвета')
-                            ->multiple()
-                            ->searchable()
-                            ->options(function (Get $get) {
-                                $all = self::colorOptions();
-                                $inherited = self::parentEffectiveFilters($get('parent_id'))['colors'] ?? null;
-
-                                return $inherited === null ? $all : array_intersect_key($all, array_flip($inherited));
-                            })
-                            ->helperText('У наследника цвета ограничены выбором родителя'),
-                    ])->columns(2)
-                    ->collapsible(),
-
-                Section::make('Характеристики')
-                    ->description('Отбор товаров комнаты по характеристикам: выберите характеристику и её значения')
-                    ->schema([
-                        Repeater::make('attribute_filters')
-                            ->hiddenLabel()
+                Tabs::make('room_form')
+                    ->tabs([
+                        Tab::make('Основное')
                             ->schema([
-                                Select::make('attribute')
-                                    ->label('Характеристика')
-                                    ->options(self::attributeOptions())
-                                    ->required()
-                                    ->live()
-                                    ->distinct()
-                                    ->searchable(),
-                                Select::make('values')
-                                    ->label('Значения')
-                                    ->multiple()
-                                    ->required()
-                                    ->searchable()
-                                    ->options(function (Get $get) {
-                                        $attrSlug = $get('attribute');
-                                        $all = self::valueOptions($attrSlug);
-                                        $inherited = self::parentEffectiveFilters($get('../../parent_id'))['attributes'][$attrSlug] ?? null;
+                                Section::make('Основная информация')
+                                    ->schema([
+                                        TextInput::make('name')
+                                            ->label('Название')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->live(onBlur: true)
+                                            ->afterStateUpdated(function ($state, $set) {
+                                                if ($state) {
+                                                    $set('slug', \Str::slug($state));
+                                                }
+                                            }),
+                                        TextInput::make('slug')
+                                            ->label('URL (slug)')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->unique(ignoreRecord: true),
+                                        Select::make('parent_id')
+                                            ->label('Родительская комната')
+                                            ->options(function ($record) {
+                                                // На редактировании не предлагаем саму комнату и её потомков:
+                                                // выбор любого из них создал бы цикл в дереве.
+                                                $excludedIds = $record instanceof Room
+                                                    ? $record->getAllDescendantIds()
+                                                    : [];
 
-                                        return $inherited === null ? $all : array_intersect_key($all, array_flip($inherited));
-                                    }),
-                            ])
-                            ->columns(2)
-                            ->addActionLabel('Добавить характеристику')
-                            ->defaultItems(0),
-                    ])
-                    ->collapsible(),
+                                                return Room::query()->orderBy('name')->get()
+                                                    ->filter(fn (Room $r) => $r->depth() < Room::MAX_DEPTH
+                                                        && ! in_array($r->id, $excludedIds, true))
+                                                    ->mapWithKeys(function (Room $r) {
+                                                        $root = $r->rootAncestor()->name;
+                                                        $label = $r->name === $root
+                                                            ? e($r->name)
+                                                            : e($r->name) . ' <span style="color:#9ca3af;font-size:.85em">' . e($root) . '</span>';
 
-                Section::make('SEO настройки')
-                    ->description('Управление мета данными')
-                    ->schema([
-                        SEO::make(),
-                    ])
-                    ->collapsible(),
+                                                        return [$r->id => $label];
+                                                    })
+                                                    ->all();
+                                            })
+                                            ->allowHtml()
+                                            ->searchable()
+                                            ->placeholder('Корневая')
+                                            ->helperText('Максимальная вложенность — 4 уровня. Текущая комната и её потомки исключены из списка.')
+                                            ->reactive(),
+                                        TextInput::make('priority')
+                                            ->label('Приоритет')
+                                            ->numeric()
+                                            ->default(0)
+                                            ->helperText('Чем меньше число, тем выше в списке'),
+                                        Toggle::make('is_active')
+                                            ->label('Активна')
+                                            ->default(true),
+                                    ])
+                                    ->columns(2),
 
-                Section::make('Изображение комнаты')
-                    ->description('Баннер комнаты (миниатюра 300x300, HD, Full HD создаются автоматически)')
-                    ->schema([
-                        SpatieMediaLibraryFileUpload::make('image')
-                            ->collection('image')
-                            ->label('Главное изображение')
-                            ->image()
-                            ->imageEditor()
-                            ->conversion('thumb')
-                            ->maxSize(10240)
-                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
-                            ->columnSpanFull(),
+                                Section::make('Продуктовые категории')
+                                    ->description('Категории каталога, товары которых показываются в этой комнате')
+                                    ->schema([
+                                        Select::make('productCategories')
+                                            ->label('Категории')
+                                            ->relationship('productCategories', 'name')
+                                            ->multiple()
+                                            ->searchable()
+                                            ->preload()
+                                            ->helperText('Товары выбранных категорий (с потомками) попадут в комнату'),
+                                    ]),
+                            ]),
+
+                        Tab::make('Фильтры')
+                            ->schema([
+                                Section::make('Фильтр товаров')
+                                    ->description('Необязательный фильтр, применяемый к товарам комнаты по умолчанию')
+                                    ->schema([
+                                        TextInput::make('filters.price_min')
+                                            ->label('Цена от')
+                                            ->numeric()
+                                            ->minValue(fn (Get $get) => self::parentEffectiveFilters($get('parent_id'))['price_min'] ?? null)
+                                            ->helperText(fn (Get $get) => ($v = self::parentEffectiveFilters($get('parent_id'))['price_min'] ?? null)
+                                                ? "Наследуется от родителя: не ниже {$v}" : null),
+                                        TextInput::make('filters.price_max')
+                                            ->label('Цена до')
+                                            ->numeric()
+                                            ->maxValue(fn (Get $get) => self::parentEffectiveFilters($get('parent_id'))['price_max'] ?? null)
+                                            ->helperText(fn (Get $get) => ($v = self::parentEffectiveFilters($get('parent_id'))['price_max'] ?? null)
+                                                ? "Наследуется от родителя: не выше {$v}" : null),
+                                        Select::make('filters.colors')
+                                            ->label('Цвета')
+                                            ->multiple()
+                                            ->searchable()
+                                            ->options(function (Get $get) {
+                                                $all = self::colorOptions();
+                                                $inherited = self::parentEffectiveFilters($get('parent_id'))['colors'] ?? null;
+
+                                                return $inherited === null ? $all : array_intersect_key($all, array_flip($inherited));
+                                            })
+                                            ->helperText('У наследника цвета ограничены выбором родителя'),
+                                    ])
+                                    ->columns(2),
+
+                                Section::make('Характеристики')
+                                    ->description('Отбор товаров комнаты по характеристикам: выберите характеристику и её значения')
+                                    ->schema([
+                                        Repeater::make('attribute_filters')
+                                            ->hiddenLabel()
+                                            ->schema([
+                                                Select::make('attribute')
+                                                    ->label('Характеристика')
+                                                    ->options(self::attributeOptions())
+                                                    ->required()
+                                                    ->live()
+                                                    ->distinct()
+                                                    ->searchable(),
+                                                Select::make('values')
+                                                    ->label('Значения')
+                                                    ->multiple()
+                                                    ->required()
+                                                    ->searchable()
+                                                    ->options(function (Get $get) {
+                                                        $attrSlug = $get('attribute');
+                                                        $all = self::valueOptions($attrSlug);
+                                                        $inherited = self::parentEffectiveFilters($get('../../parent_id'))['attributes'][$attrSlug] ?? null;
+
+                                                        return $inherited === null ? $all : array_intersect_key($all, array_flip($inherited));
+                                                    }),
+                                            ])
+                                            ->columns(2)
+                                            ->addActionLabel('Добавить характеристику')
+                                            ->defaultItems(0),
+                                    ]),
+                            ]),
+
+                        Tab::make('SEO')
+                            ->schema([
+                                Section::make('SEO настройки')
+                                    ->description('Управление мета данными')
+                                    ->schema([
+                                        SEO::make(),
+                                    ]),
+                            ]),
+
+                        Tab::make('Изображение')
+                            ->schema([
+                                Section::make('Изображение комнаты')
+                                    ->description('Баннер комнаты (миниатюра 300x300, HD, Full HD создаются автоматически)')
+                                    ->schema([
+                                        SpatieMediaLibraryFileUpload::make('image')
+                                            ->collection('image')
+                                            ->label('Главное изображение')
+                                            ->image()
+                                            ->imageEditor()
+                                            ->conversion('thumb')
+                                            ->maxSize(10240)
+                                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                                            ->columnSpanFull(),
+                                    ]),
+                            ]),
                     ])
-                    ->collapsible(),
+                    ->persistTab()
+                    ->id('room-form-tabs')
+                    ->columnSpanFull(),
             ]);
     }
 
