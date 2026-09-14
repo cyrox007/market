@@ -3,6 +3,7 @@
 namespace App\Models\Product;
 
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Str;
 
 /**
  * Комната — узел второй Vanilo-таксономии «rooms».
@@ -17,13 +18,56 @@ class Room extends Category
 
     protected static function booted(): void
     {
-        // Запрет создавать комнату глубже MAX_DEPTH уровней.
         static::saving(function (Room $room) {
-            if ($room->parent_id) {
-                $parent = static::find($room->parent_id);
-                if ($parent && $parent->depth() >= self::MAX_DEPTH) {
+            // URL комнаты должен быть физически сохранён в БД: accessor Category::slug
+            // умеет вычислять slug на лету, но API ищет комнату по колонке taxons.slug.
+            $rawSlug = $room->getAttributes()['slug'] ?? null;
+            if (blank($rawSlug) && filled($room->name)) {
+                $room->slug = Str::slug($room->name);
+            }
+
+            if (! $room->parent_id) {
+                return;
+            }
+
+            $parentId = (int) $room->parent_id;
+            $roomId = $room->exists ? (int) $room->getKey() : null;
+
+            if ($roomId !== null && $parentId === $roomId) {
+                throw new \RuntimeException('Комната не может быть родителем самой себе.');
+            }
+
+            $parent = static::find($parentId);
+            if (! $parent) {
+                return;
+            }
+
+            // Проверяем будущую цепочку родителей ДО сохранения. Это одновременно:
+            // 1) не даёт переместить комнату под собственного потомка;
+            // 2) не даёт сохранить уже циклическую цепочку;
+            // 3) контролирует максимальную глубину без рекурсивного depth() на битом дереве.
+            $visited = [];
+            $prospectiveDepth = 1; // сама сохраняемая комната
+            $node = $parent;
+
+            while ($node) {
+                $nodeId = (int) $node->getKey();
+
+                if ($roomId !== null && $nodeId === $roomId) {
+                    throw new \RuntimeException('Нельзя переместить комнату внутрь собственного поддерева.');
+                }
+
+                if (isset($visited[$nodeId])) {
+                    throw new \RuntimeException('В дереве комнат обнаружена циклическая связь.');
+                }
+                $visited[$nodeId] = true;
+
+                $prospectiveDepth++;
+                if ($prospectiveDepth > self::MAX_DEPTH) {
                     throw new \RuntimeException('Максимальная вложенность комнат — ' . self::MAX_DEPTH . ' уровня.');
                 }
+
+                $node = $node->parent;
             }
         });
     }
@@ -95,8 +139,18 @@ class Room extends Category
     public function ancestorsChain(): array
     {
         $chain = [];
+        $visited = [];
         $node = $this;
+
         while ($node) {
+            $nodeId = (int) $node->getKey();
+            if ($nodeId && isset($visited[$nodeId])) {
+                throw new \RuntimeException('В дереве комнат обнаружена циклическая связь.');
+            }
+            if ($nodeId) {
+                $visited[$nodeId] = true;
+            }
+
             $chain[] = $node;
             $node = $node->parent;
         }
