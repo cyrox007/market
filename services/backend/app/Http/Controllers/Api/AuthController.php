@@ -179,9 +179,8 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        // Sanctum can resolve the same web guard instance for multiple requests in a long-lived
-        // application/test process. Clear both session state and cached guards so the next
-        // request cannot reuse the authenticated user after logout.
+        // При sanctum request guard не поддерживает logout().
+        // Выполняем logout через web guard для session-based auth.
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -284,13 +283,13 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
-        if (isset($validated['name'])) {
-            $user->name = $validated['name'];
-        }
-        if (array_key_exists('phone', $validated)) {
-            $user->phone = $validated['phone'];
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthenticated',
+            ], 401);
         }
 
+        $user->fill($validated);
         $user->save();
 
         return response()->json([
@@ -303,6 +302,39 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/auth/password",
+     *     summary="Изменить пароль",
+     *     description="Изменяет пароль пользователя",
+     *     tags={"Auth"},
+     *     security={{"sanctum": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"current_password", "password", "password_confirmation"},
+     *             @OA\Property(property="current_password", type="string", format="password", example="oldpassword123"),
+     *             @OA\Property(property="password", type="string", format="password", example="newpassword123", minLength=8),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="newpassword123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Пароль успешно изменен",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Пароль успешно изменен")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Ошибка валидации или неверный текущий пароль"
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Не авторизован"
+     *     )
+     * )
+     */
     public function changePassword(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -313,20 +345,56 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthenticated',
+            ], 401);
+        }
+
         if (!Hash::check($validated['current_password'], $user->password)) {
             throw ValidationException::withMessages([
-                'current_password' => ['Текущий пароль указан неверно'],
+                'current_password' => ['Текущий пароль неверен'],
             ]);
         }
 
-        $user->password = $validated['password'];
+        $user->password = $validated['password']; // casts() => hashed
         $user->save();
 
         return response()->json([
             'message' => 'Пароль успешно изменен',
         ]);
     }
-
+    /**
+     * @OA\Post(
+     *     path="/api/v1/auth/forgot-password",
+     *     summary="Отправка ссылки для восстановления пароля",
+     *     description="Отправляет email со ссылкой для сброса пароля. Не раскрывает, существует ли email.",
+     *     tags={"Auth"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"email"},
+     *             @OA\Property(property="email", type="string", format="email", example="user@example.com")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Ссылка для сброса пароля отправлена",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="Если email существует, мы отправили ссылку для восстановления пароля")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Ошибка валидации",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Неверный email")
+     *         )
+     *     )
+     * )
+     */
     public function forgotPassword(Request $request): JsonResponse
     {
         $request->validate([
@@ -335,21 +403,50 @@ class AuthController extends Controller
 
         $status = Password::sendResetLink($request->only('email'));
 
-        if ($status !== Password::RESET_LINK_SENT) {
-            throw ValidationException::withMessages([
-                'email' => [__($status)],
-            ]);
-        }
-
         return response()->json([
-            'message' => __($status),
+            'status' => 'success',
+            'message' => __('If your email exists, we have sent a password reset link.')
         ]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/auth/reset-password",
+     *     summary="Сброс пароля по токену",
+     *     description="Сбрасывает пароль по токену из письма восстановления",
+     *     tags={"Auth"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"token","email","password","password_confirmation"},
+     *             @OA\Property(property="token", type="string", example="token_from_email"),
+     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="newpassword123", minLength=8),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="newpassword123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Пароль успешно сброшен",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="Пароль успешно сброшен")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Ошибка токена или валидации",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Токен недействителен или пароль не соответствует требованиям")
+     *         )
+     *     )
+     * )
+     */
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
-            'token' => 'required',
+            'token' => 'required|string',
             'email' => 'required|email',
             'password' => 'required|string|min:8|confirmed',
         ]);
@@ -357,47 +454,135 @@ class AuthController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user, string $password) {
-                $user->forceFill([
-                    'password' => $password,
-                    'remember_token' => Str::random(60),
-                ])->save();
+                $user->password = $password; // Хэшируется автоматически через cast
+                $user->setRememberToken(Str::random(60));
+                $user->save();
             }
         );
 
-        if ($status !== Password::PASSWORD_RESET) {
-            throw ValidationException::withMessages([
-                'email' => [__($status)],
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json([
+                'status' => 'success',
+                'message' => __('Пароль успешно сброшен')
             ]);
         }
 
         return response()->json([
-            'message' => __($status),
-        ]);
+            'status' => 'error',
+            'message' => __('Токен недействителен или пароль не соответствует требованиям')
+        ], 422);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/auth/notification-settings",
+     *     summary="Получить настройки уведомлений",
+     *     description="Возвращает текущие настройки уведомлений пользователя",
+     *     tags={"Auth"},
+     *     security={{"sanctum": {}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Настройки уведомлений",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="settings", type="object",
+     *                 @OA\Property(property="email_promotions", type="boolean", example=true),
+     *                 @OA\Property(property="sms_order_notifications", type="boolean", example=true),
+     *                 @OA\Property(property="push_notifications", type="boolean", example=false),
+     *                 @OA\Property(property="new_product_notifications", type="boolean", example=true)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Не авторизован"
+     *     )
+     * )
+     */
     public function getNotificationSettings(Request $request): JsonResponse
     {
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthenticated',
+            ], 401);
+        }
+
         return response()->json([
-            'settings' => $user->notification_settings ?? [],
+            'settings' => [
+                'email_promotions' => $user->email_promotions ?? true,
+                'sms_order_notifications' => $user->sms_order_notifications ?? true,
+                'push_notifications' => $user->push_notifications ?? false,
+                'new_product_notifications' => $user->new_product_notifications ?? true,
+            ],
         ]);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/auth/notification-settings",
+     *     summary="Обновить настройки уведомлений",
+     *     description="Обновляет настройки уведомлений пользователя",
+     *     tags={"Auth"},
+     *     security={{"sanctum": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="email_promotions", type="boolean", example=true),
+     *             @OA\Property(property="sms_order_notifications", type="boolean", example=true),
+     *             @OA\Property(property="push_notifications", type="boolean", example=false),
+     *             @OA\Property(property="new_product_notifications", type="boolean", example=true)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Настройки обновлены",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Настройки уведомлений обновлены"),
+     *             @OA\Property(property="settings", type="object",
+     *                 @OA\Property(property="email_promotions", type="boolean", example=true),
+     *                 @OA\Property(property="sms_order_notifications", type="boolean", example=true),
+     *                 @OA\Property(property="push_notifications", type="boolean", example=false),
+     *                 @OA\Property(property="new_product_notifications", type="boolean", example=true)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Не авторизован"
+     *     )
+     * )
+     */
     public function updateNotificationSettings(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'settings' => 'required|array',
+            'email_promotions' => 'sometimes|boolean',
+            'sms_order_notifications' => 'sometimes|boolean',
+            'push_notifications' => 'sometimes|boolean',
+            'new_product_notifications' => 'sometimes|boolean',
         ]);
 
         /** @var User $user */
         $user = Auth::guard('web')->user();
-        $user->notification_settings = $validated['settings'];
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthenticated',
+            ], 401);
+        }
+
+        $user->fill($validated);
         $user->save();
 
         return response()->json([
-            'settings' => $user->notification_settings,
+            'message' => 'Настройки уведомлений обновлены',
+            'settings' => [
+                'email_promotions' => $user->email_promotions,
+                'sms_order_notifications' => $user->sms_order_notifications,
+                'push_notifications' => $user->push_notifications,
+                'new_product_notifications' => $user->new_product_notifications,
+            ],
         ]);
     }
 }
