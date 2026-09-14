@@ -27,6 +27,7 @@ class EnqueueOrders1CSyncCommand extends Command
         }
 
         $query = Order::query()->orderBy('id');
+        $targetOrderId = null;
 
         $orderIdOption = $this->option('order-id');
         if ($orderIdOption !== null && $orderIdOption !== '') {
@@ -43,7 +44,8 @@ class EnqueueOrders1CSyncCommand extends Command
                 return self::FAILURE;
             }
 
-            $query->whereKey($orderId);
+            $targetOrderId = $orderId;
+            $query->whereKey($targetOrderId);
         }
 
         if ($status = $this->option('status')) {
@@ -64,6 +66,12 @@ class EnqueueOrders1CSyncCommand extends Command
             OrderOneCSyncDispatcher::dispatch($order);
             $count++;
         });
+
+        if ($targetOrderId !== null && $count === 0) {
+            $this->error("Заказ ID {$targetOrderId} не найден или не соответствует дополнительным фильтрам.");
+
+            return self::FAILURE;
+        }
 
         $queue = (string) (
             config('services.integration_1c.orders_queue')
