@@ -32,6 +32,27 @@ ONEC_ORDERS_QUEUE=integration-1c
 
 Не коммитьте реальный `ONEC_API_KEY` в Git.
 
+## Безопасная диагностика перед smoke
+
+До отправки реальных заказов выполните read-only проверку:
+
+```bash
+php artisan integration:1c:doctor
+```
+
+Команда показывает:
+
+- включена ли интеграция;
+- итоговый order endpoint;
+- задан ли API key (только факт наличия, значение секрета не выводится);
+- `QUEUE_CONNECTION` и фактический queue driver;
+- имя очереди заказов;
+- driver для failed jobs.
+
+Команда ничего не отправляет во внешнее API и не ставит заказы в очередь. Если отсутствуют обязательные `ONEC_API_*`, она завершается с кодом ошибки.
+
+Не используйте `orders:enqueue-1c-sync` как read-only проверку: эта команда действительно ставит найденные заказы на отправку.
+
 ## Queue worker
 
 `SyncOrderTo1CJob` реализует `ShouldQueue`, поэтому включённая интеграция требует постоянно работающего queue worker. Репозиторный Docker Compose запускает очередь так:
@@ -43,6 +64,7 @@ php artisan queue:work --queue=integration-1c,default --tries=3 --backoff=20 --t
 Проверка перед релизом:
 
 ```bash
+php artisan integration:1c:doctor
 php artisan queue:failed
 php artisan queue:monitor integration-1c:100
 ```
@@ -61,11 +83,12 @@ php artisan queue:monitor integration-1c:100
 
 Перед production включением `ONEC_API_ENABLED=true` проверить:
 
-1. queue worker действительно запущен и слушает `integration-1c`;
-2. `ONEC_API_BASE_URL` указывает на нужное окружение API;
-3. секрет `ONEC_API_KEY` совпадает с `API_TOKEN` на API;
-4. обычный delivery-заказ появляется в API;
-5. изменение статуса обновляет тот же `orderId`, а не создаёт дубль;
-6. legacy pickup-заказ не теряется;
-7. временная недоступность API приводит к retry и затем к записи в failed jobs после исчерпания попыток;
-8. в логах нет повторяющихся 401/422/5xx.
+1. `php artisan integration:1c:doctor` завершается успешно;
+2. queue worker действительно запущен и слушает `integration-1c`;
+3. `ONEC_API_BASE_URL` указывает на нужное окружение API;
+4. секрет `ONEC_API_KEY` совпадает с `API_TOKEN` на API;
+5. обычный delivery-заказ появляется в API;
+6. изменение статуса обновляет тот же `orderId`, а не создаёт дубль;
+7. legacy pickup-заказ не теряется;
+8. временная недоступность API приводит к retry и затем к записи в failed jobs после исчерпания попыток;
+9. в логах нет повторяющихся 401/422/5xx.
