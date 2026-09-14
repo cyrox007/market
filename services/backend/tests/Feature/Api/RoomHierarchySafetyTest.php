@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Product\Room;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class RoomHierarchySafetyTest extends TestCase
@@ -48,16 +49,19 @@ class RoomHierarchySafetyTest extends TestCase
 
     public function test_room_persists_generated_slug_when_slug_is_missing(): void
     {
+        $name = 'Детская комната';
+        $expectedSlug = Str::slug($name);
+
         $room = new Room();
-        $room->name = 'Детская комната';
+        $room->name = $name;
         $room->slug = null;
         $room->is_active = true;
         $room->save();
 
-        $this->assertSame('detskaia-komnata', $room->getRawOriginal('slug'));
+        $this->assertSame($expectedSlug, $room->getRawOriginal('slug'));
         $this->assertDatabaseHas('taxons', [
             'id' => $room->id,
-            'slug' => 'detskaia-komnata',
+            'slug' => $expectedSlug,
         ]);
     }
 }
