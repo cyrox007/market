@@ -5,13 +5,12 @@ namespace App\Filament\Resources\Products\Schemas;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -31,17 +30,8 @@ class ProductTabbedForm extends ProductForm
                         Tab::make('Основное')
                             ->icon('heroicon-m-information-circle')
                             ->schema([
-                                Grid::make(['default' => 1, 'lg' => 2])
-                                    ->schema([
-                                        Group::make([
-                                            self::identitySection(),
-                                        ]),
-                                        Group::make([
-                                            self::categoriesSection(),
-                                            self::statusPriceSection(),
-                                        ]),
-                                    ])
-                                    ->columnSpanFull(),
+                                self::coreSection(),
+                                self::technicalSection(),
                             ]),
 
                         Tab::make('Описание')
@@ -56,189 +46,156 @@ class ProductTabbedForm extends ProductForm
                                 self::operatorAttributesSection(),
                             ]),
 
-                        Tab::make('Остатки и доставка')
+                        Tab::make('Остатки')
+                            ->icon('heroicon-m-building-storefront')
+                            ->schema([
+                                self::stockSection(),
+                                self::warehouseStocksSection(),
+                            ]),
+
+                        Tab::make('Доставка')
                             ->icon('heroicon-m-truck')
                             ->schema([
-                                Grid::make(['default' => 1, 'lg' => 2])
+                                Grid::make(['default' => 1, 'xl' => 2])
                                     ->schema([
-                                        Group::make([
-                                            self::stockSection(),
-                                            self::warehouseStocksSection(),
-                                        ]),
-                                        Group::make([
-                                            self::dimensionsSection()->collapsed(false),
-                                            self::taxShippingSection()->collapsed(false),
-                                        ]),
+                                        self::dimensionsSection()->collapsed(false),
+                                        self::taxShippingSection()->collapsed(false),
                                     ])
                                     ->columnSpanFull(),
                             ]),
 
-                        Tab::make('Изображения')
+                        Tab::make('Медиа')
                             ->icon('heroicon-m-photo')
                             ->schema([
-                                self::imagesSection(),
+                                self::mediaSection(),
                             ]),
 
-                        Tab::make('SEO и 1С')
+                        Tab::make('Дополнительно')
                             ->icon('heroicon-m-cog-6-tooth')
                             ->schema([
-                                Grid::make(['default' => 1, 'lg' => 2])
+                                Grid::make(['default' => 1, 'xl' => 2])
                                     ->schema([
-                                        Group::make([
-                                            self::seoSection()->collapsed(false),
-                                        ]),
-                                        Group::make([
-                                            self::importSection()->collapsed(false),
-                                        ]),
+                                        self::manufacturerSection(),
+                                        self::importSection(),
                                     ])
                                     ->columnSpanFull(),
+                                self::seoSection(),
                             ]),
                     ])
                     ->contained(false)
-                    ->scrollable(false)
+                    ->scrollable()
                     ->persistTab()
                     ->id('product-form-tabs')
                     ->columnSpanFull(),
             ]);
     }
 
-    protected static function seoSection(): Section
+    /**
+     * The first screen contains only the fields an operator changes most often.
+     * Everything technical is intentionally moved below into a collapsed block.
+     */
+    protected static function coreSection(): Section
     {
-        return Section::make('SEO')
-            ->description('Поисковая оптимизация товара')
+        return Section::make('Карточка товара')
             ->schema([
-                SEO::make()
+                Grid::make(12)
+                    ->schema([
+                        TextInput::make('name')
+                            ->label(__('filament/admin_sv/product_resource.name'))
+                            ->required()
+                            ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn ($state, $set, $get) => $get('slug') === '' || $get('slug') === null ? $set('slug', Str::slug($state)) : null)
+                            ->columnSpan(8),
+
+                        Select::make('state')
+                            ->label(__('filament/admin_sv/product_resource.state'))
+                            ->options([
+                                ProductState::DRAFT => 'Черновик',
+                                ProductState::ACTIVE => 'Активен',
+                                ProductState::INACTIVE => 'Неактивен',
+                            ])
+                            ->required()
+                            ->default(ProductState::DRAFT)
+                            ->columnSpan(4),
+
+                        Select::make('taxons')
+                            ->label(__('filament/admin_sv/product_resource.taxons'))
+                            ->relationship('taxons', 'name')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->columnSpan(6),
+
+                        TextInput::make('price')
+                            ->label(__('filament/admin_sv/product_resource.price'))
+                            ->numeric()
+                            ->prefix('₽')
+                            ->required()
+                            ->columnSpan(3),
+
+                        TextInput::make('original_price')
+                            ->label(__('filament/admin_sv/product_resource.original_price'))
+                            ->numeric()
+                            ->prefix('₽')
+                            ->columnSpan(3),
+                    ])
                     ->columnSpanFull(),
             ])
-            ->columns(1)
-            ->collapsible()
-            ->collapsed();
+            ->columns(1);
     }
 
-    protected static function identitySection(): Section
+    protected static function technicalSection(): Section
     {
-        return Section::make('Основная информация')
-            ->description('Название и идентификаторы товара')
+        return Section::make('Служебные поля')
+            ->description('Редко меняются вручную')
             ->schema([
-                TextInput::make('name')
-                    ->label(__('filament/admin_sv/product_resource.name'))
-                    ->required()
-                    ->maxLength(255)
-                    ->live(onBlur: true)
-                    ->afterStateUpdated(fn ($state, $set, $get) => $get('slug') === '' || $get('slug') === null ? $set('slug', Str::slug($state)) : null)
-                    ->helperText('Полное название товара для отображения на сайте')
-                    ->columnSpanFull(),
-
                 TextInput::make('slug')
                     ->label(__('filament/admin_sv/product_resource.slug'))
                     ->maxLength(255)
-                    ->unique(Product::class, 'slug', ignoreRecord: true)
-                    ->helperText('ЧПУ для URL. Генерируется из названия автоматически, можно изменить при необходимости')
-                    ->columnSpanFull(),
+                    ->unique(Product::class, 'slug', ignoreRecord: true),
 
-                Section::make('Артикулы')
-                    ->schema([
-                        TextInput::make('sku')
-                            ->label(__('filament/admin_sv/product_resource.sku'))
-                            ->maxLength(255)
-                            ->helperText('Артикул товара (может повторяться). Если оставить пустым, при сохранении будет подставлен ID товара.'),
+                TextInput::make('sku')
+                    ->label(__('filament/admin_sv/product_resource.sku'))
+                    ->maxLength(255),
 
-                        TextInput::make('gtin')
-                            ->label(__('filament/admin_sv/product_resource.gtin'))
-                            ->maxLength(255)
-                            ->helperText('EAN, UPC и т.д.'),
-                    ])
-                    ->columns(2),
+                TextInput::make('gtin')
+                    ->label(__('filament/admin_sv/product_resource.gtin'))
+                    ->maxLength(255),
+
+                TextInput::make('priority')
+                    ->label(__('filament/admin_sv/product_resource.priority'))
+                    ->numeric()
+                    ->default(0),
             ])
-            ->columns(1);
+            ->columns(['default' => 1, 'md' => 2, 'xl' => 4])
+            ->collapsible()
+            ->collapsed();
     }
 
     protected static function descriptionSection(): Section
     {
         return Section::make('Описание товара')
-            ->description('Контент карточки товара на сайте')
             ->schema([
                 Textarea::make('description')
                     ->label(__('filament/admin_sv/product_resource.description'))
                     ->default('')
-                    ->rows(18)
-                    ->helperText('Подробное описание товара. Поддерживается HTML (теги, списки, ссылки).')
+                    ->rows(11)
                     ->columnSpanFull(),
             ]);
     }
 
     /**
-     * Operator-facing status and pricing block.
-     * Variability is derived from actual variants instead of a manual toggle.
-     */
-    protected static function statusPriceSection(): Section
-    {
-        return Section::make('Статус и цены')
-            ->description('Видимость товара и основные цены')
-            ->schema([
-                Select::make('state')
-                    ->label(__('filament/admin_sv/product_resource.state'))
-                    ->options([
-                        ProductState::DRAFT => 'Черновик',
-                        ProductState::ACTIVE => 'Активен',
-                        ProductState::INACTIVE => 'Неактивен',
-                    ])
-                    ->required()
-                    ->default(ProductState::DRAFT)
-                    ->helperText('Статус видимости на сайте')
-                    ->columnSpanFull(),
-
-                TextInput::make('priority')
-                    ->label(__('filament/admin_sv/product_resource.priority'))
-                    ->numeric()
-                    ->default(0)
-                    ->helperText('Меньше число — выше в списке')
-                    ->columnSpanFull(),
-
-                TextInput::make('price')
-                    ->label(__('filament/admin_sv/product_resource.price'))
-                    ->numeric()
-                    ->prefix('₽')
-                    ->required()
-                    ->helperText('Цена продажи')
-                    ->columnSpanFull(),
-
-                TextInput::make('original_price')
-                    ->label(__('filament/admin_sv/product_resource.original_price'))
-                    ->numeric()
-                    ->prefix('₽')
-                    ->helperText('Цена до скидки')
-                    ->columnSpanFull(),
-
-                Placeholder::make('variants_info')
-                    ->label('Вариации')
-                    ->content(function ($record) {
-                        if (! $record) {
-                            return 'После первого сохранения вариации можно добавить во вкладке «Вариации».';
-                        }
-
-                        $variantsCount = $record->variants()->count();
-
-                        return $variantsCount === 0
-                            ? 'Вариаций пока нет. Добавьте первую во вкладке «Вариации» — товар автоматически станет вариативным.'
-                            : "{$variantsCount} шт. Управление во вкладке «Вариации».";
-                    })
-                    ->columnSpanFull(),
-            ])
-            ->columns(1);
-    }
-
-    /**
-     * Оператор выбирает только уже заведённые характеристики и значения.
-     * Структуру справочника (тип, фильтры, участие в вариациях) меняют в отдельном разделе «Характеристики».
+     * Operator edits values only. Attribute structure itself is managed in the
+     * dedicated «Характеристики» resource.
      */
     protected static function operatorAttributesSection(): Section
     {
         return Section::make('Характеристики товара')
-            ->description('Цвет, коммерческий размер, материал и другие свойства. Для вариативного товара цвет/размер задаются в его вариациях.')
+            ->description('Цвет, коммерческий размер, материал и другие свойства')
             ->schema([
                 Repeater::make('product_attributes')
-                    ->label('Характеристики')
+                    ->label('')
                     ->schema([
                         Select::make('attribute_id')
                             ->label('Характеристика')
@@ -298,9 +255,10 @@ class ProductTabbedForm extends ProductForm
                                 if ($state !== null && $state !== '') {
                                     $set('attribute_value_id', null);
                                 }
-                            }),
+                            })
+                            ->columnSpanFull(),
                     ])
-                    ->columns(1)
+                    ->columns(['default' => 1, 'lg' => 2])
                     ->compact()
                     ->defaultItems(0)
                     ->addActionLabel('Добавить характеристику')
@@ -325,9 +283,47 @@ class ProductTabbedForm extends ProductForm
 
                         return $attribute->name;
                     })
-                    ->helperText('Если нужной характеристики или значения нет, добавьте их в разделе «Характеристики» в меню — здесь структура справочника не создаётся.')
                     ->columnSpanFull(),
             ]);
     }
 
+    protected static function mediaSection(): Section
+    {
+        return Section::make('Изображения товара')
+            ->schema([
+                Grid::make(['default' => 1, 'xl' => 2])
+                    ->schema([
+                        SpatieMediaLibraryFileUpload::make('main_image')
+                            ->label('Главное изображение')
+                            ->collection('main_image')
+                            ->image()
+                            ->imageEditor()
+                            ->imageCropAspectRatio('1:1')
+                            ->maxSize(10240),
+
+                        SpatieMediaLibraryFileUpload::make('gallery')
+                            ->label(__('filament/admin_sv/product_resource.images'))
+                            ->collection('gallery')
+                            ->multiple()
+                            ->reorderable()
+                            ->image()
+                            ->imageEditor()
+                            ->maxFiles(20)
+                            ->maxSize(10240),
+                    ])
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    protected static function seoSection(): Section
+    {
+        return Section::make('SEO')
+            ->schema([
+                SEO::make()
+                    ->columnSpanFull(),
+            ])
+            ->columns(1)
+            ->collapsible()
+            ->collapsed();
+    }
 }
