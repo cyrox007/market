@@ -635,8 +635,8 @@ class ProductForm
 
     protected static function dimensionsSection(): Section
     {
-        return Section::make('Размеры и вес')
-            ->description('Физические параметры товара для расчета доставки')
+        return Section::make('Габариты и вес для доставки')
+            ->description('Физические параметры упаковки/товара для расчёта доставки. Это не коммерческий размер вариации.')
             ->schema([
                 TextInput::make('length')
                     ->label(__('filament/admin_sv/product_resource.length'))

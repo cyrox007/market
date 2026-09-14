@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Products\Pages;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
+use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -18,6 +19,8 @@ class CreateProduct extends CreateRecord
     public static bool $formActionsAreSticky = true;
 
     protected bool $exitAfterSave = false;
+
+    protected array $productAttributesData = [];
 
     protected function getFormActions(): array
     {
@@ -47,6 +50,9 @@ class CreateProduct extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $this->productAttributesData = $data['product_attributes'] ?? [];
+        unset($data['product_attributes']);
+
         if (!array_key_exists('sku', $data) || $data['sku'] === null) {
             $data['sku'] = '';
         }
@@ -71,6 +77,8 @@ class CreateProduct extends CreateRecord
 
     protected function afterCreate(): void
     {
+        app(ProductAttributeSyncService::class)->sync($this->record, $this->productAttributesData);
+
         $this->record->flushCache();
 
         if (config('cache.clear_catalog_on_product_change', true)) {

@@ -3,15 +3,14 @@
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
-use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
+use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Illuminate\Support\Facades\DB;
 
 class EditProduct extends EditRecord
 {
@@ -151,87 +150,7 @@ class EditProduct extends EditRecord
     {
         $product = $this->record;
         if ($product) {
-            // Обрабатываем характеристики товара (и для обычных, и для вариативных — у последних это производитель и др.)
-            DB::transaction(function () use ($product) {
-                // Удаляем все существующие характеристики
-                DB::table('product_product_attributes')
-                    ->where('product_id', $product->id)
-                    ->delete();
-
-                // Добавляем новые характеристики
-                if (!empty($this->productAttributesData)) {
-                    $attributesData = [];
-                    foreach ($this->productAttributesData as $attr) {
-                        $attributeId = $attr['attribute_id'] ?? null;
-                        $attributeValueId = $attr['attribute_value_id'] ?? null;
-                        $customValue = $attr['custom_value'] ?? null;
-
-                        if (!$attributeId) {
-                            continue;
-                        }
-
-                        $attribute = \App\Models\Product\Attribute::find($attributeId);
-                        // Если attribute_value_id — массив (множественный выбор)
-                        if (is_array($attributeValueId)) {
-                            foreach ($attributeValueId as $singleValueId) {
-                                if (!empty($singleValueId)) {
-                                    $attributeValue = AttributeValue::find($singleValueId);
-                                    if ($attributeValue && $attributeValue->attribute_id == $attributeId) {
-                                        $attributesData[] = [
-                                            'product_id' => $product->id,
-                                            'attribute_id' => $attributeId,
-                                            'attribute_value_id' => $singleValueId,
-                                            'custom_value' => null,
-                                            'created_at' => now(),
-                                            'updated_at' => now(),
-                                        ];
-                                    }
-                                }
-                            }
-                            continue;
-                        }
-
-                        // Одно значение
-                        if (!empty($attributeValueId)) {
-                            $attributeValue = AttributeValue::find($attributeValueId);
-                            if ($attributeValue && $attributeValue->attribute_id == $attributeId) {
-                                $attributesData[] = [
-                                    'product_id' => $product->id,
-                                    'attribute_id' => $attributeId,
-                                    'attribute_value_id' => $attributeValueId,
-                                    'custom_value' => null,
-                                    'created_at' => now(),
-                                    'updated_at' => now(),
-                                ];
-                            }
-                            continue;
-                        }
-
-                        $customValueStr = $customValue !== null && $customValue !== '' ? (string) $customValue : null;
-
-                        // Если нет attribute_value_id, но есть ручной ввод — сохраняем его
-                        // ТОЛЬКО для атрибутов, у которых разрешён custom_value.
-                        if (
-                            $customValueStr !== null
-                            && $attribute
-                            && $attribute->allow_custom_value
-                        ) {
-                            $attributesData[] = [
-                                'product_id' => $product->id,
-                                'attribute_id' => $attributeId,
-                                'attribute_value_id' => null,
-                                'custom_value' => $customValueStr,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ];
-                        }
-                    }
-
-                    if (!empty($attributesData)) {
-                        DB::table('product_product_attributes')->insert($attributesData);
-                    }
-                }
-            });
+            app(ProductAttributeSyncService::class)->sync($product, $this->productAttributesData);
         }
 
         // Автоматически включаем is_variable, если появились вариации. НЕ сбрасываем в false при 0 вариациях —

@@ -33,6 +33,8 @@ use App\Models\Product\ProductDeliveryBlock;
 use App\Models\Product\ProductFeatureBlock;
 use App\Models\Product\ProductRegionRule;
 use App\Models\Product\Review;
+use App\Services\Product\ProductCanonicalAttributeQueryService;
+use App\Services\Product\ProductVariationAttributeService;
 
 class Product extends VaniloProduct implements HasMedia, PageableContract, Buyable
 {
@@ -765,329 +767,66 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
-     * Получить доступные цвета для вариаций
-     * Цвета теперь хранятся в полях color и color_code вариаций
+     * Совместимый API: доступные цвета читаются только из канонической характеристики color.
      */
     public function getAvailableColors(): Collection
     {
-        if (!$this->isVariable()) {
-            // Для невариативных товаров возвращаем цвет самого товара
-            if ($this->color) {
-                return collect([
-                    (object) [
-                        'id' => 1,
-                        'value' => $this->color,
-                        'slug' => \Str::slug($this->color),
-                        'color_code' => $this->color_code,
-                    ]
-                ]);
-            }
-            return collect();
-        }
-
-        // Получаем уникальные цвета из всех вариаций (используем уже загруженные, чтобы избежать N+1)
-        $variantsCollection = $this->relationLoaded('variants')
-            ? $this->variants
-            : $this->variants()->active()->get();
-
-        $colors = $variantsCollection
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->map(fn ($item) => (object) ['color' => $item->color, 'color_code' => $item->color_code ?? null])
-            ->unique(function ($item) {
-                return ($item->color ?? '') . ($item->color_code ?? '');
-            })
-            ->values();
-
-        // Преобразуем в коллекцию объектов для совместимости с API
-        return $colors->map(function ($color, $index) {
-            return (object) [
-                'id' => $index + 1,
-                'value' => $color->color,
-                'slug' => \Str::slug($color->color),
-                'color_code' => $color->color_code,
-            ];
-        });
+        return app(ProductVariationAttributeService::class)->colors($this);
     }
 
     /**
-     * Получить доступные размеры для вариаций
-     * Размеры вычисляются из length x width x height вариаций
+     * Совместимый API: коммерческие размеры читаются только из характеристики size.
+     * Физические length/width/height используются исключительно как габариты доставки.
      */
     public function getAvailableSizes(): Collection
     {
-        if (!$this->isVariable()) {
-            // Для невариативных товаров возвращаем размер самого товара
-            if ($this->length && $this->width && $this->height) {
-                $sizeStr = "{$this->length}x{$this->width}";
-                return collect([
-                    (object) [
-                        'id' => 1,
-                        'value' => $sizeStr,
-                        'slug' => \Str::slug($sizeStr),
-                        'name' => "{$this->length} x {$this->width} см",
-                    ]
-                ]);
-            }
-            return collect();
-        }
-
-        // Получаем уникальные размеры из вариаций (length x width; height не обязателен)
-        $variants = $this->variants()
-            ->active()
-            ->whereNotNull('length')
-            ->whereNotNull('width')
-            ->select('length', 'width', 'height')
-            ->distinct()
-            ->get();
-
-        // Группируем по length x width (высота может отличаться)
-        $sizes = $variants->map(function ($variant) {
-            return (object) [
-                'length' => $variant->length,
-                'width' => $variant->width,
-                'height' => $variant->height,
-                'key' => "{$variant->length}x{$variant->width}",
-            ];
-        })->unique('key')->values();
-
-        // Преобразуем в коллекцию объектов для совместимости с API
-        return $sizes->map(function ($size, $index) {
-            $sizeStr = $size->key;
-            return (object) [
-                'id' => $index + 1,
-                'value' => $sizeStr,
-                'slug' => \Str::slug($sizeStr),
-                'name' => "{$size->length} x {$size->width} см",
-            ];
-        });
+        return app(ProductVariationAttributeService::class)->sizes($this);
     }
 
     /**
-     * Получить вариацию по цвету и размеру
-     * Размер передается как строка "280x180" (length x width)
-     * ВАЖНО: Если переданы оба параметра (цвет и размер), ищется точная вариация
-     * Если передан только один параметр, возвращается первая подходящая вариация
+     * Совместимый API выбора вариации по каноническим color/size.
      */
     public function getVariantByAttributes(?string $color = null, ?string $size = null): ?Product
     {
-        if (!$this->isVariable()) {
-            // Для невариативных товаров возвращаем сам товар
-            return $this;
+        $attributes = [];
+        if ($color !== null && trim($color) !== '') {
+            $attributes[Attribute::SLUG_COLOR] = trim($color);
+        }
+        if ($size !== null && trim($size) !== '') {
+            $attributes[Attribute::SLUG_SIZE] = trim($size);
         }
 
-        $query = $this->variants()->active();
-
-        // Цвет хранится в поле color вариации
-        if ($color) {
-            // Получаем все уникальные цвета из вариаций для сравнения
-            $allColors = $this->variants()
-                ->active()
-                ->whereNotNull('color')
-                ->where('color', '!=', '')
-                ->select('color')
-                ->distinct()
-                ->pluck('color')
-                ->toArray();
-
-            // Нормализуем переданный цвет (может быть название или slug)
-            // Фронтенд может передать как "Белая", так и "belaia" (slug)
-            $colorSlug = \Str::slug($color);
-            $matchingColors = [];
-
-            // Ищем точное совпадение или совпадение по slug
-            foreach ($allColors as $dbColor) {
-                $dbColorSlug = \Str::slug($dbColor);
-                // Сравниваем: точное совпадение, совпадение по slug, или обратное (если передан slug, ищем по name)
-                if (
-                    $dbColor === $color ||
-                    $dbColorSlug === $colorSlug ||
-                    $dbColorSlug === $color ||
-                    $dbColor === $colorSlug
-                ) {
-                    $matchingColors[] = $dbColor;
-                }
-            }
-
-            \Log::debug('Product::getVariantByAttributes - Поиск цвета', [
-                'product_id' => $this->id,
-                'color_input' => $color,
-                'color_slug' => $colorSlug,
-                'all_colors_in_db' => $allColors,
-                'matching_colors' => $matchingColors,
-            ]);
-
-            if (count($matchingColors) > 0) {
-                $query->whereIn('color', $matchingColors);
-            } else {
-                // Если не нашли точного совпадения, возвращаем null
-                \Log::warning('Product::getVariantByAttributes - Цвет не найден', [
-                    'product_id' => $this->id,
-                    'color_input' => $color,
-                    'available_colors' => $allColors,
-                ]);
-                return null;
-            }
+        if ($attributes === []) {
+            return $this->isVariable() ? null : $this;
         }
 
-        // Размер передается как "280x180" (length x width)
-        // Фронтенд может передать как "210x160", так и "210 x 160 см" или "210x160"
-        if ($size) {
-            // Убираем пробелы и приводим к нижнему регистру
-            $normalizedSize = strtolower(str_replace([' ', 'см', 'cm'], '', $size));
-            $sizeParts = explode('x', $normalizedSize);
-
-            if (count($sizeParts) >= 2) {
-                $length = (int) trim($sizeParts[0]);
-                $width = (int) trim($sizeParts[1]);
-
-                \Log::debug('Product::getVariantByAttributes - Поиск размера', [
-                    'product_id' => $this->id,
-                    'size_input' => $size,
-                    'normalized_size' => $normalizedSize,
-                    'length' => $length,
-                    'width' => $width,
-                ]);
-
-                // Ищем точное совпадение по длине и ширине
-                $query->where('length', $length)
-                    ->where('width', $width);
-            } else {
-                \Log::warning('Product::getVariantByAttributes - Неверный формат размера', [
-                    'product_id' => $this->id,
-                    'size_input' => $size,
-                    'normalized_size' => $normalizedSize,
-                ]);
-            }
-        }
-
-        // ВАЖНО: Если переданы оба параметра (цвет и размер), должна найтись ТОЧНАЯ вариация
-        // Если передано только одно условие, возвращаем первую подходящую
-        $variant = $query->first();
-
-        // Если не нашли вариацию, но переданы оба параметра, это ошибка
-        if (!$variant && $color && $size) {
-            // Логируем для отладки (можно убрать в продакшене)
-            \Log::warning("Variant not found", [
-                'product_id' => $this->id,
-                'color' => $color,
-                'size' => $size,
-            ]);
-        }
-
-        return $variant;
+        return $this->getVariantByVariationAttributes($attributes);
     }
 
     /**
-     * Получить доступные размеры для конкретного цвета
-     * @param string|null $color - название цвета (например "Белая") или slug (например "belaia")
+     * Доступные коммерческие размеры для выбранного канонического цвета.
      */
     public function getAvailableSizesForColor(?string $color = null): Collection
     {
-        if (!$this->isVariable()) {
-            return $this->getAvailableSizes();
-        }
+        $constraints = $color !== null && trim($color) !== ''
+            ? [Attribute::SLUG_COLOR => trim($color)]
+            : [];
 
-        $query = $this->variants()
-            ->active()
-            ->whereNotNull('length')
-            ->whereNotNull('width');
-
-        if ($color) {
-            // Получаем все уникальные цвета из вариаций для сравнения
-            $allColors = $this->variants()
-                ->active()
-                ->whereNotNull('color')
-                ->where('color', '!=', '')
-                ->select('color')
-                ->distinct()
-                ->pluck('color')
-                ->toArray();
-
-            // Нормализуем переданный цвет (может быть название или slug)
-            $colorSlug = \Str::slug($color);
-            $matchingColors = [];
-
-            // Ищем точное совпадение или совпадение по slug
-            foreach ($allColors as $dbColor) {
-                $dbColorSlug = \Str::slug($dbColor);
-                if ($dbColor === $color || $dbColorSlug === $colorSlug || $dbColorSlug === $color) {
-                    $matchingColors[] = $dbColor;
-                }
-            }
-
-            if (count($matchingColors) > 0) {
-                $query->whereIn('color', $matchingColors);
-            } else {
-                // Если не нашли точного совпадения, возвращаем пустую коллекцию
-                return collect();
-            }
-        }
-
-        $variants = $query->select('length', 'width', 'height')
-            ->distinct()
-            ->get();
-
-        $sizes = $variants->map(function ($variant) {
-            return (object) [
-                'length' => $variant->length ?? null,
-                'width' => $variant->width ?? null,
-                'height' => $variant->height ?? null,
-                'key' => ($variant->length ?? 0) . 'x' . ($variant->width ?? 0),
-            ];
-        })->unique('key')->values();
-
-        return $sizes->map(function ($size, $index) {
-            return (object) [
-                'id' => $index + 1,
-                'value' => $size->key ?? null,
-                'slug' => \Str::slug($size->key ?? ''),
-                'name' => ($size->length ?? 0) . ' x ' . ($size->width ?? 0) . ' см',
-            ];
-        });
+        return app(ProductCanonicalAttributeQueryService::class)
+            ->availableVariationValues($this, Attribute::SLUG_SIZE, $constraints);
     }
 
     /**
-     * Получить доступные цвета для конкретного размера
+     * Доступные канонические цвета для выбранного коммерческого размера.
      */
     public function getAvailableColorsForSize(?string $size = null): Collection
     {
-        if (!$this->isVariable()) {
-            return $this->getAvailableColors();
-        }
+        $constraints = $size !== null && trim($size) !== ''
+            ? [Attribute::SLUG_SIZE => trim($size)]
+            : [];
 
-        $query = $this->variants()
-            ->active()
-            ->whereNotNull('color')
-            ->where('color', '!=', '');
-
-        if ($size) {
-            $sizeParts = explode('x', $size);
-            if (count($sizeParts) === 2) {
-                $length = (int) trim($sizeParts[0]);
-                $width = (int) trim($sizeParts[1]);
-                $query->where('length', $length)
-                    ->where('width', $width);
-            }
-        }
-
-        $colors = $query->select('color', 'color_code')
-            ->distinct()
-            ->orderBy('color')
-            ->get()
-            ->unique(function ($item) {
-                return $item->color . $item->color_code;
-            })
-            ->values();
-
-        return $colors->map(function ($color, $index) {
-            return (object) [
-                'id' => $index + 1,
-                'value' => $color->color,
-                'slug' => \Str::slug($color->color),
-                'color_code' => $color->color_code,
-            ];
-        });
+        return app(ProductCanonicalAttributeQueryService::class)
+            ->availableVariationValues($this, Attribute::SLUG_COLOR, $constraints);
     }
 
     /**
