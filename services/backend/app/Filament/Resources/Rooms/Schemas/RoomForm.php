@@ -190,6 +190,7 @@ class RoomForm
                             ]),
                     ])
                     ->contained(false)
+                    ->extraAttributes(['class' => '-mt-4 md:-mt-5'])
                     ->scrollable(false)
                     ->persistTab()
                     ->id('room-form-tabs')
