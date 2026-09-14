@@ -30,14 +30,14 @@ class LegacyColorBackfillMigrationTest extends TestCase
 
         $colorValue = DB::table('product_attribute_values')
             ->where('attribute_id', $colorAttribute->id)
-            ->where('slug', 'molochnyi')
+            ->where('value', 'Молочный')
             ->first();
 
         $this->assertNotNull($colorValue);
         $this->assertSame('#fffaf0', $colorValue->color_code);
         $this->assertSame(1, DB::table('product_attribute_values')
             ->where('attribute_id', $colorAttribute->id)
-            ->where('slug', 'molochnyi')
+            ->where('value', 'Молочный')
             ->count());
 
         $this->assertSame(1, DB::table('product_variant_attributes')
@@ -66,7 +66,7 @@ class LegacyColorBackfillMigrationTest extends TestCase
         $colorAttributeId = DB::table('product_attributes')->where('slug', Attribute::SLUG_COLOR)->value('id');
         $valueId = DB::table('product_attribute_values')
             ->where('attribute_id', $colorAttributeId)
-            ->where('slug', 'grafit')
+            ->where('value', 'Графит')
             ->value('id');
 
         $this->assertDatabaseHas('product_product_attributes', [
