@@ -18,6 +18,22 @@ services:
     networks:
       - sv_network
 
+  queue:
+    build:
+      context: ./services/backend
+    container_name: sv_queue
+    working_dir: /var/www
+    volumes:
+      - ./services/backend:/var/www
+      - ./services/backend/docker/custom.ini:/usr/local/etc/php/conf.d/99-custom.ini:ro
+    command: php artisan queue:work --queue=integration-1c,default --tries=3 --backoff=20 --timeout=60
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    networks:
+      - sv_network
+
   db:
     image: mysql:8.0
     container_name: sv_db
