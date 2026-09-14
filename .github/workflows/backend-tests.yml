@@ -29,7 +29,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, exif, zip, dom, xml, xmlreader, xmlwriter, simplexml, curl, fileinfo
           coverage: none
 
