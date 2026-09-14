@@ -42,7 +42,23 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        id: composer_install
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          composer install --no-interaction --prefer-dist --no-progress 2>&1 | tee /tmp/composer-install.log
+
+      - name: Upload Composer diagnostics
+        if: steps.composer_install.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-install-log
+          path: /tmp/composer-install.log
+          retention-days: 1
+
+      - name: Stop on Composer failure
+        if: steps.composer_install.outcome == 'failure'
+        run: exit 1
 
       - name: Prepare application
         run: |
