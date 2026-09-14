@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\Products;
 
 use App\Filament\Resources\Products\Pages\CreateProduct;
+use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\Pages\ListProducts;
-use App\Filament\Resources\Products\Pages\OperatorEditProduct;
 use App\Filament\Resources\Products\Pages\ViewProduct;
-use App\Filament\Resources\Products\Schemas\ProductTabbedForm;
+use App\Filament\Resources\Products\Schemas\ProductClassicForm;
 use App\Filament\Resources\Products\Schemas\ProductInfolist;
 use App\Filament\Resources\Products\Tables\ProductsTable;
 use App\Models\Product\Product;
@@ -37,7 +37,7 @@ class ProductResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return ProductTabbedForm::configure($schema);
+        return ProductClassicForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema
@@ -53,8 +53,8 @@ class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
-            \App\Filament\Resources\Products\RelationManagers\OperatorProductVariantsRelationManager::class,
-            \App\Filament\Resources\Products\RelationManagers\OperatorProductVariationAttributeSelectionRelationManager::class,
+            \App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager::class,
+            \App\Filament\Resources\Products\RelationManagers\ProductVariationAttributeSelectionRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductReviewsRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductRegionRulesRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\VariantRegionRulesRelationManager::class,
@@ -69,7 +69,7 @@ class ProductResource extends Resource
             'index' => ListProducts::route('/'),
             'create' => CreateProduct::route('/create'),
             'view' => ViewProduct::route('/{record}'),
-            'edit' => OperatorEditProduct::route('/{record}/edit'),
+            'edit' => EditProduct::route('/{record}/edit'),
         ];
     }
 
