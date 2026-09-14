@@ -39,16 +39,33 @@ class EnqueueOrders1CSyncCommandTest extends TestCase
         Queue::assertPushed(SyncOrderTo1CJob::class, 1);
     }
 
-    public function test_invalid_order_id_fails_without_enqueuing_jobs(): void
+    public function test_invalid_order_ids_fail_without_enqueuing_jobs(): void
+    {
+        config()->set('services.integration_1c.enabled', true);
+        Queue::fake();
+
+        foreach (['0', '-1', 'abc', '1.5'] as $invalidOrderId) {
+            $exitCode = Artisan::call('orders:enqueue-1c-sync', [
+                '--order-id' => $invalidOrderId,
+            ]);
+
+            $this->assertSame(1, $exitCode, "Expected {$invalidOrderId} to be rejected");
+        }
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_missing_target_order_fails_without_enqueuing_jobs(): void
     {
         config()->set('services.integration_1c.enabled', true);
         Queue::fake();
 
         $exitCode = Artisan::call('orders:enqueue-1c-sync', [
-            '--order-id' => '0',
+            '--order-id' => '999999',
         ]);
 
         $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('не найден', Artisan::output());
         Queue::assertNothingPushed();
     }
 }
