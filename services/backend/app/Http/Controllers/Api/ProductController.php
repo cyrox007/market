@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductDetailResource;
 use App\Http\Resources\ProductResource;
 use App\Models\Product\Category;
+use App\Models\Product\Room;
+use App\Models\Product\RoomFilters;
 use App\Models\Product\Product;
 use App\Models\Product\ProductCollection;
 use App\Models\Product\Attribute;
@@ -97,6 +99,9 @@ class ProductController extends Controller
             return false;
         }
         if ($request->filled('category_id') || $request->filled('category_slug')) {
+            return false;
+        }
+        if ($request->filled('room_slug') || $request->filled('room_id')) {
             return false;
         }
         if ($request->filled('search') || $request->filled('price_min') || $request->filled('price_max')) {
@@ -208,6 +213,30 @@ class ProductController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
+        // Комната (вторая таксономия): сводим к продуктовым категориям + базовый фильтр из комнаты.
+        $roomSlug = $request->get('room_slug') ?? $request->get('room_id');
+        $roomCategoryIds = null;
+        $roomEffectiveFilters = null;
+        if ($roomSlug) {
+            $room = Room::where('slug', $roomSlug)->orWhere('id', $roomSlug)->first();
+            if ($room) {
+                // Ограничения комнаты (с наследованием) применим ниже — сузив ими фильтр пользователя.
+                $roomEffectiveFilters = $room->effectiveFilters();
+                // productCategories самой комнаты И всех подкомнат (родитель = товары подкомнат).
+                $roomIds = Room::getAllDescendantIdsFor($room->id);
+                $rooms = Room::whereIn('id', $roomIds)->with('productCategories')->get();
+                $ids = [];
+                foreach ($rooms as $r) {
+                    foreach ($r->productCategories as $cat) {
+                        $ids = array_merge($ids, Category::getAllDescendantIdsFor($cat->id));
+                    }
+                }
+                $roomCategoryIds = array_values(array_unique($ids));
+            } else {
+                $roomCategoryIds = []; // комната не найдена — пустой список
+            }
+        }
+
         // Создаем детальный ключ кэша с учетом всех параметров запроса
         $perPage = min($request->get('per_page', 20), 100);
         $page = max(1, (int) $request->input('page', 1));
@@ -240,6 +269,36 @@ class ProductController extends Controller
         $colors = array_values(array_filter(array_map('trim', $colors)));
         $sizes = array_values(array_filter(array_map('trim', $sizes)));
 
+        // Комната диктует потолок ограничений: фильтр пользователя только сужает её, но не ослабляет.
+        // Пустое пересечение (пользователь выбрал запрещённое комнатой) → заведомо пустой результат.
+        $roomForceEmpty = false;
+        if ($roomEffectiveFilters !== null) {
+            $narrowed = RoomFilters::narrow($roomEffectiveFilters, [
+                'price_min' => $priceMin,
+                'price_max' => $priceMax,
+                'colors' => $colors,
+                'attributes' => $attributes,
+            ]);
+            if (array_key_exists('price_min', $narrowed)) {
+                $priceMin = $narrowed['price_min'];
+            }
+            if (array_key_exists('price_max', $narrowed)) {
+                $priceMax = $narrowed['price_max'];
+            }
+            if (array_key_exists('colors', $narrowed)) {
+                $colors = $narrowed['colors'];
+                $roomForceEmpty = $roomForceEmpty || $colors === [];
+            }
+            if (array_key_exists('attributes', $narrowed)) {
+                $attributes = $narrowed['attributes'];
+                foreach ($attributes as $values) {
+                    if ($values === []) {
+                        $roomForceEmpty = true;
+                    }
+                }
+            }
+        }
+
         // Ключ кэша без region_id: состав списка (какие товары на странице) не зависит от региона,
         // цены и is_visible_in_region подставляются в ProductResource при отдаче — один кэш на все регионы.
         $cacheKeyPayload = sprintf(
@@ -258,7 +317,7 @@ class ProductController extends Controller
             json_encode($attributes),
             $manufacturerId ?: $manufacturerSlug ?: 'null'
         );
-        $cacheKey = 'idx:' . md5($cacheKeyPayload);
+        $cacheKey = 'idx:' . md5($cacheKeyPayload . '|room:' . ($roomSlug ?: 'null') . '|empty:' . ($roomForceEmpty ? '1' : '0'));
 
         // ВАЖНО: Получаем регион из запроса ДО построения запроса
         // Передаём объект в request, чтобы ProductResource не вызывал find() на каждый товар (N+1)
@@ -285,6 +344,20 @@ class ProductController extends Controller
                 $query->inCategory($categoryResolved->id);
             } else {
                 // Категория не найдена — не отдаём все товары, а пустой список
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        // Комната запрещает выбранную пользователем комбинацию (пустое пересечение) → пустой список.
+        if ($roomForceEmpty) {
+            $query->whereRaw('1 = 0');
+        }
+
+        // Товары комнаты = объединение товаров её продуктовых категорий (с потомками).
+        if ($roomCategoryIds !== null) {
+            if (! empty($roomCategoryIds)) {
+                $query->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $roomCategoryIds));
+            } else {
                 $query->whereRaw('1 = 0');
             }
         }

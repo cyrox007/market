@@ -132,6 +132,7 @@ export function createSSRApi(req: IncomingMessage) {
       list: (params?: {
         category_id?: number;
         category_slug?: string;
+        room_slug?: string;
         price_min?: number;
         price_max?: number;
         search?: string;
@@ -147,6 +148,7 @@ export function createSSRApi(req: IncomingMessage) {
         const query = new URLSearchParams();
         if (params?.category_id) query.append('category_id', params.category_id.toString());
         if (params?.category_slug) query.append('category_slug', params.category_slug);
+        if (params?.room_slug) query.append('room_slug', params.room_slug);
         if (params?.price_min !== undefined) query.append('price_min', params.price_min.toString());
         if (params?.price_max !== undefined) query.append('price_max', params.price_max.toString());
         if (params?.search) query.append('search', params.search);
@@ -223,6 +225,12 @@ export function createSSRApi(req: IncomingMessage) {
       list: () => fetchAPI<{ data: any[] }>('/categories'),
       get: (slug: string) => fetchAPI<{ category: any }>(`/categories/${slug}`),
       tree: () => fetchAPI<{ tree: any[] }>('/categories/tree'),
+    },
+    // Комнаты — вторая таксономия; формат совпадает с categories.
+    rooms: {
+      list: () => fetchAPI<{ data: any[] }>('/rooms'),
+      get: (slug: string) => fetchAPI<{ category: any }>(`/rooms/${slug}`),
+      tree: () => fetchAPI<{ tree: any[] }>('/rooms/tree'),
     },
     sliders: {
       list: () => fetchAPI<{ data: any[] }>('/sliders'),

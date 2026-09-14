@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ArticleController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\CompareController;
 use App\Http\Controllers\Api\AboutController;
 use App\Http\Controllers\Api\ContactController;
@@ -76,6 +77,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
         Route::get('/tree', [CategoryController::class, 'tree']);
         Route::get('/{slug}', [CategoryController::class, 'show']);
+    });
+
+    // Rooms (public) — вторая таксономия каталога (комнаты)
+    Route::prefix('rooms')->group(function () {
+        Route::get('/', [RoomController::class, 'index']);
+        Route::get('/tree', [RoomController::class, 'tree']);
+        Route::get('/{slug}', [RoomController::class, 'show']);
     });
 
     // Products (public)

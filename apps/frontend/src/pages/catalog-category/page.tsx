@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useLocation, Link, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import ProductCard from '../../components/ui/ProductCard';
@@ -30,6 +30,9 @@ import { ChevronRight, ListFilter, X } from 'lucide-react';
 
 export default function CatalogCategory() {
   const { category: categorySlug } = useParams<{ category: string }>();
+  // Одна страница на каталог и комнаты: источник данных выбираем по URL.
+  const isRooms = useLocation().pathname.startsWith('/rooms');
+  const source = isRooms ? api.rooms : api.categories;
   const [searchParams, setSearchParams] = useSearchParams();
   const ssrData = useSSR();
   const initialRegionId = ssrData?.region?.id;
@@ -87,9 +90,9 @@ export default function CatalogCategory() {
     isLoading: isLoadingCategory,
   } = useSWR(
     categorySlug && (!initialCategory || initialCategory.slug !== categorySlug)
-      ? `/api/categories/${categorySlug}`
+      ? `/api/${isRooms ? 'rooms' : 'categories'}/${categorySlug}`
       : null,
-    () => api.categories.get(categorySlug!),
+    () => source.get(categorySlug!),
     {
       fallbackData: initialCategory ? { category: initialCategory } : undefined,
       revalidateOnMount: !initialCategory,
@@ -155,7 +158,7 @@ export default function CatalogCategory() {
     });
 
     return {
-      category_slug: categorySlug,
+      ...(isRooms ? { room_slug: categorySlug } : { category_slug: categorySlug }),
       price_min: priceMin,
       price_max: priceMax,
       sort_by: sortBy,
@@ -166,7 +169,7 @@ export default function CatalogCategory() {
       attributes: attributesParam,
       region_id: region?.id,
     };
-  }, [categorySlug, searchString, region?.id]);
+  }, [categorySlug, isRooms, searchString, region?.id]);
 
   // Базовые параметры запроса (без page) — каждая страница кэшируется отдельно (малый фрагмент); ключ включает регион и фильтры.
   const baseRequestOptions = useMemo(() => {
@@ -203,7 +206,11 @@ export default function CatalogCategory() {
 
   const firstPageKey =
     baseRequestOptions && categorySlug
-      ? getCategoryProductsKey(categorySlug, { ...baseRequestOptions, page: 1 })
+      ? getCategoryProductsKey(
+          categorySlug,
+          { ...baseRequestOptions, page: 1 },
+          isRooms ? 'room_slug' : 'category_slug',
+        )
       : null;
 
   const infiniteFallbackData = useMemo(() => {
@@ -249,7 +256,11 @@ export default function CatalogCategory() {
     ) => {
       if (!firstPageKey || !baseRequestOptions) return null;
       if (isLastPage(previousPageData)) return null;
-      return getCategoryProductsKey(categorySlug!, { ...baseRequestOptions, page: pageIndex + 1 });
+      return getCategoryProductsKey(
+        categorySlug!,
+        { ...baseRequestOptions, page: pageIndex + 1 },
+        isRooms ? 'room_slug' : 'category_slug',
+      );
     },
     async (key: string) => {
       const params = parseCategoryProductsKey(key);

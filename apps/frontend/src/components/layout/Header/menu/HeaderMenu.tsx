@@ -148,25 +148,37 @@ function MenuPanelGroups({
   const flowing = groups.length === 1 && !groups[0].title;
 
   // Ключ по адресу и подписи: у неактивных ссылок адреса нет, все они «#»
-  const link = ({ to, label, disabled }: MenuLink) =>
-    disabled ? (
-      <span
-        key={`${to}:${label}`}
-        aria-disabled="true"
-        className={cn('block py-1.5 text-14', DISABLED_LINK)}
-      >
-        {label}
-      </span>
-    ) : (
-      <Link
-        key={`${to}:${label}`}
-        to={to}
-        onClick={onNavigate}
-        className="block py-1.5 text-14 text-ink-secondary outline-none hover:text-ink focus-visible:text-ink"
-      >
-        {label}
-      </Link>
-    );
+  const link = ({ to, label, disabled, children }: MenuLink) => (
+    <div key={`${to}:${label}`}>
+      {disabled ? (
+        <span aria-disabled="true" className={cn('block py-1.5 text-14', DISABLED_LINK)}>
+          {label}
+        </span>
+      ) : (
+        <Link
+          to={to}
+          onClick={onNavigate}
+          className="block py-1.5 text-14 text-ink-secondary outline-none hover:text-ink focus-visible:text-ink"
+        >
+          {label}
+        </Link>
+      )}
+      {children?.length ? (
+        <div className="ml-3">
+          {children.map((child) => (
+            <Link
+              key={`${child.to}:${child.label}`}
+              to={child.to}
+              onClick={onNavigate}
+              className="block py-1 text-12 text-ink-secondary/80 outline-none hover:text-ink focus-visible:text-ink"
+            >
+              {child.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 
   if (flowing) {
     return (
@@ -179,8 +191,17 @@ function MenuPanelGroups({
   return (
     <div className={cn(inset ? 'pl-3' : 'grid grid-cols-4 gap-8 max-md:grid-cols-2')}>
       {groups.map((group) => (
-        <div key={group.title ?? 'group'}>
-          {group.title && <h3 className="mb-2 text-14 font-semibold text-ink">{group.title}</h3>}
+        <div key={group.titleTo ?? group.title ?? 'leaves'}>
+          {group.title &&
+            (group.titleTo ? (
+              <h3 className="mb-2 text-14 font-semibold text-ink">
+                <Link to={group.titleTo} className="hover:text-primary">
+                  {group.title}
+                </Link>
+              </h3>
+            ) : (
+              <h3 className="mb-2 text-14 font-semibold text-ink">{group.title}</h3>
+            ))}
           {group.links.map(link)}
         </div>
       ))}
