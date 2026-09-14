@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 class SyncOrderTo1CJob implements ShouldQueue
 {
@@ -47,10 +48,16 @@ class SyncOrderTo1CJob implements ShouldQueue
         $payload = $buildOrderSyncPayloadAction->execute($order);
         $ok = $syncOrdersTo1CAction->execute([$payload]);
 
+        if (! $ok) {
+            throw new RuntimeException(
+                'Order synchronization to integration API failed for order ' . $this->orderId
+            );
+        }
+
         Log::info('SyncOrderTo1CJob finished', [
             'order_id' => $this->orderId,
             'order_number' => $order->number,
-            'success' => $ok,
+            'success' => true,
             'queue' => $this->queue,
         ]);
     }
