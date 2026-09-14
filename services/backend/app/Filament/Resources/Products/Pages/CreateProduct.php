@@ -92,7 +92,7 @@ class CreateProduct extends CreateRecord
             return ProductResource::getUrl('index');
         }
 
-        return parent::getRedirectUrl();
+        return ProductResource::getUrl('edit', ['record' => $this->getRecord()]);
     }
 
     protected function getHeaderActions(): array
