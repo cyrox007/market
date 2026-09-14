@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
 class EnqueueOrders1CSyncCommand extends Command
 {
     protected $signature = 'orders:enqueue-1c-sync
+                            {--order-id= : Отправить конкретный заказ по внутреннему ID}
                             {--status= : Фильтр по статусу (например accepted, awaiting_payment)}
                             {--since= : Только заказы с created_at >= даты (Y-m-d)}
                             {--limit=0 : Максимум заказов (0 = без лимита)}';
@@ -26,6 +27,17 @@ class EnqueueOrders1CSyncCommand extends Command
         }
 
         $query = Order::query()->orderBy('id');
+
+        if ($orderIdOption = $this->option('order-id')) {
+            $orderId = (int) $orderIdOption;
+            if ($orderId <= 0) {
+                $this->error('--order-id должен быть положительным целым ID заказа.');
+
+                return self::FAILURE;
+            }
+
+            $query->whereKey($orderId);
+        }
 
         if ($status = $this->option('status')) {
             $query->where('status', (string) $status);
@@ -46,9 +58,15 @@ class EnqueueOrders1CSyncCommand extends Command
             $count++;
         });
 
-        $queue = config('services.onec.orders_queue', 'integration-1c');
+        $queue = (string) (
+            config('services.integration_1c.orders_queue')
+            ?? config('services.onec.orders_queue')
+            ?? 'integration-1c'
+        );
+        $workerQueues = implode(',', array_unique([$queue, 'default']));
+
         $this->info("В очередь «{$queue}» поставлено заказов: {$count}");
-        $this->line('Обработка: php8.4 artisan queue:work --queue=default,integration-1c');
+        $this->line("Обработка: php8.4 artisan queue:work --queue={$workerQueues}");
 
         return self::SUCCESS;
     }
