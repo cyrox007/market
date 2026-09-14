@@ -108,7 +108,6 @@ class ProductTabbedForm extends ProductForm
             ->description('Поисковая оптимизация товара')
             ->schema([
                 SEO::make()
-                    ->hiddenLabel()
                     ->columnSpanFull(),
             ])
             ->columns(1)
