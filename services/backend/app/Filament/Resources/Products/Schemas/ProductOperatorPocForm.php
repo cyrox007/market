@@ -21,7 +21,7 @@ use Vanilo\Product\Models\ProductState;
  * Filament-native proof of concept for the operator product editor.
  *
  * ProductResource/EditRecord, Filament fields, uploads and relation managers stay intact.
- * Only the composition of the product form changes.
+ * Only page composition and information hierarchy change.
  */
 class ProductOperatorPocForm extends ProductClassicForm
 {
@@ -34,10 +34,25 @@ class ProductOperatorPocForm extends ProductClassicForm
                         self::operatorMainSection(),
                         self::operatorSalesSection(),
                     ])
+                    ->extraAttributes([
+                        'id' => 'product-main',
+                        'class' => 'scroll-mt-28',
+                    ])
                     ->columnSpanFull(),
 
-                self::operatorDescriptionSection()->columnSpanFull(),
-                self::operatorAttributesSection()->columnSpanFull(),
+                self::operatorDescriptionSection()
+                    ->extraAttributes([
+                        'id' => 'product-description',
+                        'class' => 'scroll-mt-28',
+                    ])
+                    ->columnSpanFull(),
+
+                self::operatorAttributesSection()
+                    ->extraAttributes([
+                        'id' => 'product-attributes',
+                        'class' => 'scroll-mt-28',
+                    ])
+                    ->columnSpanFull(),
 
                 Section::make('Остатки')
                     ->description('Складские остатки и предзаказ')
@@ -47,11 +62,19 @@ class ProductOperatorPocForm extends ProductClassicForm
                     ])
                     ->collapsible()
                     ->collapsed()
+                    ->extraAttributes([
+                        'id' => 'product-stock',
+                        'class' => 'scroll-mt-28',
+                    ])
                     ->columnSpanFull(),
 
                 self::imagesSection()
                     ->collapsible()
                     ->collapsed()
+                    ->extraAttributes([
+                        'id' => 'product-media',
+                        'class' => 'scroll-mt-28',
+                    ])
                     ->columnSpanFull(),
 
                 Section::make('Дополнительно')
@@ -65,6 +88,10 @@ class ProductOperatorPocForm extends ProductClassicForm
                     ])
                     ->collapsible()
                     ->collapsed()
+                    ->extraAttributes([
+                        'id' => 'product-extra',
+                        'class' => 'scroll-mt-28',
+                    ])
                     ->columnSpanFull(),
             ]);
     }
@@ -145,11 +172,12 @@ class ProductOperatorPocForm extends ProductClassicForm
     protected static function operatorDescriptionSection(): Section
     {
         return Section::make('Описание')
+            ->description('Текст карточки товара на сайте')
             ->schema([
                 Textarea::make('description')
                     ->hiddenLabel()
                     ->default('')
-                    ->rows(9)
+                    ->rows(6)
                     ->columnSpanFull(),
             ]);
     }
