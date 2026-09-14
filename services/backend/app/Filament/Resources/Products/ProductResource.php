@@ -53,8 +53,8 @@ class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
-            \App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager::class,
-            \App\Filament\Resources\Products\RelationManagers\ProductVariationAttributeSelectionRelationManager::class,
+            \App\Filament\Resources\Products\RelationManagers\OperatorProductVariantsRelationManager::class,
+            \App\Filament\Resources\Products\RelationManagers\OperatorProductVariationAttributeSelectionRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductReviewsRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductRegionRulesRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\VariantRegionRulesRelationManager::class,
@@ -72,14 +72,17 @@ class ProductResource extends Resource
             'edit' => EditProduct::route('/{record}/edit'),
         ];
     }
+
     public static function getNavigationLabel(): string
     {
         return __('filament/admin_sv/product_resource.navigation_label');
     }
+
     public static function getModelLabel(): string
     {
         return __('filament/admin_sv/product_resource.model_label');
     }
+
     public static function getPluralModelLabel(): string
     {
         return __('filament/admin_sv/product_resource.plural_model_label');
