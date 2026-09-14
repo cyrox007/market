@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Models\Product\Product;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
@@ -11,6 +13,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 use Vanilo\Product\Models\ProductState;
 
 class ProductTabbedForm extends ProductForm
@@ -27,7 +30,7 @@ class ProductTabbedForm extends ProductForm
                                 Grid::make(['default' => 1, 'lg' => 2])
                                     ->schema([
                                         Group::make([
-                                            self::mainInfoSection(),
+                                            self::identitySection(),
                                         ]),
                                         Group::make([
                                             self::categoriesSection(),
@@ -35,6 +38,12 @@ class ProductTabbedForm extends ProductForm
                                         ]),
                                     ])
                                     ->columnSpanFull(),
+                            ]),
+
+                        Tab::make('Описание')
+                            ->icon('heroicon-m-document-text')
+                            ->schema([
+                                self::descriptionSection(),
                             ]),
 
                         Tab::make('Характеристики')
@@ -86,6 +95,58 @@ class ProductTabbedForm extends ProductForm
                     ->scrollable(false)
                     ->persistTab()
                     ->id('product-form-tabs')
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    protected static function identitySection(): Section
+    {
+        return Section::make('Основная информация')
+            ->description('Название и идентификаторы товара')
+            ->schema([
+                TextInput::make('name')
+                    ->label(__('filament/admin_sv/product_resource.name'))
+                    ->required()
+                    ->maxLength(255)
+                    ->live(onBlur: true)
+                    ->afterStateUpdated(fn ($state, $set, $get) => $get('slug') === '' || $get('slug') === null ? $set('slug', Str::slug($state)) : null)
+                    ->helperText('Полное название товара для отображения на сайте')
+                    ->columnSpanFull(),
+
+                TextInput::make('slug')
+                    ->label(__('filament/admin_sv/product_resource.slug'))
+                    ->maxLength(255)
+                    ->unique(Product::class, 'slug', ignoreRecord: true)
+                    ->helperText('ЧПУ для URL. Генерируется из названия автоматически, можно изменить при необходимости')
+                    ->columnSpanFull(),
+
+                Section::make('Артикулы')
+                    ->schema([
+                        TextInput::make('sku')
+                            ->label(__('filament/admin_sv/product_resource.sku'))
+                            ->maxLength(255)
+                            ->helperText('Артикул товара (может повторяться). Если оставить пустым, при сохранении будет подставлен ID товара.'),
+
+                        TextInput::make('gtin')
+                            ->label(__('filament/admin_sv/product_resource.gtin'))
+                            ->maxLength(255)
+                            ->helperText('EAN, UPC и т.д.'),
+                    ])
+                    ->columns(2),
+            ])
+            ->columns(1);
+    }
+
+    protected static function descriptionSection(): Section
+    {
+        return Section::make('Описание товара')
+            ->description('Контент карточки товара на сайте')
+            ->schema([
+                Textarea::make('description')
+                    ->label(__('filament/admin_sv/product_resource.description'))
+                    ->default('')
+                    ->rows(18)
+                    ->helperText('Подробное описание товара. Поддерживается HTML (теги, списки, ссылки).')
                     ->columnSpanFull(),
             ]);
     }
