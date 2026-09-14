@@ -53,6 +53,18 @@ php artisan integration:1c:doctor
 
 Не используйте `orders:enqueue-1c-sync` как read-only проверку: эта команда действительно ставит найденные заказы на отправку.
 
+## Точечный staging smoke одного заказа
+
+После успешного `integration:1c:doctor` создайте или выберите **известный тестовый заказ на staging** и поставьте только его в очередь:
+
+```bash
+php artisan orders:enqueue-1c-sync --order-id=<ID_ЗАКАЗА>
+```
+
+`--order-id` фильтрует по внутреннему Laravel ID заказа. Команда должна вывести `поставлено заказов: 1`. После этого проверьте worker/logs/API и убедитесь, что именно этот заказ появился или обновился в integration API.
+
+Для smoke не запускайте `orders:enqueue-1c-sync` без фильтров: исторически команда умеет массово ставить подходящие заказы в очередь.
+
 ## Queue worker
 
 `SyncOrderTo1CJob` реализует `ShouldQueue`, поэтому включённая интеграция требует постоянно работающего queue worker. Репозиторный Docker Compose запускает очередь так:
@@ -69,6 +81,8 @@ php artisan queue:failed
 php artisan queue:monitor integration-1c:100
 ```
 
+Если `ONEC_ORDERS_QUEUE` переопределён, реальный worker обязан слушать именно это имя очереди; `integration:1c:doctor` показывает фактическое значение.
+
 Если HTTP-синхронизация вернула ошибку, job теперь бросает исключение и Laravel выполняет retry вместо ложного успешного завершения.
 
 ## Самовывоз
@@ -84,10 +98,10 @@ php artisan queue:monitor integration-1c:100
 Перед production включением `ONEC_API_ENABLED=true` проверить:
 
 1. `php artisan integration:1c:doctor` завершается успешно;
-2. queue worker действительно запущен и слушает `integration-1c`;
+2. queue worker действительно запущен и слушает фактическую `ONEC_ORDERS_QUEUE`;
 3. `ONEC_API_BASE_URL` указывает на нужное окружение API;
 4. секрет `ONEC_API_KEY` совпадает с `API_TOKEN` на API;
-5. обычный delivery-заказ появляется в API;
+5. известный staging delivery-заказ точечно поставлен через `orders:enqueue-1c-sync --order-id=<ID>` и появился в API;
 6. изменение статуса обновляет тот же `orderId`, а не создаёт дубль;
 7. legacy pickup-заказ не теряется;
 8. временная недоступность API приводит к retry и затем к записи в failed jobs после исчерпания попыток;
