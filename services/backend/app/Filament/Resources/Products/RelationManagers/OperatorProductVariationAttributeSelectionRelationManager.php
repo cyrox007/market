@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Products\RelationManagers;
 
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\Model;
 
 use function Filament\authorize;
 
@@ -11,7 +10,7 @@ class OperatorProductVariationAttributeSelectionRelationManager extends ProductV
 {
     protected static ?string $title = 'Параметры вариаций';
 
-    public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
+    public static function canViewForRecord($ownerRecord, string $pageClass): bool
     {
         if ($ownerRecord->isVariant()) {
             return false;
