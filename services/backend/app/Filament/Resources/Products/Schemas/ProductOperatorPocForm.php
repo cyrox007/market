@@ -12,6 +12,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
 use Vanilo\Product\Models\ProductState;
@@ -20,53 +21,60 @@ class ProductOperatorPocForm extends ProductClassicForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                Grid::make(['default' => 1, 'lg' => 2])
-                    ->schema([
-                        self::operatorMainSection(),
-                        self::operatorSalesSection(),
-                    ])
-                    ->extraAttributes(['id' => 'product-main', 'class' => 'scroll-mt-28'])
-                    ->columnSpanFull(),
+        return $schema->components([
+            Grid::make(['default' => 1, 'lg' => 2])
+                ->schema([
+                    self::operatorMainSection(),
+                    self::operatorSalesSection(),
+                ])
+                ->extraAttributes(['id' => 'product-main', 'class' => 'scroll-mt-28'])
+                ->columnSpanFull(),
 
-                self::operatorDescriptionSection()
-                    ->extraAttributes(['id' => 'product-description', 'class' => 'scroll-mt-28'])
-                    ->columnSpanFull(),
+            self::operatorDescriptionSection()
+                ->extraAttributes(['id' => 'product-description', 'class' => 'scroll-mt-28'])
+                ->columnSpanFull(),
 
-                self::operatorAttributesSection()
-                    ->extraAttributes(['id' => 'product-attributes', 'class' => 'scroll-mt-28'])
-                    ->columnSpanFull(),
+            self::operatorAttributesSection()
+                ->extraAttributes(['id' => 'product-attributes', 'class' => 'scroll-mt-28'])
+                ->columnSpanFull(),
 
-                Section::make('Остатки')
-                    ->description('Складские остатки и предзаказ')
-                    ->schema([
-                        self::stockSection(),
-                        self::warehouseStocksSection(),
-                    ])
-                    ->collapsible()
-                    ->collapsed()
-                    ->extraAttributes(['id' => 'product-stock', 'class' => 'scroll-mt-28'])
-                    ->columnSpanFull(),
+            View::make('filament.resources.products.components.product-variants-workspace')
+                ->hidden(fn (?Product $record): bool => $record === null || $record->isVariant())
+                ->columnSpanFull(),
 
-                self::imagesSection()
-                    ->extraAttributes(['id' => 'product-media', 'class' => 'scroll-mt-28'])
-                    ->columnSpanFull(),
+            Section::make('Остатки')
+                ->description('Складские остатки и предзаказ')
+                ->schema([
+                    self::stockSection(),
+                    self::warehouseStocksSection(),
+                ])
+                ->collapsible()
+                ->collapsed()
+                ->extraAttributes(['id' => 'product-stock', 'class' => 'scroll-mt-28'])
+                ->columnSpanFull(),
 
-                Section::make('Дополнительно')
-                    ->description('Редко используемые настройки товара')
-                    ->schema([
-                        self::dimensionsSection()->collapsible()->collapsed(),
-                        self::taxShippingSection()->collapsible()->collapsed(),
-                        self::seoSection(),
-                        self::importSection(),
-                        self::technicalSection(),
-                    ])
-                    ->collapsible()
-                    ->collapsed()
-                    ->extraAttributes(['id' => 'product-extra', 'class' => 'scroll-mt-28'])
-                    ->columnSpanFull(),
-            ]);
+            self::imagesSection()
+                ->extraAttributes(['id' => 'product-media', 'class' => 'scroll-mt-28'])
+                ->columnSpanFull(),
+
+            View::make('filament.resources.products.components.product-related-workspaces')
+                ->hidden(fn (?Product $record): bool => $record === null)
+                ->columnSpanFull(),
+
+            Section::make('Дополнительно')
+                ->description('Редко используемые настройки товара')
+                ->schema([
+                    self::dimensionsSection()->collapsible()->collapsed(),
+                    self::taxShippingSection()->collapsible()->collapsed(),
+                    self::seoSection(),
+                    self::importSection(),
+                    self::technicalSection(),
+                ])
+                ->collapsible()
+                ->collapsed()
+                ->extraAttributes(['id' => 'product-extra', 'class' => 'scroll-mt-28'])
+                ->columnSpanFull(),
+        ]);
     }
 
     protected static function operatorMainSection(): Section
