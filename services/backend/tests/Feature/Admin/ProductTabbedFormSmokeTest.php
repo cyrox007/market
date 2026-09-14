@@ -4,11 +4,19 @@ namespace Tests\Feature\Admin;
 
 use App\Filament\Resources\Products\Schemas\ProductTabbedForm;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use ReflectionMethod;
 use Tests\TestCase;
 
 class ProductTabbedFormSmokeTest extends TestCase
 {
+    public function test_product_editor_full_schema_can_be_built(): void
+    {
+        $schema = ProductTabbedForm::configure(Schema::make());
+
+        $this->assertInstanceOf(Schema::class, $schema);
+    }
+
     public function test_product_editor_seo_section_can_be_built(): void
     {
         $method = new ReflectionMethod(ProductTabbedForm::class, 'seoSection');
