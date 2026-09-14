@@ -17,6 +17,7 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
+use RalphJSmit\Filament\SEO\SEO;
 use Vanilo\Product\Models\ProductState;
 
 class ProductTabbedForm extends ProductForm
@@ -99,6 +100,20 @@ class ProductTabbedForm extends ProductForm
                     ->id('product-form-tabs')
                     ->columnSpanFull(),
             ]);
+    }
+
+    protected static function seoSection(): Section
+    {
+        return Section::make('SEO')
+            ->description('Поисковая оптимизация товара')
+            ->schema([
+                SEO::make()
+                    ->hiddenLabel()
+                    ->columnSpanFull(),
+            ])
+            ->columns(1)
+            ->collapsible()
+            ->collapsed();
     }
 
     protected static function identitySection(): Section
