@@ -14,6 +14,12 @@ class Attribute extends Model
     /** Slug атрибута «Производитель» (импорт из 1С, фильтры, карточка товара) */
     public const SLUG_MANUFACTURER = 'proizvoditel';
 
+    /** Slug атрибута «Цвет». Единственный канонический источник цвета для вариаций. */
+    public const SLUG_COLOR = 'color';
+
+    /** Slug коммерческого атрибута «Размер». Не связан с физическими length/width/height. */
+    public const SLUG_SIZE = 'size';
+
     /** Slug атрибута «Вариант» — используется в вариациях, значение вручную или из импорта (опции) */
     public const SLUG_VARIANT = 'variant';
 
@@ -136,4 +142,3 @@ class Attribute extends Model
     }
 
 }
-
