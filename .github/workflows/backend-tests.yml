@@ -1,0 +1,53 @@
+name: Backend tests
+
+on:
+  pull_request:
+    paths:
+      - 'services/backend/**'
+      - '.github/workflows/backend-tests.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'services/backend/**'
+      - '.github/workflows/backend-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, exif
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-${{ hashFiles('services/backend/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run backend test suite
+        run: composer test
