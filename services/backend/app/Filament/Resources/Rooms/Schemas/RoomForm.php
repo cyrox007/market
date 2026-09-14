@@ -27,6 +27,7 @@ class RoomForm
                 Tabs::make('room_form')
                     ->tabs([
                         Tab::make('Основное')
+                            ->icon('heroicon-m-information-circle')
                             ->schema([
                                 Section::make('Основная информация')
                                     ->schema([
@@ -97,6 +98,7 @@ class RoomForm
                             ]),
 
                         Tab::make('Фильтры')
+                            ->icon('heroicon-m-funnel')
                             ->schema([
                                 Section::make('Фильтр товаров')
                                     ->description('Необязательный фильтр, применяемый к товарам комнаты по умолчанию')
@@ -160,6 +162,7 @@ class RoomForm
                             ]),
 
                         Tab::make('SEO')
+                            ->icon('heroicon-m-magnifying-glass')
                             ->schema([
                                 Section::make('SEO настройки')
                                     ->description('Управление мета данными')
@@ -169,6 +172,7 @@ class RoomForm
                             ]),
 
                         Tab::make('Изображение')
+                            ->icon('heroicon-m-photo')
                             ->schema([
                                 Section::make('Изображение комнаты')
                                     ->description('Баннер комнаты (миниатюра 300x300, HD, Full HD создаются автоматически)')
@@ -185,6 +189,8 @@ class RoomForm
                                     ]),
                             ]),
                     ])
+                    ->contained(false)
+                    ->scrollable(false)
                     ->persistTab()
                     ->id('room-form-tabs')
                     ->columnSpanFull(),
