@@ -55,6 +55,8 @@ jobs:
         run: |
           php -l app/Jobs/Integration/SyncOrderTo1CJob.php
           php -l app/Http/Controllers/Api/AuthController.php
+          php -l app/Console/Commands/Integration1CDoctorCommand.php
+          php -l app/Console/Commands/EnqueueOrders1CSyncCommand.php
 
       - name: Validate Docker Compose
         working-directory: .
