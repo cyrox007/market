@@ -4,16 +4,42 @@ namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
+use App\Services\Catalog\OneCProductSyncService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Validation\ValidationException;
-use Filament\Actions\Action;
-use App\Services\Catalog\OneCProductSyncService;
-use Filament\Forms\Components\TextInput;
 
 class CreateProduct extends CreateRecord
 {
     protected static string $resource = ProductResource::class;
+
+    public static bool $formActionsAreSticky = true;
+
+    protected bool $exitAfterSave = false;
+
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCreateFormAction()
+                ->label('Сохранить')
+                ->icon('heroicon-m-check'),
+            Action::make('saveAndExit')
+                ->label('Сохранить и выйти')
+                ->icon('heroicon-m-arrow-right-start-on-rectangle')
+                ->color('gray')
+                ->action('saveAndExit')
+                ->keyBindings(['mod+shift+s']),
+            $this->getCancelFormAction(),
+        ];
+    }
+
+    public function saveAndExit(): void
+    {
+        $this->exitAfterSave = true;
+        $this->create();
+    }
 
     /**
      * Перед созданием товара гарантируем, что поля,
@@ -21,9 +47,6 @@ class CreateProduct extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // SKU в таблице products не допускает NULL, поэтому
-        // подставляем пустую строку, если поле не заполнено.
-        // После создания модель Product::created запишет ID, если sku пустой.
         if (!array_key_exists('sku', $data) || $data['sku'] === null) {
             $data['sku'] = '';
         }
@@ -31,9 +54,6 @@ class CreateProduct extends CreateRecord
         return $data;
     }
 
-    /**
-     * Обработка создания с уведомлением об ошибках валидации
-     */
     protected function handleRecordCreation(array $data): Product
     {
         try {
@@ -51,10 +71,8 @@ class CreateProduct extends CreateRecord
 
     protected function afterCreate(): void
     {
-        // Сбрасываем кэш товаров на бекенде сразу после создания
         $this->record->flushCache();
 
-        // ВРЕМЕННО: полный сброс кэша каталога (убрать для высоконагруженных проектов)
         if (config('cache.clear_catalog_on_product_change', true)) {
             Product::flushAllProductCaches();
         }
@@ -62,13 +80,16 @@ class CreateProduct extends CreateRecord
 
     protected function getRedirectUrl(): string
     {
-        return ProductResource::getUrl('index');
+        if ($this->exitAfterSave) {
+            return ProductResource::getUrl('index');
+        }
+
+        return ProductResource::getUrl('edit', ['record' => $this->getRecord()->getKey()]);
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            // ... другие действия
             Action::make('syncFrom1C')
                 ->label('Загрузить из 1С')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -96,7 +117,6 @@ class CreateProduct extends CreateRecord
                         ->success()
                         ->send();
 
-                    // Перенаправляем на редактирование созданного товара
                     $livewire->redirect(route('filament.admin_sv.resources.products.edit', ['record' => $product->id]));
                 }),
         ];

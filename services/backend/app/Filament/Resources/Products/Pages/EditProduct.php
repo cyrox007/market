@@ -17,6 +17,10 @@ class EditProduct extends EditRecord
 {
     protected static string $resource = ProductResource::class;
 
+    public static bool $formActionsAreSticky = true;
+
+    protected bool $exitAfterSave = false;
+
     protected array $productAttributesData = [];
 
     protected function getHeaderActions(): array
@@ -64,8 +68,30 @@ class EditProduct extends EditRecord
         ];
     }
 
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getSaveFormAction()
+                ->label('Сохранить')
+                ->icon('heroicon-m-check'),
+            Action::make('saveAndExit')
+                ->label('Сохранить и выйти')
+                ->icon('heroicon-m-arrow-right-start-on-rectangle')
+                ->color('gray')
+                ->action('saveAndExit')
+                ->keyBindings(['mod+shift+s']),
+            $this->getCancelFormAction(),
+        ];
+    }
+
+    public function saveAndExit(): void
+    {
+        $this->exitAfterSave = true;
+        $this->save();
+    }
+
     /**
-     * Одна колонка в корне — двухколоночная раскладка задаётся в ProductForm через Grid.
+     * Одна колонка в корне — раскладка внутри вкладок задаётся в ProductTabbedForm.
      */
     public function defaultForm(\Filament\Schemas\Schema $schema): \Filament\Schemas\Schema
     {
@@ -225,6 +251,7 @@ class EditProduct extends EditRecord
             }
         }
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_product.title');
@@ -235,8 +262,12 @@ class EditProduct extends EditRecord
         return __('filament/admin_sv/edit_product.title');
     }
 
-    protected function getRedirectUrl(): string
+    protected function getRedirectUrl(): ?string
     {
-        return ProductResource::getUrl('index');
+        if ($this->exitAfterSave) {
+            return ProductResource::getUrl('index');
+        }
+
+        return parent::getRedirectUrl();
     }
 }
