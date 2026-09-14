@@ -12,10 +12,11 @@ use Filament\Support\Enums\Width;
 
 class OperatorEditProduct extends EditProduct
 {
+    public static bool $formActionsAreSticky = false;
+
     /**
-     * Keep the built-in relation state semantics: null means the product card.
-     * The default combined relation-manager tabs are not rendered; content() below
-     * shows either the card form or one relation manager at a time.
+     * Null means the product card. Relation managers are workspaces, not a second
+     * row of tabs, so we render only the selected workspace.
      */
     public function hasCombinedRelationManagerTabsWithContent(): bool
     {
@@ -32,11 +33,41 @@ class OperatorEditProduct extends EditProduct
             ]);
     }
 
+    /**
+     * Saving is always available in the header and never covers form content.
+     */
+    protected function getFormActions(): array
+    {
+        return [];
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             $this->getWorkspaceActionGroup(),
-            ...parent::getHeaderActions(),
+
+            Action::make('saveHeader')
+                ->label('Сохранить')
+                ->icon('heroicon-m-check')
+                ->color('primary')
+                ->action('save')
+                ->keyBindings(['mod+s'])
+                ->visible(fn (): bool => $this->activeRelationManager === null),
+
+            Action::make('saveAndExitHeader')
+                ->label('Сохранить и выйти')
+                ->icon('heroicon-m-arrow-right-start-on-rectangle')
+                ->color('gray')
+                ->action('saveAndExit')
+                ->keyBindings(['mod+shift+s'])
+                ->visible(fn (): bool => $this->activeRelationManager === null),
+
+            ActionGroup::make(parent::getHeaderActions())
+                ->label('Действия')
+                ->icon('heroicon-m-ellipsis-horizontal')
+                ->color('gray')
+                ->button()
+                ->dropdownWidth(Width::Medium),
         ];
     }
 
