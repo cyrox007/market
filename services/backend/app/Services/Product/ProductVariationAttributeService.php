@@ -20,7 +20,7 @@ class ProductVariationAttributeService
             return $product->getAvailableValuesForVariationAttribute(Attribute::SLUG_COLOR);
         }
 
-        return $this->simpleProductAttributeValues($product, Attribute::SLUG_COLOR, true);
+        return $this->valuesForSimpleProduct($product, Attribute::SLUG_COLOR);
     }
 
     /**
@@ -34,7 +34,22 @@ class ProductVariationAttributeService
             return $product->getAvailableValuesForVariationAttribute(Attribute::SLUG_SIZE);
         }
 
-        return $this->simpleProductAttributeValues($product, Attribute::SLUG_SIZE, false);
+        return $this->valuesForSimpleProduct($product, Attribute::SLUG_SIZE);
+    }
+
+    /**
+     * Canonical values stored directly on a non-variable product.
+     *
+     * @return Collection<int, object>
+     */
+    public function valuesForSimpleProduct(Product $product, string $slug): Collection
+    {
+        $attribute = Attribute::query()->where('slug', $slug)->first();
+        if (! $attribute) {
+            return collect();
+        }
+
+        return $this->simpleProductAttributeValues($product, $slug, $attribute->type === 'color');
     }
 
     /**
