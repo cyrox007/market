@@ -51,6 +51,15 @@ class ProductOperatorPocFormSmokeTest extends TestCase
 
         $this->assertStringContainsString('Основное', $html);
         $this->assertStringContainsString('Характеристики', $html);
+        $this->assertStringContainsString('Варианты', $html);
+        $this->assertStringContainsString('Связанные данные', $html);
         $this->assertStringContainsString('#product-media', $html);
+    }
+
+    public function test_product_workspace_views_are_registered(): void
+    {
+        $this->assertTrue(view()->exists('filament.resources.products.components.product-variants-workspace'));
+        $this->assertTrue(view()->exists('filament.resources.products.components.product-related-workspaces'));
+        $this->assertTrue(view()->exists('filament.resources.products.components.product-workspace-header'));
     }
 }
