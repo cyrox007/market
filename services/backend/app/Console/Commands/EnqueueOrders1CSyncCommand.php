@@ -28,9 +28,16 @@ class EnqueueOrders1CSyncCommand extends Command
 
         $query = Order::query()->orderBy('id');
 
-        if ($orderIdOption = $this->option('order-id')) {
-            $orderId = (int) $orderIdOption;
-            if ($orderId <= 0) {
+        $orderIdOption = $this->option('order-id');
+        if ($orderIdOption !== null && $orderIdOption !== '') {
+            $rawOrderId = trim((string) $orderIdOption);
+            $orderId = filter_var(
+                $rawOrderId,
+                FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 1]]
+            );
+
+            if ($orderId === false || (string) $orderId !== $rawOrderId) {
                 $this->error('--order-id должен быть положительным целым ID заказа.');
 
                 return self::FAILURE;
