@@ -45,8 +45,8 @@ class CatalogCharacteristicCanonicalizationTest extends TestCase
         $this->assertContains(Attribute::SLUG_COLOR, $slugs);
         $this->assertContains(Attribute::SLUG_SIZE, $slugs);
         $this->assertContains('razmer-upakovki', $slugs);
-        $this->assertContains('tsvet-karkasa', $slugs);
-        $this->assertNotContains('tsvet', $slugs);
+        $this->assertContains('cvet-karkasa', $slugs);
+        $this->assertNotContains('cvet', $slugs);
         $this->assertNotContains('razmer', $slugs);
 
         $color = Attribute::query()->where('slug', Attribute::SLUG_COLOR)->firstOrFail();
@@ -70,6 +70,6 @@ class CatalogCharacteristicCanonicalizationTest extends TestCase
         $this->assertSame(Attribute::SLUG_SIZE, Attribute::canonicalSlugForName('Размер'));
         $this->assertSame(Attribute::SLUG_SIZE, Attribute::canonicalSlugForName('size'));
         $this->assertSame('razmer-upakovki', Attribute::canonicalSlugForName('Размер упаковки'));
-        $this->assertSame('tsvet-karkasa', Attribute::canonicalSlugForName('Цвет каркаса'));
+        $this->assertSame('cvet-karkasa', Attribute::canonicalSlugForName('Цвет каркаса'));
     }
 }
