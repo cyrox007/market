@@ -6,7 +6,7 @@ use App\Filament\Resources\Products\Pages\CreateProduct;
 use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\Pages\ListProducts;
 use App\Filament\Resources\Products\Pages\ViewProduct;
-use App\Filament\Resources\Products\Schemas\ProductClassicForm;
+use App\Filament\Resources\Products\Schemas\ProductOperatorPocForm;
 use App\Filament\Resources\Products\Schemas\ProductInfolist;
 use App\Filament\Resources\Products\Tables\ProductsTable;
 use App\Models\Product\Product;
@@ -37,7 +37,7 @@ class ProductResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return ProductClassicForm::configure($schema);
+        return ProductOperatorPocForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema
