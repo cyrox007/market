@@ -21,6 +21,10 @@ tools/k6/reports
 .fleet
 .idea
 
+# Локальные настройки среды (не для репозитория)
+/docker-compose.override.yml
+/services/backend/docker/nginx.conf
+
 # AI / IDE (internal dev tooling, not for client handoff)
 .cursor/
 .claude/

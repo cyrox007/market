@@ -240,11 +240,18 @@ export const api = {
     get: (slug: string) => fetchAPI<{ category: Category }>(`/categories/${slug}`),
     tree: () => fetchAPI<{ tree: Category[] }>('/categories/tree'),
   },
+  // Комнаты — вторая таксономия; формат ответов совпадает с categories.
+  rooms: {
+    list: () => fetchAPI<{ data: Category[] }>('/rooms'),
+    get: (slug: string) => fetchAPI<{ category: Category }>(`/rooms/${slug}`),
+    tree: () => fetchAPI<{ tree: Category[] }>('/rooms/tree'),
+  },
   products: {
     list: (params?: ProductListParams) => {
       const query = new URLSearchParams();
       if (params?.category_id) query.append('category_id', params.category_id.toString());
       if (params?.category_slug) query.append('category_slug', params.category_slug);
+      if (params?.room_slug) query.append('room_slug', params.room_slug);
       if (params?.price_min !== undefined) query.append('price_min', params.price_min.toString());
       if (params?.price_max !== undefined) query.append('price_max', params.price_max.toString());
       if (params?.search) query.append('search', params.search);
@@ -753,6 +760,7 @@ export interface ProductListResponse {
 export interface ProductListParams {
   category_id?: number;
   category_slug?: string;
+  room_slug?: string;
   price_min?: number;
   price_max?: number;
   search?: string;

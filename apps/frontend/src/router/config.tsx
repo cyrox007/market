@@ -59,6 +59,7 @@ const routes: RouteObject[] = [
       { index: true, element: <Home /> },
       { path: 'catalog', element: <Catalog /> },
       { path: 'catalog/:category', element: <CatalogCategory /> },
+      { path: 'rooms/:category', element: <CatalogCategory /> },
       { path: 'collections/:slug', element: <Collection /> },
       { path: 'product/:slug', element: <Product /> },
       { path: 'sets', element: <Sets /> },
