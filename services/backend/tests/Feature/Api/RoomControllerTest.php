@@ -8,6 +8,7 @@ use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\Product\Room;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 /**
@@ -240,6 +241,22 @@ class RoomControllerTest extends TestCase
         // Пересечение: остаётся только seryi (krasnyi отброшен как расширение).
         $effective = $child->fresh()->effectiveFilters();
         $this->assertSame(['seryi'], array_values($effective['colors']));
+    }
+
+    public function test_saving_room_flushes_tree_cache(): void
+    {
+        $this->makeRoom('Гостиная', 'gostinaya');
+
+        // Прогрев кэша дерева комнат.
+        $this->getJson('/api/v1/rooms/tree')->assertStatus(200);
+        $this->assertTrue(Cache::has(Room::cacheKey('tree')));
+
+        // Правка комнаты в админке сбрасывает кэш дерева (иначе меню стухнет до TTL).
+        $room = Room::first();
+        $room->name = 'Гостиная и кухня';
+        $room->save();
+
+        $this->assertFalse(Cache::has(Room::cacheKey('tree')));
     }
 
     public function test_fifth_level_is_forbidden(): void

@@ -200,6 +200,18 @@ async function createServer() {
             () => ssrApi.categories.tree(),
             { ttl: 300 },
           ),
+          // Дерево комнат — вторая таксономия, тоже нужна шапке на каждом маршруте.
+          withCacheSWR(
+            createCacheKey('/rooms/tree', undefined, undefined),
+            () => ssrApi.rooms.tree(),
+            { ttl: 300 },
+          ),
+          // Список городов для селектора региона в шапке. Кэш общий для всех.
+          withCacheSWR(
+            createCacheKey('/regions', undefined, undefined),
+            () => ssrApi.regions.list(),
+            { ttl: 300 },
+          ),
         ];
 
         if (hasAuthSession) {
@@ -220,7 +232,12 @@ async function createServer() {
             (userResponse.value as { user?: unknown })?.user
           ) {
             ssrContext.user = (userResponse.value as { user: SSRContext['user'] }).user;
+            ssrContext.authChecked = true;
           }
+          // Если запрос профиля не удался — authChecked не ставим, клиент перепроверит сам.
+        } else {
+          // Куки сессии нет — гость точно не авторизован, повторная проверка /auth/me не нужна.
+          ssrContext.authChecked = true;
         }
 
         const regionResponse = parallelResults[resultOffset++];
@@ -228,10 +245,22 @@ async function createServer() {
         const wishlistCountResponse = parallelResults[resultOffset++];
         const compareCountResponse = parallelResults[resultOffset++];
         const categoryTreeResponse = parallelResults[resultOffset++];
+        const roomTreeResponse = parallelResults[resultOffset++];
+        const regionsListResponse = parallelResults[resultOffset++];
 
         if (categoryTreeResponse.status === 'fulfilled') {
           const tree = (categoryTreeResponse.value as { tree?: unknown[] })?.tree;
           if (tree?.length) ssrContext.categoryTree = tree;
+        }
+
+        if (roomTreeResponse.status === 'fulfilled') {
+          const tree = (roomTreeResponse.value as { tree?: unknown[] })?.tree;
+          if (tree?.length) ssrContext.roomTree = tree;
+        }
+
+        if (regionsListResponse.status === 'fulfilled') {
+          const data = (regionsListResponse.value as { data?: unknown[] })?.data;
+          if (data?.length) ssrContext.regionsList = data;
         }
 
         if (

@@ -16,7 +16,7 @@ class RoomController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        $rooms = Room::cached('rooms_index', function () {
+        $rooms = Room::cached('index', function () {
             return Room::active()
                 ->root()
                 ->with(self::treeEager(1))
@@ -30,7 +30,7 @@ class RoomController extends Controller
 
     public function tree(): JsonResponse
     {
-        $tree = Room::cached('rooms_tree', function () {
+        $tree = Room::cached('tree', function () {
             return Room::active()
                 ->root()
                 ->with(self::treeEager(3))
@@ -46,7 +46,7 @@ class RoomController extends Controller
 
     public function show(string $slug): JsonResponse
     {
-        $room = Room::cached("rooms_show_{$slug}", function () use ($slug) {
+        $room = Room::cached("show_{$slug}", function () use ($slug) {
             return Room::where('slug', $slug)
                 ->orWhere('id', $slug)
                 ->with(['children' => fn ($q) => $q->with(['media', 'seo', 'parent']), 'parent', 'media', 'seo'])

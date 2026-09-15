@@ -426,6 +426,11 @@ export const api = {
       }),
     count: () => fetchAPI<{ count: number }>('/compare/count'),
   },
+  // Счётчики шапки одним запросом (корзина + избранное + сравнение).
+  counters: {
+    all: () =>
+      fetchAPI<{ cart: number; wishlist: number; compare: number }>('/counters'),
+  },
   reviews: {
     list: (productId: number) => fetchAPI<{ data: Review[] }>(`/products/${productId}/reviews`),
     create: (

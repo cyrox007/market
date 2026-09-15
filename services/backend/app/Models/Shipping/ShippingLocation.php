@@ -19,12 +19,28 @@ class ShippingLocation extends Model
 {
     use HasFactory;
 
+    /** Ключ кэша списка регионов для шапки (см. RegionController::list). Без тегов — чтобы forget гасил его и на Redis. */
+    public const REGIONS_CACHE_KEY = 'regions:list';
+
     /**
      * Create a new factory instance for the model.
      */
     protected static function newFactory()
     {
         return \Database\Factories\ShippingLocationFactory::new();
+    }
+
+    protected static function booted(): void
+    {
+        // Список регионов меняется редко; сбрасываем кэш только при правке записи типа «регион».
+        $flush = function (self $location) {
+            if ($location->type === 'region' || $location->getOriginal('type') === 'region') {
+                \Illuminate\Support\Facades\Cache::forget(self::REGIONS_CACHE_KEY);
+            }
+        };
+
+        static::saved($flush);
+        static::deleted($flush);
     }
 
     protected $fillable = [

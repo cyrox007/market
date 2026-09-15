@@ -7,6 +7,7 @@ use App\Models\Page\Store;
 use App\Models\Shipping\ShippingLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class RegionController extends Controller
@@ -260,11 +261,13 @@ class RegionController extends Controller
      */
     public function list(): JsonResponse
     {
-        $regions = ShippingLocation::where('type', 'region')
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get(['id', 'name', 'slug', 'type']);
+        $regions = Cache::remember(ShippingLocation::REGIONS_CACHE_KEY, 86400, function () {
+            return ShippingLocation::where('type', 'region')
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'type']);
+        });
 
         return response()->json([
             'data' => $regions,

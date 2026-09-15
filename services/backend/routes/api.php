@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\CompareController;
+use App\Http\Controllers\Api\CountersController;
 use App\Http\Controllers\Api\AboutController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\StockSettingsController;
@@ -163,6 +164,9 @@ Route::prefix('v1')->group(function () {
     Route::prefix('payment-methods')->group(function () {
         Route::get('/', [PaymentMethodController::class, 'index']);
     });
+
+    // Счётчики шапки одним запросом (корзина + избранное + сравнение)
+    Route::middleware(['api-session'])->get('/counters', [CountersController::class, 'index']);
 
     // Cart (public - uses sessions)
     Route::middleware(['api-session'])->prefix('cart')->group(function () {

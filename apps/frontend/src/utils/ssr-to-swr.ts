@@ -18,6 +18,11 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
     fallback['/api/categories/tree'] = { tree: ssrContext.categoryTree };
   }
 
+  // Шапка: дерево комнат — вторая таксономия, тоже на любом маршруте
+  if (ssrContext.roomTree?.length) {
+    fallback['/api/rooms/tree'] = { tree: ssrContext.roomTree };
+  }
+
   // Главная страница
   if (ssrContext.home) {
     const regionId = ssrContext.region?.id;
