@@ -39,37 +39,12 @@ use Illuminate\Support\Facades\Route;
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
-    // Обрабатываем preflight OPTIONS запросы для всех API путей
-    Route::options('{any}', function () {
-        $origin = request()->headers->get('Origin');
-        $allowedOrigins = config('cors.allowed_origins', []);
-        $isAllowedOrigin = $origin && in_array($origin, $allowedOrigins);
-
-        return response('', 200)
-            ->header('Access-Control-Allow-Origin', $isAllowedOrigin ? $origin : ($allowedOrigins[0] ?? '*'))
-            ->header('Access-Control-Allow-Credentials', 'true')
-            ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-            ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, X-XSRF-TOKEN')
-            ->header('Access-Control-Max-Age', '86400');
-    })->where('any', '.*');
     // Public routes - auth endpoints require session middleware for cookie-based auth
     Route::middleware(['api-session'])->prefix('auth')->group(function () {
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-strict');
         Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth-strict');
         Route::post('/password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:auth-strict');
-        Route::options('{any}', function () {
-            $origin = request()->headers->get('Origin');
-            $allowedOrigins = config('cors.allowed_origins', []);
-            $isAllowedOrigin = $origin && in_array($origin, $allowedOrigins);
-
-            return response('', 200)
-                ->header('Access-Control-Allow-Origin', $isAllowedOrigin ? $origin : ($allowedOrigins[0] ?? '*'))
-                ->header('Access-Control-Allow-Credentials', 'true')
-                ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, X-XSRF-TOKEN')
-                ->header('Access-Control-Max-Age', '86400');
-        })->where('any', '.*');
     });
 
     // Categories (public)
