@@ -36,6 +36,80 @@ class AuthControllerTest extends TestCase
         $this->assertTrue(Auth::check());
     }
 
+    public function test_register_requires_phone(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'No Phone',
+            'email' => 'nophone@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['phone']);
+    }
+
+    public function test_register_rejects_invalid_phone(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Bad Phone',
+            'email' => 'badphone@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'phone' => '12345',
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['phone']);
+    }
+
+    public function test_register_normalizes_phone_to_canonical_form(): void
+    {
+        // Ввод в «человеческом» формате приводится к канону +7XXXXXXXXXX.
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Human Phone',
+            'email' => 'human@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'phone' => '8 (999) 123-45-67',
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJson(['user' => ['phone' => '+79991234567']]);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'human@example.com',
+            'phone' => '+79991234567',
+        ]);
+    }
+
+    public function test_register_rejects_duplicate_phone_across_formats(): void
+    {
+        User::factory()->create(['phone' => '+79991234567']);
+
+        // Тот же номер в ином формате — после нормализации это дубль.
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Dup Phone',
+            'email' => 'dup@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'phone' => '89991234567',
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['phone']);
+    }
+
+    public function test_profile_update_rejects_phone_taken_by_another_user(): void
+    {
+        User::factory()->create(['phone' => '+79991112233']);
+        $user = User::factory()->create(['phone' => '+79994445566']);
+
+        $response = $this->actingAs($user, 'web')
+            ->putJson('/api/v1/auth/profile', [
+                'phone' => '+79991112233',
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['phone']);
+    }
+
     public function test_user_can_login(): void
     {
         $user = User::factory()->create([
@@ -279,8 +353,9 @@ class AuthControllerTest extends TestCase
         ]);
     }
 
-    public function test_user_can_clear_phone(): void
+    public function test_user_cannot_clear_phone(): void
     {
+        // Телефон — обязательный идентификатор пользователя, обнулять его нельзя.
         $user = User::factory()->create([
             'name' => 'Test User',
             'phone' => '+79991234567',
@@ -291,11 +366,12 @@ class AuthControllerTest extends TestCase
                 'phone' => null,
             ]);
 
-        $response->assertStatus(200);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['phone']);
 
         $this->assertDatabaseHas('users', [
             'id' => $user->id,
-            'phone' => null,
+            'phone' => '+79991234567',
         ]);
     }
 

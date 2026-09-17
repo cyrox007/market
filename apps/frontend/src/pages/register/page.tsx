@@ -57,6 +57,12 @@ export default function Register() {
       return;
     }
 
+    // Телефон обязателен и служит идентификатором пользователя.
+    if (formData.phone.replace(/\D/g, '').length !== 11) {
+      setError('Укажите корректный номер телефона');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -65,11 +71,8 @@ export default function Register() {
         email: formData.email,
         password: formData.password,
         password_confirmation: formData.password_confirmation,
+        phone: formData.phone,
       };
-
-      if (formData.phone) {
-        registerData.phone = formData.phone;
-      }
 
       await register(registerData);
       navigate('/account');
@@ -142,7 +145,7 @@ export default function Register() {
 
             <div>
               <label htmlFor="phone" className="block text-sm font-medium mb-2">
-                Телефон
+                Телефон *
               </label>
               <PhoneInput
                 id="phone"
