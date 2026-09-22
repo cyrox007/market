@@ -8,6 +8,7 @@ use App\Models\Shipping\ShippingLocation;
 use App\Services\Shipping\Contracts\ShippingCostCalculatorInterface;
 use App\Services\Shipping\Contracts\ShippingMethodProviderInterface;
 use App\Services\Shipping\Contracts\DeliveryHandlingProviderInterface;
+use App\Services\Shipping\WarehouseDeliveryOptionsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\Shipping\Carrier;
@@ -19,7 +20,8 @@ class ShippingController extends Controller
     public function __construct(
         private ShippingCostCalculatorInterface $shippingCostCalculator,
         private ShippingMethodProviderInterface $shippingMethodProvider,
-        private DeliveryHandlingProviderInterface $deliveryHandlingProvider
+        private DeliveryHandlingProviderInterface $deliveryHandlingProvider,
+        private WarehouseDeliveryOptionsService $warehouseDeliveryOptionsService
     ) {
     }
 
@@ -367,6 +369,28 @@ class ShippingController extends Controller
         return response()->json([
             'data' => $methodsWithPrice,
             'shipping_resolution' => $shippingResolution,
+            'location' => [
+                'id' => $location->id,
+                'name' => $location->name,
+                'type' => $location->type,
+            ],
+        ]);
+    }
+
+    /**
+     * Получить варианты доставки по складам для выбранной локации.
+     */
+    public function getWarehouseDeliveryOptions(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'location_id' => 'required|exists:shipping_locations,id',
+        ]);
+
+        $location = ShippingLocation::findOrFail($validated['location_id']);
+        $options = $this->warehouseDeliveryOptionsService->resolveForLocation($location);
+
+        return response()->json([
+            'data' => $options->all(),
             'location' => [
                 'id' => $location->id,
                 'name' => $location->name,
