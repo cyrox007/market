@@ -2,7 +2,10 @@
 
 namespace Tests\Unit\Services\Shipping;
 
+use App\Models\Inventory\ProductWarehouseStock;
 use App\Models\Inventory\Warehouse;
+use App\Models\Product\Product;
+use App\Models\Settings\ProductStockSettings;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Shipping\WarehouseDeliveryOptionsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -117,4 +120,62 @@ class WarehouseDeliveryOptionsServiceTest extends TestCase
         $this->assertSame(2, $option['delivery_days_min']);
         $this->assertSame(4, $option['delivery_days_max']);
     }
+
+    public function test_it_filters_out_warehouse_without_enough_stock_for_all_items(): void
+    {
+        ProductStockSettings::getInstance()->update([
+            'warehouse_accounting_enabled' => true,
+            'fallback_to_first_warehouse' => false,
+        ]);
+
+        $location = ShippingLocation::factory()->create([
+            'delivery_price' => 900,
+            'delivery_days_min' => 3,
+            'delivery_days_max' => 5,
+        ]);
+
+        $product = Product::factory()->create([
+            'state' => 'active',
+            'stock' => 10,
+        ]);
+
+        $enough = Warehouse::create([
+            'external_id' => '66666666-6666-6666-6666-666666666666',
+            'name' => 'Склад с остатком',
+            'is_active' => true,
+        ]);
+        $notEnough = Warehouse::create([
+            'external_id' => '77777777-7777-7777-7777-777777777777',
+            'name' => 'Склад без остатка',
+            'is_active' => true,
+        ]);
+
+        foreach ([$enough, $notEnough] as $warehouse) {
+            $warehouse->shippingLocations()->attach($location->id, [
+                'delivery_price' => 500,
+                'is_active' => true,
+                'priority' => 10,
+            ]);
+        }
+
+        ProductWarehouseStock::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $enough->id,
+            'quantity' => 3,
+        ]);
+        ProductWarehouseStock::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $notEnough->id,
+            'quantity' => 1,
+        ]);
+
+        $options = app(WarehouseDeliveryOptionsService::class)->resolveForLocation($location, [
+            ['product_id' => $product->id, 'quantity' => 2],
+        ]);
+
+        $this->assertCount(1, $options);
+        $this->assertSame($enough->id, $options->first()['warehouse_id']);
+    }
+
+
 }
