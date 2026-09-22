@@ -46,6 +46,11 @@ class OrderResource extends JsonResource
                 'name' => $this->shippingLocation?->name,
                 'type' => $this->shippingLocation?->type,
             ]),
+            'delivery_warehouse' => $this->when($this->delivery_warehouse_id && $this->relationLoaded('deliveryWarehouse'), [
+                'id' => $this->deliveryWarehouse?->id,
+                'external_id' => $this->deliveryWarehouse?->external_id,
+                'name' => $this->deliveryWarehouse?->name,
+            ]),
             'region' => $this->when($this->region_id && $this->relationLoaded('region'), [
                 'id' => $this->region?->id,
                 'name' => $this->region?->name,
