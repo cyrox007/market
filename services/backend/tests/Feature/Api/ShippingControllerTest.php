@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Shipping\DeliveryHandlingType;
+use App\Models\Inventory\Warehouse;
 use App\Models\Shipping\ShippingLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -450,4 +451,40 @@ class ShippingControllerTest extends TestCase
         $this->assertNotEmpty($effectiveCarriers);
         $this->assertEquals($carrier->id, $effectiveCarriers->first()->id);
     }
+    public function test_can_get_warehouse_delivery_options_for_location(): void
+    {
+        $location = ShippingLocation::factory()->create([
+            'type' => 'locality',
+            'name' => 'Москва',
+            'slug' => 'moscow-delivery-options',
+            'delivery_price' => 900,
+            'delivery_days_min' => 3,
+            'delivery_days_max' => 5,
+            'is_active' => true,
+        ]);
+
+        $warehouse = Warehouse::create([
+            'external_id' => '55555555-5555-5555-5555-555555555555',
+            'name' => 'Склад Москва',
+            'is_active' => true,
+        ]);
+
+        $warehouse->shippingLocations()->attach($location->id, [
+            'delivery_price' => 550,
+            'delivery_days_min' => 1,
+            'delivery_days_max' => 2,
+            'is_active' => true,
+            'priority' => 100,
+        ]);
+
+        $response = $this->getJson('/api/v1/shipping/delivery-options?location_id=' . $location->id);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.0.warehouse_id', $warehouse->id)
+            ->assertJsonPath('data.0.delivery_price', 550)
+            ->assertJsonPath('data.0.delivery_days_min', 1)
+            ->assertJsonPath('data.0.delivery_days_max', 2)
+            ->assertJsonPath('data.0.inherited', false);
+    }
+
 }
