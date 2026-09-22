@@ -19,6 +19,7 @@ return new class extends Migration
             ['table' => 'taxons', 'column' => 'icon'],
             ['table' => 'payment_methods', 'column' => 'icon'],
             ['table' => 'additional_services', 'column' => 'icon'],
+            ['table' => 'order_additional_services', 'column' => 'icon'],
             ['table' => 'product_feature_blocks', 'column' => 'icon'],
             ['table' => 'product_delivery_blocks', 'column' => 'icon'],
             ['table' => 'advantages', 'column' => 'icon'],
