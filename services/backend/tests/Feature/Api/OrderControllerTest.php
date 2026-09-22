@@ -3,11 +3,14 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Address\Address;
+use App\Models\Inventory\ProductWarehouseStock;
+use App\Models\Inventory\Warehouse;
 use App\Models\Order\Order;
 use App\Models\Payment\PaymentMethod;
 use App\Models\Product\Product;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Shipping\ShippingLocation;
+use App\Models\Settings\ProductStockSettings;
 use App\Models\User;
 use App\Services\Shipping\CarrierService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -509,6 +512,80 @@ class OrderControllerTest extends TestCase
         $response->assertStatus(422);
         $this->assertNotEmpty($response->json('errors.shipping_method_id'));
     }
+
+
+    public function test_delivery_order_uses_server_warehouse_rule_and_persists_selected_warehouse(): void
+    {
+        [$location] = $this->makeDeliveryScenario();
+
+        ProductStockSettings::getInstance()->update([
+            'warehouse_accounting_enabled' => true,
+            'fallback_to_first_warehouse' => false,
+        ]);
+
+        $product = Product::factory()->create([
+            'state' => 'active',
+            'price' => 1000,
+            'stock' => 10,
+            'backorder' => false,
+        ]);
+
+        $warehouse = Warehouse::create([
+            'external_id' => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+            'name' => 'Склад для заказа',
+            'is_active' => true,
+        ]);
+
+        $warehouse->shippingLocations()->attach($location->id, [
+            'delivery_price' => 650,
+            'delivery_days_min' => 2,
+            'delivery_days_max' => 4,
+            'is_active' => true,
+            'priority' => 100,
+        ]);
+
+        ProductWarehouseStock::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 5,
+        ]);
+
+        $this->addProductToCart($product, 2);
+
+        $response = $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Warehouse User',
+            'contact_phone' => '+79991234567',
+            'contact_email' => 'warehouse-order@example.com',
+            'payment_method' => 'card',
+            'delivery_type' => 'delivery',
+            'shipping_location_id' => $location->id,
+            'delivery_warehouse_id' => $warehouse->id,
+            // Клиентские суммы не должны переопределять серверное правило.
+            'delivery_cost' => 1,
+            'assembly_cost' => 1,
+            'requires_assembly' => false,
+            'address' => [
+                'city' => 'Москва',
+                'street' => 'Ленина',
+                'house' => '10',
+            ],
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('order.delivery_warehouse.id', $warehouse->id);
+
+        $this->assertSame(650.0, (float) $response->json('order.delivery_cost'));
+        $this->assertSame(0.0, (float) $response->json('order.assembly_cost'));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'delivery_warehouse_id' => $warehouse->id,
+            'delivery_cost' => 650,
+            'delivery_days_min' => 2,
+            'delivery_days_max' => 4,
+        ]);
+    }
+
 
     public function test_pickup_ignores_client_delivery_cost_override(): void
     {
