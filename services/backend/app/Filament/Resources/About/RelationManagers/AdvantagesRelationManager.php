@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\About\RelationManagers;
 
+use App\Filament\Support\LucideIconSelect;
 use App\Models\Page\Advantage;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -38,25 +39,9 @@ class AdvantagesRelationManager extends RelationManager
                             ->label(__('filament/admin_sv/advantages_relation_manager.description'))
                             ->rows(3)
                             ->columnSpanFull(),
-                        Select::make('icon')
+                        LucideIconSelect::make('icon')
                             ->label(__('filament/admin_sv/advantages_relation_manager.icon'))
-                            ->options([
-                                'ri-star-line' => 'Звезда',
-                                'ri-price-tag-3-line' => 'Ценник',
-                                'ri-leaf-line' => 'Лист',
-                                'ri-shield-check-line' => 'Щит',
-                                'ri-heart-line' => 'Сердце',
-                                'ri-trophy-line' => 'Трофей',
-                                'ri-award-line' => 'Награда',
-                                'ri-customer-service-2-line' => 'Сервис',
-                                'ri-truck-line' => 'Доставка',
-                                'ri-time-line' => 'Время',
-                                'ri-user-smile-line' => 'Улыбка',
-                                'ri-gift-line' => 'Подарок',
-                            ])
-                            ->searchable()
-                            ->allowHtml(false)
-                            ->helperText('Выберите иконку из RemixIcon'),
+                            ->helperText('Выберите иконку Lucide'),
                         Select::make('color')
                             ->label(__('filament/admin_sv/advantages_relation_manager.color'))
                             ->options([
