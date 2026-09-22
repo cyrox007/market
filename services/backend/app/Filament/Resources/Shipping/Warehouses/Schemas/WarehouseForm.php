@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Shipping\Warehouses\Schemas;
 
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -35,15 +36,50 @@ class WarehouseForm
                     ])
                     ->columns(2),
 
-                Section::make('Привязка к локациям доставки')
+                Section::make('Правила доставки')
+                    ->description('Для каждой территории задайте стоимость и срок доставки именно с этого склада. Правило родительской локации наследуется дочерними, если для них нет собственного правила.')
                     ->schema([
-                        Select::make('shippingLocations')
-                            ->label('Локации')
-                            ->relationship('shippingLocations', 'name')
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
-                            ->helperText('Если склад привязан к родительской локации, он доступен и в дочерних локациях.'),
+                        Repeater::make('deliveryRules')
+                            ->hiddenLabel()
+                            ->relationship()
+                            ->schema([
+                                Select::make('shipping_location_id')
+                                    ->label('Территория / регион')
+                                    ->relationship('location', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->required()
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                                TextInput::make('delivery_price')
+                                    ->label('Стоимость доставки')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->prefix('₽')
+                                    ->helperText('Пусто — использовать стоимость локации.'),
+                                TextInput::make('delivery_days_min')
+                                    ->label('Срок от, дней')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->helperText('Пусто — использовать срок локации.'),
+                                TextInput::make('delivery_days_max')
+                                    ->label('Срок до, дней')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->helperText('Пусто — использовать срок локации.'),
+                                TextInput::make('priority')
+                                    ->label('Приоритет')
+                                    ->numeric()
+                                    ->default(0)
+                                    ->helperText('Чем больше число, тем выше вариант в выдаче.'),
+                                Toggle::make('is_active')
+                                    ->label('Активно')
+                                    ->default(true),
+                            ])
+                            ->columns(3)
+                            ->defaultItems(0)
+                            ->addActionLabel('Добавить правило доставки')
+                            ->reorderable(false)
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Дополнительные данные')
