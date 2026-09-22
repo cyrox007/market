@@ -27,6 +27,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup PHP
+        id: setup_php
+        continue-on-error: true
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -55,10 +57,6 @@ jobs:
           name: composer-install-log
           path: /tmp/composer-install.log
           retention-days: 1
-
-      - name: Stop on Composer failure
-        if: steps.composer_install.outcome == 'failure'
-        run: exit 1
 
       - name: Prepare application
         id: prepare_app
@@ -95,6 +93,7 @@ jobs:
         if: always()
         run: |
           {
+            echo "setup=${{ steps.setup_php.outcome }}"
             echo "composer=${{ steps.composer_install.outcome }}"
             echo "prepare=${{ steps.prepare_app.outcome }}"
             echo "tests=${{ steps.backend_tests.outcome }}"
@@ -111,5 +110,5 @@ jobs:
           retention-days: 1
 
       - name: Stop on backend failure
-        if: steps.composer_install.outcome == 'failure' || steps.prepare_app.outcome == 'failure' || steps.backend_tests.outcome == 'failure'
+        if: steps.setup_php.outcome == 'failure' || steps.composer_install.outcome == 'failure' || steps.prepare_app.outcome == 'failure' || steps.backend_tests.outcome == 'failure'
         run: exit 1
