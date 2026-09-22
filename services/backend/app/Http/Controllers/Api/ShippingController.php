@@ -384,10 +384,16 @@ class ShippingController extends Controller
     {
         $validated = $request->validate([
             'location_id' => 'required|exists:shipping_locations,id',
+            'items' => 'nullable|array',
+            'items.*.product_id' => 'required_with:items|integer|exists:products,id',
+            'items.*.quantity' => 'required_with:items|numeric|min:0.001',
         ]);
 
         $location = ShippingLocation::findOrFail($validated['location_id']);
-        $options = $this->warehouseDeliveryOptionsService->resolveForLocation($location);
+        $options = $this->warehouseDeliveryOptionsService->resolveForLocation(
+            $location,
+            $validated['items'] ?? []
+        );
 
         return response()->json([
             'data' => $options->all(),
