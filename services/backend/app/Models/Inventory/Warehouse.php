@@ -3,6 +3,7 @@
 namespace App\Models\Inventory;
 
 use App\Models\Shipping\ShippingLocation;
+use App\Models\Shipping\WarehouseDeliveryRule;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -38,6 +39,11 @@ class Warehouse extends Model
             'is_active',
             'priority',
         ])->withTimestamps();
+    }
+
+    public function deliveryRules(): HasMany
+    {
+        return $this->hasMany(WarehouseDeliveryRule::class);
     }
 
     public function productStocks(): HasMany
