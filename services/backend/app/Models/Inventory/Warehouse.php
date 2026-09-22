@@ -31,7 +31,13 @@ class Warehouse extends Model
             'warehouse_shipping_location',
             'warehouse_id',
             'shipping_location_id'
-        )->withTimestamps();
+        )->withPivot([
+            'delivery_price',
+            'delivery_days_min',
+            'delivery_days_max',
+            'is_active',
+            'priority',
+        ])->withTimestamps();
     }
 
     public function productStocks(): HasMany
