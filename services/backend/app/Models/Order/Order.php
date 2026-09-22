@@ -9,6 +9,7 @@ use App\Models\Address\Address;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Shipping\ShippingLocation;
 use App\Models\Shipping\AdditionalService;
+use App\Models\Inventory\Warehouse;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -52,6 +53,7 @@ class Order extends Model implements Payable
         'address_id',
         'address_snapshot',
         'shipping_location_id',
+        'delivery_warehouse_id',
         'region_id',
         'shipping_method_id',
         'delivery_handling_type_id',
@@ -154,6 +156,11 @@ class Order extends Model implements Payable
     /**
      * Get the shipping method for the order.
      */
+    public function deliveryWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'delivery_warehouse_id');
+    }
+
     public function shippingMethod(): BelongsTo
     {
         return $this->belongsTo(ShippingMethod::class);
