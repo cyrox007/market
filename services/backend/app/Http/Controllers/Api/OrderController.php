@@ -516,10 +516,6 @@ class OrderController extends Controller
                     // Для pickup обработка добавляется к assembly_cost
                     $assemblyCost = ($calculation->assemblyPrice ?? 0.0) + ($calculation->handlingPrice ?? 0.0);
 
-                    // Если сборка явно указана в запросе, используем это значение (переопределяет расчет)
-                    if (isset($validated['assembly_cost']) && $validated['assembly_cost'] > 0) {
-                        $assemblyCost = $validated['assembly_cost'];
-                    }
 
                     // Проверяем тип обработки для валидации этажа
                     if (isset($validated['delivery_handling_type_id'])) {
@@ -549,8 +545,8 @@ class OrderController extends Controller
                         }
                     }
                 } else {
-                    // Если локация не указана, используем переданные значения или 0
-                    $assemblyCost = $validated['assembly_cost'] ?? 0;
+                    // Без выбранной локации сервер не может рассчитать сборку/обработку.
+                    $assemblyCost = 0;
                 }
 
                 if (isset($validated['shipping_method_id'])) {
