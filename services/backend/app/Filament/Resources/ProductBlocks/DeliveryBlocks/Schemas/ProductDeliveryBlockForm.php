@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductBlocks\DeliveryBlocks\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
@@ -31,10 +32,9 @@ class ProductDeliveryBlockForm
                             ->helperText('Подробное описание блока доставки')
                             ->columnSpanFull(),
 
-                        TextInput::make('icon')
-                            ->label('Иконка RemixIcon (опционально)')
-                            ->maxLength(255)
-                            ->helperText('Класс иконки из библиотеки RemixIcon (например: ri-truck-line). Используется только если не загружено изображение.')
+                        LucideIconSelect::make('icon')
+                            ->label('Иконка Lucide (опционально)')
+                            ->helperText('Используется только если не загружено изображение иконки.')
                             ->columnSpanFull(),
 
                         TextInput::make('icon_color')
@@ -62,9 +62,9 @@ class ProductDeliveryBlockForm
                     ])->columns(2),
 
                 Section::make('Изображение иконки')
-                    ->description('Загрузите изображение для иконки блока. Если изображение загружено, оно будет использоваться вместо класса иконки RemixIcon.')
+                    ->description('Загрузите изображение для иконки блока. Если изображение загружено, оно будет использоваться вместо выбранной иконки Lucide.')
                     ->schema([
-                        SpatieMediaLibraryFileUpload::make('icon')
+                        SpatieMediaLibraryFileUpload::make('icon_image')
                             ->collection('icon')
                             ->label('Изображение иконки')
                             ->helperText('Изображение для иконки блока. Поддерживаются форматы: JPEG, PNG, WebP, SVG. Будет автоматически создана миниатюра 100x100px.')
