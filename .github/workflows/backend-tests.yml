@@ -61,9 +61,12 @@ jobs:
         run: exit 1
 
       - name: Prepare application
+        id: prepare_app
+        continue-on-error: true
         run: |
+          set -o pipefail
           cp .env.example .env
-          php artisan key:generate
+          php artisan key:generate 2>&1 | tee /tmp/prepare-app.log
 
       - name: Run backend test suite
         id: backend_tests
@@ -80,6 +83,33 @@ jobs:
           path: /tmp/backend-tests.log
           retention-days: 1
 
-      - name: Stop on backend test failure
-        if: steps.backend_tests.outcome == 'failure'
+      - name: Upload prepare diagnostics
+        if: steps.prepare_app.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepare-app-log
+          path: /tmp/prepare-app.log
+          retention-days: 1
+
+      - name: Write diagnostic summary
+        if: always()
+        run: |
+          {
+            echo "composer=${{ steps.composer_install.outcome }}"
+            echo "prepare=${{ steps.prepare_app.outcome }}"
+            echo "tests=${{ steps.backend_tests.outcome }}"
+            php -v || true
+            composer --version || true
+          } > /tmp/ci-summary.txt
+
+      - name: Upload diagnostic summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-summary
+          path: /tmp/ci-summary.txt
+          retention-days: 1
+
+      - name: Stop on backend failure
+        if: steps.composer_install.outcome == 'failure' || steps.prepare_app.outcome == 'failure' || steps.backend_tests.outcome == 'failure'
         run: exit 1
