@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Shipping\AdditionalServices\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -43,11 +44,9 @@ class AdditionalServiceForm
                             ->unique(ignoreRecord: true)
                             ->helperText('Уникальный код услуги (например, assembly, installation)'),
 
-                        TextInput::make('icon')
-                            ->label('Иконка (RemixIcon)')
-                            ->maxLength(255)
-                            ->helperText('Класс иконки из RemixIcon, например: ri-tools-line, ri-install-line')
-                            ->placeholder('ri-tools-line'),
+                        LucideIconSelect::make('icon')
+                            ->label('Иконка')
+                            ->helperText('Выберите иконку Lucide. В базе хранится стабильный идентификатор, например wrench или truck.'),
 
                         Textarea::make('description')
                             ->label('Описание')
