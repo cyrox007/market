@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Product\Attribute;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\User;
@@ -11,6 +12,63 @@ use Tests\TestCase;
 
 class AdminWorkspaceProductApiTest extends TestCase
 {
+    public function test_variation_attributes_are_saved_with_product_id(): void
+    {
+        $updatePermission = Permission::firstOrCreate([
+            'name' => 'update products',
+            'guard_name' => 'web',
+        ]);
+
+        $role = Role::firstOrCreate([
+            'name' => 'variation_editor_test',
+            'guard_name' => 'web',
+        ]);
+        $role->givePermissionTo($updatePermission);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $product = Product::factory()->create([
+            'name' => 'Товар для вариаций',
+            'slug' => 'variation-product',
+            'sku' => 'VAR-001',
+            'state' => 'active',
+            'price' => 1000,
+            'parent_product_id' => null,
+        ]);
+
+        $color = Attribute::query()->create([
+            'name' => 'Цвет',
+            'slug' => Attribute::SLUG_COLOR,
+            'type' => 'color',
+            'is_filterable' => true,
+            'is_required' => false,
+            'is_use_in_variations' => true,
+            'allow_custom_value' => false,
+            'is_multiple' => false,
+            'sort_order' => 10,
+        ]);
+
+        $response = $this->actingAs($user, 'web')
+            ->putJson("/admin_sv/api/products/{$product->id}/variation-attributes", [
+                'attribute_ids' => [$color->id],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('product.id', $product->id)
+            ->assertJsonPath('message', 'Параметры вариаций сохранены');
+
+        $this->assertDatabaseHas('product_variation_attribute_selection', [
+            'product_id' => $product->id,
+            'attribute_id' => $color->id,
+        ]);
+
+        $this->assertDatabaseMissing('product_variation_attribute_selection', [
+            'product_id' => null,
+            'attribute_id' => $color->id,
+        ]);
+    }
+
     public function test_product_validation_errors_are_returned_in_russian(): void
     {
         $viewPermission = Permission::firstOrCreate([
