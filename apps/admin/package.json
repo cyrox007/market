@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0 --port 5174",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4174",
-    "build:openserver": "vite build"
+    "build:openserver": "vite build",
+    "admin:build": "vite build"
   },
   "dependencies": {
     "@vitejs/plugin-react-swc": "^3.11.0",
