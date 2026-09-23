@@ -494,7 +494,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('')
   const [sort, setSort] = useState<
-    'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc'
+    'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'
   >('updated_desc')
 
   const tree = useMemo(
@@ -694,8 +694,6 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
               <option value="name_desc">Название Я–А</option>
               <option value="price_asc">Цена по возрастанию</option>
               <option value="price_desc">Цена по убыванию</option>
-              <option value="stock_desc">Больше остаток</option>
-              <option value="stock_asc">Меньше остаток</option>
             </select>
           </label>
 
