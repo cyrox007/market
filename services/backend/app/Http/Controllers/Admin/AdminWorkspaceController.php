@@ -1182,8 +1182,10 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function uploadProductMedia(Request $request, Product $product): JsonResponse
+    public function uploadProductMedia(Request $request, int $productId): JsonResponse
     {
+        $product = $this->findProductById($productId);
+
         Gate::authorize('update', $product);
 
         $validated = $request->validate([
@@ -1217,8 +1219,10 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function deleteProductMedia(Product $product, int $media): JsonResponse
+    public function deleteProductMedia(int $productId, int $media): JsonResponse
     {
+        $product = $this->findProductById($productId);
+
         Gate::authorize('update', $product);
 
         $item = Media::query()
@@ -1237,8 +1241,10 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function reorderProductMedia(Request $request, Product $product): JsonResponse
+    public function reorderProductMedia(Request $request, int $productId): JsonResponse
     {
+        $product = $this->findProductById($productId);
+
         Gate::authorize('update', $product);
 
         $this->reorderGallery($request, $product);
