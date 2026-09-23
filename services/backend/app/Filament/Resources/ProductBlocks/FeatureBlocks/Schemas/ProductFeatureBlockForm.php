@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductBlocks\FeatureBlocks\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -30,10 +31,9 @@ class ProductFeatureBlockForm
                             ->helperText('Например: "Бесплатно от 30 000 ₽"')
                             ->columnSpanFull(),
 
-                        TextInput::make('icon')
-                            ->label('Иконка RemixIcon (опционально)')
-                            ->maxLength(255)
-                            ->helperText('Класс иконки из библиотеки RemixIcon (например: ri-truck-line). Используется только если не загружено изображение.')
+                        LucideIconSelect::make('icon')
+                            ->label('Иконка Lucide (опционально)')
+                            ->helperText('Используется только если не загружено изображение иконки.')
                             ->columnSpanFull(),
 
                         TextInput::make('icon_color')
@@ -61,7 +61,7 @@ class ProductFeatureBlockForm
                     ])->columns(2),
 
                 Section::make('Изображение иконки')
-                    ->description('Загрузите изображение для иконки блока. Если изображение загружено, оно будет использоваться вместо класса иконки RemixIcon.')
+                    ->description('Загрузите изображение для иконки блока. Если изображение загружено, оно будет использоваться вместо выбранной иконки Lucide.')
                     ->schema([
                         SpatieMediaLibraryFileUpload::make('icon_image')
                             ->collection('icon')

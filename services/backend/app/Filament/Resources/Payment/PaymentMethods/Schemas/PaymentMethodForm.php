@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Payment\PaymentMethods\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -34,10 +35,9 @@ class PaymentMethodForm
                             ->rows(3)
                             ->helperText('Описание метода оплаты'),
 
-                        TextInput::make('icon')
+                        LucideIconSelect::make('icon')
                             ->label('Иконка')
-                            ->maxLength(255)
-                            ->helperText('Класс иконки (например, ri-bank-card-line)'),
+                            ->helperText('Выберите иконку Lucide, например credit-card.'),
 
                         TextInput::make('gateway')
                             ->label('Gateway')
