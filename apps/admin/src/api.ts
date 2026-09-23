@@ -65,7 +65,9 @@ export type SessionInfo = {
   csrf_token: string
   permissions: Record<string, {
     view: boolean
+    create?: boolean
     update: boolean
+    delete?: boolean
   }>
 }
 
@@ -123,6 +125,7 @@ export type ProductEditorAttributeOption = {
 
 export type ProductEditorOptions = {
   attributes: ProductEditorAttributeOption[]
+  variation_attributes: ProductEditorAttributeOption[]
   tax_categories: Array<{ id: number; name: string }>
   shipping_categories: Array<{ id: number; name: string }>
   warehouses: Array<{ id: number; name: string; external_id: string | null }>
@@ -179,7 +182,16 @@ export type ProductDetails = ProductSummary & {
     sku: string
     state: string
     price: number
+    original_price: number | null
     stock: number
+    backorder: boolean
+    external_id: string | null
+    attributes: ProductAttributeRow[]
+    warehouse_stocks: Array<{
+      warehouse_id: number
+      warehouse_name: string | null
+      quantity: number
+    }>
   }>
   warehouse_stocks: Array<{
     warehouse_id: number
@@ -375,6 +387,70 @@ export const backendApi = {
       {
         method: 'PUT',
         body: JSON.stringify({ rows }),
+        csrfToken,
+      },
+    ),
+
+  createProductVariant: (
+    productId: number,
+    data: {
+      name: string
+      sku: string
+      price: number
+      original_price: number | null
+      stock: number | null
+      backorder: boolean
+      state: string
+      external_id: string | null
+      warehouse_stocks: Array<{ warehouse_id: number; quantity: number }>
+      attributes: ProductAttributeRow[]
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/variants`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  updateProductVariant: (
+    productId: number,
+    variantId: number,
+    data: {
+      name: string
+      sku: string
+      price: number
+      original_price: number | null
+      stock: number | null
+      backorder: boolean
+      state: string
+      external_id: string | null
+      warehouse_stocks: Array<{ warehouse_id: number; quantity: number }>
+      attributes: ProductAttributeRow[]
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/variants/${variantId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  deleteProductVariant: (
+    productId: number,
+    variantId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/variants/${variantId}`,
+      {
+        method: 'DELETE',
         csrfToken,
       },
     ),
