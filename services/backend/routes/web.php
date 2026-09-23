@@ -41,7 +41,11 @@ Route::middleware([
         Route::get('/products', [AdminWorkspaceController::class, 'products']);
         Route::get('/products/{product}', [AdminWorkspaceController::class, 'product'])
             ->where('product', '[0-9]+');
+        Route::get('/products/{product}/editor-options', [AdminWorkspaceController::class, 'productEditorOptions'])
+            ->where('product', '[0-9]+');
         Route::put('/products/{product}', [AdminWorkspaceController::class, 'updateProduct'])
+            ->where('product', '[0-9]+');
+        Route::put('/products/{product}/attributes', [AdminWorkspaceController::class, 'updateProductAttributes'])
             ->where('product', '[0-9]+');
         Route::get('/attributes', [AdminWorkspaceController::class, 'attributes']);
         Route::put('/attributes/{attribute}', [AdminWorkspaceController::class, 'updateAttribute'])
