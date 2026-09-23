@@ -226,6 +226,7 @@ function Topbar({ theme, setTheme }: { theme: Theme; setTheme: (value: Theme) =>
       </div>
 
       <div className="top-tools">
+        <span className="demo-badge">Демо-данные</span>
         <label className="global-search">
           <Search size={16} />
           <input placeholder="Товар, SKU, раздел..." />
@@ -291,7 +292,7 @@ function Sidebar({
 
       <div className="sidebar-foot">
         <span />
-        <div><strong>develop</strong><small>Актуальная схема проекта</small></div>
+        <div><strong>Прототип UI</strong><small>Backend пока не подключён</small></div>
       </div>
     </aside>
   )
@@ -340,7 +341,10 @@ function ModuleHeader({ module }: { module: ModuleKey }) {
   return (
     <header className="page-head">
       <div>
-        <span className="eyebrow">{meta.eyebrow}</span>
+        <div className="page-title-line">
+          <span className="eyebrow">{meta.eyebrow}</span>
+          <span className="demo-inline">демо</span>
+        </div>
         <h1>{meta.title}</h1>
         <p>{meta.description}</p>
       </div>

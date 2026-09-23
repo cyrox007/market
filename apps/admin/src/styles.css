@@ -899,3 +899,169 @@ th {
   color: var(--muted);
   font-size: 0.66rem;
 }
+
+
+/* Явная маркировка прототипа и исправление кнопок sidebar */
+.nav-link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.nav-link.active {
+  background: rgba(199, 71, 97, 0.16);
+}
+
+.demo-badge,
+.demo-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c7901b;
+  background: rgba(199, 144, 27, 0.12);
+  border: 1px solid rgba(199, 144, 27, 0.28);
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.demo-badge {
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 0.67rem;
+}
+
+.demo-inline {
+  min-height: 18px;
+  padding: 0 6px;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.page-title-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Более нейтральный sidebar без синего оттенка */
+:root {
+  --sidebar: #1a1d24;
+}
+
+:root[data-theme="dark"] {
+  --sidebar: #15181e;
+}
+
+/* Ноутбучный режим: не даём редактору схлопываться */
+@media (max-width: 1280px) {
+  .sidebar {
+    width: 176px;
+    flex-basis: 176px;
+  }
+
+  .catalog-layout {
+    grid-template-columns: 190px minmax(240px, 0.65fr) minmax(520px, 1.6fr);
+  }
+
+  .brand small,
+  .user-btn small {
+    display: none;
+  }
+
+  .global-search {
+    width: min(280px, 25vw);
+  }
+}
+
+@media (max-width: 1080px) {
+  .catalog-layout {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .products-panel {
+    display: none;
+  }
+
+  .sidebar {
+    width: 164px;
+    flex-basis: 164px;
+  }
+
+  .module-layout {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+
+  .quality-chips {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    flex-basis: auto;
+  }
+
+  .sidebar nav {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+  }
+
+  .nav-group {
+    display: flex;
+    gap: 4px;
+  }
+
+  .nav-group + .nav-group {
+    margin-top: 0;
+  }
+
+  .nav-title,
+  .sidebar-foot {
+    display: none;
+  }
+
+  .nav-link {
+    width: auto;
+    min-width: max-content;
+  }
+
+  .catalog-layout,
+  .module-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100vh - 120px);
+  }
+
+  .section-panel,
+  .module-list {
+    max-height: 260px;
+  }
+
+  .catalog-layout .section-panel {
+    display: none;
+  }
+
+  .workspace {
+    padding: 9px;
+  }
+}
+
+@media (max-width: 640px) {
+  .demo-badge,
+  .top-tools .global-search {
+    display: none;
+  }
+
+  .page-head p {
+    display: none;
+  }
+}
