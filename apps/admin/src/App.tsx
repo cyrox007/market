@@ -1289,6 +1289,12 @@ function ProductEditor({
       .then((editorResponse) => {
         if (cancelled) return
 
+        if (editorResponse.contract_version !== 2) {
+          throw new Error(
+            `Backend редактора товара использует устаревший контракт (ожидался v2, получено ${String(editorResponse.contract_version ?? 'без версии')}). Выполните php artisan optimize:clear.`,
+          )
+        }
+
         const loadedProduct = editorResponse.product
         const editorOptions = editorResponse.options
 
