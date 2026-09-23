@@ -860,3 +860,42 @@ th {
     max-height: 280px;
   }
 }
+
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline > div {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.timeline > div:last-child {
+  border-bottom: 0;
+}
+
+.timeline > div > span {
+  width: 9px;
+  height: 9px;
+  margin-left: 3px;
+  background: var(--secondary);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--secondary-soft);
+}
+
+.timeline strong {
+  font-size: 0.74rem;
+}
+
+.timeline small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}

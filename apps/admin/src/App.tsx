@@ -876,7 +876,7 @@ function Field({
     <label className={wide ? 'field wide' : 'field'}>
       <span>{label} {required && <b>*</b>}</span>
       <div className={error ? 'input-wrap invalid' : 'input-wrap'}>
-        <input defaultValue={value} placeholder={placeholder} />
+        <input key={value} defaultValue={value} placeholder={placeholder} />
         {suffix && <em>{suffix}</em>}
       </div>
       {error && <small className="field-error"><CircleAlert size={12} /> {error}</small>}
@@ -1101,6 +1101,7 @@ const prototypeOrders = [
 
 function OrdersWorkspace() {
   const [selected, setSelected] = useState(0)
+  const [tab, setTab] = useState<'items' | 'delivery' | 'payment' | 'history'>('items')
   const order = prototypeOrders[selected]
 
   return (
@@ -1124,25 +1125,66 @@ function OrdersWorkspace() {
           <div className="editor-actions"><button className="btn ghost" type="button">Печать</button><button className="btn primary" type="button">Изменить статус</button></div>
         </div>
 
-        <div className="tabs static-tabs"><button className="active" type="button">Состав</button><button type="button">Доставка</button><button type="button">Оплата</button><button type="button">История</button></div>
+        <div className="tabs static-tabs">
+          <button className={tab === 'items' ? 'active' : ''} type="button" onClick={() => setTab('items')}>Состав</button>
+          <button className={tab === 'delivery' ? 'active' : ''} type="button" onClick={() => setTab('delivery')}>Доставка</button>
+          <button className={tab === 'payment' ? 'active' : ''} type="button" onClick={() => setTab('payment')}>Оплата</button>
+          <button className={tab === 'history' ? 'active' : ''} type="button" onClick={() => setTab('history')}>История</button>
+        </div>
 
         <div className="module-detail-scroll">
-          <div className="summary-grid">
-            <Card title="Покупатель" subtitle="Контактные данные">
-              <dl className="detail-list"><div><dt>Имя</dt><dd>{order[1]}</dd></div><div><dt>Телефон</dt><dd>+7 900 123-45-67</dd></div><div><dt>Email</dt><dd>client@example.ru</dd></div></dl>
-            </Card>
-            <Card title="Доставка" subtitle="Зафиксировано при оформлении">
-              <dl className="detail-list"><div><dt>Город</dt><dd>Воронеж</dd></div><div><dt>Склад</dt><dd>Воронеж</dd></div><div><dt>Срок</dt><dd>1–2 дня</dd></div></dl>
-            </Card>
-          </div>
+          {tab === 'items' && (
+            <>
+              <div className="summary-grid">
+                <Card title="Покупатель" subtitle="Контактные данные">
+                  <dl className="detail-list"><div><dt>Имя</dt><dd>{order[1]}</dd></div><div><dt>Телефон</dt><dd>+7 900 123-45-67</dd></div><div><dt>Email</dt><dd>client@example.ru</dd></div></dl>
+                </Card>
+                <Card title="Заказ" subtitle="Ключевые параметры">
+                  <dl className="detail-list"><div><dt>Сумма</dt><dd>{order[2]}</dd></div><div><dt>Статус</dt><dd>{order[3]}</dd></div><div><dt>Создан</dt><dd>{order[4]}</dd></div></dl>
+                </Card>
+              </div>
 
-          <Card title="Состав заказа" subtitle="3 позиции">
-            <Table headers={['Товар', 'Количество', 'Цена', 'Сумма']}>
-              <tr><td><strong>Диван прямой Лига-060</strong><small className="table-sub">Серый / 238 см</small></td><td>1</td><td>64 990 ₽</td><td>64 990 ₽</td></tr>
-              <tr><td><strong>Кресло Лига</strong><small className="table-sub">Серый</small></td><td>1</td><td>31 500 ₽</td><td>31 500 ₽</td></tr>
-              <tr><td><strong>Пуф Лига</strong></td><td>1</td><td>28 010 ₽</td><td>28 010 ₽</td></tr>
-            </Table>
-          </Card>
+              <Card title="Состав заказа" subtitle="3 позиции">
+                <Table headers={['Товар', 'Количество', 'Цена', 'Сумма']}>
+                  <tr><td><strong>Диван прямой Лига-060</strong><small className="table-sub">Серый / 238 см</small></td><td>1</td><td>64 990 ₽</td><td>64 990 ₽</td></tr>
+                  <tr><td><strong>Кресло Лига</strong><small className="table-sub">Серый</small></td><td>1</td><td>31 500 ₽</td><td>31 500 ₽</td></tr>
+                  <tr><td><strong>Пуф Лига</strong></td><td>1</td><td>28 010 ₽</td><td>28 010 ₽</td></tr>
+                </Table>
+              </Card>
+            </>
+          )}
+
+          {tab === 'delivery' && (
+            <div className="summary-grid">
+              <Card title="Адрес доставки" subtitle="Снимок на момент оформления">
+                <dl className="detail-list"><div><dt>Город</dt><dd>Воронеж</dd></div><div><dt>Адрес</dt><dd>ул. Ленина, 10</dd></div><div><dt>Получатель</dt><dd>{order[1]}</dd></div></dl>
+              </Card>
+              <Card title="Логистика" subtitle="Склад и выбранный вариант">
+                <dl className="detail-list"><div><dt>Склад</dt><dd>Воронеж</dd></div><div><dt>Способ</dt><dd>Курьерская доставка</dd></div><div><dt>Стоимость</dt><dd>900 ₽</dd></div><div><dt>Срок</dt><dd>1–2 дня</dd></div></dl>
+              </Card>
+            </div>
+          )}
+
+          {tab === 'payment' && (
+            <div className="summary-grid">
+              <Card title="Оплата" subtitle="Текущее состояние">
+                <dl className="detail-list"><div><dt>Метод</dt><dd>Банковская карта</dd></div><div><dt>Сумма</dt><dd>{order[2]}</dd></div><div><dt>Статус</dt><dd>Оплачено</dd></div></dl>
+              </Card>
+              <Card title="Транзакция" subtitle="Служебная информация">
+                <dl className="detail-list"><div><dt>ID</dt><dd>PAY-23091842</dd></div><div><dt>Шлюз</dt><dd>Raiffeisen</dd></div><div><dt>Время</dt><dd>10:44</dd></div></dl>
+              </Card>
+            </div>
+          )}
+
+          {tab === 'history' && (
+            <Card title="История заказа" subtitle="Изменения статусов и ключевые события">
+              <div className="timeline">
+                <div><span /><strong>Заказ создан</strong><small>Сегодня, 10:42</small></div>
+                <div><span /><strong>Оплата подтверждена</strong><small>Сегодня, 10:44</small></div>
+                <div><span /><strong>Передан на склад</strong><small>Сегодня, 10:47</small></div>
+              </div>
+            </Card>
+          )}
         </div>
       </section>
     </div>
@@ -1159,6 +1201,7 @@ const prototypeLocations = [
 
 function LocationsWorkspace() {
   const [selected, setSelected] = useState(2)
+  const [tab, setTab] = useState<'main' | 'delivery' | 'relations'>('main')
   const location = prototypeLocations[selected]
 
   return (
@@ -1179,16 +1222,33 @@ function LocationsWorkspace() {
 
       <section className="panel module-detail">
         <div className="module-detail-head"><div><span className="eyebrow">{location[1]}</span><h2>{location[0]}</h2><p>Настройки действуют на эту территорию и могут наследоваться дочерними локациями.</p></div><button className="btn primary" type="button">Сохранить</button></div>
-        <div className="tabs static-tabs"><button className="active" type="button">Основное</button><button type="button">Доставка</button><button type="button">Связи</button></div>
+        <div className="tabs static-tabs">
+          <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
+          <button className={tab === 'delivery' ? 'active' : ''} type="button" onClick={() => setTab('delivery')}>Доставка</button>
+          <button className={tab === 'relations' ? 'active' : ''} type="button" onClick={() => setTab('relations')}>Связи</button>
+        </div>
         <div className="module-detail-scroll">
-          <div className="summary-grid">
+          {tab === 'main' && (
             <Card title="Основные данные" subtitle="Положение в дереве">
               <div className="form-grid readable"><Field label="Название" value={location[0]} required /><Field label="Код" value="voronezh" required /><Field label="Родитель" value="Воронежская область" wide /></div>
             </Card>
-            <Card title="Тариф по умолчанию" subtitle="Используется, если способ доставки не переопределил значение">
-              <div className="form-grid readable"><Field label="Стоимость" value="900" suffix="₽" /><Field label="Бесплатно от" value="15 000" suffix="₽" /><Field label="Срок от" value="1" /><Field label="Срок до" value="2" /></div>
-            </Card>
-          </div>
+          )}
+          {tab === 'delivery' && (
+            <div className="summary-grid">
+              <Card title="Тариф по умолчанию" subtitle="Используется, если способ доставки не переопределил значение">
+                <div className="form-grid readable"><Field label="Стоимость" value="900" suffix="₽" /><Field label="Бесплатно от" value="15 000" suffix="₽" /><Field label="Срок от" value="1" /><Field label="Срок до" value="2" /></div>
+              </Card>
+              <Card title="Обработка" subtitle="Дополнительные параметры">
+                <dl className="detail-list"><div><dt>Подъём</dt><dd>Разрешён</dd></div><div><dt>Сборка</dt><dd>Доступна</dd></div><div><dt>Доп. услуги</dt><dd>3</dd></div></dl>
+              </Card>
+            </div>
+          )}
+          {tab === 'relations' && (
+            <div className="relation-grid">
+              <article className="relation-card"><span><Truck size={18} /></span><div><small>Перевозчики</small><strong>3</strong><p>Доступны для этой локации</p></div><ChevronRight size={16} /></article>
+              <article className="relation-card"><span><Warehouse size={18} /></span><div><small>Склады</small><strong>2</strong><p>Могут доставлять сюда</p></div><ChevronRight size={16} /></article>
+            </div>
+          )}
         </div>
       </section>
     </div>
@@ -1203,6 +1263,7 @@ const prototypeWarehouses = [
 
 function WarehousesWorkspace() {
   const [selected, setSelected] = useState(0)
+  const [tab, setTab] = useState<'main' | 'stock' | 'delivery'>('main')
   const warehouse = prototypeWarehouses[selected]
 
   return (
@@ -1222,12 +1283,36 @@ function WarehousesWorkspace() {
 
       <section className="panel module-detail">
         <div className="module-detail-head"><div><span className="eyebrow">Склад</span><h2>{warehouse[0]}</h2><p>{warehouse[1]} · {warehouse[2]} · {warehouse[3]}</p></div><button className="btn primary" type="button">Сохранить</button></div>
-        <div className="tabs static-tabs"><button className="active" type="button">Основное</button><button type="button">Остатки</button><button type="button">Способы доставки</button></div>
+        <div className="tabs static-tabs">
+          <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
+          <button className={tab === 'stock' ? 'active' : ''} type="button" onClick={() => setTab('stock')}>Остатки</button>
+          <button className={tab === 'delivery' ? 'active' : ''} type="button" onClick={() => setTab('delivery')}>Способы доставки</button>
+        </div>
         <div className="module-detail-scroll">
-          <div className="summary-grid">
-            <Card title="Основное" subtitle="Идентификаторы склада"><div className="form-grid readable"><Field label="Название" value={warehouse[0]} required /><Field label="Внешний ID" value={warehouse[1]} required /></div></Card>
-            <Card title="Сводка" subtitle="То, что оператору важно видеть сразу"><dl className="detail-list"><div><dt>Остатки</dt><dd>{warehouse[2]}</dd></div><div><dt>Способы доставки</dt><dd>{warehouse[3]}</dd></div><div><dt>Статус</dt><dd>Активен</dd></div></dl></Card>
-          </div>
+          {tab === 'main' && (
+            <div className="summary-grid">
+              <Card title="Основное" subtitle="Идентификаторы склада"><div className="form-grid readable"><Field label="Название" value={warehouse[0]} required /><Field label="Внешний ID" value={warehouse[1]} required /></div></Card>
+              <Card title="Сводка" subtitle="То, что оператору важно видеть сразу"><dl className="detail-list"><div><dt>Остатки</dt><dd>{warehouse[2]}</dd></div><div><dt>Способы доставки</dt><dd>{warehouse[3]}</dd></div><div><dt>Статус</dt><dd>Активен</dd></div></dl></Card>
+            </div>
+          )}
+          {tab === 'stock' && (
+            <Card title="Остатки по складу" subtitle="Быстрый контроль без перехода в другой раздел">
+              <Table headers={['Товар', 'SKU', 'Остаток', 'Резерв']}>
+                <tr><td>Диван прямой Лига-060</td><td>SV-1042</td><td>7</td><td>1</td></tr>
+                <tr><td>Кресло Лига</td><td>SV-2040</td><td>12</td><td>2</td></tr>
+                <tr><td>Пуф Лига</td><td>SV-3050</td><td>8</td><td>0</td></tr>
+              </Table>
+            </Card>
+          )}
+          {tab === 'delivery' && (
+            <Card title="Способы доставки" subtitle="Отдельные схемы доставки этого склада">
+              <div className="value-grid">
+                <button className="value-card" type="button"><span>1</span><strong>Курьерская доставка</strong><small>14 зон</small><ChevronRight size={14} /></button>
+                <button className="value-card" type="button"><span>2</span><strong>Доставка ТК</strong><small>32 зоны</small><ChevronRight size={14} /></button>
+                <button className="value-card" type="button"><span>3</span><strong>Резервный маршрут</strong><small>5 зон</small><ChevronRight size={14} /></button>
+              </div>
+            </Card>
+          )}
         </div>
       </section>
     </div>
@@ -1242,6 +1327,7 @@ const prototypeStores = [
 
 function StoresWorkspace() {
   const [selected, setSelected] = useState(0)
+  const [tab, setTab] = useState<'main' | 'contacts' | 'schedule'>('main')
   const store = prototypeStores[selected]
 
   return (
@@ -1261,12 +1347,27 @@ function StoresWorkspace() {
 
       <section className="panel module-detail">
         <div className="module-detail-head"><div><span className="eyebrow">Магазин</span><h2>{store[0]}</h2><p>{store[1]} · сегодня {store[2]}</p></div><button className="btn primary" type="button">Сохранить</button></div>
-        <div className="tabs static-tabs"><button className="active" type="button">Основное</button><button type="button">Контакты</button><button type="button">Режим работы</button></div>
+        <div className="tabs static-tabs">
+          <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
+          <button className={tab === 'contacts' ? 'active' : ''} type="button" onClick={() => setTab('contacts')}>Контакты</button>
+          <button className={tab === 'schedule' ? 'active' : ''} type="button" onClick={() => setTab('schedule')}>Режим работы</button>
+        </div>
         <div className="module-detail-scroll">
-          <div className="summary-grid">
+          {tab === 'main' && (
             <Card title="Адрес" subtitle="Отображается покупателю"><div className="form-grid readable"><Field label="Город" value={store[1]} required /><Field label="Улица" value="Московский проспект, 90/1" required /><Field label="Координаты" value="51.7062, 39.1667" wide /></div></Card>
-            <Card title="Контакты" subtitle="Связь с магазином"><div className="form-grid readable"><Field label="Телефон" value="+7 (473) 200-00-00" /><Field label="Email" value="store@example.ru" /></div></Card>
-          </div>
+          )}
+          {tab === 'contacts' && (
+            <Card title="Контакты" subtitle="Связь с магазином"><div className="form-grid readable"><Field label="Телефон" value="+7 (473) 200-00-00" /><Field label="Email" value="store@example.ru" /><Field label="Комментарий" value="Основной городской магазин" wide /></div></Card>
+          )}
+          {tab === 'schedule' && (
+            <Card title="Режим работы" subtitle="Расписание по дням недели">
+              <Table headers={['День', 'Открытие', 'Закрытие', 'Статус']}>
+                <tr><td>Пн–Пт</td><td>10:00</td><td>20:00</td><td><Status value="Активен" compact /></td></tr>
+                <tr><td>Суббота</td><td>10:00</td><td>19:00</td><td><Status value="Активен" compact /></td></tr>
+                <tr><td>Воскресенье</td><td>10:00</td><td>18:00</td><td><Status value="Активен" compact /></td></tr>
+              </Table>
+            </Card>
+          )}
         </div>
       </section>
     </div>
