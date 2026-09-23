@@ -12,6 +12,7 @@ import {
   FolderTree,
   Image,
   LayoutDashboard,
+  ClipboardList,
   Link2,
   ListFilter,
   MapPin,
@@ -23,6 +24,7 @@ import {
   Search,
   Settings,
   SlidersHorizontal,
+  Store,
   Sun,
   Tag,
   Truck,
@@ -31,6 +33,7 @@ import {
 } from 'lucide-react'
 
 type Theme = 'light' | 'dark'
+type ModuleKey = 'products' | 'attributes' | 'orders' | 'locations' | 'warehouses' | 'stores'
 type SectionKind = 'categories' | 'rooms'
 type ProductTab = 'main' | 'attributes' | 'variants' | 'stock' | 'media' | 'relations' | 'service'
 type MainStep = 0 | 1 | 2
@@ -111,12 +114,32 @@ const variants = [
   ['Зелёный / 238 см', 'SV-1042-GN', '67 900 ₽', '3'],
 ]
 
-const nav = [
-  ['Работа', [['Главная', LayoutDashboard], ['Каталог', Package], ['Заказы', Tag]]],
-  ['Каталог', [['Товары', Package], ['Категории', FolderTree], ['Комнаты', MapPin], ['Характеристики', SlidersHorizontal], ['Остатки', Boxes]]],
-  ['Доставка', [['Склады', Warehouse], ['Перевозчики', Truck]]],
-  ['Система', [['Пользователи', Users], ['Настройки', Settings]]],
-] as const
+const nav: Array<{
+  title: string
+  items: Array<[ModuleKey, string, typeof Package]>
+}> = [
+  {
+    title: 'Каталог',
+    items: [
+      ['products', 'Товары и разделы', Package],
+      ['attributes', 'Характеристики', SlidersHorizontal],
+    ],
+  },
+  {
+    title: 'Продажи',
+    items: [
+      ['orders', 'Заказы', ClipboardList],
+      ['stores', 'Магазины', Store],
+    ],
+  },
+  {
+    title: 'Логистика',
+    items: [
+      ['locations', 'Локации', MapPin],
+      ['warehouses', 'Склады', Warehouse],
+    ],
+  },
+]
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem('sv-admin-theme')
@@ -130,6 +153,7 @@ function initialTheme(): Theme {
 
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [module, setModule] = useState<ModuleKey>('products')
   const [sectionKind, setSectionKind] = useState<SectionKind>('categories')
   const [productId, setProductId] = useState(products[0].id)
   const [tab, setTab] = useState<ProductTab>('main')
@@ -158,27 +182,35 @@ export function App() {
       <Topbar theme={theme} setTheme={setTheme} />
 
       <div className="frame">
-        <Sidebar />
+        <Sidebar module={module} setModule={setModule} />
 
         <main className="workspace">
-          <PageHeader />
+          <ModuleHeader module={module} />
 
-          <div className="catalog-layout">
-            <SectionTree kind={sectionKind} setKind={setSectionKind} />
-            <ProductList selected={productId} select={setProductId} />
-            <ProductEditor
-              product={product}
-              tab={tab}
-              setTab={setTab}
-              mainStep={mainStep}
-              setMainStep={setMainStep}
-              filledOnly={filledOnly}
-              setFilledOnly={setFilledOnly}
-              showProblems={showProblems}
-              setShowProblems={setShowProblems}
-              openProblem={openProblem}
-            />
-          </div>
+          {module === 'products' && (
+            <div className="catalog-layout">
+              <SectionTree kind={sectionKind} setKind={setSectionKind} />
+              <ProductList selected={productId} select={setProductId} />
+              <ProductEditor
+                product={product}
+                tab={tab}
+                setTab={setTab}
+                mainStep={mainStep}
+                setMainStep={setMainStep}
+                filledOnly={filledOnly}
+                setFilledOnly={setFilledOnly}
+                showProblems={showProblems}
+                setShowProblems={setShowProblems}
+                openProblem={openProblem}
+              />
+            </div>
+          )}
+
+          {module === 'attributes' && <AttributesWorkspace />}
+          {module === 'orders' && <OrdersWorkspace />}
+          {module === 'locations' && <LocationsWorkspace />}
+          {module === 'warehouses' && <WarehousesWorkspace />}
+          {module === 'stores' && <StoresWorkspace />}
         </main>
       </div>
     </div>
@@ -228,23 +260,30 @@ function Topbar({ theme, setTheme }: { theme: Theme; setTheme: (value: Theme) =>
   )
 }
 
-function Sidebar() {
+function Sidebar({
+  module,
+  setModule,
+}: {
+  module: ModuleKey
+  setModule: (value: ModuleKey) => void
+}) {
   return (
     <aside className="sidebar">
       <nav>
-        {nav.map(([title, items]) => (
-          <div className="nav-group" key={title}>
-            <div className="nav-title">{title}</div>
+        {nav.map((group) => (
+          <div className="nav-group" key={group.title}>
+            <div className="nav-title">{group.title}</div>
 
-            {items.map(([label, Icon]) => (
-              <a
-                className={label === 'Каталог' || label === 'Товары' ? 'nav-link active' : 'nav-link'}
-                href="#"
-                key={label}
+            {group.items.map(([key, label, Icon]) => (
+              <button
+                className={module === key ? 'nav-link active' : 'nav-link'}
+                type="button"
+                onClick={() => setModule(key)}
+                key={key}
               >
                 <Icon size={18} />
                 <span>{label}</span>
-              </a>
+              </button>
             ))}
           </div>
         ))}
@@ -252,24 +291,58 @@ function Sidebar() {
 
       <div className="sidebar-foot">
         <span />
-        <div><strong>develop</strong><small>Источник актуальной схемы</small></div>
+        <div><strong>develop</strong><small>Актуальная схема проекта</small></div>
       </div>
     </aside>
   )
 }
 
-function PageHeader() {
+const moduleHeaders: Record<ModuleKey, {
+  eyebrow: string
+  title: string
+  description: string
+}> = {
+  products: {
+    eyebrow: 'Рабочее место оператора',
+    title: 'Товары и разделы',
+    description: 'Категории, комнаты, список товаров и редактор находятся рядом. Прокручивается только активная рабочая область.',
+  },
+  attributes: {
+    eyebrow: 'Справочник каталога',
+    title: 'Характеристики товаров',
+    description: 'Отдельно настраиваем структуру свойства и его значения. В карточке товара оператор только назначает готовые свойства.',
+  },
+  orders: {
+    eyebrow: 'Продажи',
+    title: 'Заказы',
+    description: 'Список заказов и карточка выбранного заказа в одном экране без постоянных переходов назад.',
+  },
+  locations: {
+    eyebrow: 'Логистика',
+    title: 'Локации доставки',
+    description: 'Дерево территорий и настройки выбранной локации: тарифы, обработка, перевозчики и услуги.',
+  },
+  warehouses: {
+    eyebrow: 'Логистика',
+    title: 'Склады',
+    description: 'Склад, остатки и способы доставки разделены на понятные рабочие вкладки.',
+  },
+  stores: {
+    eyebrow: 'Продажи',
+    title: 'Магазины',
+    description: 'Точки продаж: адреса, контакты, режим работы и параметры отображения на сайте.',
+  },
+}
+
+function ModuleHeader({ module }: { module: ModuleKey }) {
+  const meta = moduleHeaders[module]
+
   return (
     <header className="page-head">
       <div>
-        <span className="eyebrow">Рабочее место оператора</span>
-        <h1>Каталог товаров</h1>
-        <p>Разделы, список товаров и редактирование находятся в одном рабочем пространстве. Прокручивается только активная область.</p>
-      </div>
-
-      <div className="head-actions">
-        <button className="btn ghost" type="button"><ListFilter size={16} /> Фильтры</button>
-        <button className="btn primary" type="button"><Plus size={16} /> Новый товар</button>
+        <span className="eyebrow">{meta.eyebrow}</span>
+        <h1>{meta.title}</h1>
+        <p>{meta.description}</p>
       </div>
     </header>
   )
@@ -866,6 +939,336 @@ function Table({ headers, children }: { headers: string[]; children: React.React
         <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
         <tbody>{children}</tbody>
       </table>
+    </div>
+  )
+}
+
+
+type AttributePrototype = {
+  id: number
+  name: string
+  slug: string
+  type: string
+  values: string[]
+  flags: string[]
+  usage: number
+}
+
+const prototypeAttributes: AttributePrototype[] = [
+  { id: 1, name: 'Цвет', slug: 'color', type: 'Список', values: ['Серый', 'Бежевый', 'Графит', 'Зелёный', 'Синий'], flags: ['Вариации', 'Фильтр', 'Обязательная'], usage: 418 },
+  { id: 2, name: 'Размер', slug: 'size', type: 'Список', values: ['180 см', '200 см', '220 см', '238 см'], flags: ['Вариации', 'Фильтр'], usage: 356 },
+  { id: 3, name: 'Материал обивки', slug: 'upholstery', type: 'Список', values: ['Велюр', 'Рогожка', 'Шенилл', 'Экокожа'], flags: ['Фильтр'], usage: 302 },
+  { id: 4, name: 'Механизм', slug: 'mechanism', type: 'Список', values: ['Еврокнижка', 'Дельфин', 'Аккордеон'], flags: ['Фильтр'], usage: 188 },
+  { id: 5, name: 'Гарантия', slug: 'warranty', type: 'Текст', values: [], flags: ['Ручное значение'], usage: 91 },
+]
+
+function AttributesWorkspace() {
+  const [selectedId, setSelectedId] = useState(prototypeAttributes[0].id)
+  const [flags, setFlags] = useState(prototypeAttributes[0].flags)
+  const selected = prototypeAttributes.find((item) => item.id === selectedId) ?? prototypeAttributes[0]
+
+  const choose = (attribute: AttributePrototype) => {
+    setSelectedId(attribute.id)
+    setFlags(attribute.flags)
+  }
+
+  const toggleFlag = (flag: string) => {
+    setFlags((current) => current.includes(flag)
+      ? current.filter((item) => item !== flag)
+      : [...current, flag])
+  }
+
+  return (
+    <div className="module-layout attributes-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="Справочник" title="Свойства" subtitle="Что можно назначать товарам" />
+        <label className="small-search workspace-search"><Search size={16} /><input placeholder="Найти характеристику" /></label>
+
+        <div className="module-list-scroll">
+          {prototypeAttributes.map((attribute) => (
+            <button
+              className={attribute.id === selected.id ? 'entity-row selected' : 'entity-row'}
+              type="button"
+              onClick={() => choose(attribute)}
+              key={attribute.id}
+            >
+              <span className="entity-icon"><SlidersHorizontal size={17} /></span>
+              <div>
+                <strong>{attribute.name}</strong>
+                <small>{attribute.type} · {attribute.usage} товаров</small>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        <div className="module-detail-head">
+          <div>
+            <span className="eyebrow">Характеристика</span>
+            <h2>{selected.name}</h2>
+            <p>Сначала задаём поведение свойства. Затем — допустимые значения. После этого оператор выбирает их в товаре.</p>
+          </div>
+          <button className="btn primary" type="button">Сохранить</button>
+        </div>
+
+        <div className="workflow-strip">
+          <div className="done"><span>1</span><div><strong>Настройка</strong><small>Тип и поведение</small></div></div>
+          <ChevronRight size={16} />
+          <div className={selected.type === 'Список' ? 'active' : ''}><span>2</span><div><strong>Значения</strong><small>Справочник вариантов</small></div></div>
+          <ChevronRight size={16} />
+          <div><span>3</span><div><strong>Использование</strong><small>Назначение товарам</small></div></div>
+        </div>
+
+        <div className="module-detail-scroll">
+          <div className="attribute-settings-grid">
+            <Card title="Основные настройки" subtitle="Редко меняются после начала использования">
+              <div className="form-grid readable">
+                <Field label="Название" value={selected.name} required />
+                <Field label="Код" value={selected.slug} required />
+                <label className="field">
+                  <span>Тип значения <b>*</b></span>
+                  <select defaultValue={selected.type}>
+                    <option>Список</option>
+                    <option>Текст</option>
+                    <option>Число</option>
+                    <option>Логическое</option>
+                  </select>
+                </label>
+                <Field label="Порядок" value="100" />
+              </div>
+            </Card>
+
+            <Card title="Поведение" subtitle="Понятные переключатели вместо набора технических флагов">
+              <div className="flag-grid">
+                {[
+                  ['Вариации', 'Цвет/размер создают отдельные торговые предложения'],
+                  ['Фильтр', 'Показывать покупателю в фильтрах каталога'],
+                  ['Обязательная', 'Без значения карточка считается незаполненной'],
+                  ['Множественная', 'У товара можно выбрать несколько значений'],
+                  ['Ручное значение', 'Разрешить оператору ввести значение вне справочника'],
+                ].map(([flag, description]) => (
+                  <button
+                    className={flags.includes(flag) ? 'flag-card enabled' : 'flag-card'}
+                    type="button"
+                    onClick={() => toggleFlag(flag)}
+                    key={flag}
+                  >
+                    <span className="fake-switch"><i /></span>
+                    <div><strong>{flag}</strong><small>{description}</small></div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {selected.type === 'Список' ? (
+            <Card title="Допустимые значения" subtitle="Именно этот список увидит оператор при редактировании товара">
+              <div className="values-toolbar">
+                <label className="small-search values-search"><Search size={15} /><input placeholder="Найти значение" /></label>
+                <button className="btn secondary small" type="button"><Plus size={15} /> Добавить значение</button>
+              </div>
+              <div className="value-grid">
+                {selected.values.map((value, index) => (
+                  <button className="value-card" type="button" key={value}>
+                    <span>{index + 1}</span>
+                    <strong>{value}</strong>
+                    <small>{selected.slug}-{index + 1}</small>
+                    <Pencil size={14} />
+                  </button>
+                ))}
+              </div>
+            </Card>
+          ) : (
+            <div className="callout muted">
+              <CircleCheck size={18} />
+              <div><strong>Справочник значений не нужен</strong><span>Для текстового свойства оператор вводит значение непосредственно в карточке товара.</span></div>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const prototypeOrders = [
+  ['ORD202609230001', 'Иван Петров', '124 500 ₽', 'Новый', 'Сегодня, 10:42'],
+  ['ORD202609220018', 'Анна Смирнова', '68 990 ₽', 'Принят', 'Вчера, 18:05'],
+  ['ORD202609220011', 'Сергей Волков', '91 200 ₽', 'В пути', 'Вчера, 13:27'],
+  ['ORD202609210044', 'Мария Котова', '47 300 ₽', 'Доставлен', '21 сен, 16:10'],
+]
+
+function OrdersWorkspace() {
+  const [selected, setSelected] = useState(0)
+  const order = prototypeOrders[selected]
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list wide-list">
+        <PanelHead eyebrow="Очередь" title="Заказы" subtitle="Последние заказы" />
+        <label className="small-search workspace-search"><Search size={16} /><input placeholder="Номер, имя, телефон" /></label>
+        <div className="module-list-scroll">
+          {prototypeOrders.map((item, index) => (
+            <button className={selected === index ? 'order-row selected' : 'order-row'} type="button" onClick={() => setSelected(index)} key={item[0]}>
+              <div><strong>{item[0]}</strong><small>{item[1]} · {item[4]}</small></div>
+              <div><strong>{item[2]}</strong><Status value={item[3] === 'Новый' ? 'Черновик' : 'Активен'} compact /></div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        <div className="module-detail-head">
+          <div><span className="eyebrow">Заказ</span><h2>{order[0]}</h2><p>{order[1]} · {order[2]}</p></div>
+          <div className="editor-actions"><button className="btn ghost" type="button">Печать</button><button className="btn primary" type="button">Изменить статус</button></div>
+        </div>
+
+        <div className="tabs static-tabs"><button className="active" type="button">Состав</button><button type="button">Доставка</button><button type="button">Оплата</button><button type="button">История</button></div>
+
+        <div className="module-detail-scroll">
+          <div className="summary-grid">
+            <Card title="Покупатель" subtitle="Контактные данные">
+              <dl className="detail-list"><div><dt>Имя</dt><dd>{order[1]}</dd></div><div><dt>Телефон</dt><dd>+7 900 123-45-67</dd></div><div><dt>Email</dt><dd>client@example.ru</dd></div></dl>
+            </Card>
+            <Card title="Доставка" subtitle="Зафиксировано при оформлении">
+              <dl className="detail-list"><div><dt>Город</dt><dd>Воронеж</dd></div><div><dt>Склад</dt><dd>Воронеж</dd></div><div><dt>Срок</dt><dd>1–2 дня</dd></div></dl>
+            </Card>
+          </div>
+
+          <Card title="Состав заказа" subtitle="3 позиции">
+            <Table headers={['Товар', 'Количество', 'Цена', 'Сумма']}>
+              <tr><td><strong>Диван прямой Лига-060</strong><small className="table-sub">Серый / 238 см</small></td><td>1</td><td>64 990 ₽</td><td>64 990 ₽</td></tr>
+              <tr><td><strong>Кресло Лига</strong><small className="table-sub">Серый</small></td><td>1</td><td>31 500 ₽</td><td>31 500 ₽</td></tr>
+              <tr><td><strong>Пуф Лига</strong></td><td>1</td><td>28 010 ₽</td><td>28 010 ₽</td></tr>
+            </Table>
+          </Card>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const prototypeLocations = [
+  ['Центральный федеральный округ', 'ФО', '18 регионов'],
+  ['Воронежская область', 'Регион', '34 города'],
+  ['Воронеж', 'Город', 'Активна'],
+  ['Москва', 'Город', 'Активна'],
+  ['Московская область', 'Регион', '42 города'],
+]
+
+function LocationsWorkspace() {
+  const [selected, setSelected] = useState(2)
+  const location = prototypeLocations[selected]
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="География" title="Локации" subtitle="ФО → регион → город" />
+        <label className="small-search workspace-search"><Search size={16} /><input placeholder="Найти локацию" /></label>
+        <div className="module-list-scroll">
+          {prototypeLocations.map((item, index) => (
+            <button className={selected === index ? 'entity-row selected' : 'entity-row'} type="button" onClick={() => setSelected(index)} key={item[0]}>
+              <span className="entity-icon"><MapPin size={17} /></span>
+              <div><strong>{item[0]}</strong><small>{item[1]} · {item[2]}</small></div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        <div className="module-detail-head"><div><span className="eyebrow">{location[1]}</span><h2>{location[0]}</h2><p>Настройки действуют на эту территорию и могут наследоваться дочерними локациями.</p></div><button className="btn primary" type="button">Сохранить</button></div>
+        <div className="tabs static-tabs"><button className="active" type="button">Основное</button><button type="button">Доставка</button><button type="button">Связи</button></div>
+        <div className="module-detail-scroll">
+          <div className="summary-grid">
+            <Card title="Основные данные" subtitle="Положение в дереве">
+              <div className="form-grid readable"><Field label="Название" value={location[0]} required /><Field label="Код" value="voronezh" required /><Field label="Родитель" value="Воронежская область" wide /></div>
+            </Card>
+            <Card title="Тариф по умолчанию" subtitle="Используется, если способ доставки не переопределил значение">
+              <div className="form-grid readable"><Field label="Стоимость" value="900" suffix="₽" /><Field label="Бесплатно от" value="15 000" suffix="₽" /><Field label="Срок от" value="1" /><Field label="Срок до" value="2" /></div>
+            </Card>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const prototypeWarehouses = [
+  ['Воронеж', 'Bo00001', '12 480 ед.', '3 способа'],
+  ['Москва', 'Mo00007', '24 113 ед.', '5 способов'],
+  ['Белгород', 'Bl00003', '4 827 ед.', '2 способа'],
+]
+
+function WarehousesWorkspace() {
+  const [selected, setSelected] = useState(0)
+  const warehouse = prototypeWarehouses[selected]
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="Остатки" title="Склады" subtitle="Физические источники товара" />
+        <div className="module-list-scroll">
+          {prototypeWarehouses.map((item, index) => (
+            <button className={selected === index ? 'entity-row selected' : 'entity-row'} type="button" onClick={() => setSelected(index)} key={item[1]}>
+              <span className="entity-icon"><Warehouse size={17} /></span>
+              <div><strong>{item[0]}</strong><small>{item[1]} · {item[2]}</small></div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        <div className="module-detail-head"><div><span className="eyebrow">Склад</span><h2>{warehouse[0]}</h2><p>{warehouse[1]} · {warehouse[2]} · {warehouse[3]}</p></div><button className="btn primary" type="button">Сохранить</button></div>
+        <div className="tabs static-tabs"><button className="active" type="button">Основное</button><button type="button">Остатки</button><button type="button">Способы доставки</button></div>
+        <div className="module-detail-scroll">
+          <div className="summary-grid">
+            <Card title="Основное" subtitle="Идентификаторы склада"><div className="form-grid readable"><Field label="Название" value={warehouse[0]} required /><Field label="Внешний ID" value={warehouse[1]} required /></div></Card>
+            <Card title="Сводка" subtitle="То, что оператору важно видеть сразу"><dl className="detail-list"><div><dt>Остатки</dt><dd>{warehouse[2]}</dd></div><div><dt>Способы доставки</dt><dd>{warehouse[3]}</dd></div><div><dt>Статус</dt><dd>Активен</dd></div></dl></Card>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const prototypeStores = [
+  ['Светофор — Московский проспект', 'Воронеж', '10:00–20:00'],
+  ['Светофор — Левый берег', 'Воронеж', '10:00–19:00'],
+  ['Светофор — Москва', 'Москва', '10:00–21:00'],
+]
+
+function StoresWorkspace() {
+  const [selected, setSelected] = useState(0)
+  const store = prototypeStores[selected]
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="Точки продаж" title="Магазины" subtitle="Физические магазины" />
+        <div className="module-list-scroll">
+          {prototypeStores.map((item, index) => (
+            <button className={selected === index ? 'entity-row selected' : 'entity-row'} type="button" onClick={() => setSelected(index)} key={item[0]}>
+              <span className="entity-icon"><Store size={17} /></span>
+              <div><strong>{item[0]}</strong><small>{item[1]} · {item[2]}</small></div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        <div className="module-detail-head"><div><span className="eyebrow">Магазин</span><h2>{store[0]}</h2><p>{store[1]} · сегодня {store[2]}</p></div><button className="btn primary" type="button">Сохранить</button></div>
+        <div className="tabs static-tabs"><button className="active" type="button">Основное</button><button type="button">Контакты</button><button type="button">Режим работы</button></div>
+        <div className="module-detail-scroll">
+          <div className="summary-grid">
+            <Card title="Адрес" subtitle="Отображается покупателю"><div className="form-grid readable"><Field label="Город" value={store[1]} required /><Field label="Улица" value="Московский проспект, 90/1" required /><Field label="Координаты" value="51.7062, 39.1667" wide /></div></Card>
+            <Card title="Контакты" subtitle="Связь с магазином"><div className="form-grid readable"><Field label="Телефон" value="+7 (473) 200-00-00" /><Field label="Email" value="store@example.ru" /></div></Card>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
