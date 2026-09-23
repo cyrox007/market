@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Inventory\ProductWarehouseStock;
 use App\Models\Inventory\Warehouse;
 use App\Models\Order\Order;
 use App\Models\Page\Store;
@@ -10,12 +11,17 @@ use App\Models\Product\Attribute;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\Product\Room;
+use App\Models\Settings\ProductStockSettings;
 use App\Models\Shipping\ShippingLocation;
+use App\Services\Product\ProductAttributeSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Vanilo\Shipment\Models\ShippingCategory;
+use Vanilo\Taxes\Models\TaxCategory;
 
 class AdminWorkspaceController extends Controller
 {
@@ -178,35 +184,234 @@ class AdminWorkspaceController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'sku' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', Rule::unique('products', 'slug')->ignore($product->id)],
+            'sku' => ['nullable', 'string', 'max:255'],
             'gtin' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'state' => ['required', Rule::in(['draft', 'active', 'inactive'])],
-            'priority' => ['required', 'integer', 'min:0'],
+            'priority' => ['required', 'integer'],
             'price' => ['required', 'numeric', 'min:0'],
-            'original_price' => ['nullable', 'numeric', 'min:0', 'gt:price'],
+            'original_price' => ['nullable', 'numeric', 'min:0'],
+            'category_ids' => ['array'],
+            'category_ids.*' => ['integer'],
+            'stock' => ['nullable', 'numeric', 'min:0'],
+            'backorder' => ['required', 'boolean'],
+            'length' => ['nullable', 'numeric', 'min:0'],
+            'width' => ['nullable', 'numeric', 'min:0'],
+            'height' => ['nullable', 'numeric', 'min:0'],
+            'weight' => ['nullable', 'numeric', 'min:0'],
+            'tax_category_id' => ['nullable', 'integer'],
+            'shipping_category_id' => ['nullable', 'integer'],
+            'warehouse_stocks' => ['array'],
+            'warehouse_stocks.*.warehouse_id' => ['required', 'integer'],
+            'warehouse_stocks.*.quantity' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $product->name = $validated['name'];
-        $product->sku = $validated['sku'];
-        $product->gtin = $validated['gtin'] ?? null;
-        $product->description = $validated['description'] ?? null;
-        $product->state = $validated['state'];
-        $product->priority = $validated['priority'];
-        $product->price = $validated['price'];
-        $product->original_price = $validated['original_price'] ?? null;
-        $product->save();
+        $categoryIds = Category::query()
+            ->whereIn('id', $validated['category_ids'] ?? [])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-        $product->refresh()->load([
-            'taxons',
-            'attributes.values',
-            'variants',
-            'warehouseStocks.warehouse',
-            'variationAttributeSelection',
-        ]);
+        if (count($categoryIds) !== count(array_unique($validated['category_ids'] ?? []))) {
+            throw ValidationException::withMessages([
+                'category_ids' => 'Одна или несколько выбранных категорий не найдены.',
+            ]);
+        }
+
+        if (! empty($validated['tax_category_id'])
+            && ! TaxCategory::query()->whereKey($validated['tax_category_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'tax_category_id' => 'Категория налога не найдена.',
+            ]);
+        }
+
+        if (! empty($validated['shipping_category_id'])
+            && ! ShippingCategory::query()->whereKey($validated['shipping_category_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'shipping_category_id' => 'Категория доставки не найдена.',
+            ]);
+        }
+
+        DB::transaction(function () use ($product, $validated, $categoryIds): void {
+            $product->name = $validated['name'];
+            $product->slug = filled($validated['slug'] ?? null) ? $validated['slug'] : null;
+            $product->sku = $validated['sku'] ?? '';
+            $product->gtin = $validated['gtin'] ?? null;
+            $product->description = $validated['description'] ?? null;
+            $product->state = $validated['state'];
+            $product->priority = $validated['priority'];
+            $product->price = $validated['price'];
+            $product->original_price = $validated['original_price'] ?? null;
+            $product->backorder = (bool) $validated['backorder'];
+            $product->length = $validated['length'] ?? null;
+            $product->width = $validated['width'] ?? null;
+            $product->height = $validated['height'] ?? null;
+            $product->weight = $validated['weight'] ?? null;
+            $product->tax_category_id = $validated['tax_category_id'] ?? null;
+            $product->shipping_category_id = $validated['shipping_category_id'] ?? null;
+
+            $stockSettings = ProductStockSettings::getInstance();
+            if (! $stockSettings->warehouse_accounting_enabled && ! $product->isVariable()) {
+                $product->stock = $validated['stock'] ?? 0;
+            }
+
+            $product->save();
+            $product->taxons()->sync($categoryIds);
+
+            if ($stockSettings->warehouse_accounting_enabled && ! $product->isVariable()) {
+                $rows = collect($validated['warehouse_stocks'] ?? [])
+                    ->map(fn (array $row) => [
+                        'warehouse_id' => (int) $row['warehouse_id'],
+                        'quantity' => (float) $row['quantity'],
+                    ])
+                    ->unique('warehouse_id')
+                    ->values();
+
+                $validWarehouseIds = Warehouse::query()
+                    ->whereIn('id', $rows->pluck('warehouse_id'))
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id);
+
+                if ($validWarehouseIds->count() !== $rows->count()) {
+                    throw ValidationException::withMessages([
+                        'warehouse_stocks' => 'Один или несколько складов не найдены.',
+                    ]);
+                }
+
+                $product->warehouseStocks()
+                    ->whereNotIn('warehouse_id', $validWarehouseIds->all())
+                    ->delete();
+
+                foreach ($rows as $row) {
+                    ProductWarehouseStock::query()->updateOrCreate(
+                        [
+                            'product_id' => $product->id,
+                            'warehouse_id' => $row['warehouse_id'],
+                        ],
+                        ['quantity' => $row['quantity']],
+                    );
+                }
+            }
+        });
+
+        $this->reloadProductRelations($product);
 
         return response()->json([
             'message' => 'Товар сохранён',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function productEditorOptions(Product $product): JsonResponse
+    {
+        Gate::authorize('view', $product);
+
+        $stockSettings = ProductStockSettings::getInstance();
+
+        $attributes = Attribute::query()
+            ->with('orderedValues')
+            ->when(
+                $product->isVariable(),
+                fn ($query) => $query->where('is_use_in_variations', false)
+            )
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'attributes' => $attributes->map(fn (Attribute $attribute) => [
+                'id' => $attribute->id,
+                'name' => $this->scalarString($attribute->name),
+                'slug' => $this->scalarString($attribute->slug),
+                'type' => $this->scalarString($attribute->type),
+                'is_required' => (bool) $attribute->is_required,
+                'is_multiple' => (bool) $attribute->is_multiple,
+                'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
+                'allow_custom_value' => (bool) $attribute->allow_custom_value,
+                'values' => $attribute->orderedValues->map(fn ($value) => [
+                    'id' => (int) $value->id,
+                    'value' => $this->scalarString($value->value),
+                    'slug' => $this->scalarString($value->slug),
+                    'color_code' => $this->nullableScalarString($value->color_code),
+                ])->values(),
+            ])->values(),
+            'tax_categories' => TaxCategory::query()
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn ($item) => [
+                    'id' => (int) $item->id,
+                    'name' => $this->scalarString($item->name),
+                ])->values(),
+            'shipping_categories' => ShippingCategory::query()
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn ($item) => [
+                    'id' => (int) $item->id,
+                    'name' => $this->scalarString($item->name),
+                ])->values(),
+            'warehouses' => Warehouse::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'external_id'])
+                ->map(fn (Warehouse $warehouse) => [
+                    'id' => (int) $warehouse->id,
+                    'name' => $this->scalarString($warehouse->name),
+                    'external_id' => $this->nullableScalarString($warehouse->external_id),
+                ])->values(),
+            'stock_settings' => [
+                'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
+                'fallback_to_first_warehouse' => (bool) $stockSettings->fallback_to_first_warehouse,
+            ],
+        ]);
+    }
+
+    public function updateProductAttributes(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $validated = $request->validate([
+            'rows' => ['array'],
+            'rows.*.attribute_id' => ['required', 'integer'],
+            'rows.*.attribute_value_id' => ['nullable'],
+            'rows.*.attribute_value_id.*' => ['integer'],
+            'rows.*.custom_value' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $rows = collect($validated['rows'] ?? [])
+            ->map(function (array $row): array {
+                $valueIds = $row['attribute_value_id'] ?? [];
+                if (! is_array($valueIds)) {
+                    $valueIds = $valueIds === null || $valueIds === '' ? [] : [$valueIds];
+                }
+
+                return [
+                    'attribute_id' => (int) $row['attribute_id'],
+                    'attribute_value_id' => array_values(array_map('intval', $valueIds)),
+                    'custom_value' => trim((string) ($row['custom_value'] ?? '')),
+                ];
+            })
+            ->values()
+            ->all();
+
+        if ($product->isVariable()) {
+            $variationAttributeIds = Attribute::query()
+                ->whereIn('id', collect($rows)->pluck('attribute_id'))
+                ->where('is_use_in_variations', true)
+                ->pluck('id');
+
+            if ($variationAttributeIds->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'rows' => 'Характеристики вариаций изменяются во вкладке «Вариации».',
+                ]);
+            }
+        }
+
+        app(ProductAttributeSyncService::class)->sync($product, $rows);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Характеристики сохранены',
             'product' => $this->productDetails($product),
         ]);
     }
@@ -474,10 +679,26 @@ class AdminWorkspaceController extends Controller
 
     private function productDetails(Product $product): array
     {
+        $stockSettings = ProductStockSettings::getInstance();
+
         return array_merge($this->productSummary($product), [
+            'slug' => $this->scalarString($product->slug),
             'description' => $this->nullableScalarString($product->description),
             'priority' => (int) ($product->priority ?? 0),
             'is_variable' => $product->isVariable(),
+            'category_ids' => $product->taxons->pluck('id')->map(fn ($id) => (int) $id)->values(),
+            'stock' => (float) ($product->getRawOriginal('stock') ?? $product->stock ?? 0),
+            'backorder' => (bool) ($product->getRawOriginal('backorder') ?? $product->backorder ?? false),
+            'units_sold' => (int) ($product->units_sold ?? 0),
+            'length' => $product->length !== null ? (float) $product->length : null,
+            'width' => $product->width !== null ? (float) $product->width : null,
+            'height' => $product->height !== null ? (float) $product->height : null,
+            'weight' => $product->weight !== null ? (float) $product->weight : null,
+            'tax_category_id' => $product->tax_category_id !== null ? (int) $product->tax_category_id : null,
+            'shipping_category_id' => $product->shipping_category_id !== null ? (int) $product->shipping_category_id : null,
+            'external_id' => $this->nullableScalarString($product->external_id),
+            'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
+            'attribute_rows' => $this->regularProductAttributeRows($product),
             'attributes' => $this->productAttributeGroups($product),
             'variation_attribute_ids' => $product->variationAttributeSelection
                 ->pluck('id')
@@ -492,11 +713,52 @@ class AdminWorkspaceController extends Controller
                 'stock' => (int) ($variant->stock ?? 0),
             ])->values(),
             'warehouse_stocks' => $product->warehouseStocks->map(fn ($stock) => [
-                'warehouse_id' => $stock->warehouse_id,
+                'warehouse_id' => (int) $stock->warehouse_id,
                 'warehouse_name' => $this->nullableScalarString($stock->warehouse?->name),
                 'quantity' => (float) $stock->quantity,
             ])->values(),
         ]);
+    }
+
+    private function reloadProductRelations(Product $product): void
+    {
+        $product->refresh()->load([
+            'taxons',
+            'attributes.values',
+            'variants',
+            'warehouseStocks.warehouse',
+            'variationAttributeSelection',
+        ]);
+    }
+
+    private function regularProductAttributeRows(Product $product): array
+    {
+        return DB::table('product_product_attributes')
+            ->where('product_id', $product->id)
+            ->orderBy('attribute_id')
+            ->get()
+            ->groupBy('attribute_id')
+            ->map(function ($rows, $attributeId): array {
+                $valueIds = $rows
+                    ->pluck('attribute_value_id')
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $customValue = $rows
+                    ->pluck('custom_value')
+                    ->first(fn ($value) => $value !== null && trim((string) $value) !== '');
+
+                return [
+                    'attribute_id' => (int) $attributeId,
+                    'attribute_value_id' => $valueIds,
+                    'custom_value' => $customValue !== null ? (string) $customValue : '',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function scalarString(mixed $value): string
