@@ -945,8 +945,10 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function createProductVariant(Request $request, Product $product): JsonResponse
+    public function createProductVariant(Request $request, int $productId): JsonResponse
     {
+        $product = $this->findProductById($productId);
+
         Gate::authorize('update', $product);
         Gate::authorize('create', Product::class);
 
@@ -1019,12 +1021,14 @@ class AdminWorkspaceController extends Controller
 
     public function updateProductVariant(
         Request $request,
-        Product $product,
-        Product $variant
+        int $productId,
+        int $variantId
     ): JsonResponse {
+        $product = $this->findProductById($productId);
+        $variant = $this->findVariantById($product, $variantId);
+
         Gate::authorize('update', $product);
         Gate::authorize('update', $variant);
-        $this->ensureVariantBelongsToProduct($product, $variant);
 
         $validated = $this->validateVariantRequest($request, $variant);
         $variationData = $this->normalizeVariantAttributeData(
@@ -1065,11 +1069,13 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function deleteProductVariant(Product $product, Product $variant): JsonResponse
+    public function deleteProductVariant(int $productId, int $variantId): JsonResponse
     {
+        $product = $this->findProductById($productId);
+        $variant = $this->findVariantById($product, $variantId);
+
         Gate::authorize('update', $product);
         Gate::authorize('delete', $variant);
-        $this->ensureVariantBelongsToProduct($product, $variant);
 
         DB::transaction(function () use ($product, $variant): void {
             $variant->delete();
@@ -1089,12 +1095,14 @@ class AdminWorkspaceController extends Controller
 
     public function uploadProductVariantMedia(
         Request $request,
-        Product $product,
-        Product $variant
+        int $productId,
+        int $variantId
     ): JsonResponse {
+        $product = $this->findProductById($productId);
+        $variant = $this->findVariantById($product, $variantId);
+
         Gate::authorize('update', $product);
         Gate::authorize('update', $variant);
-        $this->ensureVariantBelongsToProduct($product, $variant);
 
         $validated = $request->validate([
             'collection' => ['required', Rule::in(['images', 'gallery'])],
@@ -1128,13 +1136,15 @@ class AdminWorkspaceController extends Controller
     }
 
     public function deleteProductVariantMedia(
-        Product $product,
-        Product $variant,
+        int $productId,
+        int $variantId,
         int $media
     ): JsonResponse {
+        $product = $this->findProductById($productId);
+        $variant = $this->findVariantById($product, $variantId);
+
         Gate::authorize('update', $product);
         Gate::authorize('update', $variant);
-        $this->ensureVariantBelongsToProduct($product, $variant);
 
         $item = Media::query()
             ->whereKey($media)
@@ -1154,12 +1164,14 @@ class AdminWorkspaceController extends Controller
 
     public function reorderProductVariantMedia(
         Request $request,
-        Product $product,
-        Product $variant
+        int $productId,
+        int $variantId
     ): JsonResponse {
+        $product = $this->findProductById($productId);
+        $variant = $this->findVariantById($product, $variantId);
+
         Gate::authorize('update', $product);
         Gate::authorize('update', $variant);
-        $this->ensureVariantBelongsToProduct($product, $variant);
 
         $this->reorderGallery($request, $variant);
         $this->reloadProductRelations($product);
@@ -2010,6 +2022,21 @@ class AdminWorkspaceController extends Controller
                 ['quantity' => $row['quantity']],
             );
         }
+    }
+
+    private function findProductById(int $productId): Product
+    {
+        return Product::query()
+            ->whereKey($productId)
+            ->firstOrFail();
+    }
+
+    private function findVariantById(Product $product, int $variantId): Product
+    {
+        return Product::query()
+            ->whereKey($variantId)
+            ->where('parent_product_id', $product->id)
+            ->firstOrFail();
     }
 
     private function ensureVariantBelongsToProduct(
