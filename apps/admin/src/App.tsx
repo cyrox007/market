@@ -1285,17 +1285,27 @@ function ProductEditor({
     setVariantMessage(null)
     setVariantDraftState(null)
 
-    Promise.all([
-      backendApi.product(productId),
-      backendApi.productEditorOptions(productId),
-    ])
-      .then(([productResponse, editorOptions]) => {
+    backendApi.productEditor(productId)
+      .then((editorResponse) => {
         if (cancelled) return
 
-        const loadedProduct = productResponse.product
+        const loadedProduct = editorResponse.product
+        const editorOptions = editorResponse.options
 
         if (!loadedProduct || Number(loadedProduct.id) !== productId) {
-          throw new Error('Backend вернул карточку другого товара или ответ без id.')
+          throw new Error(
+            `Backend вернул некорректную карточку товара #${productId}: отсутствует product.id или id не совпадает.`,
+          )
+        }
+
+        if (!editorOptions
+          || !Array.isArray(editorOptions.attributes)
+          || !Array.isArray(editorOptions.variation_attributes)
+          || !Array.isArray(editorOptions.available_variation_attributes)
+          || !Array.isArray(editorOptions.warehouses)) {
+          throw new Error(
+            `Backend вернул неполные справочники редактора товара #${productId}.`,
+          )
         }
 
         if (typeof loadedProduct.name !== 'string'
@@ -1305,7 +1315,9 @@ function ProductEditor({
           || !Array.isArray(loadedProduct.category_ids)
           || !Array.isArray(loadedProduct.attribute_rows)
           || !Array.isArray(loadedProduct.variants)) {
-          throw new Error('Backend вернул неполную карточку товара. Редактирование остановлено, чтобы не затереть существующие данные.')
+          throw new Error(
+            `Backend вернул неполную карточку товара #${productId}. Редактирование остановлено, чтобы не затереть существующие данные.`,
+          )
         }
 
         setProduct(loadedProduct)
