@@ -1219,6 +1219,7 @@ class AdminWorkspaceController extends Controller
             'weight' => $product->weight !== null ? (float) $product->weight : null,
             'tax_category_id' => $product->tax_category_id !== null ? (int) $product->tax_category_id : null,
             'shipping_category_id' => $product->shipping_category_id !== null ? (int) $product->shipping_category_id : null,
+            'manufacturer_id' => $product->manufacturer_id !== null ? (int) $product->manufacturer_id : null,
             'external_id' => $this->nullableScalarString($product->external_id),
             'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
             'media' => $product->media
