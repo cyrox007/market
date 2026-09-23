@@ -461,7 +461,7 @@ class AdminWorkspaceController extends Controller
 
         if ($resolvedId !== $productId) {
             return response()->json([
-                'message' => 'Backend загрузил не тот товар.',
+                'message' => "Backend загрузил не тот товар: запрошен #{$productId}, получен #{$resolvedId}.",
                 'requested_id' => $productId,
                 'resolved_id' => $resolvedId,
             ], 500);
