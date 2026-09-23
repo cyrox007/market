@@ -97,10 +97,57 @@ export type ProductSummary = {
   updated_at: string | null
 }
 
+export type ProductAttributeRow = {
+  attribute_id: number
+  attribute_value_id: number[]
+  custom_value: string
+}
+
+export type ProductEditorAttributeOption = {
+  id: number
+  name: string
+  slug: string
+  type: string
+  is_required: boolean
+  is_multiple: boolean
+  is_use_in_variations: boolean
+  allow_custom_value: boolean
+  values: Array<{
+    id: number
+    value: string
+    slug: string
+    color_code: string | null
+  }>
+}
+
+export type ProductEditorOptions = {
+  attributes: ProductEditorAttributeOption[]
+  tax_categories: Array<{ id: number; name: string }>
+  shipping_categories: Array<{ id: number; name: string }>
+  warehouses: Array<{ id: number; name: string; external_id: string | null }>
+  stock_settings: {
+    warehouse_accounting_enabled: boolean
+    fallback_to_first_warehouse: boolean
+  }
+}
+
 export type ProductDetails = ProductSummary & {
   description: string | null
   priority: number
   is_variable: boolean
+  category_ids: number[]
+  stock: number
+  backorder: boolean
+  units_sold: number
+  length: number | null
+  width: number | null
+  height: number | null
+  weight: number | null
+  tax_category_id: number | null
+  shipping_category_id: number | null
+  external_id: string | null
+  warehouse_accounting_enabled: boolean
+  attribute_rows: ProductAttributeRow[]
   attributes: Array<{
     id: number
     name: string
@@ -268,17 +315,34 @@ export const backendApi = {
   product: (id: number) =>
     request<{ product: ProductDetails }>(`/admin_sv/api/products/${id}`),
 
+  productEditorOptions: (id: number) =>
+    request<ProductEditorOptions>(`/admin_sv/api/products/${id}/editor-options`),
+
   updateProduct: (
     id: number,
     data: {
       name: string
-      sku: string
+      slug: string | null
+      sku: string | null
       gtin: string | null
       description: string | null
       state: string
       priority: number
       price: number
       original_price: number | null
+      category_ids: number[]
+      stock: number | null
+      backorder: boolean
+      length: number | null
+      width: number | null
+      height: number | null
+      weight: number | null
+      tax_category_id: number | null
+      shipping_category_id: number | null
+      warehouse_stocks: Array<{
+        warehouse_id: number
+        quantity: number
+      }>
     },
     csrfToken: string,
   ) =>
@@ -287,6 +351,20 @@ export const backendApi = {
       {
         method: 'PUT',
         body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  updateProductAttributes: (
+    id: number,
+    rows: ProductAttributeRow[],
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${id}/attributes`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ rows }),
         csrfToken,
       },
     ),
