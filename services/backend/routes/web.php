@@ -67,6 +67,30 @@ Route::middleware([
         Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
             ->where('product', '[0-9]+')
             ->where('media', '[0-9]+');
+
+        Route::post('/products/{product}/related-products', [AdminWorkspaceController::class, 'attachRelatedProduct'])
+            ->where('product', '[0-9]+');
+        Route::delete('/products/{product}/related-products/{related}', [AdminWorkspaceController::class, 'detachRelatedProduct'])
+            ->where('product', '[0-9]+')
+            ->where('related', '[0-9]+');
+
+        Route::post('/products/{product}/bundle-products', [AdminWorkspaceController::class, 'attachBundleProducts'])
+            ->where('product', '[0-9]+');
+        Route::put('/products/{product}/bundle-products/{bundle}', [AdminWorkspaceController::class, 'updateBundleProduct'])
+            ->where('product', '[0-9]+')
+            ->where('bundle', '[0-9]+');
+        Route::delete('/products/{product}/bundle-products/{bundle}', [AdminWorkspaceController::class, 'detachBundleProduct'])
+            ->where('product', '[0-9]+')
+            ->where('bundle', '[0-9]+');
+
+        Route::post('/products/{product}/region-rules', [AdminWorkspaceController::class, 'createProductRegionRule'])
+            ->where('product', '[0-9]+');
+        Route::put('/products/{product}/region-rules/{rule}', [AdminWorkspaceController::class, 'updateProductRegionRule'])
+            ->where('product', '[0-9]+')
+            ->where('rule', '[0-9]+');
+        Route::delete('/products/{product}/region-rules/{rule}', [AdminWorkspaceController::class, 'deleteProductRegionRule'])
+            ->where('product', '[0-9]+')
+            ->where('rule', '[0-9]+');
         Route::get('/attributes', [AdminWorkspaceController::class, 'attributes']);
         Route::put('/attributes/{attribute}', [AdminWorkspaceController::class, 'updateAttribute'])
             ->where('attribute', '[0-9]+');
