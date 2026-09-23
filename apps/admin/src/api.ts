@@ -129,6 +129,12 @@ export type ProductEditorOptions = {
   tax_categories: Array<{ id: number; name: string }>
   shipping_categories: Array<{ id: number; name: string }>
   warehouses: Array<{ id: number; name: string; external_id: string | null }>
+  shipping_locations: Array<{
+    id: number
+    name: string
+    path: string
+    type: string
+  }>
   stock_settings: {
     warehouse_accounting_enabled: boolean
     fallback_to_first_warehouse: boolean
@@ -159,6 +165,38 @@ export type ProductDetails = ProductSummary & {
     url: string
     thumb_url: string
     order: number
+  }>
+  related_products: Array<{
+    id: number
+    name: string
+    sku: string
+    price: number
+    state: string
+    image_url: string | null
+  }>
+  bundle_products: Array<{
+    id: number
+    name: string
+    sku: string
+    price: number
+    state: string
+    image_url: string | null
+    sort_order: number
+  }>
+  region_rules: Array<{
+    id: number
+    variant_id: number | null
+    variant_name: string | null
+    shipping_location_id: number
+    location_name: string | null
+    location_path: string | null
+    price_override: number | null
+    price_modifier_type: 'fixed' | 'percent' | 'multiply' | null
+    price_modifier_value: number | null
+    is_hidden: boolean
+    delivery_days_override: number | null
+    priority: number
+    is_active: boolean
   }>
   attribute_rows: ProductAttributeRow[]
   attributes: Array<{
@@ -527,6 +565,138 @@ export const backendApi = {
   ) =>
     request<{ message: string; product: ProductDetails }>(
       `/admin_sv/api/products/${id}/media/${mediaId}`,
+      {
+        method: 'DELETE',
+        csrfToken,
+      },
+    ),
+
+
+  attachRelatedProduct: (
+    productId: number,
+    relatedProductId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/related-products`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ related_product_id: relatedProductId }),
+        csrfToken,
+      },
+    ),
+
+  detachRelatedProduct: (
+    productId: number,
+    relatedProductId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/related-products/${relatedProductId}`,
+      {
+        method: 'DELETE',
+        csrfToken,
+      },
+    ),
+
+  attachBundleProducts: (
+    productId: number,
+    productIds: number[],
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/bundle-products`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ product_ids: productIds }),
+        csrfToken,
+      },
+    ),
+
+  updateBundleProduct: (
+    productId: number,
+    bundleProductId: number,
+    sortOrder: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/bundle-products/${bundleProductId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ sort_order: sortOrder }),
+        csrfToken,
+      },
+    ),
+
+  detachBundleProduct: (
+    productId: number,
+    bundleProductId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/bundle-products/${bundleProductId}`,
+      {
+        method: 'DELETE',
+        csrfToken,
+      },
+    ),
+
+  createProductRegionRule: (
+    productId: number,
+    data: {
+      variant_id: number | null
+      shipping_location_id: number
+      price_override: number | null
+      price_modifier_type: 'fixed' | 'percent' | 'multiply' | null
+      price_modifier_value: number | null
+      is_hidden: boolean
+      delivery_days_override: number | null
+      priority: number
+      is_active: boolean
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/region-rules`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  updateProductRegionRule: (
+    productId: number,
+    ruleId: number,
+    data: {
+      variant_id: number | null
+      shipping_location_id: number
+      price_override: number | null
+      price_modifier_type: 'fixed' | 'percent' | 'multiply' | null
+      price_modifier_value: number | null
+      is_hidden: boolean
+      delivery_days_override: number | null
+      priority: number
+      is_active: boolean
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/region-rules/${ruleId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  deleteProductRegionRule: (
+    productId: number,
+    ruleId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/region-rules/${ruleId}`,
       {
         method: 'DELETE',
         csrfToken,
