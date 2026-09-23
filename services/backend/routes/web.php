@@ -39,6 +39,7 @@ Route::middleware([
     Route::prefix('api')->group(function () {
         Route::get('/session', [AdminWorkspaceController::class, 'session']);
         Route::get('/products', [AdminWorkspaceController::class, 'products']);
+        Route::post('/products', [AdminWorkspaceController::class, 'createProduct']);
         Route::get('/products/{product}', [AdminWorkspaceController::class, 'product'])
             ->where('product', '[0-9]+');
         Route::get('/products/{product}/editor-options', [AdminWorkspaceController::class, 'productEditorOptions'])
