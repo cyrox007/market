@@ -54,6 +54,8 @@ class AdminWorkspaceProductApiTest extends TestCase
             ->getJson("/admin_sv/api/products/{$product->id}/editor");
 
         $response->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+            ->assertJsonPath('contract_version', 2)
             ->assertJsonPath('product.id', $product->id)
             ->assertJsonPath('product.name', 'Диван для проверки редактора')
             ->assertJsonPath('product.slug', 'divan-editor-contract')
