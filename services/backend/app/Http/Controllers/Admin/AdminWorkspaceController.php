@@ -22,6 +22,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Vanilo\Shipment\Models\ShippingCategory;
 use Vanilo\Taxes\Models\TaxCategory;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class AdminWorkspaceController extends Controller
 {
@@ -171,6 +172,7 @@ class AdminWorkspaceController extends Controller
             'variants',
             'warehouseStocks.warehouse',
             'variationAttributeSelection',
+            'media',
         ]);
 
         return response()->json([
@@ -412,6 +414,55 @@ class AdminWorkspaceController extends Controller
 
         return response()->json([
             'message' => 'Характеристики сохранены',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function uploadProductMedia(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $validated = $request->validate([
+            'collection' => ['required', Rule::in(['images', 'gallery'])],
+            'file' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
+        ]);
+
+        $collection = $validated['collection'];
+
+        if ($collection === 'images') {
+            $product->clearMediaCollection('images');
+        }
+
+        $product
+            ->addMediaFromRequest('file')
+            ->toMediaCollection($collection);
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => $collection === 'images'
+                ? 'Главное изображение обновлено'
+                : 'Изображение добавлено в галерею',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function deleteProductMedia(Product $product, int $media): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $item = Media::query()
+            ->whereKey($media)
+            ->where('model_type', $product->getMorphClass())
+            ->where('model_id', $product->id)
+            ->whereIn('collection_name', ['images', 'gallery'])
+            ->firstOrFail();
+
+        $item->delete();
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Изображение удалено',
             'product' => $this->productDetails($product),
         ]);
     }
@@ -698,6 +749,25 @@ class AdminWorkspaceController extends Controller
             'shipping_category_id' => $product->shipping_category_id !== null ? (int) $product->shipping_category_id : null,
             'external_id' => $this->nullableScalarString($product->external_id),
             'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
+            'media' => $product->media
+                ->whereIn('collection_name', ['images', 'gallery'])
+                ->sortBy(fn (Media $media) => [
+                    $media->collection_name === 'images' ? 0 : 1,
+                    $media->order_column ?? PHP_INT_MAX,
+                    $media->id,
+                ])
+                ->map(fn (Media $media) => [
+                    'id' => (int) $media->id,
+                    'collection' => $this->scalarString($media->collection_name),
+                    'name' => $this->scalarString($media->name),
+                    'file_name' => $this->scalarString($media->file_name),
+                    'url' => $media->getUrl(),
+                    'thumb_url' => $media->hasGeneratedConversion('thumb')
+                        ? $media->getUrl('thumb')
+                        : $media->getUrl(),
+                    'order' => (int) ($media->order_column ?? 0),
+                ])
+                ->values(),
             'attribute_rows' => $this->regularProductAttributeRows($product),
             'attributes' => $this->productAttributeGroups($product),
             'variation_attribute_ids' => $product->variationAttributeSelection
@@ -728,6 +798,7 @@ class AdminWorkspaceController extends Controller
             'variants',
             'warehouseStocks.warehouse',
             'variationAttributeSelection',
+            'media',
         ]);
     }
 
