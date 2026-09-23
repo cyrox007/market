@@ -9,13 +9,111 @@ use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AdminWorkspaceProductApiTest extends TestCase
 {
+    public function test_product_media_upload_reorder_and_delete_lifecycle(): void
+    {
+        Storage::fake('public');
+
+        $permissions = collect([
+            'view products',
+            'update products',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        $role = Role::firstOrCreate([
+            'name' => 'manager',
+            'guard_name' => 'web',
+        ]);
+        $role->syncPermissions($permissions);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $product = Product::factory()->create([
+            'name' => 'Товар для проверки изображений',
+            'slug' => 'product-media-lifecycle',
+            'sku' => 'MEDIA-001',
+            'state' => 'active',
+            'price' => 1000,
+            'parent_product_id' => null,
+        ]);
+
+        $mainResponse = $this
+            ->withHeader('Accept', 'application/json')
+            ->actingAs($user, 'web')
+            ->post("/admin_sv/api/products/{$product->id}/media", [
+                'collection' => 'images',
+                'file' => UploadedFile::fake()->image('main.jpg', 800, 800),
+            ]);
+
+        $mainResponse->assertOk()
+            ->assertJsonPath('message', 'Главное изображение обновлено')
+            ->assertJsonPath('product.id', $product->id);
+
+        $mainMedia = $product->fresh()->getFirstMedia('images');
+        $this->assertNotNull($mainMedia);
+        $this->assertSame('main.jpg', $mainMedia->file_name);
+
+        foreach (['gallery-1.jpg', 'gallery-2.jpg'] as $fileName) {
+            $this
+                ->withHeader('Accept', 'application/json')
+                ->actingAs($user, 'web')
+                ->post("/admin_sv/api/products/{$product->id}/media", [
+                    'collection' => 'gallery',
+                    'file' => UploadedFile::fake()->image($fileName, 1200, 900),
+                ])
+                ->assertOk()
+                ->assertJsonPath('message', 'Изображение добавлено в галерею');
+        }
+
+        $gallery = $product->fresh()
+            ->getMedia('gallery')
+            ->sortBy('order_column')
+            ->values();
+
+        $this->assertCount(2, $gallery);
+
+        $firstId = (int) $gallery[0]->id;
+        $secondId = (int) $gallery[1]->id;
+
+        $this->actingAs($user, 'web')
+            ->putJson("/admin_sv/api/products/{$product->id}/media-order", [
+                'media_ids' => [$secondId, $firstId],
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Порядок изображений сохранён');
+
+        $orderedIds = $product->fresh()
+            ->getMedia('gallery')
+            ->sortBy('order_column')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $this->assertSame([$secondId, $firstId], $orderedIds);
+
+        $this->actingAs($user, 'web')
+            ->deleteJson("/admin_sv/api/products/{$product->id}/media/{$firstId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Изображение удалено');
+
+        $this->assertDatabaseMissing('media', [
+            'id' => $firstId,
+            'model_id' => $product->id,
+        ]);
+    }
+
     public function test_full_variant_lifecycle_with_color_and_warehouse_stock(): void
     {
         $permissions = collect([
