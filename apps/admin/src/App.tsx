@@ -447,30 +447,17 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
     setProductsError(null)
 
     const timer = window.setTimeout(() => {
-      const request = kind === 'rooms' && selectedSection
-        ? backendApi.publicProductsByRoom(selectedSection.slug)
-        : backendApi.products({
-            search: search.trim() || undefined,
-            categoryId: kind === 'categories' ? selectedSection?.id ?? null : null,
-          })
+      const request = backendApi.products({
+        search: search.trim() || undefined,
+        categoryId: kind === 'categories' ? selectedSection?.id ?? null : null,
+        roomId: kind === 'rooms' ? selectedSection?.id ?? null : null,
+      })
 
       request
         .then((response) => {
           if (cancelled) return
 
-          const rows: ProductSummary[] = response.data.map((row) => ({
-            id: row.id,
-            name: row.name,
-            slug: row.slug,
-            sku: 'sku' in row && row.sku ? row.sku : '',
-            gtin: 'gtin' in row ? row.gtin ?? null : null,
-            state: 'state' in row ? row.state : 'active',
-            price: Number(row.price ?? 0),
-            original_price: 'original_price' in row ? row.original_price ?? null : null,
-            stock: Number(row.stock ?? 0),
-            variants_count: 'variants_count' in row ? row.variants_count : 0,
-            categories: row.categories ?? [],
-          }))
+          const rows: ProductSummary[] = response.data
 
           setProducts(rows)
           setProductsTotal(response.meta?.total ?? rows.length)
