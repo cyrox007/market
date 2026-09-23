@@ -10,6 +10,8 @@ use App\Models\Payment\PaymentMethod;
 use App\Models\Product\Product;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Shipping\ShippingLocation;
+use App\Models\Shipping\WarehouseDeliveryMethod;
+use App\Models\Shipping\WarehouseDeliveryZone;
 use App\Models\Settings\ProductStockSettings;
 use App\Models\User;
 use App\Services\Shipping\CarrierService;
@@ -514,9 +516,9 @@ class OrderControllerTest extends TestCase
     }
 
 
-    public function test_delivery_order_uses_server_warehouse_rule_and_persists_selected_warehouse(): void
+    public function test_delivery_order_uses_server_warehouse_method_and_persists_snapshot(): void
     {
-        [$location] = $this->makeDeliveryScenario();
+        [$location, , $shippingMethod] = $this->makeDeliveryScenario();
 
         ProductStockSettings::getInstance()->update([
             'warehouse_accounting_enabled' => true,
@@ -536,12 +538,21 @@ class OrderControllerTest extends TestCase
             'is_active' => true,
         ]);
 
-        $warehouse->shippingLocations()->attach($location->id, [
+        $deliveryMethod = WarehouseDeliveryMethod::create([
+            'warehouse_id' => $warehouse->id,
+            'shipping_method_id' => $shippingMethod->id,
+            'is_active' => true,
+            'priority' => 100,
+        ]);
+
+        WarehouseDeliveryZone::create([
+            'warehouse_delivery_method_id' => $deliveryMethod->id,
+            'shipping_location_id' => $location->id,
             'delivery_price' => 650,
             'delivery_days_min' => 2,
             'delivery_days_max' => 4,
             'is_active' => true,
-            'priority' => 100,
+            'priority' => 10,
         ]);
 
         ProductWarehouseStock::create([
@@ -559,8 +570,8 @@ class OrderControllerTest extends TestCase
             'payment_method' => 'card',
             'delivery_type' => 'delivery',
             'shipping_location_id' => $location->id,
-            'delivery_warehouse_id' => $warehouse->id,
-            // Клиентские суммы не должны переопределять серверное правило.
+            'warehouse_delivery_method_id' => $deliveryMethod->id,
+            // Клиентские суммы не должны переопределять серверный тариф.
             'delivery_cost' => 1,
             'assembly_cost' => 1,
             'requires_assembly' => false,
@@ -572,7 +583,9 @@ class OrderControllerTest extends TestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('order.delivery_warehouse.id', $warehouse->id);
+            ->assertJsonPath('order.delivery_warehouse.id', $warehouse->id)
+            ->assertJsonPath('order.warehouse_delivery_method.id', $deliveryMethod->id)
+            ->assertJsonPath('order.shipping_method.id', $shippingMethod->id);
 
         $this->assertSame(650.0, (float) $response->json('order.delivery_cost'));
         $this->assertSame(0.0, (float) $response->json('order.assembly_cost'));
@@ -580,7 +593,10 @@ class OrderControllerTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'id' => $response->json('order.id'),
             'delivery_warehouse_id' => $warehouse->id,
+            'warehouse_delivery_method_id' => $deliveryMethod->id,
+            'shipping_method_id' => $shippingMethod->id,
             'delivery_cost' => 650,
+            'delivery_base_price' => 650,
             'delivery_days_min' => 2,
             'delivery_days_max' => 4,
         ]);
