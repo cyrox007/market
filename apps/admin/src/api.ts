@@ -407,6 +407,11 @@ export const backendApi = {
   product: (id: number) =>
     request<{ product: ProductDetails }>(`/admin_sv/api/products/${id}`),
 
+  productEditor: (id: number) =>
+    request<{ product: ProductDetails; options: ProductEditorOptions }>(
+      `/admin_sv/api/products/${id}/editor`,
+    ),
+
   productEditorOptions: (id: number) =>
     request<ProductEditorOptions>(`/admin_sv/api/products/${id}/editor-options`),
 
