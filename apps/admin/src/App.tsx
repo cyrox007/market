@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   Bell,
-  Boxes,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
   CircleAlert,
   ClipboardList,
@@ -14,14 +12,11 @@ import {
   MapPin,
   Moon,
   Package,
-  Pencil,
   RefreshCw,
   Search,
-  Settings,
   SlidersHorizontal,
   Store,
   Sun,
-  Truck,
   UserRound,
   Warehouse,
 } from 'lucide-react'
@@ -1694,7 +1689,7 @@ function Card({
 }: {
   title: string
   subtitle: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <section className="card">
@@ -1712,7 +1707,7 @@ function Table({
   children,
 }: {
   headers: string[]
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div className="table-wrap">
@@ -1795,24 +1790,6 @@ function WorkspaceError({
         <RefreshCw size={15} />
         Повторить
       </button>
-    </section>
-  )
-}
-
-function UnavailableWorkspace({
-  icon: Icon,
-  title,
-  text,
-}: {
-  icon: typeof Warehouse
-  title: string
-  text: string
-}) {
-  return (
-    <section className="panel workspace-state">
-      <Icon size={28} />
-      <h2>{title}</h2>
-      <p>{text}</p>
     </section>
   )
 }
