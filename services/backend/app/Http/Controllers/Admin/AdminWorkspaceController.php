@@ -2159,7 +2159,7 @@ class AdminWorkspaceController extends Controller
 
     private function uniqueProductSlug(string $seed): string
     {
-        $base = IlluminateSupportStr::slug($seed);
+        $base = \Illuminate\Support\Str::slug($seed);
         $base = mb_substr($base !== '' ? $base : 'product', 0, 220);
 
         $slug = $base;
