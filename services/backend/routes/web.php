@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminUiController;
 use App\Http\Controllers\Admin\AdminWorkspaceController;
 use App\Http\Controllers\Admin\OrderPrintController;
 use App\Http\Controllers\Api\ApiMetricsController;
@@ -11,6 +12,10 @@ Route::get('api-docs/metrics', ApiMetricsController::class)
 /* Route::get('/', function () {
     return view('welcome');
 }); */
+
+Route::get('/admin-ui/{path?}', AdminUiController::class)
+    ->where('path', '.*')
+    ->name('admin-ui');
 
 Route::get('/{any}', function () {
     return File::get(public_path('index.html'));
