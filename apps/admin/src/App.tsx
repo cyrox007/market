@@ -948,6 +948,9 @@ function ProductEditor({
   const [saving, setSaving] = useState(false)
   const [attributesSaving, setAttributesSaving] = useState(false)
   const [mediaSaving, setMediaSaving] = useState(false)
+  const [variantDraftState, setVariantDraftState] = useState<VariantDraft | null>(null)
+  const [variantSaving, setVariantSaving] = useState(false)
+  const [variantMessage, setVariantMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [attributesMessage, setAttributesMessage] = useState<string | null>(null)
@@ -960,6 +963,8 @@ function ProductEditor({
     setError(null)
     setMessage(null)
     setAttributesMessage(null)
+    setVariantMessage(null)
+    setVariantDraftState(null)
 
     Promise.all([
       backendApi.product(productId),
@@ -1155,6 +1160,103 @@ function ProductEditor({
     })
   }
 
+  const openVariant = (variant: ProductDetails['variants'][number]) => {
+    setVariantDraftState(variantDraft(product, options, variant))
+    setVariantMessage(null)
+    setError(null)
+  }
+
+  const createVariant = () => {
+    setVariantDraftState(variantDraft(product, options))
+    setVariantMessage(null)
+    setError(null)
+  }
+
+  const saveVariant = async () => {
+    if (!variantDraftState || !canUpdate) return
+
+    setVariantSaving(true)
+    setError(null)
+    setVariantMessage(null)
+
+    const payload = {
+      name: variantDraftState.name.trim(),
+      sku: variantDraftState.sku.trim(),
+      price: Number(variantDraftState.price.replace(',', '.') || 0),
+      original_price: numberOrNull(variantDraftState.original_price),
+      stock: numberOrNull(variantDraftState.stock),
+      backorder: variantDraftState.backorder,
+      state: variantDraftState.state,
+      external_id: variantDraftState.external_id.trim() || null,
+      warehouse_stocks: variantDraftState.warehouse_stocks.map((row) => ({
+        warehouse_id: row.warehouse_id,
+        quantity: Number(row.quantity.replace(',', '.') || 0),
+      })),
+      attributes: variantDraftState.attributes,
+    }
+
+    try {
+      const response = variantDraftState.id === null
+        ? await backendApi.createProductVariant(
+            product.id,
+            payload,
+            session.csrf_token,
+          )
+        : await backendApi.updateProductVariant(
+            product.id,
+            variantDraftState.id,
+            payload,
+            session.csrf_token,
+          )
+
+      applySavedProduct(response.product)
+
+      const savedVariant = variantDraftState.id === null
+        ? response.product.variants.find((item) => item.sku === payload.sku)
+        : response.product.variants.find((item) => item.id === variantDraftState.id)
+
+      setVariantDraftState(
+        savedVariant
+          ? variantDraft(response.product, options, savedVariant)
+          : null,
+      )
+      setVariantMessage(response.message)
+    } catch (variantError) {
+      setError(variantError instanceof Error ? variantError.message : String(variantError))
+    } finally {
+      setVariantSaving(false)
+    }
+  }
+
+  const deleteVariant = async () => {
+    if (!variantDraftState?.id || !session.permissions.products?.delete) return
+
+    const confirmed = window.confirm(
+      `Удалить торговое предложение «${variantDraftState.name}»? Это действие нельзя отменить.`,
+    )
+    if (!confirmed) return
+
+    setVariantSaving(true)
+    setError(null)
+    setVariantMessage(null)
+
+    try {
+      const response = await backendApi.deleteProductVariant(
+        product.id,
+        variantDraftState.id,
+        session.csrf_token,
+      )
+
+      applySavedProduct(response.product)
+      setVariantDraftState(null)
+      setVariantMessage(response.message)
+    } catch (variantError) {
+      setError(variantError instanceof Error ? variantError.message : String(variantError))
+    } finally {
+      setVariantSaving(false)
+    }
+  }
+
   const uploadMedia = async (
     collection: 'images' | 'gallery',
     file: File | null,
@@ -1257,6 +1359,7 @@ function ProductEditor({
           {error && <span className="chip error"><CircleAlert size={13} /> Есть ошибка</span>}
           {message && <span className="chip ok"><CheckCircle2 size={13} /> {message}</span>}
           {attributesMessage && <span className="chip ok"><CheckCircle2 size={13} /> {attributesMessage}</span>}
+          {variantMessage && <span className="chip ok"><CheckCircle2 size={13} /> {variantMessage}</span>}
         </div>
 
         {error && (
@@ -1580,30 +1683,93 @@ function ProductEditor({
 
         {tab === 'variants' && (
           <div className="editor-content-wide">
-            <Card title="Торговые предложения" subtitle="Вариации товара и их базовые данные">
-              {product.variants.length === 0 ? (
-                <EmptyState text="У товара нет вариаций." />
-              ) : (
-                <Table headers={['Название', 'SKU', 'Цена', 'Остаток', 'Статус']}>
-                  {product.variants.map((variant) => (
-                    <tr key={variant.id}>
-                      <td><strong>{variant.name}</strong></td>
-                      <td>{variant.sku}</td>
-                      <td>{formatMoney(variant.price)}</td>
-                      <td>{variant.stock}</td>
-                      <td><Status value={stateLabel(variant.state)} compact /></td>
-                    </tr>
-                  ))}
-                </Table>
-              )}
-            </Card>
+            <div className="variant-workspace">
+              <section className="variant-list-panel">
+                <header>
+                  <div>
+                    <h3>Торговые предложения</h3>
+                    <p>{product.variants.length} шт.</p>
+                  </div>
+                  <button
+                    className="btn primary small"
+                    type="button"
+                    onClick={createVariant}
+                    disabled={!canUpdate || !session.permissions.products?.create}
+                  >
+                    <Plus size={14} />
+                    Добавить
+                  </button>
+                </header>
 
-            <div className="callout muted">
-              <AlertTriangle size={17} />
-              <div>
-                <strong>Редактирование вариаций следующим отдельным рабочим блоком</strong>
-                <span>Здесь должны управляться SKU вариации, её цена, остатки и значения вариативных характеристик. Родительские характеристики сюда не смешиваются.</span>
-              </div>
+                <div className="variant-list">
+                  {product.variants.length === 0 && (
+                    <div className="variant-list-empty">
+                      Торговых предложений пока нет.
+                    </div>
+                  )}
+
+                  {product.variants.map((variant) => {
+                    const selected = variantDraftState?.id === variant.id
+                    const labels = variant.attributes
+                      .flatMap((row) => {
+                        const attribute = options.variation_attributes.find((item) => item.id === row.attribute_id)
+                        if (!attribute) return []
+
+                        const predefined = row.attribute_value_id
+                          .map((id) => attribute.values.find((value) => value.id === id)?.value)
+                          .filter(Boolean) as string[]
+                        const values = row.custom_value
+                          ? [...predefined, row.custom_value]
+                          : predefined
+
+                        return values.length > 0
+                          ? [`${attribute.name}: ${values.join(', ')}`]
+                          : []
+                      })
+                      .slice(0, 2)
+
+                    return (
+                      <button
+                        className={selected ? 'variant-list-row selected' : 'variant-list-row'}
+                        type="button"
+                        onClick={() => openVariant(variant)}
+                        key={variant.id}
+                      >
+                        <div>
+                          <strong>{variant.name}</strong>
+                          <small>{variant.sku}</small>
+                          {labels.length > 0 && <em>{labels.join(' · ')}</em>}
+                        </div>
+                        <div>
+                          <strong>{formatMoney(variant.price)}</strong>
+                          <small>{variant.stock} шт.</small>
+                        </div>
+                        <ChevronRight size={15} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+
+              {variantDraftState ? (
+                <VariantEditorPanel
+                  draft={variantDraftState}
+                  options={options}
+                  canUpdate={canUpdate}
+                  canDelete={Boolean(session.permissions.products?.delete)}
+                  saving={variantSaving}
+                  onChange={setVariantDraftState}
+                  onSave={saveVariant}
+                  onDelete={deleteVariant}
+                  onCancel={() => setVariantDraftState(null)}
+                />
+              ) : (
+                <section className="variant-editor-placeholder">
+                  <Package size={28} />
+                  <strong>Выберите торговое предложение</strong>
+                  <span>Или создайте новое, чтобы задать SKU, цену, остатки и параметры вариации.</span>
+                </section>
+              )}
             </div>
           </div>
         )}
@@ -1970,6 +2136,331 @@ function ProductEditor({
             </button>
           </div>
         )}
+      </footer>
+    </section>
+  )
+}
+
+function VariantEditorPanel({
+  draft,
+  options,
+  canUpdate,
+  canDelete,
+  saving,
+  onChange,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  draft: VariantDraft
+  options: ProductEditorOptions
+  canUpdate: boolean
+  canDelete: boolean
+  saving: boolean
+  onChange: (draft: VariantDraft) => void
+  onSave: () => void
+  onDelete: () => void
+  onCancel: () => void
+}) {
+  const updateAttribute = (
+    attributeId: number,
+    patch: Partial<ProductAttributeRow>,
+  ) => {
+    onChange({
+      ...draft,
+      attributes: draft.attributes.map((row) => (
+        row.attribute_id === attributeId ? { ...row, ...patch } : row
+      )),
+    })
+  }
+
+  const addWarehouse = () => {
+    const used = new Set(draft.warehouse_stocks.map((row) => row.warehouse_id))
+    const warehouse = options.warehouses.find((item) => !used.has(item.id))
+    if (!warehouse) return
+
+    onChange({
+      ...draft,
+      warehouse_stocks: [
+        ...draft.warehouse_stocks,
+        { warehouse_id: warehouse.id, quantity: '0' },
+      ],
+    })
+  }
+
+  return (
+    <section className="variant-editor-panel">
+      <header className="variant-editor-head">
+        <div>
+          <span className="eyebrow">
+            {draft.id === null ? 'Новое торговое предложение' : `Торговое предложение #${draft.id}`}
+          </span>
+          <h3>{draft.name || 'Без названия'}</h3>
+        </div>
+        <button className="icon-btn" type="button" onClick={onCancel} aria-label="Закрыть редактор">
+          <X size={16} />
+        </button>
+      </header>
+
+      <div className="variant-editor-scroll">
+        <div className="editor-two-column">
+          <Card title="Основные данные" subtitle="Идентичность, цена и публикация вариации">
+            <div className="form-grid readable">
+              <LiveField
+                label="Название вариации"
+                value={draft.name}
+                required
+                onChange={(value) => onChange({ ...draft, name: value })}
+              />
+              <LiveField
+                label="SKU"
+                value={draft.sku}
+                required
+                onChange={(value) => onChange({ ...draft, sku: value })}
+              />
+              <LiveField
+                label="Цена"
+                value={draft.price}
+                required
+                suffix="₽"
+                inputMode="decimal"
+                onChange={(value) => onChange({ ...draft, price: value })}
+              />
+              <LiveField
+                label="Цена до скидки"
+                value={draft.original_price}
+                suffix="₽"
+                inputMode="decimal"
+                onChange={(value) => onChange({ ...draft, original_price: value })}
+              />
+              <label className="field">
+                <span>Статус <b>*</b></span>
+                <select
+                  value={draft.state}
+                  disabled={!canUpdate}
+                  onChange={(event) => onChange({ ...draft, state: event.target.value })}
+                >
+                  <option value="active">Активен</option>
+                  <option value="draft">Черновик</option>
+                  <option value="inactive">Неактивен</option>
+                </select>
+              </label>
+              <LiveField
+                label="Внешний ID 1С"
+                value={draft.external_id}
+                onChange={(value) => onChange({ ...draft, external_id: value })}
+              />
+            </div>
+
+            <label className="switch-line variant-backorder">
+              <input
+                type="checkbox"
+                checked={draft.backorder}
+                disabled={!canUpdate}
+                onChange={(event) => onChange({ ...draft, backorder: event.target.checked })}
+              />
+              <span>
+                <strong>Разрешить предзаказ</strong>
+                <small>Можно оформить вариацию при нулевом остатке.</small>
+              </span>
+            </label>
+          </Card>
+
+          <Card title="Остатки" subtitle={options.stock_settings.warehouse_accounting_enabled ? 'По складам' : 'Общий остаток'}>
+            {!options.stock_settings.warehouse_accounting_enabled ? (
+              <LiveField
+                label="Остаток"
+                value={draft.stock}
+                inputMode="decimal"
+                onChange={(value) => onChange({ ...draft, stock: value })}
+              />
+            ) : (
+              <div className="warehouse-stock-editor">
+                {draft.warehouse_stocks.map((row, index) => (
+                  <div className="warehouse-stock-row" key={`${row.warehouse_id}-${index}`}>
+                    <label className="field">
+                      <span>Склад</span>
+                      <select
+                        value={row.warehouse_id}
+                        disabled={!canUpdate}
+                        onChange={(event) => {
+                          const warehouseId = Number(event.target.value)
+                          onChange({
+                            ...draft,
+                            warehouse_stocks: draft.warehouse_stocks.map((item, rowIndex) => (
+                              rowIndex === index ? { ...item, warehouse_id: warehouseId } : item
+                            )),
+                          })
+                        }}
+                      >
+                        {options.warehouses.map((warehouse) => (
+                          <option
+                            value={warehouse.id}
+                            disabled={draft.warehouse_stocks.some((item, rowIndex) => (
+                              rowIndex !== index && item.warehouse_id === warehouse.id
+                            ))}
+                            key={warehouse.id}
+                          >
+                            {warehouse.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <LiveField
+                      label="Количество"
+                      value={row.quantity}
+                      inputMode="decimal"
+                      onChange={(value) => onChange({
+                        ...draft,
+                        warehouse_stocks: draft.warehouse_stocks.map((item, rowIndex) => (
+                          rowIndex === index ? { ...item, quantity: value } : item
+                        )),
+                      })}
+                    />
+                    <button
+                      className="icon-danger warehouse-remove"
+                      type="button"
+                      aria-label="Удалить склад"
+                      disabled={!canUpdate}
+                      onClick={() => onChange({
+                        ...draft,
+                        warehouse_stocks: draft.warehouse_stocks.filter((_, rowIndex) => rowIndex !== index),
+                      })}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  className="btn ghost small"
+                  type="button"
+                  onClick={addWarehouse}
+                  disabled={!canUpdate || draft.warehouse_stocks.length >= options.warehouses.length}
+                >
+                  <Plus size={14} />
+                  Добавить склад
+                </button>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <Card title="Параметры вариации" subtitle="Цвет, размер, вариант и другие свойства торгового предложения">
+          <div className="variant-attribute-editor">
+            {options.variation_attributes.map((attribute) => {
+              const row = draft.attributes.find((item) => item.attribute_id === attribute.id)
+                ?? { attribute_id: attribute.id, attribute_value_id: [], custom_value: '' }
+              const required = attribute.is_required || attribute.slug === 'variant'
+              const showCustom = attribute.allow_custom_value
+                && (attribute.values.length === 0 || attribute.type !== 'select')
+
+              return (
+                <div className="variant-attribute-row" key={attribute.id}>
+                  <div className="variant-attribute-label">
+                    <strong>{attribute.name}{required ? ' *' : ''}</strong>
+                    <small>{attribute.slug}</small>
+                  </div>
+
+                  <div className="variant-attribute-control">
+                    {attribute.values.length > 0 && !attribute.is_multiple && (
+                      <label className="field">
+                        <span>Значение из справочника</span>
+                        <select
+                          value={row.attribute_value_id[0] ?? ''}
+                          disabled={!canUpdate}
+                          onChange={(event) => updateAttribute(attribute.id, {
+                            attribute_value_id: event.target.value ? [Number(event.target.value)] : [],
+                            custom_value: '',
+                          })}
+                        >
+                          <option value="">Не выбрано</option>
+                          {attribute.values.map((value) => (
+                            <option value={value.id} key={value.id}>{value.value}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
+                    {attribute.values.length > 0 && attribute.is_multiple && (
+                      <div className="attribute-multiple-field">
+                        <span>Значения</span>
+                        <div className="attribute-choice-grid">
+                          {attribute.values.map((value) => {
+                            const selected = row.attribute_value_id.includes(value.id)
+                            return (
+                              <button
+                                className={selected ? 'attribute-choice selected' : 'attribute-choice'}
+                                type="button"
+                                disabled={!canUpdate}
+                                onClick={() => {
+                                  const next = selected
+                                    ? row.attribute_value_id.filter((id) => id !== value.id)
+                                    : [...row.attribute_value_id, value.id]
+                                  updateAttribute(attribute.id, {
+                                    attribute_value_id: next,
+                                    custom_value: '',
+                                  })
+                                }}
+                                key={value.id}
+                              >
+                                {value.color_code && <i style={{ background: value.color_code }} />}
+                                {value.value}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {showCustom && (
+                      <LiveField
+                        label={attribute.values.length > 0 ? 'Или своё значение' : 'Значение'}
+                        value={row.custom_value}
+                        inputMode={attribute.type === 'number_input' ? 'decimal' : 'text'}
+                        onChange={(value) => updateAttribute(attribute.id, {
+                          custom_value: value,
+                          attribute_value_id: value.trim() ? [] : row.attribute_value_id,
+                        })}
+                      />
+                    )}
+
+                    {attribute.values.length === 0 && !showCustom && (
+                      <div className="attribute-no-values">
+                        <CircleAlert size={15} />
+                        В справочнике нет значений для этой характеристики.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <footer className="variant-editor-actions">
+        {draft.id !== null && canDelete ? (
+          <button
+            className="btn danger"
+            type="button"
+            onClick={onDelete}
+            disabled={saving}
+          >
+            <Trash2 size={15} />
+            Удалить
+          </button>
+        ) : <span />}
+
+        <div>
+          <button className="btn ghost" type="button" onClick={onCancel} disabled={saving}>
+            Отмена
+          </button>
+          <button className="btn primary" type="button" onClick={onSave} disabled={!canUpdate || saving}>
+            {saving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
+            {saving ? 'Сохраняю…' : draft.id === null ? 'Создать' : 'Сохранить'}
+          </button>
+        </div>
       </footer>
     </section>
   )
