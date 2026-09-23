@@ -1746,6 +1746,29 @@ function ProductEditor({
     }
   }
 
+  const persistVariationSelection = async () => {
+    const selectableIds = variationSelection.filter(
+      (id) => id !== systemVariantAttribute?.id,
+    )
+    const response = await backendApi.updateProductVariationAttributes(
+      product.id,
+      selectableIds,
+      session.csrf_token,
+    )
+    const refreshedOptions = await backendApi.productEditorOptions(product.id)
+
+    applySavedProduct(response.product)
+    setOptions(refreshedOptions)
+    setVariationSelection([...response.product.variation_attribute_ids])
+    setVariationSelectionDirty(false)
+    setVariantMessage(response.message)
+
+    return {
+      product: response.product,
+      options: refreshedOptions,
+    }
+  }
+
   const saveVariationSelection = async () => {
     if (!canUpdate || !variationSelectionDirty) return
 
@@ -1754,22 +1777,8 @@ function ProductEditor({
     setVariantMessage(null)
 
     try {
-      const selectableIds = variationSelection.filter(
-        (id) => id !== systemVariantAttribute?.id,
-      )
-      const response = await backendApi.updateProductVariationAttributes(
-        product.id,
-        selectableIds,
-        session.csrf_token,
-      )
-      const refreshedOptions = await backendApi.productEditorOptions(product.id)
-
-      applySavedProduct(response.product)
-      setOptions(refreshedOptions)
-      setVariationSelection([...response.product.variation_attribute_ids])
-      setVariationSelectionDirty(false)
+      await persistVariationSelection()
       setVariantDraftState(null)
-      setVariantMessage(response.message)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError))
     } finally {
@@ -1799,12 +1808,28 @@ function ProductEditor({
     setError(null)
   }
 
-  const createVariant = () => {
-    if (variationSelectionDirty) return
+  const createVariant = async () => {
+    if (!canUpdate || !session.permissions.products?.create) return
 
-    setVariantDraftState(variantDraft(product, variantEditorOptions))
-    setVariantMessage(null)
     setError(null)
+    setVariantMessage(null)
+
+    if (!variationSelectionDirty) {
+      setVariantDraftState(variantDraft(product, variantEditorOptions))
+      return
+    }
+
+    setVariationSelectionSaving(true)
+
+    try {
+      const saved = await persistVariationSelection()
+      setVariantDraftState(variantDraft(saved.product, saved.options))
+      setVariantMessage('Параметры сохранены. Заполните новую вариацию.')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError))
+    } finally {
+      setVariationSelectionSaving(false)
+    }
   }
 
   const saveVariant = async () => {
@@ -2593,7 +2618,7 @@ function ProductEditor({
               {variationSelectionDirty && (
                 <div className="variation-unsaved">
                   <CircleAlert size={16} />
-                  Сначала сохраните выбранные параметры. После этого можно создавать и редактировать торговые предложения.
+                  Параметры ещё не сохранены. При создании вариации они сохранятся автоматически.
                 </div>
               )}
             </section>
@@ -2608,11 +2633,15 @@ function ProductEditor({
                   <button
                     className="btn primary small"
                     type="button"
-                    onClick={createVariant}
-                    disabled={!canUpdate || !session.permissions.products?.create || variationSelectionDirty}
+                    onClick={() => void createVariant()}
+                    disabled={!canUpdate || !session.permissions.products?.create || variationSelectionSaving}
                   >
-                    <Plus size={14} />
-                    Добавить вариацию
+                    {variationSelectionSaving ? <Loader2 className="spin" size={14} /> : <Plus size={14} />}
+                    {variationSelectionSaving
+                      ? 'Сохраняю параметры…'
+                      : variationSelectionDirty
+                        ? 'Сохранить и добавить вариацию'
+                        : 'Добавить вариацию'}
                   </button>
                 </header>
 
@@ -2692,8 +2721,23 @@ function ProductEditor({
               ) : (
                 <section className="variant-editor-placeholder">
                   <Package size={28} />
-                  <strong>Выберите или создайте вариацию</strong>
+                  <strong>Создайте первую вариацию</strong>
                   <span>У каждой вариации можно отдельно задать цвет, размер, цену, SKU, остатки по складам и изображения.</span>
+                  {session.permissions.products?.create && (
+                    <button
+                      className="btn primary"
+                      type="button"
+                      onClick={() => void createVariant()}
+                      disabled={!canUpdate || variationSelectionSaving}
+                    >
+                      {variationSelectionSaving ? <Loader2 className="spin" size={15} /> : <Plus size={15} />}
+                      {variationSelectionSaving
+                        ? 'Сохраняю параметры…'
+                        : variationSelectionDirty
+                          ? 'Сохранить параметры и создать'
+                          : 'Создать вариацию'}
+                    </button>
+                  )}
                 </section>
               )}
             </div>
