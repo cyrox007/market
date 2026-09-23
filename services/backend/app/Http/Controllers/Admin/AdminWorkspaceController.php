@@ -468,9 +468,10 @@ class AdminWorkspaceController extends Controller
         }
 
         return response()->json([
+            'contract_version' => 2,
             'product' => $payload,
             'options' => $this->productEditorOptionsPayload($product),
-        ]);
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     private function productEditorOptionsPayload(Product $product): array
