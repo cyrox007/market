@@ -487,20 +487,13 @@ function Sidebar({
         ))}
       </nav>
 
-      <div className="sidebar-foot">
-        <span />
-        <div>
-          <strong>Живые данные</strong>
-          <small>Источник: svetofor.local</small>
-        </div>
-      </div>
     </aside>
   )
 }
 
 const headers: Record<ModuleKey, [string, string, string]> = {
   products: [
-    'Рабочее место оператора',
+    '',
     'Товары и разделы',
     'Реальные категории, комнаты и товары из текущей базы. Изменения основной карточки сохраняются в Laravel.',
   ],
@@ -537,7 +530,7 @@ function ModuleHeader({ module }: { module: ModuleKey }) {
   return (
     <header className="page-head">
       <div>
-        <span className="eyebrow">{eyebrow}</span>
+        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
         <h1>{title}</h1>
         <p>{text}</p>
       </div>
