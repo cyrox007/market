@@ -1124,12 +1124,12 @@ function AttributesWorkspace({ session }: { session: SessionInfo }) {
                         onChange={(event) => setDraft({ ...draft, type: event.target.value })}
                         disabled={!canUpdate}
                       >
+                        <option value="select">Список</option>
+                        <option value="color">Цвет</option>
                         <option value="string">Строка</option>
                         <option value="text">Текст</option>
-                        <option value="integer">Целое число</option>
-                        <option value="decimal">Число</option>
-                        <option value="boolean">Да / нет</option>
-                        <option value="select">Список</option>
+                        <option value="number">Число (список)</option>
+                        <option value="number_input">Число (ввод)</option>
                       </select>
                     </label>
                     <LiveField
