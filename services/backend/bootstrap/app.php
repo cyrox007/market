@@ -40,47 +40,27 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // Убеждаемся, что CORS заголовки добавляются даже при ошибках
+        // Единый JSON-формат ошибок API; CORS-заголовки навешивает HandleCors (config/cors.php).
         $exceptions->render(function (\Throwable $e, $request) {
-            if ($request->is('api/*')) {
-                $origin = $request->headers->get('Origin');
-                $allowedOrigins = config('cors.allowed_origins', []);
-                $isAllowedOrigin = $origin && (in_array($origin, $allowedOrigins) || in_array('*', $allowedOrigins));
+            if ($request->is('api/*') && $request->expectsJson()) {
+                $status = 500;
+                $payload = [
+                    'message' => $e->getMessage() ?: 'Server Error',
+                ];
 
-                if ($request->getMethod() === 'OPTIONS') {
-                    // Обрабатываем preflight запросы
-                    return response('', 200)
-                        ->header('Access-Control-Allow-Origin', $isAllowedOrigin ? $origin : ($allowedOrigins[0] ?? '*'))
-                        ->header('Access-Control-Allow-Credentials', 'true')
-                        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-                        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, X-XSRF-TOKEN')
-                        ->header('Access-Control-Max-Age', '86400');
-                }
-
-                // Добавляем CORS заголовки к ответам с ошибками
-                if ($request->expectsJson()) {
-                    $status = 500;
+                if ($e instanceof ValidationException) {
+                    $status = $e->status;
                     $payload = [
-                        'message' => $e->getMessage() ?: 'Server Error',
+                        'message' => $e->getMessage() ?: 'The given data was invalid.',
+                        'errors' => $e->errors(),
                     ];
-
-                    if ($e instanceof ValidationException) {
-                        $status = $e->status;
-                        $payload = [
-                            'message' => $e->getMessage() ?: 'The given data was invalid.',
-                            'errors' => $e->errors(),
-                        ];
-                    } elseif ($e instanceof AuthenticationException) {
-                        $status = 401;
-                    } elseif ($e instanceof HttpExceptionInterface) {
-                        $status = $e->getStatusCode();
-                    }
-
-                    return response()->json($payload, $status)->header('Access-Control-Allow-Origin', $isAllowedOrigin ? $origin : ($allowedOrigins[0] ?? '*'))
-                        ->header('Access-Control-Allow-Credentials', 'true')
-                        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-                        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, X-XSRF-TOKEN');
+                } elseif ($e instanceof AuthenticationException) {
+                    $status = 401;
+                } elseif ($e instanceof HttpExceptionInterface) {
+                    $status = $e->getStatusCode();
                 }
+
+                return response()->json($payload, $status);
             }
         });
     })->create();
