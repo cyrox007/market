@@ -231,7 +231,7 @@ class AdminWorkspaceController extends Controller
                 $product->taxons()->syncWithoutDetaching([$categoryId]);
             }
         } else {
-            $baseSlug = IlluminateSupportStr::slug($name);
+            $baseSlug = \Illuminate\Support\Str::slug($name);
             if ($baseSlug === '') {
                 $baseSlug = 'product';
             }
@@ -431,6 +431,35 @@ class AdminWorkspaceController extends Controller
     {
         Gate::authorize('view', $product);
 
+        return response()->json(
+            $this->productEditorOptionsPayload($product)
+        );
+    }
+
+    public function productEditor(Product $product): JsonResponse
+    {
+        Gate::authorize('view', $product);
+
+        $product->load([
+            'taxons',
+            'attributes.values',
+            'variants',
+            'warehouseStocks.warehouse',
+            'variationAttributeSelection',
+            'media',
+            'relatedProducts.media',
+            'bundleProducts.media',
+            'regionRules.region',
+        ]);
+
+        return response()->json([
+            'product' => $this->productDetails($product),
+            'options' => $this->productEditorOptionsPayload($product),
+        ]);
+    }
+
+    private function productEditorOptionsPayload(Product $product): array
+    {
         $stockSettings = ProductStockSettings::getInstance();
 
         // Системный атрибут «Вариант» должен существовать до формирования
@@ -447,7 +476,7 @@ class AdminWorkspaceController extends Controller
             ->orderBy('name')
             ->get();
 
-        return response()->json([
+        return [
             'attributes' => $attributes->map(fn (Attribute $attribute) => [
                 'id' => $attribute->id,
                 'name' => $this->scalarString($attribute->name),
@@ -553,7 +582,7 @@ class AdminWorkspaceController extends Controller
                 'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
                 'fallback_to_first_warehouse' => (bool) $stockSettings->fallback_to_first_warehouse,
             ],
-        ]);
+        ];
     }
 
     public function syncProductFromOneC(
