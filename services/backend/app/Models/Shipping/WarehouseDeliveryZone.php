@@ -5,6 +5,7 @@ namespace App\Models\Shipping;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Validation\ValidationException;
 
 class WarehouseDeliveryZone extends Model
 {
@@ -33,6 +34,13 @@ class WarehouseDeliveryZone extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (WarehouseDeliveryZone $zone): void {
+            $zone->validateDeliveryValues();
+        });
+    }
+
     public function deliveryMethod(): BelongsTo
     {
         return $this->belongsTo(
@@ -49,5 +57,45 @@ class WarehouseDeliveryZone extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    private function validateDeliveryValues(): void
+    {
+        if ($this->delivery_price !== null && (float) $this->delivery_price < 0) {
+            throw ValidationException::withMessages([
+                'delivery_price' => 'Стоимость доставки не может быть отрицательной.',
+            ]);
+        }
+
+        if ($this->free_delivery_threshold !== null
+            && (float) $this->free_delivery_threshold < 0) {
+            throw ValidationException::withMessages([
+                'free_delivery_threshold' => 'Порог бесплатной доставки не может быть отрицательным.',
+            ]);
+        }
+
+        if ($this->delivery_days_min !== null && $this->delivery_days_min < 0) {
+            throw ValidationException::withMessages([
+                'delivery_days_min' => 'Минимальный срок доставки не может быть отрицательным.',
+            ]);
+        }
+
+        if ($this->delivery_days_max !== null && $this->delivery_days_max < 0) {
+            throw ValidationException::withMessages([
+                'delivery_days_max' => 'Максимальный срок доставки не может быть отрицательным.',
+            ]);
+        }
+
+        if ($this->delivery_days_min === null || $this->delivery_days_max === null) {
+            return;
+        }
+
+        if ($this->delivery_days_max >= $this->delivery_days_min) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'delivery_days_max' => 'Максимальный срок доставки не может быть меньше минимального.',
+        ]);
     }
 }
