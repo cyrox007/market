@@ -873,33 +873,52 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
 function ProductEditor({
   productId,
   session,
+  categories,
   onBack,
   onProductSaved,
 }: {
   productId: number
   session: SessionInfo
+  categories: CategoryNode[]
   onBack: () => void
   onProductSaved: (product: ProductDetails) => void
 }) {
   const [product, setProduct] = useState<ProductDetails | null>(null)
   const [draft, setDraft] = useState<ProductDraft | null>(null)
+  const [options, setOptions] = useState<ProductEditorOptions | null>(null)
+  const [attributeRows, setAttributeRows] = useState<ProductAttributeRow[]>([])
   const [tab, setTab] = useState<ProductTab>('main')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [attributesSaving, setAttributesSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [attributesMessage, setAttributesMessage] = useState<string | null>(null)
+
+  const flatCategories = useMemo(() => flattenTree(categories), [categories])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
     setMessage(null)
+    setAttributesMessage(null)
 
-    backendApi.product(productId)
-      .then(({ product: value }) => {
+    Promise.all([
+      backendApi.product(productId),
+      backendApi.productEditorOptions(productId),
+    ])
+      .then(([productResponse, editorOptions]) => {
         if (cancelled) return
-        setProduct(value)
-        setDraft(productDraft(value))
+
+        setProduct(productResponse.product)
+        setDraft(productDraft(productResponse.product))
+        setOptions(editorOptions)
+        setAttributeRows(productResponse.product.attribute_rows.map((row) => ({
+          attribute_id: row.attribute_id,
+          attribute_value_id: [...row.attribute_value_id],
+          custom_value: row.custom_value,
+        })))
         setLoading(false)
       })
       .catch((loadError) => {
@@ -913,7 +932,7 @@ function ProductEditor({
     }
   }, [productId])
 
-  if (loading || !product || !draft) {
+  if (loading || !product || !draft || !options) {
     return (
       <section className="panel product-editor-page">
         <div className="editor-page-back">
@@ -922,25 +941,41 @@ function ProductEditor({
             Назад к каталогу
           </button>
         </div>
-        {error ? <InlineError text={error} /> : <InlineLoading text="Загружаю товар…" />}
+        {error ? <InlineError text={error} /> : <InlineLoading text="Загружаю товар и справочники…" />}
       </section>
     )
   }
 
+  const canUpdate = Boolean(session.permissions.products?.update)
   const requiredChecks = [
     Boolean(draft.name.trim()),
-    Boolean(draft.sku.trim()),
     Number(draft.price) >= 0,
     Boolean(draft.state),
   ]
-
   const completion = Math.round(
     requiredChecks.filter(Boolean).length / requiredChecks.length * 100,
   )
 
-  const canUpdate = Boolean(session.permissions.products?.update)
+  const numberOrNull = (value: string): number | null => {
+    const trimmed = value.trim()
+    if (trimmed === '') return null
 
-  const save = async () => {
+    const parsed = Number(trimmed.replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const applySavedProduct = (saved: ProductDetails) => {
+    setProduct(saved)
+    setDraft(productDraft(saved))
+    setAttributeRows(saved.attribute_rows.map((row) => ({
+      attribute_id: row.attribute_id,
+      attribute_value_id: [...row.attribute_value_id],
+      custom_value: row.custom_value,
+    })))
+    onProductSaved(saved)
+  }
+
+  const saveProduct = async () => {
     if (!canUpdate) return
 
     setSaving(true)
@@ -952,29 +987,118 @@ function ProductEditor({
         product.id,
         {
           name: draft.name.trim(),
-          sku: draft.sku.trim(),
+          slug: draft.slug.trim() || null,
+          sku: draft.sku.trim() || null,
           gtin: draft.gtin.trim() || null,
           description: draft.description.trim() || null,
           state: draft.state,
           priority: Number(draft.priority || 0),
-          price: Number(draft.price || 0),
-          original_price: draft.original_price.trim() === ''
-            ? null
-            : Number(draft.original_price),
+          price: Number(draft.price.replace(',', '.') || 0),
+          original_price: numberOrNull(draft.original_price),
+          category_ids: draft.category_ids,
+          stock: numberOrNull(draft.stock),
+          backorder: draft.backorder,
+          length: numberOrNull(draft.length),
+          width: numberOrNull(draft.width),
+          height: numberOrNull(draft.height),
+          weight: numberOrNull(draft.weight),
+          tax_category_id: draft.tax_category_id ? Number(draft.tax_category_id) : null,
+          shipping_category_id: draft.shipping_category_id ? Number(draft.shipping_category_id) : null,
+          warehouse_stocks: draft.warehouse_stocks.map((row) => ({
+            warehouse_id: row.warehouse_id,
+            quantity: Number(row.quantity.replace(',', '.') || 0),
+          })),
         },
         session.csrf_token,
       )
 
-      setProduct(response.product)
-      setDraft(productDraft(response.product))
+      applySavedProduct(response.product)
       setMessage(response.message)
-      onProductSaved(response.product)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError))
     } finally {
       setSaving(false)
     }
   }
+
+  const addAttributeRow = () => {
+    const used = new Set(attributeRows.map((row) => row.attribute_id))
+    const available = options.attributes.find((attribute) => !used.has(attribute.id))
+    if (!available) return
+
+    setAttributeRows((current) => [
+      ...current,
+      {
+        attribute_id: available.id,
+        attribute_value_id: [],
+        custom_value: '',
+      },
+    ])
+    setAttributesMessage(null)
+  }
+
+  const updateAttributeRow = (
+    index: number,
+    patch: Partial<ProductAttributeRow>,
+  ) => {
+    setAttributeRows((current) => current.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, ...patch } : row
+    )))
+    setAttributesMessage(null)
+  }
+
+  const removeAttributeRow = (index: number) => {
+    setAttributeRows((current) => current.filter((_, rowIndex) => rowIndex !== index))
+    setAttributesMessage(null)
+  }
+
+  const saveAttributes = async () => {
+    if (!canUpdate) return
+
+    const incomplete = attributeRows.find((row) => (
+      row.attribute_value_id.length === 0 && row.custom_value.trim() === ''
+    ))
+
+    if (incomplete) {
+      setError('У каждой добавленной характеристики нужно выбрать или ввести значение.')
+      return
+    }
+
+    setAttributesSaving(true)
+    setError(null)
+    setAttributesMessage(null)
+
+    try {
+      const response = await backendApi.updateProductAttributes(
+        product.id,
+        attributeRows,
+        session.csrf_token,
+      )
+
+      applySavedProduct(response.product)
+      setAttributesMessage(response.message)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError))
+    } finally {
+      setAttributesSaving(false)
+    }
+  }
+
+  const addWarehouseRow = () => {
+    const used = new Set(draft.warehouse_stocks.map((row) => row.warehouse_id))
+    const warehouse = options.warehouses.find((item) => !used.has(item.id))
+    if (!warehouse) return
+
+    setDraft({
+      ...draft,
+      warehouse_stocks: [
+        ...draft.warehouse_stocks,
+        { warehouse_id: warehouse.id, quantity: '0' },
+      ],
+    })
+  }
+
+  const variantAttributes = product.attributes.filter((attribute) => attribute.source === 'variants')
 
   return (
     <section className="panel product-editor-page">
@@ -983,7 +1107,7 @@ function ProductEditor({
           <ArrowLeft size={15} />
           Назад к каталогу
         </button>
-        <span>Редактирование товара</span>
+        <span>Редактирование товара #{product.id}</span>
       </div>
 
       <div className="editor-head">
@@ -991,9 +1115,9 @@ function ProductEditor({
           <span className="hero-thumb">{product.name.slice(0, 2).toUpperCase()}</span>
           <div>
             <span className="eyebrow">Товар #{product.id}</span>
-            <h2>{product.name}</h2>
+            <h2>{product.name || 'Без названия'}</h2>
             <p>
-              {product.sku}
+              {product.sku || 'Без SKU'}
               {product.categories.length > 0 && ' · ' + product.categories.map((item) => item.name).join(', ')}
             </p>
           </div>
@@ -1022,8 +1146,9 @@ function ProductEditor({
             </div>
           </div>
 
-          {error && <span className="chip error"><CircleAlert size={13} /> Ошибка сохранения</span>}
+          {error && <span className="chip error"><CircleAlert size={13} /> Есть ошибка</span>}
           {message && <span className="chip ok"><CheckCircle2 size={13} /> {message}</span>}
+          {attributesMessage && <span className="chip ok"><CheckCircle2 size={13} /> {attributesMessage}</span>}
         </div>
 
         {error && (
@@ -1036,22 +1161,26 @@ function ProductEditor({
         )}
       </div>
 
-      <div className="tabs">
+      <div className="tabs product-tabs">
         <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
+        <button className={tab === 'description' ? 'active' : ''} type="button" onClick={() => setTab('description')}>Описание</button>
         <button className={tab === 'attributes' ? 'active' : ''} type="button" onClick={() => setTab('attributes')}>
-          Характеристики <span>{product.attributes.length}</span>
+          Характеристики <span>{attributeRows.length + variantAttributes.length}</span>
         </button>
         <button className={tab === 'variants' ? 'active' : ''} type="button" onClick={() => setTab('variants')}>
           Вариации <span>{product.variants.length}</span>
         </button>
-        <button className={tab === 'stock' ? 'active' : ''} type="button" onClick={() => setTab('stock')}>Остатки</button>
+        <button className={tab === 'inventory' ? 'active' : ''} type="button" onClick={() => setTab('inventory')}>Остатки и доставка</button>
+        <button className={tab === 'media' ? 'active' : ''} type="button" onClick={() => setTab('media')}>Изображения</button>
+        <button className={tab === 'seo' ? 'active' : ''} type="button" onClick={() => setTab('seo')}>SEO / 1С</button>
+        <button className={tab === 'links' ? 'active' : ''} type="button" onClick={() => setTab('links')}>Связи</button>
       </div>
 
       <div className="editor-scroll product-editor-scroll">
         {tab === 'main' && (
-          <div className="editor-content-narrow">
-            <div className="stack">
-              <Card title="Основная карточка" subtitle="Часто изменяемые данные товара">
+          <div className="editor-content-wide">
+            <div className="editor-two-column">
+              <Card title="Идентификация" subtitle="Название, URL и артикулы">
                 <div className="form-grid readable">
                   <LiveField
                     label="Название"
@@ -1060,9 +1189,13 @@ function ProductEditor({
                     onChange={(value) => setDraft({ ...draft, name: value })}
                   />
                   <LiveField
+                    label="Slug"
+                    value={draft.slug}
+                    onChange={(value) => setDraft({ ...draft, slug: value })}
+                  />
+                  <LiveField
                     label="SKU"
                     value={draft.sku}
-                    required
                     onChange={(value) => setDraft({ ...draft, sku: value })}
                   />
                   <LiveField
@@ -1070,6 +1203,11 @@ function ProductEditor({
                     value={draft.gtin}
                     onChange={(value) => setDraft({ ...draft, gtin: value })}
                   />
+                </div>
+              </Card>
+
+              <Card title="Публикация и цены" subtitle="Статус, порядок и стоимость">
+                <div className="form-grid readable">
                   <label className="field">
                     <span>Статус <b>*</b></span>
                     <select
@@ -1082,6 +1220,13 @@ function ProductEditor({
                       <option value="inactive">Неактивен</option>
                     </select>
                   </label>
+
+                  <LiveField
+                    label="Приоритет"
+                    value={draft.priority}
+                    onChange={(value) => setDraft({ ...draft, priority: value })}
+                    inputMode="numeric"
+                  />
                   <LiveField
                     label="Цена"
                     value={draft.price}
@@ -1097,82 +1242,237 @@ function ProductEditor({
                     onChange={(value) => setDraft({ ...draft, original_price: value })}
                     inputMode="decimal"
                   />
-                  <LiveField
-                    label="Приоритет"
-                    value={draft.priority}
-                    onChange={(value) => setDraft({ ...draft, priority: value })}
-                    inputMode="numeric"
-                  />
                 </div>
               </Card>
-
-              <Card title="Описание" subtitle="Текст карточки товара">
-                <textarea
-                  value={draft.description}
-                  onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-                  disabled={!canUpdate}
-                />
-              </Card>
             </div>
+
+            <Card title="Категории" subtitle="Товар может находиться сразу в нескольких разделах каталога">
+              <CategoryPicker
+                categories={flatCategories}
+                selected={draft.category_ids}
+                disabled={!canUpdate}
+                onChange={(categoryIds) => setDraft({ ...draft, category_ids: categoryIds })}
+              />
+            </Card>
+          </div>
+        )}
+
+        {tab === 'description' && (
+          <div className="editor-content-narrow">
+            <Card title="Описание товара" subtitle="Контент карточки товара на сайте. HTML сохраняется как есть.">
+              <textarea
+                className="product-description-editor"
+                value={draft.description}
+                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                disabled={!canUpdate}
+              />
+            </Card>
           </div>
         )}
 
         {tab === 'attributes' && (
           <div className="editor-content-wide">
-            {product.attributes.length === 0 ? (
-              <Card title="Характеристики товара" subtitle="Данные из product_product_attributes и product_variant_attributes">
-                <EmptyState text="Для товара не найдено ни одной характеристики." />
-              </Card>
-            ) : (
-              <div className="product-attribute-grid">
-                {product.attributes.map((attribute) => (
-                  <article
-                    className="product-attribute-card"
-                    key={`${attribute.source}-${attribute.id}`}
-                  >
-                    <header>
-                      <div>
-                        <strong>{attribute.name}</strong>
-                        <small>{attribute.slug}</small>
-                      </div>
-                      <span className={attribute.source === 'variants' ? 'attribute-source variant' : 'attribute-source'}>
-                        {attribute.source === 'variants' ? 'Из вариаций' : 'Товар'}
-                      </span>
-                    </header>
+            <div className="attribute-editor-toolbar">
+              <div>
+                <h3>Характеристики товара</h3>
+                <p>Добавляйте только свойства и значения из справочника. Структура справочника редактируется в разделе «Характеристики».</p>
+              </div>
+              <div>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={addAttributeRow}
+                  disabled={!canUpdate || attributeRows.length >= options.attributes.length}
+                >
+                  <Plus size={15} />
+                  Добавить характеристику
+                </button>
+                <button
+                  className="btn primary"
+                  type="button"
+                  onClick={saveAttributes}
+                  disabled={!canUpdate || attributesSaving}
+                >
+                  {attributesSaving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
+                  {attributesSaving ? 'Сохраняю…' : 'Сохранить характеристики'}
+                </button>
+              </div>
+            </div>
 
-                    <div className="attribute-values">
-                      {attribute.values.length === 0 ? (
-                        <span className="attribute-empty">Значение не заполнено</span>
-                      ) : attribute.values.map((value) => (
-                        <span className="attribute-value-chip" key={`${value.value_id ?? 'custom'}-${value.value}`}>
-                          {value.color_code && (
-                            <i
-                              className="attribute-color"
-                              style={{ background: value.color_code }}
+            {attributeRows.length === 0 ? (
+              <div className="attribute-editor-empty">
+                <SlidersHorizontal size={24} />
+                <strong>Характеристики не добавлены</strong>
+                <span>Нажмите «Добавить характеристику», выберите свойство и его значение.</span>
+              </div>
+            ) : (
+              <div className="attribute-editor-list">
+                {attributeRows.map((row, index) => {
+                  const attribute = options.attributes.find((item) => item.id === row.attribute_id)
+                  const usedIds = new Set(attributeRows.map((item, rowIndex) => rowIndex === index ? -1 : item.attribute_id))
+
+                  return (
+                    <article className="attribute-editor-row" key={`${row.attribute_id}-${index}`}>
+                      <div className="attribute-editor-row-head">
+                        <label className="field">
+                          <span>Характеристика</span>
+                          <select
+                            value={row.attribute_id}
+                            disabled={!canUpdate}
+                            onChange={(event) => {
+                              const attributeId = Number(event.target.value)
+                              updateAttributeRow(index, {
+                                attribute_id: attributeId,
+                                attribute_value_id: [],
+                                custom_value: '',
+                              })
+                            }}
+                          >
+                            {options.attributes.map((item) => (
+                              <option
+                                value={item.id}
+                                disabled={usedIds.has(item.id)}
+                                key={item.id}
+                              >
+                                {item.name}{item.is_required ? ' *' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <div className="attribute-editor-meta">
+                          {attribute?.is_required && <span className="chip error">Обязательная</span>}
+                          {attribute?.is_multiple && <span className="chip">Несколько значений</span>}
+                          {attribute?.is_filterable && <span className="chip">Фильтр</span>}
+                        </div>
+
+                        <button
+                          className="icon-danger"
+                          type="button"
+                          aria-label="Удалить характеристику"
+                          onClick={() => removeAttributeRow(index)}
+                          disabled={!canUpdate}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      {attribute && (
+                        <div className="attribute-editor-values">
+                          {attribute.values.length > 0 && !attribute.is_multiple && (
+                            <label className="field">
+                              <span>Значение</span>
+                              <select
+                                value={row.attribute_value_id[0] ?? ''}
+                                disabled={!canUpdate}
+                                onChange={(event) => updateAttributeRow(index, {
+                                  attribute_value_id: event.target.value ? [Number(event.target.value)] : [],
+                                  custom_value: '',
+                                })}
+                              >
+                                <option value="">Выберите значение</option>
+                                {attribute.values.map((value) => (
+                                  <option value={value.id} key={value.id}>{value.value}</option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+
+                          {attribute.values.length > 0 && attribute.is_multiple && (
+                            <div className="attribute-multiple-field">
+                              <span>Значения</span>
+                              <div className="attribute-choice-grid">
+                                {attribute.values.map((value) => {
+                                  const selected = row.attribute_value_id.includes(value.id)
+                                  return (
+                                    <button
+                                      className={selected ? 'attribute-choice selected' : 'attribute-choice'}
+                                      type="button"
+                                      disabled={!canUpdate}
+                                      onClick={() => {
+                                        const next = selected
+                                          ? row.attribute_value_id.filter((id) => id !== value.id)
+                                          : [...row.attribute_value_id, value.id]
+                                        updateAttributeRow(index, {
+                                          attribute_value_id: next,
+                                          custom_value: '',
+                                        })
+                                      }}
+                                      key={value.id}
+                                    >
+                                      {value.color_code && <i style={{ background: value.color_code }} />}
+                                      {value.value}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {attribute.allow_custom_value && (
+                            <LiveField
+                              label="Своё значение"
+                              value={row.custom_value}
+                              onChange={(value) => updateAttributeRow(index, {
+                                custom_value: value,
+                                attribute_value_id: value.trim() ? [] : row.attribute_value_id,
+                              })}
                             />
                           )}
-                          {value.value}
-                        </span>
-                      ))}
-                    </div>
-                  </article>
-                ))}
+
+                          {attribute.values.length === 0 && !attribute.allow_custom_value && (
+                            <div className="attribute-no-values">
+                              <CircleAlert size={16} />
+                              У этой характеристики нет доступных значений. Добавьте их в справочнике «Характеристики».
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  )
+                })}
               </div>
             )}
 
-            <div className="callout muted">
-              <AlertTriangle size={17} />
-              <div>
-                <strong>Показаны фактические данные товара и его вариаций</strong>
-                <span>Следующим шагом можно сделать отдельный удобный редактор этих связей, не возвращаясь к длинному repeater.</span>
-              </div>
-            </div>
+            {variantAttributes.length > 0 && (
+              <section className="variant-attribute-panel">
+                <header>
+                  <div>
+                    <h3>Характеристики вариаций</h3>
+                    <p>Эти значения принадлежат торговым предложениям и редактируются во вкладке «Вариации».</p>
+                  </div>
+                  <span>{variantAttributes.length}</span>
+                </header>
+
+                <div className="product-attribute-grid">
+                  {variantAttributes.map((attribute) => (
+                    <article className="product-attribute-card" key={`variant-${attribute.id}`}>
+                      <header>
+                        <div>
+                          <strong>{attribute.name}</strong>
+                          <small>{attribute.slug}</small>
+                        </div>
+                        <span className="attribute-source variant">Из вариаций</span>
+                      </header>
+                      <div className="attribute-values">
+                        {attribute.values.map((value) => (
+                          <span className="attribute-value-chip" key={`${value.value_id ?? 'custom'}-${value.value}`}>
+                            {value.color_code && <i className="attribute-color" style={{ background: value.color_code }} />}
+                            {value.value}
+                          </span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
 
         {tab === 'variants' && (
           <div className="editor-content-wide">
-            <Card title="Вариации" subtitle="Реальные торговые предложения товара">
+            <Card title="Торговые предложения" subtitle="Вариации товара и их базовые данные">
               {product.variants.length === 0 ? (
                 <EmptyState text="У товара нет вариаций." />
               ) : (
@@ -1189,60 +1489,369 @@ function ProductEditor({
                 </Table>
               )}
             </Card>
+
+            <div className="callout muted">
+              <AlertTriangle size={17} />
+              <div>
+                <strong>Редактирование вариаций следующим отдельным рабочим блоком</strong>
+                <span>Здесь должны управляться SKU вариации, её цена, остатки и значения вариативных характеристик. Родительские характеристики сюда не смешиваются.</span>
+              </div>
+            </div>
           </div>
         )}
 
-        {tab === 'stock' && (
+        {tab === 'inventory' && (
           <div className="editor-content-wide">
-            <Card title="Остатки по складам" subtitle="Реальные записи product_warehouse_stocks">
-              {product.warehouse_stocks.length === 0 ? (
-                <EmptyState text="Отдельных складских остатков для товара нет." />
-              ) : (
-                <div className="stock-grid">
-                  {product.warehouse_stocks.map((stock) => (
-                    <article className="stock-card" key={stock.warehouse_id}>
-                      <Warehouse size={18} />
+            <div className="editor-two-column">
+              <Card title="Наличие" subtitle={options.stock_settings.warehouse_accounting_enabled ? 'Учёт остатков ведётся по складам' : 'Общий остаток товара'}>
+                <div className="inventory-stack">
+                  {!options.stock_settings.warehouse_accounting_enabled && !product.is_variable && (
+                    <LiveField
+                      label="Общий остаток"
+                      value={draft.stock}
+                      onChange={(value) => setDraft({ ...draft, stock: value })}
+                      inputMode="decimal"
+                    />
+                  )}
+
+                  {!options.stock_settings.warehouse_accounting_enabled && product.is_variable && (
+                    <div className="info-line">
+                      <span>Общий остаток</span>
+                      <strong>{product.variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0)} шт.</strong>
+                      <small>Сумма остатков вариаций. Меняется в торговых предложениях.</small>
+                    </div>
+                  )}
+
+                  {options.stock_settings.warehouse_accounting_enabled && !product.is_variable && (
+                    <div className="warehouse-stock-editor">
+                      {draft.warehouse_stocks.map((row, index) => (
+                        <div className="warehouse-stock-row" key={`${row.warehouse_id}-${index}`}>
+                          <label className="field">
+                            <span>Склад</span>
+                            <select
+                              value={row.warehouse_id}
+                              disabled={!canUpdate}
+                              onChange={(event) => {
+                                const warehouseId = Number(event.target.value)
+                                setDraft({
+                                  ...draft,
+                                  warehouse_stocks: draft.warehouse_stocks.map((item, rowIndex) => (
+                                    rowIndex === index ? { ...item, warehouse_id: warehouseId } : item
+                                  )),
+                                })
+                              }}
+                            >
+                              {options.warehouses.map((warehouse) => (
+                                <option
+                                  value={warehouse.id}
+                                  disabled={draft.warehouse_stocks.some((item, rowIndex) => rowIndex !== index && item.warehouse_id === warehouse.id)}
+                                  key={warehouse.id}
+                                >
+                                  {warehouse.name}{warehouse.external_id ? ` · 1С: ${warehouse.external_id}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <LiveField
+                            label="Количество"
+                            value={row.quantity}
+                            onChange={(value) => {
+                              setDraft({
+                                ...draft,
+                                warehouse_stocks: draft.warehouse_stocks.map((item, rowIndex) => (
+                                  rowIndex === index ? { ...item, quantity: value } : item
+                                )),
+                              })
+                            }}
+                            inputMode="decimal"
+                          />
+                          <button
+                            className="icon-danger warehouse-remove"
+                            type="button"
+                            onClick={() => setDraft({
+                              ...draft,
+                              warehouse_stocks: draft.warehouse_stocks.filter((_, rowIndex) => rowIndex !== index),
+                            })}
+                            disabled={!canUpdate}
+                            aria-label="Удалить склад"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+
+                      <button
+                        className="btn ghost small"
+                        type="button"
+                        onClick={addWarehouseRow}
+                        disabled={!canUpdate || draft.warehouse_stocks.length >= options.warehouses.length}
+                      >
+                        <Plus size={15} />
+                        Добавить склад
+                      </button>
+                    </div>
+                  )}
+
+                  {options.stock_settings.warehouse_accounting_enabled && product.is_variable && (
+                    <div className="callout muted compact-callout">
+                      <Warehouse size={17} />
                       <div>
-                        <strong>{stock.warehouse_name || `Склад #${stock.warehouse_id}`}</strong>
-                        <small>ID {stock.warehouse_id}</small>
+                        <strong>Остатки хранятся у вариаций</strong>
+                        <span>Для вариативного товара складские остатки меняются в каждой вариации отдельно.</span>
                       </div>
-                      <em>{stock.quantity}</em>
-                    </article>
-                  ))}
+                    </div>
+                  )}
+
+                  <label className="switch-line">
+                    <input
+                      type="checkbox"
+                      checked={draft.backorder}
+                      onChange={(event) => setDraft({ ...draft, backorder: event.target.checked })}
+                      disabled={!canUpdate}
+                    />
+                    <span>
+                      <strong>Разрешить предзаказ</strong>
+                      <small>Покупатель сможет оформить товар при нулевом остатке.</small>
+                    </span>
+                  </label>
+
+                  <div className="info-line">
+                    <span>Продано</span>
+                    <strong>{product.units_sold} шт.</strong>
+                    <small>Системное значение, вручную не редактируется.</small>
+                  </div>
                 </div>
-              )}
+              </Card>
+
+              <Card title="Габариты и вес" subtitle="Физические параметры для расчёта доставки, не коммерческий размер вариации">
+                <div className="form-grid readable">
+                  <LiveField label="Длина" value={draft.length} suffix="см" onChange={(value) => setDraft({ ...draft, length: value })} inputMode="decimal" />
+                  <LiveField label="Ширина" value={draft.width} suffix="см" onChange={(value) => setDraft({ ...draft, width: value })} inputMode="decimal" />
+                  <LiveField label="Высота" value={draft.height} suffix="см" onChange={(value) => setDraft({ ...draft, height: value })} inputMode="decimal" />
+                  <LiveField label="Вес" value={draft.weight} suffix="кг" onChange={(value) => setDraft({ ...draft, weight: value })} inputMode="decimal" />
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Налоги и доставка" subtitle="Системные категории Vanilo, используемые расчётами">
+              <div className="form-grid readable">
+                <label className="field">
+                  <span>Категория налога</span>
+                  <select
+                    value={draft.tax_category_id}
+                    onChange={(event) => setDraft({ ...draft, tax_category_id: event.target.value })}
+                    disabled={!canUpdate}
+                  >
+                    <option value="">Не выбрана</option>
+                    {options.tax_categories.map((item) => (
+                      <option value={item.id} key={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Категория доставки</span>
+                  <select
+                    value={draft.shipping_category_id}
+                    onChange={(event) => setDraft({ ...draft, shipping_category_id: event.target.value })}
+                    disabled={!canUpdate}
+                  >
+                    <option value="">Не выбрана</option>
+                    {options.shipping_categories.map((item) => (
+                      <option value={item.id} key={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </Card>
+          </div>
+        )}
+
+        {tab === 'media' && (
+          <div className="editor-content-wide">
+            <Card title="Изображения товара" subtitle="В текущей модели главная коллекция называется «images», галерея — «gallery».">
+              <div className="callout muted">
+                <AlertTriangle size={17} />
+                <div>
+                  <strong>Старый Filament содержит несогласованность коллекции главного изображения</strong>
+                  <span>Форма пишет в «main_image», а модель и сайт читают «images». В новой панели загрузку подключаем к фактической коллекции модели, чтобы не плодить третий вариант.</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {tab === 'seo' && (
+          <div className="editor-content-wide">
+            <div className="editor-two-column">
+              <Card title="1С" subtitle="Идентификатор и синхронизация">
+                <dl className="detail-list">
+                  <div><dt>External ID</dt><dd>{product.external_id || '—'}</dd></div>
+                </dl>
+                <div className="callout muted compact-callout">
+                  <AlertTriangle size={17} />
+                  <div>
+                    <strong>Импорт из 1С пока не запускается из React</strong>
+                    <span>По аудиту текущая операция Filament смешивает импорт и повторное сохранение формы. Сначала выносим её в отдельную серверную команду.</span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="SEO" subtitle="Динамические значения уже формируются MetaUniversalSEO">
+                <dl className="detail-list">
+                  <div><dt>Заголовок</dt><dd>{draft.name ? `${draft.name} – Светофор Мебели` : '—'}</dd></div>
+                  <div><dt>URL</dt><dd>{draft.slug ? `/product/${draft.slug}` : '—'}</dd></div>
+                  <div><dt>Описание</dt><dd>{draft.description ? draft.description.replace(/<[^>]*>/g, '').slice(0, 160) : '—'}</dd></div>
+                </dl>
+                <small className="section-note">Индивидуальные SEO-переопределения из пакета laravel-seo подключим отдельным API после сверки его persisted-модели.</small>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {tab === 'links' && (
+          <div className="editor-content-wide">
+            <div className="relation-grid">
+              <article className="relation-card">
+                <span><Package size={18} /></span>
+                <div>
+                  <small>Сопутствующие товары</small>
+                  <strong>Отдельная связь</strong>
+                  <p>product_related_products, симметричная привязка.</p>
+                </div>
+                <ChevronRight size={16} />
+              </article>
+              <article className="relation-card">
+                <span><Package size={18} /></span>
+                <div>
+                  <small>Набор / комплект</small>
+                  <strong>Отдельная связь</strong>
+                  <p>product_bundle_products с собственным порядком.</p>
+                </div>
+                <ChevronRight size={16} />
+              </article>
+              <article className="relation-card">
+                <span><MapPin size={18} /></span>
+                <div>
+                  <small>Региональные правила</small>
+                  <strong>Отдельная логика</strong>
+                  <p>Цена, видимость и срок доставки по локациям.</p>
+                </div>
+                <ChevronRight size={16} />
+              </article>
+            </div>
           </div>
         )}
       </div>
 
       <footer className="editor-foot">
         <span>
-          {canUpdate
-            ? 'Сохранение проходит через ProductPolicy и Laravel validation'
-            : 'У пользователя нет разрешения update products'}
+          {tab === 'attributes'
+            ? 'Характеристики сохраняются отдельной командой и не зависят от сохранения основной формы.'
+            : canUpdate
+              ? 'Изменения этой формы сохраняются в реальную локальную БД.'
+              : 'У пользователя нет разрешения update products'}
         </span>
-        <div>
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => setDraft(productDraft(product))}
-            disabled={saving || !canUpdate}
-          >
-            Сбросить
-          </button>
-          <button
-            className="btn primary"
-            type="button"
-            onClick={save}
-            disabled={saving || !canUpdate}
-          >
-            {saving ? <Loader2 className="spin" size={15} /> : null}
-            {saving ? 'Сохраняю…' : 'Сохранить'}
-          </button>
-        </div>
+        {tab !== 'attributes' && (
+          <div>
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => setDraft(productDraft(product))}
+              disabled={saving || !canUpdate}
+            >
+              Сбросить
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={saveProduct}
+              disabled={saving || !canUpdate}
+            >
+              {saving ? <Loader2 className="spin" size={15} /> : null}
+              {saving ? 'Сохраняю…' : 'Сохранить изменения'}
+            </button>
+          </div>
+        )}
       </footer>
     </section>
+  )
+}
+
+function CategoryPicker({
+  categories,
+  selected,
+  disabled,
+  onChange,
+}: {
+  categories: TreeRow[]
+  selected: number[]
+  disabled: boolean
+  onChange: (value: number[]) => void
+}) {
+  const [search, setSearch] = useState('')
+  const normalized = search.trim().toLocaleLowerCase('ru-RU')
+  const filtered = normalized
+    ? categories.filter((category) => category.name.toLocaleLowerCase('ru-RU').includes(normalized))
+    : categories
+
+  return (
+    <div className="category-picker">
+      <label className="small-search">
+        <Search size={15} />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Найти категорию"
+        />
+      </label>
+
+      <div className="category-picker-selected">
+        {selected.length === 0 && <span className="attribute-empty">Категории не выбраны</span>}
+        {selected.map((id) => {
+          const category = categories.find((item) => item.id === id)
+          if (!category) return null
+
+          return (
+            <button
+              type="button"
+              onClick={() => !disabled && onChange(selected.filter((selectedId) => selectedId !== id))}
+              disabled={disabled}
+              key={id}
+            >
+              {category.name}
+              <X size={12} />
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="category-picker-list">
+        {filtered.map((category) => {
+          const checked = selected.includes(category.id)
+          return (
+            <label
+              className={checked ? 'category-picker-option selected' : 'category-picker-option'}
+              style={{ paddingLeft: 8 + category.depth * 12 }}
+              key={category.id}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={disabled}
+                onChange={(event) => {
+                  const next = event.target.checked
+                    ? [...selected, category.id]
+                    : selected.filter((id) => id !== category.id)
+                  onChange(next)
+                }}
+              />
+              <span>{category.name}</span>
+            </label>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
