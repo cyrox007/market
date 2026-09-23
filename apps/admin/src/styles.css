@@ -4332,3 +4332,155 @@ body {
     flex-wrap: wrap;
   }
 }
+
+
+/* Компактный редактор характеристик */
+.attribute-table {
+  overflow: visible;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.attribute-table-head,
+.attribute-table-row {
+  display: grid;
+  grid-template-columns: minmax(190px, .85fr) minmax(260px, 1.35fr) minmax(120px, .55fr) 70px;
+  align-items: center;
+  gap: 7px;
+}
+
+.attribute-table-head {
+  min-height: 30px;
+  padding: 0 8px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: .58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .025em;
+}
+
+.attribute-table-row {
+  min-height: 43px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.attribute-table-row:last-child {
+  border-bottom: 0;
+}
+
+.attribute-table-row > div {
+  min-width: 0;
+}
+
+.attribute-table-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.attribute-custom-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--input);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  outline: none;
+  font-size: .64rem;
+}
+
+.attribute-custom-input:focus {
+  border-color: var(--secondary);
+}
+
+.attribute-table-flags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.attribute-table-flags .chip {
+  min-height: 20px;
+  padding: 1px 5px;
+  font-size: .53rem;
+}
+
+.attribute-table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.attribute-table-actions .icon-btn,
+.attribute-table-actions .icon-danger {
+  width: 30px;
+  height: 30px;
+}
+
+.attribute-inline-warning {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 8px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-radius: 7px;
+  font-size: .61rem;
+}
+
+.attribute-table .searchable-select-trigger {
+  min-height: 30px;
+}
+
+.attribute-table .searchable-select-popover {
+  z-index: 120;
+}
+
+@media (max-width: 900px) {
+  .attribute-table-head {
+    display: none;
+  }
+
+  .attribute-table-row {
+    grid-template-columns: minmax(170px, .8fr) minmax(220px, 1.2fr) 64px;
+  }
+
+  .attribute-table-flags {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .attribute-table-row {
+    grid-template-columns: minmax(0, 1fr) 64px;
+    align-items: start;
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .attribute-table-row > :nth-child(1),
+  .attribute-table-row > :nth-child(2) {
+    grid-column: 1;
+  }
+
+  .attribute-table-row > :nth-child(4) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .attribute-editor-toolbar > div:last-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .attribute-editor-toolbar > div:last-child .btn:last-child {
+    grid-column: 1 / -1;
+  }
+}
