@@ -13,6 +13,7 @@ import {
   FolderTree,
   Loader2,
   MapPin,
+  Menu,
   Moon,
   Package,
   RefreshCw,
@@ -22,6 +23,7 @@ import {
   Sun,
   UserRound,
   Warehouse,
+  X,
 } from 'lucide-react'
 import {
   AuthRequiredError,
@@ -180,11 +182,30 @@ function AdminApp() {
   const [session, setSession] = useState<SessionInfo | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('sv-admin-theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [sidebarOpen])
 
   useEffect(() => {
     backendApi.session()
@@ -222,10 +243,31 @@ function AdminApp() {
 
   return (
     <div className="app">
-      <Topbar theme={theme} setTheme={setTheme} session={session} />
+      <Topbar
+        theme={theme}
+        setTheme={setTheme}
+        session={session}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((value) => !value)}
+      />
 
       <div className="frame">
-        <Sidebar module={module} setModule={setModule} session={session} />
+        <button
+          className={sidebarOpen ? 'sidebar-backdrop open' : 'sidebar-backdrop'}
+          type="button"
+          aria-label="Закрыть меню"
+          onClick={() => setSidebarOpen(false)}
+        />
+        <Sidebar
+          module={module}
+          setModule={(value) => {
+            setModule(value)
+            setSidebarOpen(false)
+          }}
+          session={session}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
 
         <main className="workspace">
           <ModuleHeader module={module} />
@@ -307,18 +349,34 @@ function Topbar({
   theme,
   setTheme,
   session,
+  sidebarOpen,
+  onToggleSidebar,
 }: {
   theme: Theme
   setTheme: (value: Theme) => void
   session: SessionInfo
+  sidebarOpen: boolean
+  onToggleSidebar: () => void
 }) {
   return (
     <header className="topbar">
-      <div className="brand">
-        <span className="brand-mark"><Package size={17} /></span>
-        <div>
-          <strong>Светофор Мебели</strong>
-          <small>React-админка · Laravel backend</small>
+      <div className="topbar-start">
+        <button
+          className="mobile-nav-toggle"
+          type="button"
+          aria-label={sidebarOpen ? 'Закрыть меню' : 'Открыть меню'}
+          aria-expanded={sidebarOpen}
+          onClick={onToggleSidebar}
+        >
+          {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+
+        <div className="brand">
+          <span className="brand-mark"><Package size={16} /></span>
+          <div>
+            <strong>Светофор Мебели</strong>
+            <small>React-админка · Laravel backend</small>
+          </div>
         </div>
       </div>
 
@@ -386,13 +444,23 @@ function Sidebar({
   module,
   setModule,
   session,
+  open,
+  onClose,
 }: {
   module: ModuleKey
   setModule: (value: ModuleKey) => void
   session: SessionInfo
+  open: boolean
+  onClose: () => void
 }) {
   return (
-    <aside className="sidebar">
+    <aside className={open ? 'sidebar open' : 'sidebar'}>
+      <div className="sidebar-mobile-head">
+        <strong>Разделы</strong>
+        <button type="button" aria-label="Закрыть меню" onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
       <nav>
         {nav.map((group) => (
           <div className="nav-group" key={group.title}>
