@@ -378,12 +378,16 @@ class ShippingController extends Controller
     }
 
     /**
-     * Получить варианты доставки по складам для выбранной локации.
+     * Получить доступные варианты доставки для состава заказа.
+     *
+     * Каждый вариант однозначно задаёт склад, способ доставки,
+     * перевозчика, серверную стоимость и срок.
      */
     public function getWarehouseDeliveryOptions(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'location_id' => 'required|exists:shipping_locations,id',
+            'order_amount' => 'nullable|numeric|min:0',
             'items' => 'nullable|array',
             'items.*.product_id' => 'required_with:items|integer|exists:products,id',
             'items.*.quantity' => 'required_with:items|numeric|min:0.001',
@@ -392,7 +396,8 @@ class ShippingController extends Controller
         $location = ShippingLocation::findOrFail($validated['location_id']);
         $options = $this->warehouseDeliveryOptionsService->resolveForLocation(
             $location,
-            $validated['items'] ?? []
+            $validated['items'] ?? [],
+            (float) ($validated['order_amount'] ?? 0)
         );
 
         return response()->json([
