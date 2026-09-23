@@ -35,5 +35,8 @@ jobs:
       - name: Установить зависимости
         run: npm install --no-audit --no-fund
 
+      - name: Проверить TypeScript
+        run: npx tsc --noEmit
+
       - name: Собрать админку
         run: npm run build
