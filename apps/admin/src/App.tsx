@@ -3981,7 +3981,7 @@ function GalleryManager({
   busy: boolean
   onFiles: (files: File[]) => void
   onDelete: (mediaId: number) => void
-  onReorder: (mediaIds: number[]) => Promise<void>
+  onReorder: (mediaIds: number[]) => void | Promise<void>
 }) {
   const [draggedId, setDraggedId] = useState<number | null>(null)
   const [fileDragActive, setFileDragActive] = useState(false)
