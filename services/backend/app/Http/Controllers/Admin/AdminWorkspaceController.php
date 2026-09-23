@@ -328,6 +328,7 @@ class AdminWorkspaceController extends Controller
                 'slug' => $this->scalarString($attribute->slug),
                 'type' => $this->scalarString($attribute->type),
                 'is_required' => (bool) $attribute->is_required,
+                'is_filterable' => (bool) $attribute->is_filterable,
                 'is_multiple' => (bool) $attribute->is_multiple,
                 'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
                 'allow_custom_value' => (bool) $attribute->allow_custom_value,
