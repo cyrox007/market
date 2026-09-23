@@ -2074,7 +2074,7 @@ function ProductEditor({
           </div>
 
           {error && <span className="chip error" role="status"><CircleAlert size={13} /> Есть ошибка</span>}
-          {message && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {message}</span>
+          {message && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {message}</span>}
           {attributesMessage && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {attributesMessage}</span>}
           {variantMessage && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {variantMessage}</span>}
         </div>
