@@ -47,6 +47,8 @@ Route::middleware([
             ->where('product', '[0-9]+');
         Route::put('/products/{product}/attributes', [AdminWorkspaceController::class, 'updateProductAttributes'])
             ->where('product', '[0-9]+');
+        Route::put('/products/{product}/variation-attributes', [AdminWorkspaceController::class, 'updateProductVariationAttributes'])
+            ->where('product', '[0-9]+');
         Route::post('/products/{product}/sync-1c', [AdminWorkspaceController::class, 'syncProductFromOneC'])
             ->where('product', '[0-9]+');
         Route::post('/products/{product}/variants', [AdminWorkspaceController::class, 'createProductVariant'])
@@ -64,11 +66,16 @@ Route::middleware([
             ->where('product', '[0-9]+')
             ->where('variant', '[0-9]+')
             ->where('media', '[0-9]+');
+        Route::put('/products/{product}/variants/{variant}/media-order', [AdminWorkspaceController::class, 'reorderProductVariantMedia'])
+            ->where('product', '[0-9]+')
+            ->where('variant', '[0-9]+');
         Route::post('/products/{product}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
             ->where('product', '[0-9]+');
         Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
             ->where('product', '[0-9]+')
             ->where('media', '[0-9]+');
+        Route::put('/products/{product}/media-order', [AdminWorkspaceController::class, 'reorderProductMedia'])
+            ->where('product', '[0-9]+');
 
         Route::post('/products/{product}/related-products', [AdminWorkspaceController::class, 'attachRelatedProduct'])
             ->where('product', '[0-9]+');
@@ -94,7 +101,10 @@ Route::middleware([
             ->where('product', '[0-9]+')
             ->where('rule', '[0-9]+');
         Route::get('/attributes', [AdminWorkspaceController::class, 'attributes']);
+        Route::post('/attributes', [AdminWorkspaceController::class, 'createAttribute']);
         Route::put('/attributes/{attribute}', [AdminWorkspaceController::class, 'updateAttribute'])
+            ->where('attribute', '[0-9]+');
+        Route::post('/attributes/{attribute}/values', [AdminWorkspaceController::class, 'createAttributeValue'])
             ->where('attribute', '[0-9]+');
         Route::get('/orders', [AdminWorkspaceController::class, 'orders']);
         Route::get('/stores', [AdminWorkspaceController::class, 'stores']);
