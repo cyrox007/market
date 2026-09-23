@@ -13,6 +13,7 @@ use App\Models\Product\Room;
 use App\Models\Shipping\ShippingLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -66,6 +67,17 @@ class AdminWorkspaceController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer'],
             'room_id' => ['nullable', 'integer'],
+            'state' => ['nullable', 'string', 'max:50'],
+            'sort' => ['nullable', Rule::in([
+                'updated_desc',
+                'updated_asc',
+                'name_asc',
+                'name_desc',
+                'price_asc',
+                'price_desc',
+                'stock_asc',
+                'stock_desc',
+            ])],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -73,8 +85,7 @@ class AdminWorkspaceController extends Controller
         $query = Product::query()
             ->whereNull('parent_product_id')
             ->with(['taxons'])
-            ->withCount('variants')
-            ->orderByDesc('updated_at');
+            ->withCount('variants');
 
         if (! empty($validated['search'])) {
             $search = trim($validated['search']);
@@ -117,6 +128,21 @@ class AdminWorkspaceController extends Controller
                 );
             }
         }
+
+        if (! empty($validated['state'])) {
+            $query->where('state', $validated['state']);
+        }
+
+        match ($validated['sort'] ?? 'updated_desc') {
+            'updated_asc' => $query->orderBy('updated_at'),
+            'name_asc' => $query->orderBy('name'),
+            'name_desc' => $query->orderByDesc('name'),
+            'price_asc' => $query->orderBy('price'),
+            'price_desc' => $query->orderByDesc('price'),
+            'stock_asc' => $query->orderBy('stock'),
+            'stock_desc' => $query->orderByDesc('stock'),
+            default => $query->orderByDesc('updated_at'),
+        };
 
         $products = $query->paginate($validated['per_page'] ?? 30);
 
@@ -446,6 +472,7 @@ class AdminWorkspaceController extends Controller
                 'name' => $this->scalarString($category->name),
                 'slug' => $this->scalarString($category->slug),
             ])->values(),
+            'updated_at' => $product->updated_at?->toIso8601String(),
         ];
     }
 
@@ -455,24 +482,7 @@ class AdminWorkspaceController extends Controller
             'description' => $this->nullableScalarString($product->description),
             'priority' => (int) ($product->priority ?? 0),
             'is_variable' => $product->isVariable(),
-            'attributes' => $product->attributes
-                ->map(function (Attribute $attribute) {
-                    $pivot = $attribute->pivot;
-                    $value = $attribute->values
-                        ->firstWhere('id', $pivot?->attribute_value_id);
-
-                    return [
-                        'id' => $attribute->id,
-                        'name' => $this->scalarString($attribute->name),
-                        'slug' => $this->scalarString($attribute->slug),
-                        'value_id' => $value?->id,
-                        'value' => $this->nullableScalarString($value?->value),
-                        'custom_value' => $this->nullableScalarString($pivot?->custom_value),
-                        'is_multiple' => (bool) $attribute->is_multiple,
-                        'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
-                    ];
-                })
-                ->values(),
+            'attributes' => $this->productAttributeGroups($product),
             'variation_attribute_ids' => $product->variationAttributeSelection
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
@@ -518,4 +528,105 @@ class AdminWorkspaceController extends Controller
 
         return $this->scalarString($value);
     }
+
+    private function productAttributeGroups(Product $product): array
+    {
+        $regularRows = DB::table('product_product_attributes as ppa')
+            ->join('product_attributes as pa', 'pa.id', '=', 'ppa.attribute_id')
+            ->leftJoin('product_attribute_values as pav', 'pav.id', '=', 'ppa.attribute_value_id')
+            ->where('ppa.product_id', $product->id)
+            ->orderBy('pa.sort_order')
+            ->orderBy('pa.name')
+            ->select([
+                'pa.id',
+                'pa.name',
+                'pa.slug',
+                'pa.type',
+                'pa.is_multiple',
+                'pa.is_use_in_variations',
+                'ppa.attribute_value_id',
+                'ppa.custom_value',
+                'pav.value',
+                'pav.color_code',
+            ])
+            ->get()
+            ->groupBy('id')
+            ->map(fn ($rows) => $this->attributeGroupPayload($rows, 'product'))
+            ->values();
+
+        if (! $product->isVariable()) {
+            return $regularRows->all();
+        }
+
+        $variantRows = DB::table('product_variant_attributes as pva')
+            ->join('products as variants', 'variants.id', '=', 'pva.product_id')
+            ->join('product_attributes as pa', 'pa.id', '=', 'pva.attribute_id')
+            ->leftJoin('product_attribute_values as pav', 'pav.id', '=', 'pva.attribute_value_id')
+            ->where('variants.parent_product_id', $product->id)
+            ->orderBy('pa.sort_order')
+            ->orderBy('pa.name')
+            ->select([
+                'pa.id',
+                'pa.name',
+                'pa.slug',
+                'pa.type',
+                'pa.is_multiple',
+                'pa.is_use_in_variations',
+                'pva.attribute_value_id',
+                'pva.custom_value',
+                'pav.value',
+                'pav.color_code',
+                'variants.id as variant_id',
+                'variants.sku as variant_sku',
+            ])
+            ->get()
+            ->groupBy('id')
+            ->map(fn ($rows) => $this->attributeGroupPayload($rows, 'variants'))
+            ->values();
+
+        return $regularRows
+            ->concat($variantRows)
+            ->values()
+            ->all();
+    }
+
+    private function attributeGroupPayload($rows, string $source): array
+    {
+        $first = $rows->first();
+
+        $values = $rows
+            ->map(function ($row) {
+                $label = $row->custom_value !== null && $row->custom_value !== ''
+                    ? (string) $row->custom_value
+                    : (string) ($row->value ?? '');
+
+                if ($label === '') {
+                    return null;
+                }
+
+                return [
+                    'value_id' => $row->attribute_value_id !== null
+                        ? (int) $row->attribute_value_id
+                        : null,
+                    'value' => $label,
+                    'color_code' => $row->color_code ?? null,
+                ];
+            })
+            ->filter()
+            ->unique(fn (array $value) => ($value['value_id'] ?? 'custom') . '|' . $value['value'])
+            ->values()
+            ->all();
+
+        return [
+            'id' => (int) $first->id,
+            'name' => $this->scalarString($first->name),
+            'slug' => $this->scalarString($first->slug),
+            'type' => $this->scalarString($first->type),
+            'source' => $source,
+            'is_multiple' => (bool) $first->is_multiple,
+            'is_use_in_variations' => (bool) $first->is_use_in_variations,
+            'values' => $values,
+        ];
+    }
+
 }
