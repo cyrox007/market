@@ -780,7 +780,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
 
   const closeProduct = () => {
     setEditingProductId(null)
-    writeProductIdToUrl(null)
+    writeProductIdToUrl(null, true)
   }
 
   useEffect(() => {
