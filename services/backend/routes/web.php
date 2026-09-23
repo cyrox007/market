@@ -50,8 +50,8 @@ Route::middleware([
             ->where('product', '[0-9]+');
         Route::put('/products/{product}/attributes', [AdminWorkspaceController::class, 'updateProductAttributes'])
             ->where('product', '[0-9]+');
-        Route::put('/products/{product}/variation-attributes', [AdminWorkspaceController::class, 'updateProductVariationAttributes'])
-            ->where('product', '[0-9]+');
+        Route::put('/products/{productId}/variation-attributes', [AdminWorkspaceController::class, 'updateProductVariationAttributes'])
+            ->where('productId', '[0-9]+');
         Route::post('/products/{product}/sync-1c', [AdminWorkspaceController::class, 'syncProductFromOneC'])
             ->where('product', '[0-9]+');
         Route::post('/products/{product}/variants', [AdminWorkspaceController::class, 'createProductVariant'])
