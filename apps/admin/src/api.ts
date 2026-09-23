@@ -385,6 +385,25 @@ export const backendApi = {
   },
 
 
+  createProduct: (
+    data: {
+      name: string | null
+      sku: string | null
+      external_id: string | null
+      category_id: number | null
+      sync_from_1c: boolean
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      '/admin_sv/api/products',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
   product: (id: number) =>
     request<{ product: ProductDetails }>(`/admin_sv/api/products/${id}`),
 
