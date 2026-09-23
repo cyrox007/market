@@ -3190,3 +3190,357 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+
+/* Связи товара и региональные правила */
+.product-links-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.relation-search {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.relation-search .small-search {
+  margin: 0;
+}
+
+.relation-search-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 245px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+
+.relation-search-results button {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+}
+
+.relation-search-results button:last-child {
+  border-bottom: 0;
+}
+
+.relation-search-results button:hover {
+  background: var(--surface-muted);
+}
+
+.relation-search-results button > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.relation-search-results strong {
+  overflow: hidden;
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relation-search-results small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.59rem;
+}
+
+.relation-search-results em {
+  color: var(--secondary);
+  font-size: 0.6rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.linked-product-list {
+  display: flex;
+  max-height: 280px;
+  overflow: auto;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.linked-empty {
+  display: grid;
+  min-height: 64px;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 0.63rem;
+  text-align: center;
+}
+
+.linked-product-row {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.linked-product-row img,
+.linked-product-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 7px;
+}
+
+.linked-product-row img {
+  object-fit: cover;
+}
+
+.linked-product-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.linked-product-row > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.linked-product-row strong {
+  overflow: hidden;
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linked-product-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.bundle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 32px;
+  align-items: center;
+  gap: 6px;
+}
+
+.bundle-row > .linked-product-row {
+  grid-template-columns: 38px minmax(0, 1fr);
+}
+
+.bundle-order {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bundle-order span {
+  color: var(--muted);
+  font-size: 0.55rem;
+}
+
+.bundle-order input {
+  width: 100%;
+  height: 31px;
+  padding: 0 6px;
+  color: var(--text);
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 0.64rem;
+}
+
+.region-rules-panel {
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.region-rules-panel > header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.region-rules-panel h3 {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.region-rules-panel header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.region-rules-workspace {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: 330px;
+}
+
+.region-rule-list {
+  min-height: 0;
+  max-height: 470px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+
+.region-rule-row {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  grid-template-columns: minmax(0, 1fr) auto 15px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+}
+
+.region-rule-row:hover,
+.region-rule-row.selected {
+  background: var(--surface-muted);
+}
+
+.region-rule-row.selected {
+  box-shadow: inset 2px 0 0 var(--secondary);
+}
+
+.region-rule-row > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.region-rule-row > div:nth-child(2) {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.region-rule-row strong {
+  overflow: hidden;
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.region-rule-row small,
+.region-rule-row > div:nth-child(2) > span:not(.chip) {
+  color: var(--muted);
+  font-size: 0.57rem;
+}
+
+.region-rule-row > svg {
+  color: var(--soft);
+}
+
+.region-rule-editor {
+  padding: 9px;
+}
+
+.region-rule-switches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.region-rule-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.region-rule-actions > div {
+  display: flex;
+  gap: 6px;
+}
+
+.region-rule-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.region-rule-placeholder strong {
+  color: var(--text);
+  font-size: 0.72rem;
+}
+
+.region-rule-placeholder span {
+  max-width: 350px;
+  font-size: 0.62rem;
+}
+
+@media (max-width: 980px) {
+  .region-rules-workspace {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .region-rules-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .region-rule-list {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .region-rule-switches {
+    grid-template-columns: 1fr;
+  }
+
+  .bundle-row {
+    grid-template-columns: minmax(0, 1fr) 66px 32px;
+  }
+}
