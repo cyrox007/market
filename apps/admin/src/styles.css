@@ -3156,3 +3156,37 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+
+.variant-media-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
+  gap: 8px;
+}
+
+.media-preview.main.compact {
+  grid-template-columns: 66px minmax(0, 1fr) 30px;
+}
+
+.media-preview.main.compact img {
+  width: 66px;
+  height: 66px;
+}
+
+.media-empty.compact {
+  min-height: 66px;
+}
+
+.variant-gallery {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 780px) {
+  .variant-media-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .variant-gallery {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
