@@ -15,7 +15,6 @@ Route::get('api-docs/metrics', ApiMetricsController::class)
 
 Route::get('/admin-ui', [AdminUiController::class, 'index'])
     ->name('admin-ui');
-Route::get('/admin-ui/', [AdminUiController::class, 'index']);
 Route::get('/admin-ui/{path}', [AdminUiController::class, 'asset'])
     ->where('path', '.*');
 
