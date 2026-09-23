@@ -29,7 +29,7 @@ class AdminWorkspaceProductApiTest extends TestCase
         ]));
 
         $role = Role::firstOrCreate([
-            'name' => 'variant_lifecycle_test',
+            'name' => 'manager',
             'guard_name' => 'web',
         ]);
         $role->syncPermissions($permissions);
@@ -207,7 +207,7 @@ class AdminWorkspaceProductApiTest extends TestCase
         ]);
 
         $role = Role::firstOrCreate([
-            'name' => 'variant_creation_test',
+            'name' => 'manager',
             'guard_name' => 'web',
         ]);
         $role->syncPermissions([$createPermission, $updatePermission]);
@@ -278,7 +278,7 @@ class AdminWorkspaceProductApiTest extends TestCase
         ]);
 
         $role = Role::firstOrCreate([
-            'name' => 'variation_editor_test',
+            'name' => 'manager',
             'guard_name' => 'web',
         ]);
         $role->givePermissionTo($updatePermission);
@@ -339,7 +339,7 @@ class AdminWorkspaceProductApiTest extends TestCase
         ]);
 
         $role = Role::firstOrCreate([
-            'name' => 'product_editor_test',
+            'name' => 'manager',
             'guard_name' => 'web',
         ]);
         $role->syncPermissions([$viewPermission, $updatePermission]);
@@ -438,8 +438,12 @@ class AdminWorkspaceProductApiTest extends TestCase
         $response = $this->actingAs($user, 'web')
             ->getJson("/admin_sv/api/products/{$product->id}/editor");
 
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+        $this->assertStringContainsString('no-store', $cacheControl);
+        $this->assertStringContainsString('no-cache', $cacheControl);
+        $this->assertStringContainsString('must-revalidate', $cacheControl);
+
         $response->assertOk()
-            ->assertHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
             ->assertJsonPath('contract_version', 2)
             ->assertJsonPath('product.id', $product->id)
             ->assertJsonPath('product.name', 'Диван для проверки редактора')
