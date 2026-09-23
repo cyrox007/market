@@ -8,6 +8,19 @@ type RequestOptions = RequestInit & {
   csrfToken?: string | null
 }
 
+function localizedServerMessage(message: unknown): string {
+  const text = String(message ?? '').trim()
+
+  const known: Record<string, string> = {
+    'This action is unauthorized.': 'Недостаточно прав для выполнения действия.',
+    'Unauthenticated.': 'Требуется вход в административную панель.',
+    'The given data was invalid.': 'Переданы некорректные данные.',
+    'Not Found': 'Запрошенные данные не найдены.',
+  }
+
+  return known[text] ?? text
+}
+
 async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json')
@@ -51,10 +64,10 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
       .join('\n')
 
     const message = validationMessage
-      || payload?.message
+      || localizedServerMessage(payload?.message)
       || `Ошибка сервера (${response.status})`
 
-    throw new Error(String(message))
+    throw new Error(message)
   }
 
   return payload as T
