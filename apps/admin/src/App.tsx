@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, type DragEvent as ReactDragEvent, type ErrorInfo, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -4037,7 +4037,7 @@ function GalleryManager({
     }
   }
 
-  const handleFileDrop = (event: React.DragEvent<HTMLElement>) => {
+  const handleFileDrop = (event: ReactDragEvent<HTMLElement>) => {
     if (event.dataTransfer.files.length === 0) return false
 
     event.preventDefault()
