@@ -125,6 +125,7 @@ export type ProductEditorAttributeOption = {
 
 export type ProductEditorOptions = {
   attributes: ProductEditorAttributeOption[]
+  manufacturers: Array<{ id: number; name: string; external_id: string | null }>
   variation_attributes: ProductEditorAttributeOption[]
   tax_categories: Array<{ id: number; name: string }>
   shipping_categories: Array<{ id: number; name: string }>
@@ -155,6 +156,7 @@ export type ProductDetails = ProductSummary & {
   weight: number | null
   tax_category_id: number | null
   shipping_category_id: number | null
+  manufacturer_id: number | null
   external_id: string | null
   warehouse_accounting_enabled: boolean
   media: Array<{
@@ -408,6 +410,7 @@ export const backendApi = {
       weight: number | null
       tax_category_id: number | null
       shipping_category_id: number | null
+      manufacturer_id: number | null
       warehouse_stocks: Array<{
         warehouse_id: number
         quantity: number
@@ -420,6 +423,18 @@ export const backendApi = {
       {
         method: 'PUT',
         body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  syncProductFromOneC: (
+    id: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${id}/sync-1c`,
+      {
+        method: 'POST',
         csrfToken,
       },
     ),
