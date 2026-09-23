@@ -45,10 +45,14 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
   const payload = await response.json()
 
   if (!response.ok) {
-    const message =
-      payload?.message
-      ?? Object.values(payload?.errors ?? {}).flat().join('\n')
-      ?? `Ошибка backend (${response.status})`
+    const validationMessage = Object.values(payload?.errors ?? {})
+      .flat()
+      .filter(Boolean)
+      .join('\n')
+
+    const message = validationMessage
+      || payload?.message
+      || `Ошибка backend (${response.status})`
 
     throw new Error(String(message))
   }
