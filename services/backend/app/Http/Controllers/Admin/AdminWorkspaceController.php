@@ -572,6 +572,71 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
+    public function uploadProductVariantMedia(
+        Request $request,
+        Product $product,
+        Product $variant
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+        Gate::authorize('update', $variant);
+        $this->ensureVariantBelongsToProduct($product, $variant);
+
+        $validated = $request->validate([
+            'collection' => ['required', Rule::in(['images', 'gallery'])],
+            'file' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
+        ]);
+
+        $collection = $validated['collection'];
+
+        if ($collection === 'gallery' && $variant->getMedia('gallery')->count() >= 10) {
+            throw ValidationException::withMessages([
+                'file' => 'В галерее уже 10 изображений. Удалите одно из них перед загрузкой нового.',
+            ]);
+        }
+
+        if ($collection === 'images') {
+            $variant->clearMediaCollection('images');
+        }
+
+        $variant
+            ->addMediaFromRequest('file')
+            ->toMediaCollection($collection);
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => $collection === 'images'
+                ? 'Главное изображение вариации обновлено'
+                : 'Изображение добавлено в галерею вариации',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function deleteProductVariantMedia(
+        Product $product,
+        Product $variant,
+        int $media
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+        Gate::authorize('update', $variant);
+        $this->ensureVariantBelongsToProduct($product, $variant);
+
+        $item = Media::query()
+            ->whereKey($media)
+            ->where('model_type', $variant->getMorphClass())
+            ->where('model_id', $variant->id)
+            ->whereIn('collection_name', ['images', 'gallery'])
+            ->firstOrFail();
+
+        $item->delete();
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Изображение вариации удалено',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
     public function uploadProductMedia(Request $request, Product $product): JsonResponse
     {
         Gate::authorize('update', $product);
@@ -582,6 +647,12 @@ class AdminWorkspaceController extends Controller
         ]);
 
         $collection = $validated['collection'];
+
+        if ($collection === 'gallery' && $product->getMedia('gallery')->count() >= 10) {
+            throw ValidationException::withMessages([
+                'file' => 'В галерее уже 10 изображений. Удалите одно из них перед загрузкой нового.',
+            ]);
+        }
 
         if ($collection === 'images') {
             $product->clearMediaCollection('images');
@@ -1134,7 +1205,7 @@ class AdminWorkspaceController extends Controller
 
     private function variantPayload(Product $variant): array
     {
-        $variant->loadMissing(['warehouseStocks.warehouse']);
+        $variant->loadMissing(['warehouseStocks.warehouse', 'media']);
 
         $attributeRows = DB::table('product_variant_attributes')
             ->where('product_id', $variant->id)
@@ -1175,6 +1246,25 @@ class AdminWorkspaceController extends Controller
             'stock' => (float) ($variant->getRawOriginal('stock') ?? $variant->stock ?? 0),
             'backorder' => (bool) ($variant->getRawOriginal('backorder') ?? $variant->backorder ?? false),
             'external_id' => $this->nullableScalarString($variant->external_id),
+            'media' => $variant->media
+                ->whereIn('collection_name', ['images', 'gallery'])
+                ->sortBy(fn (Media $media) => [
+                    $media->collection_name === 'images' ? 0 : 1,
+                    $media->order_column ?? PHP_INT_MAX,
+                    $media->id,
+                ])
+                ->map(fn (Media $media) => [
+                    'id' => (int) $media->id,
+                    'collection' => $this->scalarString($media->collection_name),
+                    'name' => $this->scalarString($media->name),
+                    'file_name' => $this->scalarString($media->file_name),
+                    'url' => $media->getUrl(),
+                    'thumb_url' => $media->hasGeneratedConversion('thumb')
+                        ? $media->getUrl('thumb')
+                        : $media->getUrl(),
+                    'order' => (int) ($media->order_column ?? 0),
+                ])
+                ->values(),
             'attributes' => $attributeRows,
             'warehouse_stocks' => $variant->warehouseStocks->map(fn ($stock) => [
                 'warehouse_id' => (int) $stock->warehouse_id,
