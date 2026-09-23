@@ -12,7 +12,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json')
 
-  if (options.body && !headers.has('Content-Type')) {
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
@@ -109,6 +109,7 @@ export type ProductEditorAttributeOption = {
   slug: string
   type: string
   is_required: boolean
+  is_filterable: boolean
   is_multiple: boolean
   is_use_in_variations: boolean
   allow_custom_value: boolean
@@ -147,6 +148,15 @@ export type ProductDetails = ProductSummary & {
   shipping_category_id: number | null
   external_id: string | null
   warehouse_accounting_enabled: boolean
+  media: Array<{
+    id: number
+    collection: 'images' | 'gallery'
+    name: string
+    file_name: string
+    url: string
+    thumb_url: string
+    order: number
+  }>
   attribute_rows: ProductAttributeRow[]
   attributes: Array<{
     id: number
@@ -368,6 +378,40 @@ export const backendApi = {
         csrfToken,
       },
     ),
+
+  uploadProductMedia: (
+    id: number,
+    collection: 'images' | 'gallery',
+    file: File,
+    csrfToken: string,
+  ) => {
+    const form = new FormData()
+    form.append('collection', collection)
+    form.append('file', file)
+
+    return request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${id}/media`,
+      {
+        method: 'POST',
+        body: form,
+        csrfToken,
+      },
+    )
+  },
+
+  deleteProductMedia: (
+    id: number,
+    mediaId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${id}/media/${mediaId}`,
+      {
+        method: 'DELETE',
+        csrfToken,
+      },
+    ),
+
 
   attributes: () =>
     request<{ data: AttributeDefinition[] }>('/admin_sv/api/attributes'),
