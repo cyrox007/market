@@ -13,9 +13,11 @@ Route::get('api-docs/metrics', ApiMetricsController::class)
     return view('welcome');
 }); */
 
-Route::get('/admin-ui/{path?}', AdminUiController::class)
-    ->where('path', '.*')
+Route::get('/admin-ui', [AdminUiController::class, 'index'])
     ->name('admin-ui');
+Route::get('/admin-ui/', [AdminUiController::class, 'index']);
+Route::get('/admin-ui/{path}', [AdminUiController::class, 'asset'])
+    ->where('path', '.*');
 
 Route::get('/{any}', function () {
     return File::get(public_path('index.html'));
