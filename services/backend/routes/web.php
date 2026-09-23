@@ -54,24 +54,24 @@ Route::middleware([
             ->where('productId', '[0-9]+');
         Route::post('/products/{product}/sync-1c', [AdminWorkspaceController::class, 'syncProductFromOneC'])
             ->where('product', '[0-9]+');
-        Route::post('/products/{product}/variants', [AdminWorkspaceController::class, 'createProductVariant'])
-            ->where('product', '[0-9]+');
-        Route::put('/products/{product}/variants/{variant}', [AdminWorkspaceController::class, 'updateProductVariant'])
-            ->where('product', '[0-9]+')
-            ->where('variant', '[0-9]+');
-        Route::delete('/products/{product}/variants/{variant}', [AdminWorkspaceController::class, 'deleteProductVariant'])
-            ->where('product', '[0-9]+')
-            ->where('variant', '[0-9]+');
-        Route::post('/products/{product}/variants/{variant}/media', [AdminWorkspaceController::class, 'uploadProductVariantMedia'])
-            ->where('product', '[0-9]+')
-            ->where('variant', '[0-9]+');
-        Route::delete('/products/{product}/variants/{variant}/media/{media}', [AdminWorkspaceController::class, 'deleteProductVariantMedia'])
-            ->where('product', '[0-9]+')
-            ->where('variant', '[0-9]+')
+        Route::post('/products/{productId}/variants', [AdminWorkspaceController::class, 'createProductVariant'])
+            ->where('productId', '[0-9]+');
+        Route::put('/products/{productId}/variants/{variantId}', [AdminWorkspaceController::class, 'updateProductVariant'])
+            ->where('productId', '[0-9]+')
+            ->where('variantId', '[0-9]+');
+        Route::delete('/products/{productId}/variants/{variantId}', [AdminWorkspaceController::class, 'deleteProductVariant'])
+            ->where('productId', '[0-9]+')
+            ->where('variantId', '[0-9]+');
+        Route::post('/products/{productId}/variants/{variantId}/media', [AdminWorkspaceController::class, 'uploadProductVariantMedia'])
+            ->where('productId', '[0-9]+')
+            ->where('variantId', '[0-9]+');
+        Route::delete('/products/{productId}/variants/{variantId}/media/{media}', [AdminWorkspaceController::class, 'deleteProductVariantMedia'])
+            ->where('productId', '[0-9]+')
+            ->where('variantId', '[0-9]+')
             ->where('media', '[0-9]+');
-        Route::put('/products/{product}/variants/{variant}/media-order', [AdminWorkspaceController::class, 'reorderProductVariantMedia'])
-            ->where('product', '[0-9]+')
-            ->where('variant', '[0-9]+');
+        Route::put('/products/{productId}/variants/{variantId}/media-order', [AdminWorkspaceController::class, 'reorderProductVariantMedia'])
+            ->where('productId', '[0-9]+')
+            ->where('variantId', '[0-9]+');
         Route::post('/products/{product}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
             ->where('product', '[0-9]+');
         Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
