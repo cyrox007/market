@@ -1757,16 +1757,17 @@ function ProductEditor({
       selectableIds,
       session.csrf_token,
     )
-    const refreshedOptions = await backendApi.productEditorOptions(product.id)
+    const refreshedEditor = await backendApi.productEditor(product.id)
+    const refreshedOptions = refreshedEditor.options
 
-    applySavedProduct(response.product)
+    applySavedProduct(refreshedEditor.product)
     setOptions(refreshedOptions)
-    setVariationSelection([...response.product.variation_attribute_ids])
+    setVariationSelection([...refreshedEditor.product.variation_attribute_ids])
     setVariationSelectionDirty(false)
     setVariantMessage(response.message)
 
     return {
-      product: response.product,
+      product: refreshedEditor.product,
       options: refreshedOptions,
     }
   }
