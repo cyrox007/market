@@ -14,7 +14,8 @@
 		"lint": "turbo run lint",
 		"api:perf:generate": "npx openapi-to-k6 --include-sample-script services/backend/public/api-docs/openapi.json tools/k6/generated && node tools/k6/patch-base-url.cjs",
 		"api:perf:run": "mkdir -p tools/k6/reports && k6 run --vus 10 --duration 30s --out json=tools/k6/reports/report.json tools/k6/generated/k6-script.sample.ts",
-		"api:perf": "npm run api:perf:generate && npm run api:perf:run"
+		"api:perf": "npm run api:perf:generate && npm run api:perf:run",
+		"admin:build": "npm run build --workspace=svetofor-admin-prototype"
 	},
 	"devDependencies": {
 		"@grafana/openapi-to-k6": "^0.4.1",
