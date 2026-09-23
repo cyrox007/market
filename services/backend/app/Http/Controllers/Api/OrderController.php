@@ -19,6 +19,7 @@ use App\Services\Shipping\Contracts\ShippingMethodProviderInterface;
 use App\Services\Payment\Contracts\PaymentMethodAvailabilityInterface;
 use App\Services\Shipping\ShippingCalculationService;
 use App\Services\Shipping\CarrierService;
+use App\Services\Shipping\WarehouseDeliveryOptionsService;
 use App\Models\Shipping\AdditionalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -98,7 +99,8 @@ class OrderController extends Controller
         protected ShippingMethodProviderInterface $shippingMethodProvider,
         protected PaymentMethodAvailabilityInterface $paymentMethodAvailability,
         protected GatewayLoggerInterface $gatewayLog,
-        protected StockAvailabilityService $stockAvailabilityService
+        protected StockAvailabilityService $stockAvailabilityService,
+        protected WarehouseDeliveryOptionsService $warehouseDeliveryOptionsService
     ) {
     }
 
@@ -116,6 +118,8 @@ class OrderController extends Controller
             'statusHistory',
             'region',
             'shippingLocation',
+            'deliveryWarehouse',
+            'warehouseDeliveryMethod',
             'shippingMethod.carrier',
             'deliveryHandlingType',
             'additionalServices'
@@ -170,6 +174,8 @@ class OrderController extends Controller
                 'shipping_location_id' => 'nullable|exists:shipping_locations,id',
                 'region_id' => 'nullable|exists:shipping_locations,id',
                 'shipping_method_id' => 'nullable|integer',
+                'delivery_warehouse_id' => 'nullable|exists:warehouses,id',
+                'warehouse_delivery_method_id' => 'nullable|exists:warehouse_delivery_methods,id',
                 'delivery_handling_type_id' => 'nullable|exists:delivery_handling_types,id',
                 'delivery_floor' => 'nullable|integer|min:1|max:20',
                 'requires_assembly' => 'nullable|boolean',
@@ -228,6 +234,23 @@ class OrderController extends Controller
 
             $cartItems = Cart::getItems();
             $subtotal = (float) Cart::total();
+            $deliveryItems = collect($cartItems)
+                ->map(function ($cartItem): ?array {
+                    $productId = $cartItem->buyable?->id ?? ($cartItem->product_id ?? null);
+                    $quantity = (float) ($cartItem->quantity ?? 0);
+
+                    if (! $productId || $quantity <= 0) {
+                        return null;
+                    }
+
+                    return [
+                        'product_id' => (int) $productId,
+                        'quantity' => $quantity,
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all();
 
             // Получаем регион для применения правил корзины
             $region = null;
@@ -287,6 +310,8 @@ class OrderController extends Controller
             $deliveryDaysMax = null;
             $deliveryBasePrice = null;
             $deliveryFreeThreshold = null;
+            $deliveryWarehouseId = null;
+            $warehouseDeliveryMethodId = null;
 
             if ($validated['delivery_type'] === 'delivery') {
                 // Получаем локацию доставки
@@ -336,10 +361,69 @@ class OrderController extends Controller
                     }
                 }
 
-                // Если указан shipping_method_id, используем его для расчета
-                if (isset($validated['shipping_method_id'])) {
+                $warehouseOption = null;
+                $hasConfiguredDeliveryMethods = $this->warehouseDeliveryOptionsService
+                    ->hasConfiguredMethodsForLocation($shippingLocation);
+
+                if ($hasConfiguredDeliveryMethods) {
+                    $warehouseOptions = $this->warehouseDeliveryOptionsService
+                        ->resolveForLocation($shippingLocation, $deliveryItems, $subtotal);
+
+                    if ($warehouseOptions->isEmpty()) {
+                        return response()->json([
+                            'message' => 'Нет способа доставки, который может обслужить весь состав заказа',
+                            'errors' => [
+                                'warehouse_delivery_method_id' => [
+                                    'Измените состав заказа или выберите другую локацию доставки',
+                                ],
+                            ],
+                        ], 422);
+                    }
+
+                    if (isset($validated['warehouse_delivery_method_id'])) {
+                        $warehouseOption = $warehouseOptions->firstWhere(
+                            'warehouse_delivery_method_id',
+                            (int) $validated['warehouse_delivery_method_id']
+                        );
+                    } elseif (isset($validated['delivery_warehouse_id'], $validated['shipping_method_id'])) {
+                        $warehouseOption = $warehouseOptions->first(
+                            fn (array $option): bool =>
+                                $option['warehouse_id'] === (int) $validated['delivery_warehouse_id']
+                                && $option['shipping_method_id'] === (int) $validated['shipping_method_id']
+                        );
+                    } elseif (isset($validated['delivery_warehouse_id'])) {
+                        $warehouseOption = $warehouseOptions->firstWhere(
+                            'warehouse_id',
+                            (int) $validated['delivery_warehouse_id']
+                        );
+                    } elseif (isset($validated['shipping_method_id'])) {
+                        $warehouseOption = $warehouseOptions->firstWhere(
+                            'shipping_method_id',
+                            (int) $validated['shipping_method_id']
+                        );
+                    } else {
+                        $warehouseOption = $warehouseOptions->first();
+                    }
+
+                    if (! $warehouseOption) {
+                        return response()->json([
+                            'message' => 'Выбранный вариант доставки недоступен для этого заказа',
+                            'errors' => [
+                                'warehouse_delivery_method_id' => [
+                                    'Выберите один из вариантов доставки, рассчитанных сервером',
+                                ],
+                            ],
+                        ], 422);
+                    }
+
+                    $deliveryWarehouseId = (int) $warehouseOption['warehouse_id'];
+                    $warehouseDeliveryMethodId = (int) $warehouseOption['warehouse_delivery_method_id'];
+                    $shippingMethod = ShippingMethod::findOrFail($warehouseOption['shipping_method_id']);
+                    $shippingMethod->load('carrier');
+                }
+
+                if (! $warehouseOption && isset($validated['shipping_method_id'])) {
                     $shippingMethod = ShippingMethod::findOrFail($validated['shipping_method_id']);
-                    // Загружаем carrier для метода доставки
                     $shippingMethod->load('carrier');
 
                     $allowedIds = $this->shippingMethodProvider
@@ -347,7 +431,8 @@ class OrderController extends Controller
                         ->pluck('id')
                         ->map(fn ($id) => (int) $id)
                         ->all();
-                    if (!in_array((int) $validated['shipping_method_id'], $allowedIds, true)) {
+
+                    if (! in_array((int) $validated['shipping_method_id'], $allowedIds, true)) {
                         Log::warning('order.checkout: shipping_method not allowed for location', [
                             'shipping_method_id' => $validated['shipping_method_id'],
                             'shipping_location_id' => $shippingLocation->id,
@@ -357,11 +442,32 @@ class OrderController extends Controller
 
                         return response()->json([
                             'message' => 'Выбранный способ доставки недоступен для этой локации',
-                            'errors' => ['shipping_method_id' => ['Укажите один из способов доставки, показанных для выбранной локации']],
+                            'errors' => [
+                                'shipping_method_id' => [
+                                    'Укажите один из способов доставки, показанных для выбранной локации',
+                                ],
+                            ],
                         ], 422);
                     }
+                }
 
-                    // Используем интерфейс для расчета стоимости доставки
+                if ($warehouseOption) {
+                    $calculation = $this->shippingCostCalculator->calculateForLocation(
+                        $shippingLocation,
+                        $subtotal,
+                        $deliveryHandlingType,
+                        $validated['delivery_floor'] ?? null,
+                        (bool) ($validated['requires_assembly'] ?? false)
+                    );
+
+                    $deliveryBasePrice = (float) $warehouseOption['delivery_base_price'];
+                    $deliveryFreeThreshold = $warehouseOption['free_delivery_threshold'];
+                    $deliveryCost = (float) $warehouseOption['delivery_price']
+                        + (float) ($calculation->handlingPrice ?? 0);
+                    $assemblyCost = $calculation->assemblyPrice ?? 0.0;
+                    $deliveryDaysMin = $warehouseOption['delivery_days_min'];
+                    $deliveryDaysMax = $warehouseOption['delivery_days_max'];
+                } elseif ($shippingMethod) {
                     $calculation = $this->shippingCostCalculator->calculateForMethod(
                         $shippingMethod,
                         $shippingLocation,
@@ -371,17 +477,13 @@ class OrderController extends Controller
                         (bool) ($validated['requires_assembly'] ?? false)
                     );
 
-                    // Получаем стоимость доставки (доставка + обработка, без сборки)
                     $deliveryCost = $calculation->getDeliveryTotal();
                     $assemblyCost = $calculation->assemblyPrice ?? 0.0;
-
-                    // Сохраняем данные о доставке из результата расчета
                     $deliveryDaysMin = $calculation->deliveryDaysMin;
                     $deliveryDaysMax = $calculation->deliveryDaysMax;
                     $deliveryBasePrice = $calculation->basePrice;
                     $deliveryFreeThreshold = $calculation->freeDeliveryThreshold;
                 } else {
-                    // Используем базовый расчет доставки через интерфейс
                     $calculation = $this->shippingCostCalculator->calculateForLocation(
                         $shippingLocation,
                         $subtotal,
@@ -390,12 +492,8 @@ class OrderController extends Controller
                         (bool) ($validated['requires_assembly'] ?? false)
                     );
 
-                    // ВАЖНО: delivery_cost = доставка + обработка (подъем/разгрузка),
-                    // сборка хранится отдельно в assembly_cost и не должна попадать в delivery_cost.
                     $deliveryCost = $calculation->getDeliveryTotal();
                     $assemblyCost = $calculation->assemblyPrice ?? 0.0;
-
-                    // Для базового расчета берем данные из результата расчета
                     $deliveryDaysMin = $calculation->deliveryDaysMin;
                     $deliveryDaysMax = $calculation->deliveryDaysMax;
                     $deliveryBasePrice = $calculation->basePrice;
@@ -413,10 +511,6 @@ class OrderController extends Controller
                     }
                 }
 
-                // Если сборка явно указана в запросе, используем это значение (переопределяет расчет)
-                if (isset($validated['assembly_cost']) && $validated['assembly_cost'] > 0) {
-                    $assemblyCost = $validated['assembly_cost'];
-                }
             } else {
                 // Для самовывоза доставка бесплатна
                 $deliveryCost = 0;
@@ -451,10 +545,6 @@ class OrderController extends Controller
                     // Для pickup обработка добавляется к assembly_cost
                     $assemblyCost = ($calculation->assemblyPrice ?? 0.0) + ($calculation->handlingPrice ?? 0.0);
 
-                    // Если сборка явно указана в запросе, используем это значение (переопределяет расчет)
-                    if (isset($validated['assembly_cost']) && $validated['assembly_cost'] > 0) {
-                        $assemblyCost = $validated['assembly_cost'];
-                    }
 
                     // Проверяем тип обработки для валидации этажа
                     if (isset($validated['delivery_handling_type_id'])) {
@@ -484,8 +574,8 @@ class OrderController extends Controller
                         }
                     }
                 } else {
-                    // Если локация не указана, используем переданные значения или 0
-                    $assemblyCost = $validated['assembly_cost'] ?? 0;
+                    // Без выбранной локации сервер не может рассчитать сборку/обработку.
+                    $assemblyCost = 0;
                 }
 
                 if (isset($validated['shipping_method_id'])) {
@@ -506,17 +596,10 @@ class OrderController extends Controller
                 $shippingLocation
             );
 
-            // Самовывоз всегда бесплатный; для доставки клиент не может подменить расчёт через delivery_cost без согласования
-            if ($validated['delivery_type'] === 'pickup') {
-                $finalDeliveryCost = 0.0;
-            } else {
-                $finalDeliveryCost = isset($validated['delivery_cost']) && $validated['delivery_cost'] !== null
-                    ? (float) $validated['delivery_cost']
-                    : $deliveryCost;
-            }
-            $finalAssemblyCost = isset($validated['assembly_cost']) && $validated['assembly_cost'] !== null
-                ? (float) $validated['assembly_cost']
-                : $assemblyCost;
+            // Стоимость доставки и сборки всегда фиксируется из серверного расчёта.
+            // Legacy-поля delivery_cost/assembly_cost принимаются для совместимости, но не являются источником цены.
+            $finalDeliveryCost = $validated['delivery_type'] === 'pickup' ? 0.0 : (float) $deliveryCost;
+            $finalAssemblyCost = (float) $assemblyCost;
 
             $paymentMethodModel = PaymentMethod::where('code', $validated['payment_method'])->first();
             if (!$paymentMethodModel) {
@@ -549,6 +632,8 @@ class OrderController extends Controller
                     'comment' => $validated['comment'] ?? null,
                     // Новые поля для системы доставки (сохраняем для обоих типов, если указаны)
                     'shipping_location_id' => $shippingLocation?->id,
+                    'delivery_warehouse_id' => $deliveryWarehouseId,
+                    'warehouse_delivery_method_id' => $warehouseDeliveryMethodId,
                     'region_id' => $region?->id, // Сохраняем регион для применения правил корзины
                     'shipping_method_id' => $shippingMethod?->id,
                     'delivery_handling_type_id' => $deliveryHandlingType?->id,
@@ -791,6 +876,8 @@ class OrderController extends Controller
                     'address',
                     'statusHistory.user',
                     'shippingLocation',
+                    'deliveryWarehouse',
+                    'warehouseDeliveryMethod',
                     'shippingMethod.carrier',
                     'deliveryHandlingType',
                     'additionalServices'
@@ -872,6 +959,8 @@ class OrderController extends Controller
             'address',
             'statusHistory.user',
             'shippingLocation',
+            'deliveryWarehouse',
+            'warehouseDeliveryMethod',
             'shippingMethod.carrier',
             'deliveryHandlingType'
         ]);

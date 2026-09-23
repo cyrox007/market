@@ -26,9 +26,9 @@ class WarehousesTable
                     ->copyable()
                     ->sortable(),
 
-                TextColumn::make('shipping_locations_count')
-                    ->label('Локаций')
-                    ->counts('shippingLocations')
+                TextColumn::make('delivery_methods_count')
+                    ->label('Способов доставки')
+                    ->counts('deliveryMethods')
                     ->sortable(),
 
                 IconColumn::make('is_active')

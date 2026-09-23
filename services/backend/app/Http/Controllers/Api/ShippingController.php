@@ -8,6 +8,7 @@ use App\Models\Shipping\ShippingLocation;
 use App\Services\Shipping\Contracts\ShippingCostCalculatorInterface;
 use App\Services\Shipping\Contracts\ShippingMethodProviderInterface;
 use App\Services\Shipping\Contracts\DeliveryHandlingProviderInterface;
+use App\Services\Shipping\WarehouseDeliveryOptionsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\Shipping\Carrier;
@@ -19,7 +20,8 @@ class ShippingController extends Controller
     public function __construct(
         private ShippingCostCalculatorInterface $shippingCostCalculator,
         private ShippingMethodProviderInterface $shippingMethodProvider,
-        private DeliveryHandlingProviderInterface $deliveryHandlingProvider
+        private DeliveryHandlingProviderInterface $deliveryHandlingProvider,
+        private WarehouseDeliveryOptionsService $warehouseDeliveryOptionsService
     ) {
     }
 
@@ -367,6 +369,39 @@ class ShippingController extends Controller
         return response()->json([
             'data' => $methodsWithPrice,
             'shipping_resolution' => $shippingResolution,
+            'location' => [
+                'id' => $location->id,
+                'name' => $location->name,
+                'type' => $location->type,
+            ],
+        ]);
+    }
+
+    /**
+     * Получить доступные варианты доставки для состава заказа.
+     *
+     * Каждый вариант однозначно задаёт склад, способ доставки,
+     * перевозчика, серверную стоимость и срок.
+     */
+    public function getWarehouseDeliveryOptions(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'location_id' => 'required|exists:shipping_locations,id',
+            'order_amount' => 'nullable|numeric|min:0',
+            'items' => 'nullable|array',
+            'items.*.product_id' => 'required_with:items|integer|exists:products,id',
+            'items.*.quantity' => 'required_with:items|numeric|min:0.001',
+        ]);
+
+        $location = ShippingLocation::findOrFail($validated['location_id']);
+        $options = $this->warehouseDeliveryOptionsService->resolveForLocation(
+            $location,
+            $validated['items'] ?? [],
+            (float) ($validated['order_amount'] ?? 0)
+        );
+
+        return response()->json([
+            'data' => $options->all(),
             'location' => [
                 'id' => $location->id,
                 'name' => $location->name,

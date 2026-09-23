@@ -1,172 +1,170 @@
-# Система доставки (Shipping Locations + Carriers + Delivery Handling)
+# Система доставки
 
 ## Обзор
 
-Система доставки построена на единой таблице **`shipping_locations`** с иерархией (parent/children) и наследованием цен/настроек.
-Интегрирована с **Vanilo Shipping** для работы со **`carriers`** и **`shipping_methods`**.
+Система доставки строится вокруг трёх уровней:
 
-## Архитектура
+1. **Склад** — физический источник товара и остатков.
+2. **Способ доставки склада** — конкретный способ доставки Vanilo, доступный с этого склада.
+3. **Зона способа доставки** — территория, тариф и срок доставки для выбранного способа.
 
-### Иерархия локаций (единая модель)
+Иерархия территорий хранится в `shipping_locations`:
 
-`shipping_locations` поддерживает типы:
+- `federal_district` — федеральный округ;
+- `region` — регион;
+- `locality` — населённый пункт.
 
--   `federal_district` — федеральный округ
--   `region` — регион
--   `locality` — населённый пункт
+Для зон действует наследование: правило города имеет приоритет над правилом региона, а правило региона — над правилом федерального округа.
 
-### Наследование цен
+## Складская логистика
 
-Цены и свойства наследуются по иерархии снизу вверх:
+### Склад
 
--   Если у города нет цены → берется цена региона
--   Если у региона нет цены → берется цена федерального округа
--   Если у федерального округа нет цены → возвращается null
+Модель `Warehouse` хранит склад, его активность и остатки товаров.
 
-### Типы обработки доставки (подъём/разгрузка)
+В административной панели вся логистика склада настраивается в карточке склада в разделе **«Способы доставки со склада»**.
 
-Используется система **типов обработки доставки** (`delivery_handling_types`) + pivot
-`shipping_location_delivery_handling` с ценами и правилами.
+### Способ доставки склада
 
-Примеры:
+Таблица `warehouse_delivery_methods` связывает склад с конкретным `shipping_method` Vanilo.
 
-1. **Лифт** (`code=elevator`) — фиксированная цена
-2. **Ручной подъем** (`code=manual`) — цена может зависеть от этажа
+Для способа задаются:
 
-Для каждой локации можно настроить:
+- активность;
+- приоритет;
+- перевозчик через связанный `shipping_method`;
+- одна или несколько зон доставки.
 
--   `base_price`
--   `elevator_price`
--   `floor_prices` (JSON с ценой по этажам)
--   `requires_floor` у типа обработки
+Один склад может иметь несколько способов доставки. Один и тот же регион может обслуживаться несколькими складами и несколькими способами доставки.
 
-## Модели
+### Зона способа доставки
 
-### ShippingLocation
+Таблица `warehouse_delivery_method_locations` хранит:
 
--   `getEffectiveDeliveryPrice()`
--   `getEffectiveFreeDeliveryThreshold()`
--   `getEffectiveDeliveryDays()`
--   `getEffectiveAssemblyPrice()`
--   `getEffectiveRequiresAssembly()`
--   `getDeliveryHandlingPrice(DeliveryHandlingType $type, ?int $floor)`
--   `getEffectiveCarriers()` (наследование carriers)
+- территорию доставки;
+- стоимость;
+- порог бесплатной доставки;
+- минимальный и максимальный срок;
+- активность;
+- приоритет зоны.
 
-### DeliveryHandlingType
+Если стоимость, порог бесплатной доставки или срок не заданы, используются эффективные значения из `ShippingLocation`.
 
--   `requires_floor` — требует ли обязательного указания этажа
+Сервер не позволяет сохранить отрицательные тарифы и некорректный диапазон срока, например «от 5 до 2 дней».
 
-## Сервисы
+## Расчёт доступных вариантов
 
-### ShippingCalculationService
+`WarehouseDeliveryOptionsService` получает:
 
-```php
-// Рассчитать стоимость доставки (включает delivery + handling + assembly в total)
-$calculation = $service->calculateShipping(
-    $location,
-    $orderAmount,
-    $handlingType,
-    $floor
-);
+- локацию назначения;
+- состав заказа;
+- сумму заказа.
 
-// Проверить доступность доставки
-$availability = $service->checkDeliveryAvailability(
-    $locality,
-    $orderAmount,
-    $orderWeight,
-    $orderVolume
-);
-```
+Сервис:
 
-## API Endpoints
+1. находит активные способы доставки складов, которые обслуживают выбранную территорию или её родителя;
+2. для каждого способа выбирает наиболее точную зону;
+3. рассчитывает стоимость с учётом порога бесплатной доставки;
+4. при включённом складском учёте исключает склады, на которых недостаточно хотя бы одной позиции заказа;
+5. сортирует варианты по приоритету способа, приоритету зоны и стоимости.
 
-### GET /api/v1/shipping/locations
-
-Список локаций с фильтрами `type`, `parent_id`, `search`
-
-### GET /api/v1/shipping/locations/tree
-
-Дерево локаций (`active_children`)
-
-### GET /api/v1/shipping/locations/{locationId}
-
-Информация о локации + carriers + shipping_methods + handling types
-
-### POST /api/v1/shipping/calculate
-
-Рассчитать стоимость доставки
+Результат — не просто склад, а конкретный вариант:
 
 ```json
 {
-    "location_id": 1,
-    "order_amount": 5000,
-    "delivery_handling_type_id": 2,
-    "floor": 5,
-    "requires_assembly": true
+  "warehouse_delivery_method_id": 12,
+  "warehouse_id": 3,
+  "warehouse_name": "Склад Москва",
+  "shipping_method_id": 7,
+  "shipping_method_name": "Курьерская доставка",
+  "carrier": {
+    "id": 2,
+    "name": "Собственная доставка"
+  },
+  "delivery_base_price": 1200,
+  "delivery_price": 1200,
+  "free_delivery_threshold": 15000,
+  "delivery_days_min": 1,
+  "delivery_days_max": 2,
+  "inherited": false
 }
 ```
 
-### GET /api/v1/shipping/delivery-handling-types
+## API
 
-Список доступных типов обработки доставки
+### GET / POST /api/v1/shipping/delivery-options
 
-### GET /api/v1/shipping/carriers
+Возвращает доступные варианты доставки для локации и состава заказа. Для реальной корзины предпочтителен POST с JSON-телом; GET оставлен для простых запросов и обратной совместимости.
 
-Список carriers (Vanilo)
+Параметры:
 
-### GET /api/v1/shipping/shipping-methods?location_id={id}&order_amount={amount}
+- `location_id` — обязательный идентификатор локации;
+- `order_amount` — сумма заказа;
+- `items[][product_id]` — товар;
+- `items[][quantity]` — количество.
 
-Список доступных shipping methods для локации (Vanilo), с расчётом цены по сумме заказа
+Ответ содержит комбинации «склад + способ доставки + перевозчик + стоимость + срок».
 
-### POST /api/v1/shipping/shipping-methods/calculate
+### Остальные точки API
 
-Расчёт цены для конкретного shipping method
+- `GET /api/v1/shipping/locations` — список локаций;
+- `GET /api/v1/shipping/locations/tree` — дерево локаций;
+- `GET /api/v1/shipping/locations/{locationId}` — информация о локации;
+- `GET /api/v1/shipping/delivery-handling-types` — типы обработки доставки;
+- `GET /api/v1/shipping/carriers` — перевозчики;
+- `GET /api/v1/shipping/shipping-methods` — старый список способов доставки по локации;
+- `POST /api/v1/shipping/calculate` — старый расчёт по локации;
+- `POST /api/v1/shipping/shipping-methods/calculate` — старый расчёт по способу доставки.
 
-## Интеграция с Vanilo
+Старые точки остаются для обратной совместимости. Новая витрина должна получать доступные складские варианты через `/shipping/delivery-options`.
 
-Система интегрирована с Vanilo Shipping:
+## Оформление заказа
 
--   Локации могут иметь **наследуемые carriers** (`carrier_shipping_location`)
--   Для локации автоматически создаются **shipping methods** (через `CarrierService`), если их нет
--   Используются таблицы Vanilo: `carriers`, `shipping_methods`
+При оформлении доставки клиент может передать `warehouse_delivery_method_id`.
 
-## Заполнение данных
+Сервер повторно рассчитывает варианты по текущей локации и составу корзины. Переданный идентификатор принимается только если он присутствует среди доступных вариантов.
+
+В заказе фиксируются:
+
+- `delivery_warehouse_id`;
+- `warehouse_delivery_method_id`;
+- `shipping_method_id`;
+- фактическая стоимость доставки;
+- базовый тариф;
+- порог бесплатной доставки;
+- минимальный и максимальный срок.
+
+Клиентские поля `delivery_cost` и `assembly_cost` не являются источником итоговой стоимости.
+
+Изменение тарифа или срока после оформления не меняет уже созданный заказ.
+
+## Обработка доставки и сборка
+
+Подъём, разгрузка и сборка остаются отдельным слоем.
+
+Используются:
+
+- `delivery_handling_types`;
+- `shipping_location_delivery_handling`;
+- настройки сборки в `shipping_locations`.
+
+Стоимость обработки и сборки рассчитывается сервером и добавляется к выбранному складскому тарифу.
+
+## Совместимость со старой системой
+
+Таблица `region_shipping_methods` и старый интерфейс «Методы доставки по регионам» сохранены только для обратной совместимости. Этот ресурс больше не показывается в навигации Filament.
+
+Если для локации нет ни одного нового складского способа доставки, checkout продолжает использовать прежний механизм способов доставки. После переноса рабочих настроек в складские способы старую схему можно удалить отдельной миграцией.
+
+Прямая таблица `warehouse_shipping_location` также сохраняется как существующая связь склада с локациями, но новые тарифы и SLA в ней не создаются.
+
+## Проверка после миграции
+
+После обновления ветки:
 
 ```bash
-# Запустить миграции
-docker exec sv_app php artisan migrate
-
-# Заполнить локации/типы обработки/перевозчиков
-docker exec sv_app php artisan db:seed
+php artisan migrate
+php artisan optimize:clear
 ```
 
-## Пример использования
-
-```php
-use App\Models\Shipping\ShippingLocation;
-use App\Models\Shipping\DeliveryHandlingType;
-use App\Services\Shipping\ShippingCalculationService;
-
-$location = ShippingLocation::find(1);
-$handlingType = DeliveryHandlingType::where('code', 'manual')->first();
-$service = new ShippingCalculationService();
-
-$result = $service->calculateShipping($location, 5000, $handlingType, 5);
-
-// Результат:
-// [
-//   'delivery_price' => 1500.00,
-//   'handling_price' => 1100.00,
-//   'total' => 2600.00,
-//   'free_delivery_threshold' => 10000.00,
-//   'delivery_days' => ['min' => 3, 'max' => 7],
-//   'shipping_method' => ShippingMethod
-// ]
-```
-
-## Особенности для мебельного магазина
-
--   Поддержка сборки мебели (`requires_assembly`, `assembly_price`, `assembly_days`)
--   Ограничения по весу и объему заказа
--   Минимальная сумма заказа для доставки
--   Гибкая настройка цен разгрузки по этажам
+Для локального запуска через OSPanel Redis должен быть настроен на локальный адрес либо кэш должен использовать базу данных. Docker-имя `redis` работает только внутри Docker-сети.

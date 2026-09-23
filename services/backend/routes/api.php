@@ -155,6 +155,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/calculate', [ShippingController::class, 'calculateShipping']);
         Route::get('/carriers', [ShippingController::class, 'getCarriers']);
         Route::get('/shipping-methods', [ShippingController::class, 'getShippingMethods']);
+        Route::match(['get', 'post'], '/delivery-options', [ShippingController::class, 'getWarehouseDeliveryOptions']);
         Route::post('/shipping-methods/calculate', [ShippingController::class, 'calculateShippingMethod']);
         Route::get('/additional-services', [ShippingController::class, 'getAdditionalServices']);
     });
