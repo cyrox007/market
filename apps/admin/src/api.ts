@@ -39,7 +39,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
     }
 
     const text = await response.text()
-    throw new Error(text || `Backend вернул неожиданный ответ (${response.status})`)
+    throw new Error(text || `Сервер вернул неожиданный ответ (${response.status})`)
   }
 
   const payload = await response.json()
@@ -52,7 +52,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
 
     const message = validationMessage
       || payload?.message
-      || `Ошибка backend (${response.status})`
+      || `Ошибка сервера (${response.status})`
 
     throw new Error(String(message))
   }
