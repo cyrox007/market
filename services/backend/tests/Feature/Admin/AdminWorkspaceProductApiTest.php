@@ -11,6 +11,75 @@ use Tests\TestCase;
 
 class AdminWorkspaceProductApiTest extends TestCase
 {
+    public function test_product_validation_errors_are_returned_in_russian(): void
+    {
+        $viewPermission = Permission::firstOrCreate([
+            'name' => 'view products',
+            'guard_name' => 'web',
+        ]);
+        $updatePermission = Permission::firstOrCreate([
+            'name' => 'update products',
+            'guard_name' => 'web',
+        ]);
+
+        $role = Role::firstOrCreate([
+            'name' => 'product_editor_test',
+            'guard_name' => 'web',
+        ]);
+        $role->syncPermissions([$viewPermission, $updatePermission]);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $existing = Product::factory()->create([
+            'name' => 'Товар с занятым адресом',
+            'slug' => 'zanyatyi-slug',
+            'sku' => 'TAKEN-001',
+            'state' => 'active',
+            'price' => 1000,
+            'parent_product_id' => null,
+        ]);
+
+        $product = Product::factory()->create([
+            'name' => 'Редактируемый товар',
+            'slug' => 'editable-product',
+            'sku' => 'EDIT-001',
+            'state' => 'active',
+            'price' => 2000,
+            'parent_product_id' => null,
+        ]);
+
+        $response = $this->actingAs($user, 'web')
+            ->putJson("/admin_sv/api/products/{$product->id}", [
+                'name' => 'Редактируемый товар',
+                'slug' => $existing->slug,
+                'sku' => 'EDIT-001',
+                'gtin' => null,
+                'description' => null,
+                'state' => 'active',
+                'priority' => 0,
+                'price' => 2000,
+                'original_price' => null,
+                'category_ids' => [],
+                'stock' => 0,
+                'backorder' => false,
+                'length' => null,
+                'width' => null,
+                'height' => null,
+                'weight' => null,
+                'tax_category_id' => null,
+                'shipping_category_id' => null,
+                'manufacturer_id' => null,
+                'warehouse_stocks' => [],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath(
+                'errors.slug.0',
+                'Такое значение поля «URL (slug)» уже используется.'
+            );
+    }
+
     public function test_existing_product_editor_endpoint_returns_real_product_data(): void
     {
         $this->withoutExceptionHandling();
