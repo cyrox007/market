@@ -38,6 +38,8 @@ Route::middleware([
         Route::put('/products/{product}', [AdminWorkspaceController::class, 'updateProduct'])
             ->where('product', '[0-9]+');
         Route::get('/attributes', [AdminWorkspaceController::class, 'attributes']);
+        Route::put('/attributes/{attribute}', [AdminWorkspaceController::class, 'updateAttribute'])
+            ->where('attribute', '[0-9]+');
         Route::get('/orders', [AdminWorkspaceController::class, 'orders']);
         Route::get('/stores', [AdminWorkspaceController::class, 'stores']);
         Route::get('/locations', [AdminWorkspaceController::class, 'locations']);
