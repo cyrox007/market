@@ -634,8 +634,14 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function updateProductVariationAttributes(Request $request, Product $product): JsonResponse
-    {
+    public function updateProductVariationAttributes(
+        Request $request,
+        int $productId
+    ): JsonResponse {
+        $product = Product::query()
+            ->whereKey($productId)
+            ->firstOrFail();
+
         Gate::authorize('update', $product);
 
         $validated = $request->validate([
@@ -661,14 +667,33 @@ class AdminWorkspaceController extends Controller
 
         $systemVariant = Attribute::ensureVariantAttribute();
         $selectionIds = $requestedIds
-            ->push((int) $systemVariant->id)
+            ->push((int) $systemVariant->getKey())
             ->unique()
             ->values();
 
-        DB::transaction(function () use ($product, $selectionIds): void {
-            $product->variationAttributeSelection()->sync($selectionIds->all());
+        DB::transaction(function () use ($productId, $selectionIds): void {
+            DB::table('product_variation_attribute_selection')
+                ->where('product_id', $productId)
+                ->delete();
 
-            $variantIds = $product->variants()->pluck('id');
+            $now = now();
+            $rows = $selectionIds
+                ->map(fn (int $attributeId) => [
+                    'product_id' => $productId,
+                    'attribute_id' => $attributeId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])
+                ->all();
+
+            if ($rows !== []) {
+                DB::table('product_variation_attribute_selection')->insert($rows);
+            }
+
+            $variantIds = Product::query()
+                ->where('parent_product_id', $productId)
+                ->pluck('id');
+
             if ($variantIds->isNotEmpty()) {
                 DB::table('product_variant_attributes')
                     ->whereIn('product_id', $variantIds)
