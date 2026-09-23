@@ -6,12 +6,88 @@ use App\Models\Product\Attribute;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AdminWorkspaceProductApiTest extends TestCase
 {
+    public function test_variant_creation_persists_required_product_fields(): void
+    {
+        $createPermission = Permission::firstOrCreate([
+            'name' => 'create products',
+            'guard_name' => 'web',
+        ]);
+        $updatePermission = Permission::firstOrCreate([
+            'name' => 'update products',
+            'guard_name' => 'web',
+        ]);
+
+        $role = Role::firstOrCreate([
+            'name' => 'variant_creation_test',
+            'guard_name' => 'web',
+        ]);
+        $role->syncPermissions([$createPermission, $updatePermission]);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $parent = Product::factory()->create([
+            'name' => 'Родительский товар',
+            'slug' => 'parent-product',
+            'sku' => 'PARENT-001',
+            'state' => 'active',
+            'price' => 9000,
+            'parent_product_id' => null,
+            'is_variable' => false,
+        ]);
+
+        $variantAttribute = Attribute::ensureVariantAttribute();
+
+        DB::table('product_variation_attribute_selection')->insert([
+            'product_id' => $parent->id,
+            'attribute_id' => $variantAttribute->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user, 'web')
+            ->postJson("/admin_sv/api/products/{$parent->id}/variants", [
+                'name' => 'Родительский товар — Серый',
+                'sku' => 'VARIANT-001',
+                'price' => 9801,
+                'original_price' => null,
+                'stock' => 15,
+                'backorder' => false,
+                'state' => 'active',
+                'external_id' => null,
+                'warehouse_stocks' => [],
+                'attributes' => [],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Торговое предложение создано')
+            ->assertJsonPath('product.id', $parent->id);
+
+        $variant = Product::query()
+            ->where('parent_product_id', $parent->id)
+            ->where('sku', 'VARIANT-001')
+            ->first();
+
+        $this->assertNotNull($variant);
+        $this->assertSame('Родительский товар — Серый', $variant->name);
+        $this->assertSame('VARIANT-001', $variant->sku);
+        $this->assertSame(9801.0, (float) $variant->price);
+        $this->assertNotSame('', (string) $variant->slug);
+
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $variant->id,
+            'attribute_id' => $variantAttribute->id,
+            'custom_value' => 'Родительский товар — Серый',
+        ]);
+    }
+
     public function test_variation_attributes_are_saved_with_product_id(): void
     {
         $updatePermission = Permission::firstOrCreate([
