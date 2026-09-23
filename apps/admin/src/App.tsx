@@ -81,6 +81,24 @@ type ProductDraft = {
   }>
 }
 
+type VariantDraft = {
+  id: number | null
+  name: string
+  sku: string
+  price: string
+  original_price: string
+  stock: string
+  backorder: boolean
+  state: string
+  external_id: string
+  warehouse_stocks: Array<{
+    warehouse_id: number
+    quantity: string
+  }>
+  attributes: ProductAttributeRow[]
+}
+
+
 function textValue(value: unknown, fallback = ''): string {
   if (value === null || value === undefined) {
     return fallback
@@ -207,6 +225,44 @@ function productDraft(product: ProductDetails): ProductDraft {
     })),
   }
 }
+
+function variantDraft(
+  product: ProductDetails,
+  options: ProductEditorOptions,
+  variant?: ProductDetails['variants'][number],
+): VariantDraft {
+  const existingRows = new Map(
+    (variant?.attributes ?? []).map((row) => [row.attribute_id, row]),
+  )
+
+  return {
+    id: variant?.id ?? null,
+    name: variant?.name ?? product.name,
+    sku: variant?.sku ?? '',
+    price: String(variant?.price ?? product.price ?? 0),
+    original_price: variant?.original_price === null || variant?.original_price === undefined
+      ? ''
+      : String(variant.original_price),
+    stock: String(variant?.stock ?? 0),
+    backorder: Boolean(variant?.backorder ?? false),
+    state: variant?.state ?? 'active',
+    external_id: variant?.external_id ?? '',
+    warehouse_stocks: (variant?.warehouse_stocks ?? []).map((row) => ({
+      warehouse_id: row.warehouse_id,
+      quantity: String(row.quantity),
+    })),
+    attributes: options.variation_attributes.map((attribute) => {
+      const current = existingRows.get(attribute.id)
+
+      return {
+        attribute_id: attribute.id,
+        attribute_value_id: [...(current?.attribute_value_id ?? [])],
+        custom_value: current?.custom_value ?? '',
+      }
+    }),
+  }
+}
+
 
 function AdminApp() {
   const [theme, setTheme] = useState<Theme>(initialTheme)
