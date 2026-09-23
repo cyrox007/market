@@ -190,6 +190,50 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
+    public function updateAttribute(Request $request, Attribute $attribute): JsonResponse
+    {
+        Gate::authorize('update', $attribute);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:255', Rule::unique('product_attributes', 'slug')->ignore($attribute->id)],
+            'type' => ['required', Rule::in(['string', 'text', 'integer', 'decimal', 'boolean', 'select'])],
+            'is_filterable' => ['required', 'boolean'],
+            'is_required' => ['required', 'boolean'],
+            'is_use_in_variations' => ['required', 'boolean'],
+            'allow_custom_value' => ['required', 'boolean'],
+            'is_multiple' => ['required', 'boolean'],
+            'sort_order' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $attribute->fill($validated);
+        $attribute->save();
+        $attribute->load('orderedValues')->loadCount('products');
+
+        return response()->json([
+            'message' => 'Характеристика сохранена',
+            'attribute' => [
+                'id' => $attribute->id,
+                'name' => $attribute->name,
+                'slug' => $attribute->slug,
+                'type' => $attribute->type,
+                'is_filterable' => (bool) $attribute->is_filterable,
+                'is_required' => (bool) $attribute->is_required,
+                'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
+                'allow_custom_value' => (bool) $attribute->allow_custom_value,
+                'is_multiple' => (bool) $attribute->is_multiple,
+                'sort_order' => (int) $attribute->sort_order,
+                'products_count' => (int) $attribute->products_count,
+                'values' => $attribute->orderedValues->map(fn ($value) => [
+                    'id' => $value->id,
+                    'value' => $value->value,
+                    'slug' => $value->slug,
+                    'sort_order' => (int) $value->sort_order,
+                ])->values(),
+            ],
+        ]);
+    }
+
     public function orders(Request $request): JsonResponse
     {
         Gate::authorize('viewAny', Order::class);
