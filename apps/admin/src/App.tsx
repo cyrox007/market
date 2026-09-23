@@ -1097,6 +1097,7 @@ function ProductEditor({
 
   const canUpdate = Boolean(session.permissions.products?.update)
   const canCreateAttributes = Boolean(session.permissions.attributes?.create)
+  const canUpdateAttributes = Boolean(session.permissions.attributes?.update)
   const systemVariantAttribute = options.available_variation_attributes.find(
     (attribute) => attribute.slug === 'variant',
   )
@@ -1774,8 +1775,15 @@ function ProductEditor({
   const tabUsesProductSave = tab === 'main' || tab === 'description' || tab === 'inventory'
   const mainImage = product.media.find((item) => item.collection === 'images') ?? null
   const galleryImages = product.media.filter((item) => item.collection === 'gallery')
+  const quickValueAttribute = quickValueTarget
+    ? (
+        options.attributes.find((attribute) => attribute.id === quickValueTarget.attributeId)
+        ?? options.available_variation_attributes.find((attribute) => attribute.id === quickValueTarget.attributeId)
+      )
+    : null
 
   return (
+    <>
     <section className="panel product-editor-page">
       <div className="editor-page-back">
         <button className="btn ghost small" type="button" onClick={onBack}>
@@ -1969,9 +1977,20 @@ function ProductEditor({
             <div className="attribute-editor-toolbar">
               <div>
                 <h3>Характеристики товара</h3>
-                <p>Добавляйте только свойства и значения из справочника. Структура справочника редактируется в разделе «Характеристики».</p>
+                <p>Характеристику и её значение можно найти или создать прямо здесь, не покидая карточку товара.</p>
               </div>
               <div>
+                {canCreateAttributes && (
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => openQuickAttribute('product')}
+                    disabled={dictionarySaving}
+                  >
+                    <Plus size={15} />
+                    Новая характеристика
+                  </button>
+                )}
                 <button
                   className="btn ghost"
                   type="button"
@@ -1979,7 +1998,7 @@ function ProductEditor({
                   disabled={!canUpdate || attributeRows.length >= options.attributes.length}
                 >
                   <Plus size={15} />
-                  Добавить характеристику
+                  Добавить строку
                 </button>
                 <button
                   className="btn primary"
@@ -1997,42 +2016,41 @@ function ProductEditor({
               <div className="attribute-editor-empty">
                 <SlidersHorizontal size={24} />
                 <strong>Характеристики не добавлены</strong>
-                <span>Нажмите «Добавить характеристику», выберите свойство и его значение.</span>
+                <span>Добавьте существующую характеристику или создайте новую прямо в карточке товара.</span>
               </div>
             ) : (
               <div className="attribute-editor-list">
                 {attributeRows.map((row, index) => {
                   const attribute = options.attributes.find((item) => item.id === row.attribute_id)
-                  const usedIds = new Set(attributeRows.map((item, rowIndex) => rowIndex === index ? -1 : item.attribute_id))
+                  const usedIds = new Set(
+                    attributeRows
+                      .filter((_, rowIndex) => rowIndex !== index)
+                      .map((item) => item.attribute_id),
+                  )
 
                   return (
                     <article className="attribute-editor-row" key={`${row.attribute_id}-${index}`}>
                       <div className="attribute-editor-row-head">
-                        <label className="field">
+                        <div className="field">
                           <span>Характеристика</span>
-                          <select
+                          <SearchableSelect
                             value={row.attribute_id}
                             disabled={!canUpdate}
-                            onChange={(event) => {
-                              const attributeId = Number(event.target.value)
-                              updateAttributeRow(index, {
-                                attribute_id: attributeId,
-                                attribute_value_id: [],
-                                custom_value: '',
-                              })
-                            }}
-                          >
-                            {options.attributes.map((item) => (
-                              <option
-                                value={item.id}
-                                disabled={usedIds.has(item.id)}
-                                key={item.id}
-                              >
-                                {item.name}{item.is_required ? ' *' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                            placeholder="Выберите характеристику"
+                            searchPlaceholder="Поиск по названию или slug"
+                            options={options.attributes.map((item) => ({
+                              value: item.id,
+                              label: item.name,
+                              hint: item.slug,
+                              disabled: usedIds.has(item.id),
+                            }))}
+                            onChange={(attributeId) => updateAttributeRow(index, {
+                              attribute_id: attributeId,
+                              attribute_value_id: [],
+                              custom_value: '',
+                            })}
+                          />
+                        </div>
 
                         <div className="attribute-editor-meta">
                           {attribute?.is_required && <span className="chip error">Обязательная</span>}
@@ -2053,23 +2071,40 @@ function ProductEditor({
 
                       {attribute && (
                         <div className="attribute-editor-values">
+                          <div className="attribute-value-toolbar">
+                            <strong>Значение</strong>
+                            {canUpdateAttributes && (
+                              <button
+                                className="btn ghost small"
+                                type="button"
+                                onClick={() => openQuickValue(attribute.id, 'product')}
+                                disabled={dictionarySaving}
+                              >
+                                <Plus size={14} />
+                                Новое значение
+                              </button>
+                            )}
+                          </div>
+
                           {attribute.values.length > 0 && !attribute.is_multiple && (
-                            <label className="field">
-                              <span>Значение</span>
-                              <select
-                                value={row.attribute_value_id[0] ?? ''}
+                            <div className="field">
+                              <span>Значение из справочника</span>
+                              <SearchableSelect
+                                value={row.attribute_value_id[0] ?? null}
                                 disabled={!canUpdate}
-                                onChange={(event) => updateAttributeRow(index, {
-                                  attribute_value_id: event.target.value ? [Number(event.target.value)] : [],
+                                placeholder="Выберите значение"
+                                searchPlaceholder="Найти значение"
+                                options={attribute.values.map((value) => ({
+                                  value: value.id,
+                                  label: value.value,
+                                  swatch: value.color_code,
+                                }))}
+                                onChange={(valueId) => updateAttributeRow(index, {
+                                  attribute_value_id: [valueId],
                                   custom_value: '',
                                 })}
-                              >
-                                <option value="">Выберите значение</option>
-                                {attribute.values.map((value) => (
-                                  <option value={value.id} key={value.id}>{value.value}</option>
-                                ))}
-                              </select>
-                            </label>
+                              />
+                            </div>
                           )}
 
                           {attribute.values.length > 0 && attribute.is_multiple && (
@@ -2117,7 +2152,7 @@ function ProductEditor({
                           {attribute.values.length === 0 && !attribute.allow_custom_value && (
                             <div className="attribute-no-values">
                               <CircleAlert size={16} />
-                              У этой характеристики нет доступных значений. Добавьте их в справочнике «Характеристики».
+                              У характеристики пока нет значений. Создайте первое значение здесь же.
                             </div>
                           )}
                         </div>
@@ -2133,7 +2168,7 @@ function ProductEditor({
                 <header>
                   <div>
                     <h3>Характеристики вариаций</h3>
-                    <p>Эти значения принадлежат торговым предложениям и редактируются во вкладке «Вариации».</p>
+                    <p>Фактические значения дочерних торговых предложений. Состав параметров настраивается во вкладке «Вариации».</p>
                   </div>
                   <span>{variantAttributes.length}</span>
                 </header>
@@ -2166,6 +2201,108 @@ function ProductEditor({
 
         {tab === 'variants' && (
           <div className="editor-content-wide">
+            <section className="variation-config-card">
+              <div className="variation-config-head">
+                <div>
+                  <span className="eyebrow">Параметры торговых предложений</span>
+                  <h3>Чем отличаются вариации этого товара</h3>
+                  <p>Например: «Цвет» и «Размер». После сохранения эти поля появятся у каждой вариации вместе с собственной ценой и остатками.</p>
+                </div>
+                <div className="variation-config-actions">
+                  {canCreateAttributes && (
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      onClick={() => openQuickAttribute('variation')}
+                      disabled={dictionarySaving || variationSelectionSaving}
+                    >
+                      <Plus size={15} />
+                      Новая характеристика
+                    </button>
+                  )}
+                  <button
+                    className="btn primary"
+                    type="button"
+                    onClick={saveVariationSelection}
+                    disabled={!canUpdate || !variationSelectionDirty || variationSelectionSaving}
+                  >
+                    {variationSelectionSaving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
+                    {variationSelectionSaving ? 'Сохраняю…' : 'Сохранить параметры'}
+                  </button>
+                </div>
+              </div>
+
+              <label className="small-search variation-search">
+                <Search size={15} />
+                <input
+                  value={variationAttributeSearch}
+                  onChange={(event) => setVariationAttributeSearch(event.target.value)}
+                  placeholder="Найти параметр: цвет, размер…"
+                />
+              </label>
+
+              <div className="variation-attribute-picker">
+                {options.available_variation_attributes
+                  .filter((attribute) => attribute.slug !== 'variant')
+                  .filter((attribute) => {
+                    const query = variationAttributeSearch.trim().toLocaleLowerCase('ru-RU')
+                    if (!query) return true
+
+                    return attribute.name.toLocaleLowerCase('ru-RU').includes(query)
+                      || attribute.slug.toLocaleLowerCase('ru-RU').includes(query)
+                  })
+                  .map((attribute) => {
+                    const selected = variationSelection.includes(attribute.id)
+
+                    return (
+                      <button
+                        className={selected ? 'variation-attribute-option selected' : 'variation-attribute-option'}
+                        type="button"
+                        disabled={!canUpdate || variationSelectionSaving}
+                        onClick={() => {
+                          setVariationSelection((current) => (
+                            selected
+                              ? current.filter((id) => id !== attribute.id)
+                              : [...current, attribute.id]
+                          ))
+                          setVariationSelectionDirty(true)
+                          setVariantDraftState(null)
+                        }}
+                        key={attribute.id}
+                      >
+                        <span className="variation-option-check">
+                          {selected && <Check size={14} />}
+                        </span>
+                        <span>
+                          <strong>{attribute.name}</strong>
+                          <small>{attribute.slug} · {attribute.values.length} значений</small>
+                        </span>
+                      </button>
+                    )
+                  })}
+
+                {options.available_variation_attributes.filter((attribute) => attribute.slug !== 'variant').length === 0 && (
+                  <div className="attribute-editor-empty compact">
+                    <SlidersHorizontal size={20} />
+                    <strong>Нет параметров вариаций</strong>
+                    <span>Создайте, например, «Цвет» или «Размер» и включите использование в вариациях.</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="variation-system-note">
+                <CheckCircle2 size={16} />
+                <span>Служебное поле «Вариант» заполняется названием торгового предложения автоматически.</span>
+              </div>
+
+              {variationSelectionDirty && (
+                <div className="variation-unsaved">
+                  <CircleAlert size={16} />
+                  Сначала сохраните выбранные параметры. После этого можно создавать и редактировать торговые предложения.
+                </div>
+              )}
+            </section>
+
             <div className="variant-workspace">
               <section className="variant-list-panel">
                 <header>
@@ -2177,17 +2314,17 @@ function ProductEditor({
                     className="btn primary small"
                     type="button"
                     onClick={createVariant}
-                    disabled={!canUpdate || !session.permissions.products?.create}
+                    disabled={!canUpdate || !session.permissions.products?.create || variationSelectionDirty}
                   >
                     <Plus size={14} />
-                    Добавить
+                    Добавить вариацию
                   </button>
                 </header>
 
                 <div className="variant-list">
                   {product.variants.length === 0 && (
                     <div className="variant-list-empty">
-                      Торговых предложений пока нет.
+                      Торговых предложений пока нет. Выберите параметры выше и создайте первое.
                     </div>
                   )}
 
@@ -2195,8 +2332,8 @@ function ProductEditor({
                     const selected = variantDraftState?.id === variant.id
                     const labels = variant.attributes
                       .flatMap((row) => {
-                        const attribute = options.variation_attributes.find((item) => item.id === row.attribute_id)
-                        if (!attribute) return []
+                        const attribute = options.available_variation_attributes.find((item) => item.id === row.attribute_id)
+                        if (!attribute || attribute.slug === 'variant') return []
 
                         const predefined = row.attribute_value_id
                           .map((id) => attribute.values.find((value) => value.id === id)?.value)
@@ -2209,12 +2346,13 @@ function ProductEditor({
                           ? [`${attribute.name}: ${values.join(', ')}`]
                           : []
                       })
-                      .slice(0, 2)
+                      .slice(0, 3)
 
                     return (
                       <button
                         className={selected ? 'variant-list-row selected' : 'variant-list-row'}
                         type="button"
+                        disabled={variationSelectionDirty}
                         onClick={() => openVariant(variant)}
                         key={variant.id}
                       >
@@ -2225,7 +2363,11 @@ function ProductEditor({
                         </div>
                         <div>
                           <strong>{formatMoney(variant.price)}</strong>
-                          <small>{variant.stock} шт.</small>
+                          <small>
+                            {options.stock_settings.warehouse_accounting_enabled
+                              ? `${variant.warehouse_stocks.reduce((sum, row) => sum + Number(row.quantity || 0), 0)} шт. по складам`
+                              : `${variant.stock} шт.`}
+                          </small>
                         </div>
                         <ChevronRight size={15} />
                       </button>
@@ -2237,9 +2379,10 @@ function ProductEditor({
               {variantDraftState ? (
                 <VariantEditorPanel
                   draft={variantDraftState}
-                  options={options}
+                  options={variantEditorOptions}
                   canUpdate={canUpdate}
                   canDelete={Boolean(session.permissions.products?.delete)}
+                  canUpdateAttributes={canUpdateAttributes}
                   saving={variantSaving}
                   onChange={setVariantDraftState}
                   media={selectedVariant?.media ?? []}
@@ -2247,13 +2390,15 @@ function ProductEditor({
                   onDelete={deleteVariant}
                   onUploadMedia={uploadVariantMedia}
                   onDeleteMedia={deleteVariantMedia}
+                  onReorderMedia={reorderVariantMedia}
+                  onCreateValue={(attributeId) => openQuickValue(attributeId, 'variant')}
                   onCancel={() => setVariantDraftState(null)}
                 />
               ) : (
                 <section className="variant-editor-placeholder">
                   <Package size={28} />
-                  <strong>Выберите торговое предложение</strong>
-                  <span>Или создайте новое, чтобы задать SKU, цену, остатки и параметры вариации.</span>
+                  <strong>Выберите или создайте вариацию</strong>
+                  <span>У каждой вариации можно отдельно задать цвет, размер, цену, SKU, остатки по складам и изображения.</span>
                 </section>
               )}
             </div>
@@ -2430,96 +2575,34 @@ function ProductEditor({
         {tab === 'media' && (
           <div className="editor-content-wide">
             <div className="editor-two-column media-layout">
-              <Card title="Главное изображение" subtitle="Используется реальная коллекция модели «images»">
-                <div className="main-media-editor">
-                  {mainImage ? (
-                    <div className="media-preview main">
-                      <img src={mainImage.thumb_url || mainImage.url} alt={mainImage.name} />
-                      <div>
-                        <strong>{mainImage.file_name}</strong>
-                        <a href={mainImage.url} target="_blank" rel="noreferrer">Открыть оригинал</a>
-                      </div>
-                      <button
-                        className="icon-danger"
-                        type="button"
-                        onClick={() => deleteMedia(mainImage.id)}
-                        disabled={!canUpdate || mediaSaving}
-                        aria-label="Удалить главное изображение"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="media-empty">Главное изображение не загружено</div>
-                  )}
-
-                  <label className={canUpdate ? 'media-upload' : 'media-upload disabled'}>
-                    <Plus size={17} />
-                    <span>{mainImage ? 'Заменить изображение' : 'Загрузить изображение'}</span>
-                    <small>JPEG, PNG или WebP · до 10 МБ</small>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      disabled={!canUpdate || mediaSaving}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] ?? null
-                        void uploadMedia('images', file)
-                        event.currentTarget.value = ''
-                      }}
-                    />
-                  </label>
-                </div>
+              <Card title="Главное изображение" subtitle="Миниатюра показывается сразу после загрузки">
+                <SingleImageDropzone
+                  item={mainImage}
+                  disabled={!canUpdate}
+                  busy={mediaSaving}
+                  onFiles={(files) => void uploadMedia('images', files)}
+                  onDelete={mainImage ? () => void deleteMedia(mainImage.id) : undefined}
+                />
               </Card>
 
-              <Card title="Галерея" subtitle="Дополнительные фотографии товара">
-                <div className="gallery-editor">
-                  {galleryImages.length === 0 ? (
-                    <div className="media-empty">Галерея пока пустая</div>
-                  ) : (
-                    <div className="gallery-grid">
-                      {galleryImages.map((media) => (
-                        <article className="gallery-item" key={media.id}>
-                          <img src={media.thumb_url || media.url} alt={media.name} />
-                          <div>
-                            <span>{media.file_name}</span>
-                            <button
-                              className="icon-danger"
-                              type="button"
-                              onClick={() => deleteMedia(media.id)}
-                              disabled={!canUpdate || mediaSaving}
-                              aria-label="Удалить изображение"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-
-                  <label className={canUpdate ? 'media-upload compact' : 'media-upload compact disabled'}>
-                    <Plus size={16} />
-                    <span>Добавить в галерею</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      disabled={!canUpdate || mediaSaving}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] ?? null
-                        void uploadMedia('gallery', file)
-                        event.currentTarget.value = ''
-                      }}
-                    />
-                  </label>
-                </div>
+              <Card title="Галерея" subtitle="До 20 изображений · порядок на сайте соответствует порядку здесь">
+                <GalleryManager
+                  items={galleryImages}
+                  maxFiles={20}
+                  disabled={!canUpdate}
+                  busy={mediaSaving}
+                  onFiles={(files) => void uploadMedia('gallery', files)}
+                  onDelete={(mediaId) => void deleteMedia(mediaId)}
+                  onReorder={(mediaIds) => void reorderMedia(mediaIds)}
+                />
               </Card>
             </div>
 
             <div className="callout muted compact-callout">
-              <AlertTriangle size={17} />
+              <ImagePlus size={17} />
               <div>
-                <strong>Исправлено расхождение старой формы</strong>
-                <span>Новая панель использует «images» для главной фотографии и «gallery» для галереи — именно эти коллекции зарегистрированы в модели Product и читаются сайтом.</span>
+                <strong>Порядок изображений сохраняется</strong>
+                <span>Можно выбрать сразу несколько файлов или перетащить их в область загрузки. Карточки фотографий также перетаскиваются мышью для изменения порядка.</span>
               </div>
             </div>
           </div>
@@ -2586,8 +2669,10 @@ function ProductEditor({
         <span>
           {tab === 'attributes'
             ? 'Характеристики сохраняются отдельной кнопкой внутри вкладки.'
-            : tab === 'media'
-              ? 'Загрузка, замена и удаление изображений сохраняются сразу.'
+            : tab === 'variants'
+              ? 'Параметры вариаций и торговые предложения сохраняются внутри этой вкладки.'
+              : tab === 'media'
+              ? 'Загрузка, удаление и порядок изображений сохраняются сразу.'
               : tab === 'links'
                 ? 'Связи и региональные правила сохраняются внутри соответствующих блоков.'
                 : tabUsesProductSave
@@ -2620,6 +2705,29 @@ function ProductEditor({
         )}
       </footer>
     </section>
+
+    {quickAttributeMode && (
+      <QuickAttributeDialog
+        mode={quickAttributeMode}
+        draft={quickAttributeState}
+        busy={dictionarySaving}
+        onChange={setQuickAttributeState}
+        onSave={() => void saveQuickAttribute()}
+        onClose={() => setQuickAttributeMode(null)}
+      />
+    )}
+
+    {quickValueTarget && quickValueAttribute && (
+      <QuickValueDialog
+        attribute={quickValueAttribute}
+        draft={quickValueState}
+        busy={dictionarySaving}
+        onChange={setQuickValueState}
+        onSave={() => void saveQuickValue()}
+        onClose={() => setQuickValueTarget(null)}
+      />
+    )}
+    </>
   )
 }
 
