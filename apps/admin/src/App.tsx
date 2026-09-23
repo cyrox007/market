@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Component, type ErrorInfo, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -2903,7 +2903,7 @@ function ProductEditor({
         {tab === 'media' && (
           <div className="editor-content-wide">
             <div className="editor-two-column media-layout">
-              <Card title="Главное изображение" subtitle="Миниатюра показывается сразу после загрузки">
+              <Card title="Главное изображение" subtitle="Квадратное превью 300×300 создаётся автоматически · исходник лучше 800×800 или больше">
                 <SingleImageDropzone
                   item={mainImage}
                   disabled={!canUpdate}
@@ -2913,7 +2913,7 @@ function ProductEditor({
                 />
               </Card>
 
-              <Card title="Галерея" subtitle="До 20 изображений · порядок на сайте соответствует порядку здесь">
+              <Card title="Галерея" subtitle="До 20 изображений · бросайте файлы прямо на область миниатюр · превью 300×300 создаются автоматически">
                 <GalleryManager
                   items={galleryImages}
                   maxFiles={20}
@@ -3859,72 +3859,109 @@ function SingleImageDropzone({
   onDelete?: () => void
 }) {
   const [dragActive, setDragActive] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
 
   const acceptFiles = (files: File[]) => {
     const images = files.filter((file) => file.type.startsWith('image/'))
     if (images.length > 0) onFiles(images.slice(0, 1))
   }
 
+  const openPicker = () => {
+    if (!disabled && !busy) inputRef.current?.click()
+  }
+
   return (
-    <div className="single-image-manager">
-      {item && (
-        <div className="media-preview main media-thumb-card">
-          <img src={item.thumb_url || item.url} alt={item.name} />
-          <div>
-            <strong>{item.file_name}</strong>
-            <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал</a>
+    <div
+      className={[
+        'single-image-drop-surface',
+        item ? 'has-image' : 'empty',
+        dragActive ? 'drag-active' : '',
+        disabled || busy ? 'disabled' : '',
+      ].filter(Boolean).join(' ')}
+      role="button"
+      tabIndex={disabled || busy ? -1 : 0}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('button, a')) return
+        openPicker()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          openPicker()
+        }
+      }}
+      onDragEnter={(event) => {
+        event.preventDefault()
+        if (!disabled && !busy) setDragActive(true)
+      }}
+      onDragOver={(event) => {
+        event.preventDefault()
+        if (!disabled && !busy) event.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setDragActive(false)
+        }
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        setDragActive(false)
+        if (disabled || busy) return
+        acceptFiles(Array.from(event.dataTransfer.files))
+      }}
+    >
+      <input
+        ref={inputRef}
+        className="media-hidden-input"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        disabled={disabled || busy}
+        onChange={(event) => {
+          acceptFiles(Array.from(event.currentTarget.files ?? []))
+          event.currentTarget.value = ''
+        }}
+      />
+
+      {item ? (
+        <>
+          <img
+            className="single-image-preview"
+            src={item.thumb_url || item.url}
+            alt={item.name}
+          />
+          <div className="single-image-meta">
+            <div>
+              <strong>{item.file_name}</strong>
+              <span>Превью: 300×300 · перетащите новый файл сюда для замены</span>
+            </div>
+            <div className="single-image-actions">
+              <a href={item.url} target="_blank" rel="noreferrer">Оригинал</a>
+              {onDelete && (
+                <button
+                  className="icon-danger"
+                  type="button"
+                  onClick={onDelete}
+                  disabled={disabled || busy}
+                  aria-label="Удалить изображение"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
           </div>
-          {onDelete && (
-            <button
-              className="icon-danger"
-              type="button"
-              onClick={onDelete}
-              disabled={disabled || busy}
-              aria-label="Удалить изображение"
-            >
-              <Trash2 size={15} />
-            </button>
-          )}
+          <div className="single-image-drop-hint">
+            {busy ? <Loader2 className="spin" size={20} /> : <ImagePlus size={20} />}
+            <span>{busy ? 'Загрузка…' : 'Бросьте сюда или нажмите, чтобы заменить'}</span>
+          </div>
+        </>
+      ) : (
+        <div className="single-image-empty">
+          {busy ? <Loader2 className="spin" size={28} /> : <ImagePlus size={28} />}
+          <strong>{busy ? 'Загрузка…' : 'Перетащите главное изображение сюда'}</strong>
+          <span>или нажмите для выбора · JPEG, PNG, WebP · до 10 МБ</span>
+          <small>Рекомендуется квадратный исходник 800×800 или больше. Сервер создаст превью 300×300.</small>
         </div>
       )}
-
-      <label
-        className={[
-          'media-dropzone',
-          'single',
-          dragActive ? 'drag-active' : '',
-          disabled || busy ? 'disabled' : '',
-        ].filter(Boolean).join(' ')}
-        onDragEnter={(event) => {
-          event.preventDefault()
-          if (!disabled && !busy) setDragActive(true)
-        }}
-        onDragOver={(event) => event.preventDefault()}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setDragActive(false)
-          }
-        }}
-        onDrop={(event) => {
-          event.preventDefault()
-          setDragActive(false)
-          if (disabled || busy) return
-          acceptFiles(Array.from(event.dataTransfer.files))
-        }}
-      >
-        {busy ? <Loader2 className="spin" size={24} /> : <ImagePlus size={24} />}
-        <strong>{item ? 'Заменить главное изображение' : 'Перетащите главное изображение сюда'}</strong>
-        <span>или нажмите для выбора файла · JPEG, PNG, WebP · до 10 МБ</span>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={disabled || busy}
-          onChange={(event) => {
-            acceptFiles(Array.from(event.currentTarget.files ?? []))
-            event.currentTarget.value = ''
-          }}
-        />
-      </label>
     </div>
   )
 }
@@ -3949,6 +3986,7 @@ function GalleryManager({
   const [draggedId, setDraggedId] = useState<number | null>(null)
   const [fileDragActive, setFileDragActive] = useState(false)
   const [orderedItems, setOrderedItems] = useState(items)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const remaining = Math.max(0, maxFiles - orderedItems.length)
   const itemsSignature = items
     .map((item) => `${item.id}:${item.order}`)
@@ -3966,6 +4004,10 @@ function GalleryManager({
       .slice(0, remaining)
 
     if (images.length > 0) onFiles(images)
+  }
+
+  const openPicker = () => {
+    if (!disabled && !busy && remaining > 0) inputRef.current?.click()
   }
 
   const moveAround = async (targetId: number, placeAfter: boolean) => {
@@ -3995,100 +4037,58 @@ function GalleryManager({
     }
   }
 
+  const handleFileDrop = (event: React.DragEvent<HTMLElement>) => {
+    if (event.dataTransfer.files.length === 0) return false
+
+    event.preventDefault()
+    event.stopPropagation()
+    setDraggedId(null)
+    setFileDragActive(false)
+
+    if (!disabled && !busy && remaining > 0) {
+      uploadFiles(Array.from(event.dataTransfer.files))
+    }
+
+    return true
+  }
+
   return (
     <div className="gallery-manager">
       <div className="gallery-manager-head">
         <span>{items.length} / {maxFiles}</span>
-        <small>Перетаскивайте миниатюры, чтобы изменить порядок.</small>
+        <small>Файлы можно бросать прямо на миниатюры. Сами миниатюры перетаскиваются для изменения порядка.</small>
       </div>
 
-      {orderedItems.length > 0 ? (
-        <div className="gallery-grid sortable-gallery">
-          {orderedItems.map((item, index) => (
-            <article
-              className={draggedId === item.id ? 'gallery-item sortable dragging' : 'gallery-item sortable'}
-              draggable={!disabled && !busy}
-              onDragStart={(event) => {
-                setDraggedId(item.id)
-                event.dataTransfer.effectAllowed = 'move'
-                event.dataTransfer.setData('text/plain', String(item.id))
-              }}
-              onDragEnd={() => setDraggedId(null)}
-              onDragOver={(event) => {
-                event.preventDefault()
-                event.dataTransfer.dropEffect = event.dataTransfer.files.length > 0 ? 'copy' : 'move'
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-
-                if (event.dataTransfer.files.length > 0) {
-                  setDraggedId(null)
-                  uploadFiles(Array.from(event.dataTransfer.files))
-                  return
-                }
-
-                const bounds = event.currentTarget.getBoundingClientRect()
-                const placeAfter = event.clientY > bounds.top + bounds.height / 2
-                void moveAround(item.id, placeAfter)
-              }}
-              key={item.id}
-            >
-              <div className="gallery-order-badge">{index + 1}</div>
-              <div className="gallery-drag-handle" title="Перетащить">
-                <GripVertical size={15} />
-              </div>
-              <img src={item.thumb_url || item.url} alt={item.name} />
-              <div>
-                <span title={item.file_name}>{item.file_name}</span>
-                <button
-                  className="icon-danger"
-                  type="button"
-                  onClick={() => onDelete(item.id)}
-                  disabled={disabled || busy}
-                  aria-label="Удалить изображение"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="media-empty">Галерея пока пустая</div>
-      )}
-
-      <label
+      <div
         className={[
-          'media-dropzone',
-          'gallery',
+          'gallery-drop-surface',
           fileDragActive ? 'drag-active' : '',
-          disabled || busy || remaining <= 0 ? 'disabled' : '',
+          disabled || busy ? 'disabled' : '',
         ].filter(Boolean).join(' ')}
         onDragEnter={(event) => {
-          event.preventDefault()
-          if (!disabled && !busy && remaining > 0) setFileDragActive(true)
+          if (event.dataTransfer.types.includes('Files')) {
+            event.preventDefault()
+            if (!disabled && !busy && remaining > 0) setFileDragActive(true)
+          }
         }}
-        onDragOver={(event) => event.preventDefault()}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes('Files')) {
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'copy'
+          }
+        }}
         onDragLeave={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
             setFileDragActive(false)
           }
         }}
         onDrop={(event) => {
-          event.preventDefault()
-          setFileDragActive(false)
-          if (disabled || busy || remaining <= 0) return
-          uploadFiles(Array.from(event.dataTransfer.files))
+          if (!handleFileDrop(event)) setFileDragActive(false)
         }}
       >
-        {busy ? <Loader2 className="spin" size={22} /> : <ImagePlus size={22} />}
-        <strong>
-          {remaining > 0
-            ? `Перетащите фотографии сюда · можно ещё ${remaining}`
-            : `Достигнут предел в ${maxFiles} изображений`}
-        </strong>
-        <span>{remaining > 0 ? 'или нажмите и выберите несколько файлов сразу' : 'Удалите фотографию, чтобы загрузить новую'}</span>
         <input
+          ref={inputRef}
+          className="media-hidden-input"
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple
@@ -4098,7 +4098,91 @@ function GalleryManager({
             event.currentTarget.value = ''
           }}
         />
-      </label>
+
+        {orderedItems.length > 0 ? (
+          <div className="gallery-grid sortable-gallery">
+            {orderedItems.map((item, index) => (
+              <article
+                className={draggedId === item.id ? 'gallery-item sortable dragging' : 'gallery-item sortable'}
+                draggable={!disabled && !busy}
+                onDragStart={(event) => {
+                  setDraggedId(item.id)
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', String(item.id))
+                }}
+                onDragEnd={() => setDraggedId(null)}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = event.dataTransfer.files.length > 0 ? 'copy' : 'move'
+                }}
+                onDrop={(event) => {
+                  if (handleFileDrop(event)) return
+
+                  event.preventDefault()
+                  const bounds = event.currentTarget.getBoundingClientRect()
+                  const placeAfter = event.clientY > bounds.top + bounds.height / 2
+                  void moveAround(item.id, placeAfter)
+                }}
+                key={item.id}
+              >
+                <div className="gallery-order-badge">{index + 1}</div>
+                <div className="gallery-drag-handle" title="Перетащить для изменения порядка">
+                  <GripVertical size={15} />
+                </div>
+                <img src={item.thumb_url || item.url} alt={item.name} />
+                <div>
+                  <span title={item.file_name}>{item.file_name}</span>
+                  <button
+                    className="icon-danger"
+                    type="button"
+                    onClick={() => onDelete(item.id)}
+                    disabled={disabled || busy}
+                    aria-label="Удалить изображение"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </article>
+            ))}
+
+            {remaining > 0 && (
+              <button
+                className="gallery-add-tile"
+                type="button"
+                onClick={openPicker}
+                disabled={disabled || busy}
+              >
+                {busy ? <Loader2 className="spin" size={23} /> : <ImagePlus size={23} />}
+                <strong>Добавить</strong>
+                <span>ещё {remaining}</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <button
+            className="gallery-empty-drop"
+            type="button"
+            onClick={openPicker}
+            disabled={disabled || busy || remaining <= 0}
+          >
+            {busy ? <Loader2 className="spin" size={28} /> : <ImagePlus size={28} />}
+            <strong>{busy ? 'Загрузка…' : 'Перетащите фотографии прямо сюда'}</strong>
+            <span>или нажмите и выберите несколько файлов · до {maxFiles} изображений</span>
+            <small>Превью каждого файла автоматически создаётся квадратным 300×300.</small>
+          </button>
+        )}
+
+        {orderedItems.length > 0 && (
+          <div className="gallery-drop-caption">
+            <ImagePlus size={15} />
+            <span>
+              {remaining > 0
+                ? `Перетащите новые файлы в эту область · можно ещё ${remaining}`
+                : `Достигнут предел в ${maxFiles} изображений`}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -4652,7 +4736,7 @@ function VariantEditorPanel({
         </Card>
 
         {draft.id !== null && (
-          <Card title="Изображения вариации" subtitle="Собственная главная фотография и галерея до 20 изображений">
+          <Card title="Изображения вариации" subtitle="Собственная главная фотография и галерея до 20 изображений · превью 300×300 создаются автоматически">
             <div className="variant-media-grid">
               <SingleImageDropzone
                 item={mainImage}
