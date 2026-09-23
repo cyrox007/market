@@ -239,7 +239,7 @@ export const backendApi = {
     categoryId?: number | null
     roomId?: number | null
     state?: string
-    sort?: 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc'
+    sort?: 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'
     page?: number
   } = {}) => {
     const query = new URLSearchParams()
