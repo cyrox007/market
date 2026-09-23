@@ -258,6 +258,30 @@ function productCreateDraft(): ProductCreateDraft {
   }
 }
 
+function productIdFromUrl(): number | null {
+  const value = new URL(window.location.href).searchParams.get('product')
+  const id = Number(value)
+
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+function writeProductIdToUrl(productId: number | null, replace = false) {
+  const url = new URL(window.location.href)
+
+  if (productId === null) {
+    url.searchParams.delete('product')
+  } else {
+    url.searchParams.set('product', String(productId))
+  }
+
+  if (replace) {
+    window.history.replaceState({}, '', url)
+    return
+  }
+
+  window.history.pushState({}, '', url)
+}
+
 function flattenTree(nodes: CategoryNode[], depth = 0): TreeRow[] {
   return nodes.flatMap((node) => [
     {
@@ -725,7 +749,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const [productsLastPage, setProductsLastPage] = useState(1)
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
-  const [editingProductId, setEditingProductId] = useState<number | null>(null)
+  const [editingProductId, setEditingProductId] = useState<number | null>(() => productIdFromUrl())
   const [sectionsOpen, setSectionsOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createDraft, setCreateDraft] = useState<ProductCreateDraft>(productCreateDraft())
@@ -741,6 +765,23 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
     () => flattenTree(kind === 'categories' ? categories : rooms),
     [kind, categories, rooms],
   )
+
+  useEffect(() => {
+    const handlePopState = () => setEditingProductId(productIdFromUrl())
+    window.addEventListener('popstate', handlePopState)
+
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const openProduct = (productId: number) => {
+    setEditingProductId(productId)
+    writeProductIdToUrl(productId)
+  }
+
+  const closeProduct = () => {
+    setEditingProductId(null)
+    writeProductIdToUrl(null)
+  }
 
   useEffect(() => {
     Promise.all([backendApi.categoryTree(), backendApi.roomTree()])
@@ -797,7 +838,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
         productId={editingProductId}
         session={session}
         categories={categories}
-        onBack={() => setEditingProductId(null)}
+        onBack={closeProduct}
         onProductSaved={(saved) => {
           setProducts((current) => (
             current.some((item) => item.id === saved.id)
@@ -864,7 +905,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
 
       setCreateDialogOpen(false)
       setProductsTotal((total) => total + 1)
-      setEditingProductId(response.product.id)
+      openProduct(response.product.id)
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -1036,7 +1077,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
             <button
               className="catalog-list-row"
               type="button"
-              onClick={() => setEditingProductId(product.id)}
+              onClick={() => openProduct(product.id)}
               key={product.id}
             >
               <span className="catalog-product">
@@ -2271,37 +2312,20 @@ function ProductEditor({
             <div className="attribute-editor-toolbar">
               <div>
                 <h3>Характеристики товара</h3>
-                <p>Характеристику и её значение можно найти или создать прямо здесь, не покидая карточку товара.</p>
+                <p>Компактный список: характеристика, значение и действия в одной строке.</p>
               </div>
               <div>
                 {canCreateAttributes && (
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    onClick={() => openQuickAttribute('product')}
-                    disabled={dictionarySaving}
-                  >
-                    <Plus size={15} />
-                    Новая характеристика
+                  <button className="btn ghost" type="button" onClick={() => openQuickAttribute('product')} disabled={dictionarySaving}>
+                    <Plus size={15} /> Новая характеристика
                   </button>
                 )}
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={addAttributeRow}
-                  disabled={!canUpdate || attributeRows.length >= options.attributes.length}
-                >
-                  <Plus size={15} />
-                  Добавить строку
+                <button className="btn ghost" type="button" onClick={addAttributeRow} disabled={!canUpdate || attributeRows.length >= options.attributes.length}>
+                  <Plus size={15} /> Добавить
                 </button>
-                <button
-                  className="btn primary"
-                  type="button"
-                  onClick={saveAttributes}
-                  disabled={!canUpdate || attributesSaving}
-                >
+                <button className="btn primary" type="button" onClick={saveAttributes} disabled={!canUpdate || attributesSaving}>
                   {attributesSaving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
-                  {attributesSaving ? 'Сохраняю…' : 'Сохранить характеристики'}
+                  {attributesSaving ? 'Сохраняю…' : 'Сохранить'}
                 </button>
               </div>
             </div>
@@ -2310,148 +2334,129 @@ function ProductEditor({
               <div className="attribute-editor-empty">
                 <SlidersHorizontal size={24} />
                 <strong>Характеристики не добавлены</strong>
-                <span>Добавьте существующую характеристику или создайте новую прямо в карточке товара.</span>
+                <span>Добавьте существующую характеристику или создайте новую.</span>
               </div>
             ) : (
-              <div className="attribute-editor-list">
+              <div className="attribute-table">
+                <div className="attribute-table-head">
+                  <span>Характеристика</span>
+                  <span>Значение</span>
+                  <span>Свойства</span>
+                  <span />
+                </div>
+
                 {attributeRows.map((row, index) => {
                   const attribute = options.attributes.find((item) => item.id === row.attribute_id)
                   const usedIds = new Set(
-                    attributeRows
-                      .filter((_, rowIndex) => rowIndex !== index)
-                      .map((item) => item.attribute_id),
+                    attributeRows.filter((_, rowIndex) => rowIndex !== index).map((item) => item.attribute_id),
                   )
 
                   return (
-                    <article className="attribute-editor-row" key={`${row.attribute_id}-${index}`}>
-                      <div className="attribute-editor-row-head">
-                        <div className="field">
-                          <span>Характеристика</span>
+                    <div className="attribute-table-row" key={`${row.attribute_id}-${index}`}>
+                      <div>
+                        <SearchableSelect
+                          value={row.attribute_id}
+                          disabled={!canUpdate}
+                          placeholder="Выберите характеристику"
+                          searchPlaceholder="Поиск по названию или slug"
+                          options={options.attributes.map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                            hint: item.slug,
+                            disabled: usedIds.has(item.id),
+                          }))}
+                          onChange={(attributeId) => updateAttributeRow(index, {
+                            attribute_id: attributeId,
+                            attribute_value_id: [],
+                            custom_value: '',
+                          })}
+                        />
+                      </div>
+
+                      <div className="attribute-table-value">
+                        {attribute && attribute.values.length > 0 && !attribute.is_multiple && (
                           <SearchableSelect
-                            value={row.attribute_id}
+                            value={row.attribute_value_id[0] ?? null}
                             disabled={!canUpdate}
-                            placeholder="Выберите характеристику"
-                            searchPlaceholder="Поиск по названию или slug"
-                            options={options.attributes.map((item) => ({
-                              value: item.id,
-                              label: item.name,
-                              hint: item.slug,
-                              disabled: usedIds.has(item.id),
+                            placeholder="Выберите значение"
+                            searchPlaceholder="Найти значение"
+                            options={attribute.values.map((value) => ({
+                              value: value.id,
+                              label: value.value,
+                              swatch: value.color_code,
                             }))}
-                            onChange={(attributeId) => updateAttributeRow(index, {
-                              attribute_id: attributeId,
-                              attribute_value_id: [],
+                            onChange={(valueId) => updateAttributeRow(index, {
+                              attribute_value_id: [valueId],
                               custom_value: '',
                             })}
                           />
-                        </div>
+                        )}
 
-                        <div className="attribute-editor-meta">
-                          {attribute?.is_required && <span className="chip error">Обязательная</span>}
-                          {attribute?.is_multiple && <span className="chip">Несколько значений</span>}
-                          {attribute?.is_filterable && <span className="chip">Фильтр</span>}
-                        </div>
+                        {attribute && attribute.values.length > 0 && attribute.is_multiple && (
+                          <SearchableMultiSelect
+                            value={row.attribute_value_id}
+                            disabled={!canUpdate}
+                            placeholder="Выберите значения"
+                            searchPlaceholder="Найти значение"
+                            options={attribute.values.map((value) => ({
+                              value: value.id,
+                              label: value.value,
+                              swatch: value.color_code,
+                            }))}
+                            onChange={(valueIds) => updateAttributeRow(index, {
+                              attribute_value_id: valueIds,
+                              custom_value: '',
+                            })}
+                          />
+                        )}
 
+                        {attribute?.allow_custom_value && (
+                          <input
+                            className="attribute-custom-input"
+                            value={row.custom_value}
+                            disabled={!canUpdate}
+                            placeholder={attribute.values.length > 0 ? 'Или своё значение' : 'Введите значение'}
+                            onChange={(event) => updateAttributeRow(index, {
+                              custom_value: event.target.value,
+                              attribute_value_id: event.target.value.trim() ? [] : row.attribute_value_id,
+                            })}
+                          />
+                        )}
+
+                        {attribute && attribute.values.length === 0 && !attribute.allow_custom_value && (
+                          <span className="attribute-inline-warning">Нет значений</span>
+                        )}
+                      </div>
+
+                      <div className="attribute-table-flags">
+                        {attribute?.is_required && <span className="chip error">Обяз.</span>}
+                        {attribute?.is_multiple && <span className="chip">Множеств.</span>}
+                        {attribute?.is_filterable && <span className="chip">Фильтр</span>}
+                      </div>
+
+                      <div className="attribute-table-actions">
+                        {attribute && canUpdateAttributes && (
+                          <button
+                            className="icon-btn"
+                            type="button"
+                            title="Создать новое значение"
+                            onClick={() => openQuickValue(attribute.id, 'product')}
+                            disabled={dictionarySaving}
+                          >
+                            <Plus size={15} />
+                          </button>
+                        )}
                         <button
                           className="icon-danger"
                           type="button"
-                          aria-label="Удалить характеристику"
+                          title="Удалить характеристику из товара"
                           onClick={() => removeAttributeRow(index)}
                           disabled={!canUpdate}
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
-
-                      {attribute && (
-                        <div className="attribute-editor-values">
-                          <div className="attribute-value-toolbar">
-                            <strong>Значение</strong>
-                            {canUpdateAttributes && (
-                              <button
-                                className="btn ghost small"
-                                type="button"
-                                onClick={() => openQuickValue(attribute.id, 'product')}
-                                disabled={dictionarySaving}
-                              >
-                                <Plus size={14} />
-                                Новое значение
-                              </button>
-                            )}
-                          </div>
-
-                          {attribute.values.length > 0 && !attribute.is_multiple && (
-                            <div className="field">
-                              <span>Значение из справочника</span>
-                              <SearchableSelect
-                                value={row.attribute_value_id[0] ?? null}
-                                disabled={!canUpdate}
-                                placeholder="Выберите значение"
-                                searchPlaceholder="Найти значение"
-                                options={attribute.values.map((value) => ({
-                                  value: value.id,
-                                  label: value.value,
-                                  swatch: value.color_code,
-                                }))}
-                                onChange={(valueId) => updateAttributeRow(index, {
-                                  attribute_value_id: [valueId],
-                                  custom_value: '',
-                                })}
-                              />
-                            </div>
-                          )}
-
-                          {attribute.values.length > 0 && attribute.is_multiple && (
-                            <div className="attribute-multiple-field">
-                              <span>Значения</span>
-                              <div className="attribute-choice-grid">
-                                {attribute.values.map((value) => {
-                                  const selected = row.attribute_value_id.includes(value.id)
-                                  return (
-                                    <button
-                                      className={selected ? 'attribute-choice selected' : 'attribute-choice'}
-                                      type="button"
-                                      disabled={!canUpdate}
-                                      onClick={() => {
-                                        const next = selected
-                                          ? row.attribute_value_id.filter((id) => id !== value.id)
-                                          : [...row.attribute_value_id, value.id]
-                                        updateAttributeRow(index, {
-                                          attribute_value_id: next,
-                                          custom_value: '',
-                                        })
-                                      }}
-                                      key={value.id}
-                                    >
-                                      {value.color_code && <i style={{ background: value.color_code }} />}
-                                      {value.value}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {attribute.allow_custom_value && (
-                            <LiveField
-                              label="Своё значение"
-                              value={row.custom_value}
-                              onChange={(value) => updateAttributeRow(index, {
-                                custom_value: value,
-                                attribute_value_id: value.trim() ? [] : row.attribute_value_id,
-                              })}
-                            />
-                          )}
-
-                          {attribute.values.length === 0 && !attribute.allow_custom_value && (
-                            <div className="attribute-no-values">
-                              <CircleAlert size={16} />
-                              У характеристики пока нет значений. Создайте первое значение здесь же.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </article>
+                    </div>
                   )
                 })}
               </div>
@@ -2462,19 +2467,15 @@ function ProductEditor({
                 <header>
                   <div>
                     <h3>Характеристики вариаций</h3>
-                    <p>Фактические значения дочерних торговых предложений. Состав параметров настраивается во вкладке «Вариации».</p>
+                    <p>Значения торговых предложений. Состав параметров меняется во вкладке «Вариации».</p>
                   </div>
                   <span>{variantAttributes.length}</span>
                 </header>
-
                 <div className="product-attribute-grid">
                   {variantAttributes.map((attribute) => (
                     <article className="product-attribute-card" key={`variant-${attribute.id}`}>
                       <header>
-                        <div>
-                          <strong>{attribute.name}</strong>
-                          <small>{attribute.slug}</small>
-                        </div>
+                        <div><strong>{attribute.name}</strong><small>{attribute.slug}</small></div>
                         <span className="attribute-source variant">Из вариаций</span>
                       </header>
                       <div className="attribute-values">
@@ -3715,6 +3716,95 @@ function SearchableSelect({
                 {option.value === value && <Check size={14} />}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SearchableMultiSelect({
+  value,
+  options,
+  disabled,
+  placeholder,
+  searchPlaceholder,
+  onChange,
+}: {
+  value: number[]
+  options: SearchableSelectOption[]
+  disabled: boolean
+  placeholder: string
+  searchPlaceholder: string
+  onChange: (value: number[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const selected = options.filter((option) => value.includes(option.value))
+  const normalized = search.trim().toLocaleLowerCase('ru-RU')
+  const filtered = normalized
+    ? options.filter((option) => option.label.toLocaleLowerCase('ru-RU').includes(normalized))
+    : options
+
+  const label = selected.length === 0
+    ? placeholder
+    : selected.length <= 2
+      ? selected.map((option) => option.label).join(', ')
+      : `${selected.slice(0, 2).map((option) => option.label).join(', ')} +${selected.length - 2}`
+
+  return (
+    <div
+      className={open ? 'searchable-select open' : 'searchable-select'}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false)
+          setSearch('')
+        }
+      }}
+    >
+      <button
+        className="searchable-select-trigger"
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span><strong>{label}</strong></span>
+        <ChevronDown size={15} />
+      </button>
+
+      {open && !disabled && (
+        <div className="searchable-select-popover">
+          <label className="small-search">
+            <Search size={14} />
+            <input
+              autoFocus
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={searchPlaceholder}
+            />
+          </label>
+          <div className="searchable-select-options">
+            {filtered.map((option) => {
+              const active = value.includes(option.value)
+              return (
+                <button
+                  className={active ? 'searchable-select-option selected' : 'searchable-select-option'}
+                  type="button"
+                  onClick={() => onChange(
+                    active
+                      ? value.filter((id) => id !== option.value)
+                      : [...value, option.value],
+                  )}
+                  key={option.value}
+                >
+                  <span>
+                    {option.swatch && <i style={{ background: option.swatch }} />}
+                    <strong>{option.label}</strong>
+                  </span>
+                  {active && <Check size={14} />}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
