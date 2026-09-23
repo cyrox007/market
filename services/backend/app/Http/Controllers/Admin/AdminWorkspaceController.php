@@ -12,11 +12,13 @@ use App\Models\Page\Store;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Category;
+use App\Models\Product\Manufacturer;
 use App\Models\Product\Product;
 use App\Models\Product\ProductRegionRule;
 use App\Models\Product\Room;
 use App\Models\Settings\ProductStockSettings;
 use App\Models\Shipping\ShippingLocation;
+use App\Services\Catalog\OneCProductSyncService;
 use App\Services\Product\ProductAttributeSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -213,6 +215,7 @@ class AdminWorkspaceController extends Controller
             'weight' => ['nullable', 'numeric', 'min:0'],
             'tax_category_id' => ['nullable', 'integer'],
             'shipping_category_id' => ['nullable', 'integer'],
+            'manufacturer_id' => ['nullable', 'integer'],
             'warehouse_stocks' => ['array'],
             'warehouse_stocks.*.warehouse_id' => ['required', 'integer'],
             'warehouse_stocks.*.quantity' => ['required', 'numeric', 'min:0'],
@@ -244,6 +247,13 @@ class AdminWorkspaceController extends Controller
             ]);
         }
 
+        if (! empty($validated['manufacturer_id'])
+            && ! Manufacturer::query()->whereKey($validated['manufacturer_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'manufacturer_id' => 'Производитель не найден.',
+            ]);
+        }
+
         DB::transaction(function () use ($product, $validated, $categoryIds): void {
             $product->name = $validated['name'];
             $product->slug = filled($validated['slug'] ?? null) ? $validated['slug'] : null;
@@ -261,6 +271,7 @@ class AdminWorkspaceController extends Controller
             $product->weight = $validated['weight'] ?? null;
             $product->tax_category_id = $validated['tax_category_id'] ?? null;
             $product->shipping_category_id = $validated['shipping_category_id'] ?? null;
+            $product->manufacturer_id = $validated['manufacturer_id'] ?? null;
 
             $stockSettings = ProductStockSettings::getInstance();
             if (! $stockSettings->warehouse_accounting_enabled && ! $product->isVariable()) {
@@ -378,6 +389,14 @@ class AdminWorkspaceController extends Controller
                     'path' => $this->scalarString($location->getFullPathAttribute()),
                     'type' => $this->scalarString($location->type),
                 ])->values(),
+            'manufacturers' => Manufacturer::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'external_id'])
+                ->map(fn (Manufacturer $manufacturer) => [
+                    'id' => (int) $manufacturer->id,
+                    'name' => $this->scalarString($manufacturer->name),
+                    'external_id' => $this->nullableScalarString($manufacturer->external_id),
+                ])->values(),
             'tax_categories' => TaxCategory::query()
                 ->orderBy('name')
                 ->get(['id', 'name'])
@@ -405,6 +424,34 @@ class AdminWorkspaceController extends Controller
                 'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
                 'fallback_to_first_warehouse' => (bool) $stockSettings->fallback_to_first_warehouse,
             ],
+        ]);
+    }
+
+    public function syncProductFromOneC(
+        Product $product,
+        OneCProductSyncService $syncService
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+
+        if (! filled($product->external_id)) {
+            throw ValidationException::withMessages([
+                'external_id' => 'У товара не указан внешний ID 1С.',
+            ]);
+        }
+
+        $synced = $syncService->syncProductByExternalId((string) $product->external_id);
+
+        if (! $synced) {
+            throw ValidationException::withMessages([
+                'external_id' => 'Товар не найден в источнике 1С или синхронизация не вернула данные.',
+            ]);
+        }
+
+        $this->reloadProductRelations($product->refresh());
+
+        return response()->json([
+            'message' => 'Товар синхронизирован с 1С',
+            'product' => $this->productDetails($product),
         ]);
     }
 
