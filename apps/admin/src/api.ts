@@ -228,12 +228,14 @@ export const backendApi = {
   products: (params: {
     search?: string
     categoryId?: number | null
+    roomId?: number | null
     page?: number
   } = {}) => {
     const query = new URLSearchParams()
 
     if (params.search) query.set('search', params.search)
     if (params.categoryId) query.set('category_id', String(params.categoryId))
+    if (params.roomId) query.set('room_id', String(params.roomId))
     if (params.page) query.set('page', String(params.page))
 
     const suffix = query.toString() ? `?${query.toString()}` : ''
@@ -249,29 +251,6 @@ export const backendApi = {
     }>(`/admin_sv/api/products${suffix}`)
   },
 
-  publicProductsByRoom: (roomSlug: string) => {
-    const query = new URLSearchParams({
-      room_slug: roomSlug,
-      per_page: '30',
-    })
-
-    return request<{
-      data: Array<{
-        id: number
-        name: string
-        slug: string
-        sku: string | null
-        price: number
-        stock: number | null
-        categories?: Array<{ id: number; name: string; slug: string }>
-      }>
-      meta?: {
-        current_page: number
-        last_page: number
-        total: number
-      }
-    }>(`/api/v1/products?${query.toString()}`)
-  },
 
   product: (id: number) =>
     request<{ product: ProductDetails }>(`/admin_sv/api/products/${id}`),
