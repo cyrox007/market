@@ -51,7 +51,7 @@ class AdminWorkspaceProductApiTest extends TestCase
         $product->taxons()->attach($category->id);
 
         $response = $this->actingAs($user, 'web')
-            ->getJson("/admin_sv/api/products/{$product->id}");
+            ->getJson("/admin_sv/api/products/{$product->id}/editor");
 
         $response->assertOk()
             ->assertJsonPath('product.id', $product->id)
@@ -89,6 +89,20 @@ class AdminWorkspaceProductApiTest extends TestCase
                     'variants',
                     'warehouse_stocks',
                     'media',
+                ],
+                'options' => [
+                    'attributes',
+                    'variation_attributes',
+                    'available_variation_attributes',
+                    'shipping_locations',
+                    'manufacturers',
+                    'tax_categories',
+                    'shipping_categories',
+                    'warehouses',
+                    'stock_settings' => [
+                        'warehouse_accounting_enabled',
+                        'fallback_to_first_warehouse',
+                    ],
                 ],
             ]);
     }
