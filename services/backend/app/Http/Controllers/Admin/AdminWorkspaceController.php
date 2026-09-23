@@ -1068,7 +1068,7 @@ class AdminWorkspaceController extends Controller
         ]);
 
         $slug = filled($validated['slug'] ?? null)
-            ? IlluminateSupportStr::slug((string) $validated['slug'])
+            ? \Illuminate\Support\Str::slug((string) $validated['slug'])
             : Attribute::canonicalSlugForName((string) $validated['name']);
 
         if ($slug === '' || Attribute::query()->where('slug', $slug)->exists()) {
@@ -1106,8 +1106,8 @@ class AdminWorkspaceController extends Controller
         ]);
 
         $baseSlug = filled($validated['slug'] ?? null)
-            ? IlluminateSupportStr::slug((string) $validated['slug'])
-            : IlluminateSupportStr::slug((string) $validated['value']);
+            ? \Illuminate\Support\Str::slug((string) $validated['slug'])
+            : \Illuminate\Support\Str::slug((string) $validated['value']);
 
         if ($baseSlug === '') {
             $baseSlug = 'value';
