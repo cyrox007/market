@@ -36,6 +36,7 @@ import {
   type ProductSummary,
   type SessionInfo,
   type StoreRecord,
+  type WarehouseRecord,
 } from './api'
 
 type Theme = 'light' | 'dark'
@@ -194,11 +195,7 @@ export function App() {
           )}
 
           {module === 'warehouses' && (
-            <UnavailableWorkspace
-              icon={Warehouse}
-              title="Склады пока не подключены"
-              text="В текущем develop для складов нет отдельной policy/permission. Не открываю этот ресурс через общий доступ к панели — сначала добавим нормальные права."
-            />
+            <WarehousesWorkspace />
           )}
         </main>
       </div>
@@ -316,7 +313,7 @@ const nav: Array<{
     title: 'Логистика',
     items: [
       ['locations', 'Локации', MapPin, 'shipping_locations'],
-      ['warehouses', 'Склады', Warehouse, null],
+      ['warehouses', 'Склады', Warehouse, 'warehouses'],
     ],
   },
 ]
@@ -398,7 +395,7 @@ const headers: Record<ModuleKey, [string, string, string]> = {
   warehouses: [
     'Логистика',
     'Склады',
-    'Подключение отложено до появления отдельной политики доступа.',
+    'Реальные склады из БД. Для ресурса добавлена отдельная WarehousePolicy и разрешения.',
   ],
 }
 
@@ -1493,6 +1490,115 @@ function LocationsWorkspace() {
                     <div><dt>Срок</dt><dd>{location.delivery_days_min ?? '—'}–{location.delivery_days_max ?? '—'} дней</dd></div>
                   </dl>
                 </Card>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function WarehousesWorkspace() {
+  const [warehouses, setWarehouses] = useState<WarehouseRecord[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    setError(null)
+
+    backendApi.warehouses()
+      .then((response) => {
+        setWarehouses(response.data)
+        setSelectedId((current) => current ?? response.data[0]?.id ?? null)
+        setLoading(false)
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+        setLoading(false)
+      })
+  }
+
+  useEffect(load, [])
+
+  if (loading) return <WorkspaceLoading text="Загружаю склады…" />
+  if (error) return <WorkspaceError text={error} onRetry={load} />
+
+  const warehouse = warehouses.find((item) => item.id === selectedId) ?? null
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="Остатки" title="Склады" subtitle={`${warehouses.length} записей`} />
+
+        <div className="module-list-scroll">
+          {warehouses.map((item) => (
+            <button
+              className={item.id === selectedId ? 'entity-row selected' : 'entity-row'}
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+              key={item.id}
+            >
+              <span className="entity-icon"><Warehouse size={17} /></span>
+              <div>
+                <strong>{item.name}</strong>
+                <small>{item.external_id} · {item.is_active ? 'активен' : 'выключен'}</small>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        {!warehouse ? (
+          <EmptyState text="Складов нет." />
+        ) : (
+          <>
+            <div className="module-detail-head">
+              <div>
+                <span className="eyebrow">Склад #{warehouse.id}</span>
+                <h2>{warehouse.name}</h2>
+                <p>{warehouse.external_id} · {warehouse.is_active ? 'активен' : 'выключен'}</p>
+              </div>
+              <span className="readonly-badge">Живые данные</span>
+            </div>
+
+            <div className="module-detail-scroll">
+              <div className="summary-grid">
+                <Card title="Сводка" subtitle="Текущие связи склада">
+                  <dl className="detail-list">
+                    <div><dt>Товарных остатков</dt><dd>{warehouse.product_stocks_count}</dd></div>
+                    <div><dt>Локаций</dt><dd>{warehouse.shipping_locations_count}</dd></div>
+                    <div><dt>Статус</dt><dd>{warehouse.is_active ? 'Активен' : 'Выключен'}</dd></div>
+                  </dl>
+                </Card>
+
+                <Card title="Локации" subtitle="Связи warehouse_shipping_location">
+                  {warehouse.shipping_locations.length === 0 ? (
+                    <EmptyState text="Локации не привязаны." />
+                  ) : (
+                    <div className="attribute-list">
+                      {warehouse.shipping_locations.map((location) => (
+                        <div className="attribute-row" key={location.id}>
+                          <span>#{location.id}</span>
+                          <strong>{location.name}</strong>
+                          <small />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <div className="callout muted">
+                <AlertTriangle size={17} />
+                <div>
+                  <strong>Редактирование склада пока не включено</strong>
+                  <span>Чтение уже защищено WarehousePolicy. Форму изменения подключим вместе с актуальной моделью доставки после стабилизации PR доставки.</span>
+                </div>
               </div>
             </div>
           </>
