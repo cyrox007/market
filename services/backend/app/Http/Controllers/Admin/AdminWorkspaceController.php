@@ -428,11 +428,11 @@ class AdminWorkspaceController extends Controller
     {
         return [
             'id' => $product->id,
-            'name' => $product->name,
-            'slug' => $product->slug,
-            'sku' => $product->sku,
-            'gtin' => $product->gtin,
-            'state' => $product->state,
+            'name' => $this->scalarString($product->name),
+            'slug' => $this->scalarString($product->slug),
+            'sku' => $this->scalarString($product->sku),
+            'gtin' => $this->nullableScalarString($product->gtin),
+            'state' => $this->scalarString($product->getRawOriginal('state') ?? $product->state),
             'price' => (float) $product->price,
             'original_price' => $product->original_price !== null
                 ? (float) $product->original_price
@@ -443,8 +443,8 @@ class AdminWorkspaceController extends Controller
                 : (int) ($product->variants_count ?? $product->variants()->count()),
             'categories' => $product->taxons->map(fn ($category) => [
                 'id' => $category->id,
-                'name' => $category->name,
-                'slug' => $category->slug,
+                'name' => $this->scalarString($category->name),
+                'slug' => $this->scalarString($category->slug),
             ])->values(),
         ];
     }
@@ -452,7 +452,7 @@ class AdminWorkspaceController extends Controller
     private function productDetails(Product $product): array
     {
         return array_merge($this->productSummary($product), [
-            'description' => $product->description,
+            'description' => $this->nullableScalarString($product->description),
             'priority' => (int) ($product->priority ?? 0),
             'is_variable' => $product->isVariable(),
             'attributes' => $product->attributes
@@ -463,11 +463,11 @@ class AdminWorkspaceController extends Controller
 
                     return [
                         'id' => $attribute->id,
-                        'name' => $attribute->name,
-                        'slug' => $attribute->slug,
+                        'name' => $this->scalarString($attribute->name),
+                        'slug' => $this->scalarString($attribute->slug),
                         'value_id' => $value?->id,
-                        'value' => $value?->value,
-                        'custom_value' => $pivot?->custom_value,
+                        'value' => $this->nullableScalarString($value?->value),
+                        'custom_value' => $this->nullableScalarString($pivot?->custom_value),
                         'is_multiple' => (bool) $attribute->is_multiple,
                         'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
                     ];
@@ -479,17 +479,43 @@ class AdminWorkspaceController extends Controller
                 ->values(),
             'variants' => $product->variants->map(fn (Product $variant) => [
                 'id' => $variant->id,
-                'name' => $variant->name,
-                'sku' => $variant->sku,
-                'state' => $variant->state,
+                'name' => $this->scalarString($variant->name),
+                'sku' => $this->scalarString($variant->sku),
+                'state' => $this->scalarString($variant->getRawOriginal('state') ?? $variant->state),
                 'price' => (float) $variant->price,
                 'stock' => (int) ($variant->stock ?? 0),
             ])->values(),
             'warehouse_stocks' => $product->warehouseStocks->map(fn ($stock) => [
                 'warehouse_id' => $stock->warehouse_id,
-                'warehouse_name' => $stock->warehouse?->name,
+                'warehouse_name' => $this->nullableScalarString($stock->warehouse?->name),
                 'quantity' => (float) $stock->quantity,
             ])->values(),
         ]);
+    }
+
+    private function scalarString(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_scalar($value) || $value instanceof \Stringable) {
+            return (string) $value;
+        }
+
+        if ($value instanceof \BackedEnum) {
+            return (string) $value->value;
+        }
+
+        return '';
+    }
+
+    private function nullableScalarString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->scalarString($value);
     }
 }
