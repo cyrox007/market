@@ -30,6 +30,7 @@ class WarehouseDeliveryOptionsService
             ->active()
             ->whereHas('warehouse', fn ($query) => $query->where('is_active', true))
             ->whereHas('shippingMethod', fn ($query) => $query->where('is_active', true))
+            ->whereHas('shippingMethod.carrier', fn ($query) => $query->where('is_active', true))
             ->whereHas('zones', function ($query) use ($ancestorIds) {
                 $query->active()->whereIn('shipping_location_id', $ancestorIds);
             })
@@ -73,6 +74,7 @@ class WarehouseDeliveryOptionsService
             ->active()
             ->whereHas('warehouse', fn ($query) => $query->where('is_active', true))
             ->whereHas('shippingMethod', fn ($query) => $query->where('is_active', true))
+            ->whereHas('shippingMethod.carrier', fn ($query) => $query->where('is_active', true))
             ->whereHas('zones', function ($query) use ($ancestorIds) {
                 $query->active()->whereIn('shipping_location_id', $ancestorIds);
             })
@@ -103,22 +105,36 @@ class WarehouseDeliveryOptionsService
             return null;
         }
 
+        $shippingMethod = $method->shippingMethod;
+        $carrier = $shippingMethod->carrier;
+        $config = is_array($shippingMethod->configuration)
+            ? $shippingMethod->configuration
+            : [];
         $fallbackDays = $location->getEffectiveDeliveryDays();
+
         $basePrice = $zone->delivery_price !== null
             ? (float) $zone->delivery_price
-            : (float) ($location->getEffectiveDeliveryPrice() ?? 0);
+            : (float) ($config['base_price'] ?? $location->getEffectiveDeliveryPrice() ?? 0);
 
-        $freeThreshold = $zone->free_delivery_threshold !== null
-            ? (float) $zone->free_delivery_threshold
-            : $location->getEffectiveFreeDeliveryThreshold();
+        $freeThreshold = $zone->free_delivery_threshold;
+        if ($freeThreshold === null && array_key_exists('free_delivery_threshold', $config)) {
+            $freeThreshold = $config['free_delivery_threshold'];
+        }
+        if ($freeThreshold === null) {
+            $freeThreshold = $location->getEffectiveFreeDeliveryThreshold();
+        }
+
+        $deliveryDaysMin = $zone->delivery_days_min
+            ?? $config['delivery_days_min']
+            ?? ($fallbackDays['min'] ?? null);
+        $deliveryDaysMax = $zone->delivery_days_max
+            ?? $config['delivery_days_max']
+            ?? ($fallbackDays['max'] ?? null);
 
         $deliveryPrice = $basePrice;
         if ($freeThreshold !== null && $orderAmount >= (float) $freeThreshold) {
             $deliveryPrice = 0.0;
         }
-
-        $shippingMethod = $method->shippingMethod;
-        $carrier = $shippingMethod->carrier;
 
         return [
             'warehouse_delivery_method_id' => (int) $method->id,
@@ -138,8 +154,8 @@ class WarehouseDeliveryOptionsService
             'free_delivery_threshold' => $freeThreshold !== null
                 ? (float) $freeThreshold
                 : null,
-            'delivery_days_min' => $zone->delivery_days_min ?? ($fallbackDays['min'] ?? null),
-            'delivery_days_max' => $zone->delivery_days_max ?? ($fallbackDays['max'] ?? null),
+            'delivery_days_min' => $deliveryDaysMin,
+            'delivery_days_max' => $deliveryDaysMax,
             'method_priority' => (int) $method->priority,
             'zone_priority' => (int) $zone->priority,
         ];
