@@ -160,11 +160,15 @@ class OneCProductSyncService extends Svetofor1CCatalogImport
             $this->syncProductPriceFromCache($product, $externalId);
         }
 
-        // 8. Синхронизировать остатки по складам
-        $this->syncProductWarehouseStocks($product, $externalId);
-
-        // 9. Синхронизировать модификации (вариации)
+        // 8. Синхронизировать модификации (вариации).
+        // Сначала создаём/обновляем их, чтобы затем одним проходом
+        // подтянуть остатки и родителя, и каждой вариации по всем складам.
         $this->syncModifications($product, $externalId);
+
+        // 9. Синхронизировать остатки по складам для всего дерева товара.
+        // Для вариативного товара метод включает родителя и все вариации,
+        // у которых заполнен external_id.
+        $this->syncWarehouseStocksForProduct($product->fresh());
 
         // 10. (Опционально) Изображения – можно добавить, если API отдаёт URL
         // $this->syncProductImages($product, $detail);

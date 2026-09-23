@@ -1,0 +1,42 @@
+name: Сборка новой админки
+
+on:
+  pull_request:
+    paths:
+      - 'apps/admin/**'
+      - '.github/workflows/admin-build.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'apps/admin/**'
+      - '.github/workflows/admin-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/admin
+
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+
+      - name: Настроить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Установить зависимости
+        run: npm install --no-audit --no-fund
+
+      - name: Проверить TypeScript
+        run: npx tsc --noEmit
+
+      - name: Собрать админку
+        run: npm run build
