@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Dashboard',
-    'title' => 'Dashboard',
+    'navigation_label' => 'Инфопанель',
+    'title' => 'Инфопанель',
 
 ];

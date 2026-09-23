@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Order',
-    'title' => 'Edit Order',
+    'navigation_label' => 'Редактирование заказа',
+    'title' => 'Редактирование заказа',
 
 ];

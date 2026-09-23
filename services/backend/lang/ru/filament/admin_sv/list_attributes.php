@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Attributes',
-    'title' => 'List Attributes',
+    'navigation_label' => 'Характеристики',
+    'title' => 'Характеристики',
 
 ];

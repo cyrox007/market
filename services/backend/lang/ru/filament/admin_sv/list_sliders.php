@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Sliders',
-    'title' => 'List Sliders',
+    'navigation_label' => 'Слайдеры',
+    'title' => 'Слайдеры',
 
 ];

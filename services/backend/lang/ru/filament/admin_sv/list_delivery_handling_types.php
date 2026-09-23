@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Delivery Handling Types',
-    'title' => 'List Delivery Handling Types',
+    'navigation_label' => 'Типы обработки',
+    'title' => 'Типы обработки',
 
 ];

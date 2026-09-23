@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Categories',
-    'title' => 'List Categories',
+    'navigation_label' => 'Категории',
+    'title' => 'Категории',
 
 ];

@@ -2,8 +2,8 @@
 
 return [
 
-    'navigation_label' => 'List Reviews',
-    'title' => 'List Reviews',
+    'navigation_label' => 'Отзывы',
+    'title' => 'Отзывы',
     'добавитьотзыв' => 'Добавить отзыв',
 
 ];

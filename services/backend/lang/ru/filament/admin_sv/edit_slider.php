@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Slider',
-    'title' => 'Edit Slider',
+    'navigation_label' => 'Редактирование слайдера',
+    'title' => 'Редактирование слайдера',
 
 ];

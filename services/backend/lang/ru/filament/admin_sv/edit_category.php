@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Category',
-    'title' => 'Edit Category',
+    'navigation_label' => 'Редактирование категории',
+    'title' => 'Редактирование категории',
 
 ];

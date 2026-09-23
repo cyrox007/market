@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Shipping Location',
-    'title' => 'Edit Shipping Location',
+    'navigation_label' => 'Редактирование локации',
+    'title' => 'Редактирование локации',
 
 ];
