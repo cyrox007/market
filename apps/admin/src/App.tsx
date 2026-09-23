@@ -1,12 +1,15 @@
 import { Component, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowLeft,
+  ArrowUpDown,
   Bell,
   CheckCircle2,
   ChevronRight,
   CircleAlert,
   ClipboardList,
   ExternalLink,
+  Filter,
   FolderTree,
   Loader2,
   MapPin,
@@ -483,10 +486,16 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const [selectedSection, setSelectedSection] = useState<TreeRow | null>(null)
   const [products, setProducts] = useState<ProductSummary[]>([])
   const [productsTotal, setProductsTotal] = useState(0)
+  const [productsPage, setProductsPage] = useState(1)
+  const [productsLastPage, setProductsLastPage] = useState(1)
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
+  const [editingProductId, setEditingProductId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
+  const [stateFilter, setStateFilter] = useState('')
+  const [sort, setSort] = useState<
+    'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc'
+  >('updated_desc')
 
   const tree = useMemo(
     () => flattenTree(kind === 'categories' ? categories : rooms),
@@ -513,29 +522,21 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
     setProductsError(null)
 
     const timer = window.setTimeout(() => {
-      const request = backendApi.products({
+      backendApi.products({
         search: search.trim() || undefined,
         categoryId: kind === 'categories' ? selectedSection?.id ?? null : null,
         roomId: kind === 'rooms' ? selectedSection?.id ?? null : null,
+        state: stateFilter || undefined,
+        sort,
+        page: productsPage,
       })
-
-      request
         .then((response) => {
           if (cancelled) return
 
-          const rows: ProductSummary[] = response.data
-
-          setProducts(rows)
-          setProductsTotal(response.meta?.total ?? rows.length)
+          setProducts(response.data)
+          setProductsTotal(response.meta?.total ?? response.data.length)
+          setProductsLastPage(response.meta?.last_page ?? 1)
           setProductsLoading(false)
-
-          if (rows.length > 0 && !rows.some((row) => row.id === selectedProductId)) {
-            setSelectedProductId(rows[0].id)
-          }
-
-          if (rows.length === 0) {
-            setSelectedProductId(null)
-          }
         })
         .catch((error) => {
           if (cancelled) return
@@ -548,31 +549,58 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [kind, selectedSection, search])
+  }, [kind, selectedSection, search, stateFilter, sort, productsPage])
+
+  if (editingProductId !== null) {
+    return (
+      <ProductEditor
+        productId={editingProductId}
+        session={session}
+        onBack={() => setEditingProductId(null)}
+        onProductSaved={(saved) => {
+          setProducts((current) => current.map((item) => (
+            item.id === saved.id ? saved : item
+          )))
+        }}
+      />
+    )
+  }
+
+  const chooseKind = (value: SectionKind) => {
+    setKind(value)
+    setSelectedSection(null)
+    setProductsPage(1)
+  }
+
+  const chooseSection = (value: TreeRow | null) => {
+    setSelectedSection(value)
+    setProductsPage(1)
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setStateFilter('')
+    setSort('updated_desc')
+    setProductsPage(1)
+  }
 
   return (
-    <div className="catalog-layout">
+    <div className="catalog-browser-layout">
       <section className="panel section-panel">
-        <PanelHead eyebrow="Структура" title="Разделы" subtitle="Данные из Laravel" />
+        <PanelHead eyebrow="Структура" title="Разделы" subtitle="Категории и комнаты" />
 
         <div className="segmented">
           <button
             className={kind === 'categories' ? 'active' : ''}
             type="button"
-            onClick={() => {
-              setKind('categories')
-              setSelectedSection(null)
-            }}
+            onClick={() => chooseKind('categories')}
           >
             Категории
           </button>
           <button
             className={kind === 'rooms' ? 'active' : ''}
             type="button"
-            onClick={() => {
-              setKind('rooms')
-              setSelectedSection(null)
-            }}
+            onClick={() => chooseKind('rooms')}
           >
             Комнаты
           </button>
@@ -586,7 +614,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
             <button
               className={selectedSection === null ? 'tree-row active' : 'tree-row'}
               type="button"
-              onClick={() => setSelectedSection(null)}
+              onClick={() => chooseSection(null)}
             >
               <span><FolderTree size={14} /></span>
               <div><strong>Все товары</strong></div>
@@ -598,7 +626,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
                 className={selectedSection?.id === node.id ? 'tree-row active' : 'tree-row'}
                 style={{ paddingLeft: 8 + node.depth * 13 }}
                 type="button"
-                onClick={() => setSelectedSection(node)}
+                onClick={() => chooseSection(node)}
                 key={node.id}
               >
                 <span>{node.depth > 0 ? <ChevronRight size={12} /> : <FolderTree size={14} />}</span>
@@ -610,63 +638,142 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
         )}
       </section>
 
-      <section className="panel products-panel">
-        <PanelHead
-          eyebrow={kind === 'categories' ? 'Категория' : 'Комната'}
-          title={selectedSection?.name ?? 'Все товары'}
-          subtitle={productsTotal ? `${productsTotal} товаров` : 'Реальные записи'}
-        />
+      <section className="panel catalog-products-panel">
+        <div className="catalog-head">
+          <div>
+            <span className="eyebrow">{kind === 'categories' ? 'Категория' : 'Комната'}</span>
+            <h2>{selectedSection?.name ?? 'Все товары'}</h2>
+            <p>{productsTotal} товаров</p>
+          </div>
+        </div>
 
-        <label className="small-search workspace-search">
-          <Search size={15} />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Название, SKU, штрихкод"
-          />
-        </label>
+        <div className="catalog-toolbar">
+          <label className="catalog-search">
+            <Search size={16} />
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setProductsPage(1)
+              }}
+              placeholder="Поиск по названию, SKU или GTIN"
+            />
+          </label>
 
-        <div className="products">
+          <label className="catalog-select">
+            <Filter size={15} />
+            <select
+              value={stateFilter}
+              onChange={(event) => {
+                setStateFilter(event.target.value)
+                setProductsPage(1)
+              }}
+            >
+              <option value="">Все статусы</option>
+              <option value="active">Активные</option>
+              <option value="draft">Черновики</option>
+              <option value="inactive">Неактивные</option>
+              <option value="unlisted">Скрытые</option>
+              <option value="unavailable">Недоступные</option>
+              <option value="retired">Снятые с продажи</option>
+            </select>
+          </label>
+
+          <label className="catalog-select sort-select">
+            <ArrowUpDown size={15} />
+            <select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as typeof sort)
+                setProductsPage(1)
+              }}
+            >
+              <option value="updated_desc">Недавно изменённые</option>
+              <option value="updated_asc">Давно не изменялись</option>
+              <option value="name_asc">Название А–Я</option>
+              <option value="name_desc">Название Я–А</option>
+              <option value="price_asc">Цена по возрастанию</option>
+              <option value="price_desc">Цена по убыванию</option>
+              <option value="stock_desc">Больше остаток</option>
+              <option value="stock_asc">Меньше остаток</option>
+            </select>
+          </label>
+
+          {(search || stateFilter || sort !== 'updated_desc') && (
+            <button className="btn ghost small" type="button" onClick={clearFilters}>
+              Сбросить
+            </button>
+          )}
+        </div>
+
+        <div className="catalog-list">
+          <div className="catalog-list-head">
+            <span>Товар</span>
+            <span>Статус</span>
+            <span>Цена</span>
+            <span>Остаток</span>
+            <span>Разделы</span>
+            <span />
+          </div>
+
           {productsLoading && <InlineLoading text="Загружаю товары…" />}
           {productsError && <InlineError text={productsError} />}
 
           {!productsLoading && !productsError && products.map((product) => (
             <button
-              className={selectedProductId === product.id ? 'product-row selected' : 'product-row'}
+              className="catalog-list-row"
               type="button"
-              onClick={() => setSelectedProductId(product.id)}
+              onClick={() => setEditingProductId(product.id)}
               key={product.id}
             >
-              <span className="thumb">{product.name.slice(0, 2).toUpperCase()}</span>
-              <div>
-                <strong>{product.name}</strong>
-                <small>
-                  {product.sku || `#${product.id}`} · {formatMoney(product.price)}
-                </small>
-                <p>
-                  <em>{stateLabel(product.state)}</em>
-                  <span>{product.stock} шт.</span>
-                  {product.variants_count > 0 && <span>{product.variants_count} вар.</span>}
-                </p>
-              </div>
+              <span className="catalog-product">
+                <span className="thumb">{product.name.slice(0, 2).toUpperCase()}</span>
+                <span>
+                  <strong>{product.name}</strong>
+                  <small>{product.sku || `#${product.id}`}{product.gtin ? ` · ${product.gtin}` : ''}</small>
+                </span>
+              </span>
+              <span><Status value={stateLabel(product.state)} compact /></span>
+              <strong className="catalog-price">{formatMoney(product.price)}</strong>
+              <span>{product.stock} шт.{product.variants_count > 0 ? ` · ${product.variants_count} вар.` : ''}</span>
+              <span className="catalog-categories">
+                {product.categories.length > 0
+                  ? product.categories.slice(0, 2).map((item) => item.name).join(', ')
+                  : 'Без категории'}
+              </span>
+              <ChevronRight size={16} />
             </button>
           ))}
 
           {!productsLoading && !productsError && products.length === 0 && (
-            <EmptyState text="В этом разделе товаров нет." />
+            <EmptyState text="По выбранным условиям товары не найдены." />
           )}
         </div>
-      </section>
 
-      <ProductEditor
-        productId={selectedProductId}
-        session={session}
-        onProductSaved={(saved) => {
-          setProducts((current) => current.map((item) => (
-            item.id === saved.id ? saved : item
-          )))
-        }}
-      />
+        <footer className="catalog-pagination">
+          <span>
+            Страница {productsPage} из {productsLastPage} · всего {productsTotal}
+          </span>
+          <div>
+            <button
+              className="btn ghost small"
+              type="button"
+              disabled={productsPage <= 1}
+              onClick={() => setProductsPage((page) => Math.max(1, page - 1))}
+            >
+              Назад
+            </button>
+            <button
+              className="btn ghost small"
+              type="button"
+              disabled={productsPage >= productsLastPage}
+              onClick={() => setProductsPage((page) => Math.min(productsLastPage, page + 1))}
+            >
+              Далее
+            </button>
+          </div>
+        </footer>
+      </section>
     </div>
   )
 }
@@ -674,27 +781,23 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
 function ProductEditor({
   productId,
   session,
+  onBack,
   onProductSaved,
 }: {
-  productId: number | null
+  productId: number
   session: SessionInfo
+  onBack: () => void
   onProductSaved: (product: ProductDetails) => void
 }) {
   const [product, setProduct] = useState<ProductDetails | null>(null)
   const [draft, setDraft] = useState<ProductDraft | null>(null)
   const [tab, setTab] = useState<ProductTab>('main')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!productId) {
-      setProduct(null)
-      setDraft(null)
-      return
-    }
-
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -718,18 +821,16 @@ function ProductEditor({
     }
   }, [productId])
 
-  if (!productId) {
-    return (
-      <section className="panel editor">
-        <EmptyState text="Выберите товар слева." />
-      </section>
-    )
-  }
-
   if (loading || !product || !draft) {
     return (
-      <section className="panel editor">
-        <InlineLoading text="Загружаю карточку товара…" />
+      <section className="panel product-editor-page">
+        <div className="editor-page-back">
+          <button className="btn ghost small" type="button" onClick={onBack}>
+            <ArrowLeft size={15} />
+            Назад к каталогу
+          </button>
+        </div>
+        {error ? <InlineError text={error} /> : <InlineLoading text="Загружаю товар…" />}
       </section>
     )
   }
@@ -784,7 +885,15 @@ function ProductEditor({
   }
 
   return (
-    <section className="panel editor">
+    <section className="panel product-editor-page">
+      <div className="editor-page-back">
+        <button className="btn ghost small" type="button" onClick={onBack}>
+          <ArrowLeft size={15} />
+          Назад к каталогу
+        </button>
+        <span>Редактирование товара</span>
+      </div>
+
       <div className="editor-head">
         <div className="product-title">
           <span className="hero-thumb">{product.name.slice(0, 2).toUpperCase()}</span>
@@ -807,7 +916,12 @@ function ProductEditor({
       <div className="quality">
         <div className="quality-summary">
           <div className="quality-score">
-            <div className="progress-ring" style={{ background: `conic-gradient(var(--secondary) 0 ${completion}%, var(--border) ${completion}% 100%)` }}>
+            <div
+              className="progress-ring"
+              style={{
+                background: `conic-gradient(var(--secondary) 0 ${completion}%, var(--border) ${completion}% 100%)`,
+              }}
+            >
               <span>{completion}%</span>
             </div>
             <div>
@@ -832,98 +946,124 @@ function ProductEditor({
 
       <div className="tabs">
         <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
-        <button className={tab === 'attributes' ? 'active' : ''} type="button" onClick={() => setTab('attributes')}>Характеристики <span>{product.attributes.length}</span></button>
-        <button className={tab === 'variants' ? 'active' : ''} type="button" onClick={() => setTab('variants')}>Вариации <span>{product.variants.length}</span></button>
+        <button className={tab === 'attributes' ? 'active' : ''} type="button" onClick={() => setTab('attributes')}>
+          Характеристики <span>{product.attributes.length}</span>
+        </button>
+        <button className={tab === 'variants' ? 'active' : ''} type="button" onClick={() => setTab('variants')}>
+          Вариации <span>{product.variants.length}</span>
+        </button>
         <button className={tab === 'stock' ? 'active' : ''} type="button" onClick={() => setTab('stock')}>Остатки</button>
       </div>
 
-      <div className="editor-scroll">
+      <div className="editor-scroll product-editor-scroll">
         {tab === 'main' && (
-          <div className="stack">
-            <Card title="Основная карточка" subtitle="Эти поля сохраняются в реальный товар">
-              <div className="form-grid readable">
-                <LiveField
-                  label="Название"
-                  value={draft.name}
-                  required
-                  onChange={(value) => setDraft({ ...draft, name: value })}
-                />
-                <LiveField
-                  label="SKU"
-                  value={draft.sku}
-                  required
-                  onChange={(value) => setDraft({ ...draft, sku: value })}
-                />
-                <LiveField
-                  label="GTIN / штрихкод"
-                  value={draft.gtin}
-                  onChange={(value) => setDraft({ ...draft, gtin: value })}
-                />
-                <label className="field">
-                  <span>Статус <b>*</b></span>
-                  <select
-                    value={draft.state}
-                    onChange={(event) => setDraft({ ...draft, state: event.target.value })}
-                    disabled={!canUpdate}
-                  >
-                    <option value="draft">Черновик</option>
-                    <option value="active">Активен</option>
-                    <option value="inactive">Неактивен</option>
-                  </select>
-                </label>
-                <LiveField
-                  label="Цена"
-                  value={draft.price}
-                  suffix="₽"
-                  required
-                  onChange={(value) => setDraft({ ...draft, price: value })}
-                  inputMode="decimal"
-                />
-                <LiveField
-                  label="Цена до скидки"
-                  value={draft.original_price}
-                  suffix="₽"
-                  onChange={(value) => setDraft({ ...draft, original_price: value })}
-                  inputMode="decimal"
-                />
-                <LiveField
-                  label="Приоритет"
-                  value={draft.priority}
-                  onChange={(value) => setDraft({ ...draft, priority: value })}
-                  inputMode="numeric"
-                />
-              </div>
-            </Card>
+          <div className="editor-content-narrow">
+            <div className="stack">
+              <Card title="Основная карточка" subtitle="Часто изменяемые данные товара">
+                <div className="form-grid readable">
+                  <LiveField
+                    label="Название"
+                    value={draft.name}
+                    required
+                    onChange={(value) => setDraft({ ...draft, name: value })}
+                  />
+                  <LiveField
+                    label="SKU"
+                    value={draft.sku}
+                    required
+                    onChange={(value) => setDraft({ ...draft, sku: value })}
+                  />
+                  <LiveField
+                    label="GTIN / штрихкод"
+                    value={draft.gtin}
+                    onChange={(value) => setDraft({ ...draft, gtin: value })}
+                  />
+                  <label className="field">
+                    <span>Статус <b>*</b></span>
+                    <select
+                      value={draft.state}
+                      onChange={(event) => setDraft({ ...draft, state: event.target.value })}
+                      disabled={!canUpdate}
+                    >
+                      <option value="draft">Черновик</option>
+                      <option value="active">Активен</option>
+                      <option value="inactive">Неактивен</option>
+                    </select>
+                  </label>
+                  <LiveField
+                    label="Цена"
+                    value={draft.price}
+                    suffix="₽"
+                    required
+                    onChange={(value) => setDraft({ ...draft, price: value })}
+                    inputMode="decimal"
+                  />
+                  <LiveField
+                    label="Цена до скидки"
+                    value={draft.original_price}
+                    suffix="₽"
+                    onChange={(value) => setDraft({ ...draft, original_price: value })}
+                    inputMode="decimal"
+                  />
+                  <LiveField
+                    label="Приоритет"
+                    value={draft.priority}
+                    onChange={(value) => setDraft({ ...draft, priority: value })}
+                    inputMode="numeric"
+                  />
+                </div>
+              </Card>
 
-            <Card title="Описание" subtitle="Текст карточки на сайте">
-              <textarea
-                value={draft.description}
-                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-                disabled={!canUpdate}
-              />
-            </Card>
+              <Card title="Описание" subtitle="Текст карточки товара">
+                <textarea
+                  value={draft.description}
+                  onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                  disabled={!canUpdate}
+                />
+              </Card>
+            </div>
           </div>
         )}
 
         {tab === 'attributes' && (
-          <Card
-            title="Характеристики товара"
-            subtitle="Это реальные связи product_product_attributes из базы"
-          >
+          <div className="editor-content-wide">
             {product.attributes.length === 0 ? (
-              <EmptyState text="У товара нет характеристик." />
+              <Card title="Характеристики товара" subtitle="Данные из product_product_attributes и product_variant_attributes">
+                <EmptyState text="Для товара не найдено ни одной характеристики." />
+              </Card>
             ) : (
-              <div className="attribute-list live-attributes">
+              <div className="product-attribute-grid">
                 {product.attributes.map((attribute) => (
-                  <div className="attribute-row" key={attribute.id}>
-                    <span>{attribute.name}</span>
-                    <strong>
-                      {attribute.custom_value || attribute.value || '—'}
-                    </strong>
-                    <small>
-                      {attribute.is_use_in_variations ? 'вариация' : ''}
-                    </small>
-                  </div>
+                  <article
+                    className="product-attribute-card"
+                    key={`${attribute.source}-${attribute.id}`}
+                  >
+                    <header>
+                      <div>
+                        <strong>{attribute.name}</strong>
+                        <small>{attribute.slug}</small>
+                      </div>
+                      <span className={attribute.source === 'variants' ? 'attribute-source variant' : 'attribute-source'}>
+                        {attribute.source === 'variants' ? 'Из вариаций' : 'Товар'}
+                      </span>
+                    </header>
+
+                    <div className="attribute-values">
+                      {attribute.values.length === 0 ? (
+                        <span className="attribute-empty">Значение не заполнено</span>
+                      ) : attribute.values.map((value) => (
+                        <span className="attribute-value-chip" key={`${value.value_id ?? 'custom'}-${value.value}`}>
+                          {value.color_code && (
+                            <i
+                              className="attribute-color"
+                              style={{ background: value.color_code }}
+                            />
+                          )}
+                          {value.value}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
                 ))}
               </div>
             )}
@@ -931,59 +1071,63 @@ function ProductEditor({
             <div className="callout muted">
               <AlertTriangle size={17} />
               <div>
-                <strong>Редактирование значений подключим следующим шагом</strong>
-                <span>Сейчас здесь уже реальные данные товара, но изменение pivot-связей ещё не отправляется в backend.</span>
+                <strong>Показаны фактические данные товара и его вариаций</strong>
+                <span>Следующим шагом можно сделать отдельный удобный редактор этих связей, не возвращаясь к длинному repeater.</span>
               </div>
             </div>
-          </Card>
+          </div>
         )}
 
         {tab === 'variants' && (
-          <Card title="Вариации" subtitle="Реальные торговые предложения товара">
-            {product.variants.length === 0 ? (
-              <EmptyState text="У товара нет вариаций." />
-            ) : (
-              <Table headers={['Название', 'SKU', 'Цена', 'Остаток', 'Статус']}>
-                {product.variants.map((variant) => (
-                  <tr key={variant.id}>
-                    <td><strong>{variant.name}</strong></td>
-                    <td>{variant.sku}</td>
-                    <td>{formatMoney(variant.price)}</td>
-                    <td>{variant.stock}</td>
-                    <td><Status value={stateLabel(variant.state)} compact /></td>
-                  </tr>
-                ))}
-              </Table>
-            )}
-          </Card>
+          <div className="editor-content-wide">
+            <Card title="Вариации" subtitle="Реальные торговые предложения товара">
+              {product.variants.length === 0 ? (
+                <EmptyState text="У товара нет вариаций." />
+              ) : (
+                <Table headers={['Название', 'SKU', 'Цена', 'Остаток', 'Статус']}>
+                  {product.variants.map((variant) => (
+                    <tr key={variant.id}>
+                      <td><strong>{variant.name}</strong></td>
+                      <td>{variant.sku}</td>
+                      <td>{formatMoney(variant.price)}</td>
+                      <td>{variant.stock}</td>
+                      <td><Status value={stateLabel(variant.state)} compact /></td>
+                    </tr>
+                  ))}
+                </Table>
+              )}
+            </Card>
+          </div>
         )}
 
         {tab === 'stock' && (
-          <Card title="Остатки по складам" subtitle="Реальные записи product_warehouse_stocks">
-            {product.warehouse_stocks.length === 0 ? (
-              <EmptyState text="Отдельных складских остатков для товара нет." />
-            ) : (
-              <div className="stock-grid">
-                {product.warehouse_stocks.map((stock) => (
-                  <article className="stock-card" key={stock.warehouse_id}>
-                    <Warehouse size={18} />
-                    <div>
-                      <strong>{stock.warehouse_name || `Склад #${stock.warehouse_id}`}</strong>
-                      <small>ID {stock.warehouse_id}</small>
-                    </div>
-                    <em>{stock.quantity}</em>
-                  </article>
-                ))}
-              </div>
-            )}
-          </Card>
+          <div className="editor-content-wide">
+            <Card title="Остатки по складам" subtitle="Реальные записи product_warehouse_stocks">
+              {product.warehouse_stocks.length === 0 ? (
+                <EmptyState text="Отдельных складских остатков для товара нет." />
+              ) : (
+                <div className="stock-grid">
+                  {product.warehouse_stocks.map((stock) => (
+                    <article className="stock-card" key={stock.warehouse_id}>
+                      <Warehouse size={18} />
+                      <div>
+                        <strong>{stock.warehouse_name || `Склад #${stock.warehouse_id}`}</strong>
+                        <small>ID {stock.warehouse_id}</small>
+                      </div>
+                      <em>{stock.quantity}</em>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         )}
       </div>
 
       <footer className="editor-foot">
         <span>
           {canUpdate
-            ? 'Сохранение идёт через ProductPolicy и Laravel validation'
+            ? 'Сохранение проходит через ProductPolicy и Laravel validation'
             : 'У пользователя нет разрешения update products'}
         </span>
         <div>
