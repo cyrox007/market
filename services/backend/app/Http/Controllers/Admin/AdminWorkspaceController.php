@@ -964,26 +964,37 @@ class AdminWorkspaceController extends Controller
         );
 
         DB::transaction(function () use ($product, $validated, $variationData): void {
-            $variant = Product::query()->create([
-                'parent_product_id' => $product->id,
-                'is_variable' => false,
-                'name' => $validated['name'],
-                'sku' => $validated['sku'],
-                'price' => $validated['price'],
-                'original_price' => $validated['original_price'] ?? null,
-                'stock' => ProductStockSettings::getInstance()->warehouse_accounting_enabled
-                    ? 0
-                    : ($validated['stock'] ?? 0),
-                'backorder' => (bool) $validated['backorder'],
-                'state' => $validated['state'],
-                'external_id' => $validated['external_id'] ?? null,
-                'description' => $product->description,
-                'excerpt' => $product->excerpt,
-                'length' => $product->length,
-                'width' => $product->width,
-                'height' => $product->height,
-                'weight' => $product->weight,
-            ]);
+            // Product наследует Vanilo-модель с ограниченным массовым заполнением.
+            // Поэтому торговое предложение создаём явным присваиванием полей:
+            // иначе create([...]) отбрасывает name/SKU/price/parent_product_id.
+            $variant = new Product();
+            $variant->parent_product_id = $product->id;
+            $variant->is_variable = false;
+            $variant->name = $validated['name'];
+            $variant->slug = $this->uniqueProductSlug(
+                ($product->slug ?: $product->name) . '-' . $validated['sku']
+            );
+            $variant->sku = $validated['sku'];
+            $variant->price = $validated['price'];
+            $variant->original_price = $validated['original_price'] ?? null;
+            $variant->stock = ProductStockSettings::getInstance()->warehouse_accounting_enabled
+                ? 0
+                : ($validated['stock'] ?? 0);
+            $variant->backorder = (bool) $validated['backorder'];
+            $variant->state = $validated['state'];
+            $variant->external_id = $validated['external_id'] ?? null;
+            $variant->description = $product->description;
+            $variant->excerpt = $product->excerpt;
+            $variant->priority = (int) ($product->priority ?? 0);
+            $variant->units_sold = 0;
+            $variant->length = $product->length;
+            $variant->width = $product->width;
+            $variant->height = $product->height;
+            $variant->weight = $product->weight;
+            $variant->tax_category_id = $product->tax_category_id;
+            $variant->shipping_category_id = $product->shipping_category_id;
+            $variant->manufacturer_id = $product->manufacturer_id;
+            $variant->save();
 
             app(SyncVariantVariationAttributesAction::class)
                 ->execute($variant, $variationData, $product);
@@ -2144,6 +2155,22 @@ class AdminWorkspaceController extends Controller
                 'color_code' => $this->nullableScalarString($value->color_code),
             ])->values(),
         ];
+    }
+
+    private function uniqueProductSlug(string $seed): string
+    {
+        $base = IlluminateSupportStr::slug($seed);
+        $base = mb_substr($base !== '' ? $base : 'product', 0, 220);
+
+        $slug = $base;
+        $suffix = 2;
+
+        while (Product::query()->where('slug', $slug)->exists()) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     private function scalarString(mixed $value): string
