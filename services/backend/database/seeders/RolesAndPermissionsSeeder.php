@@ -40,6 +40,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'permissions',
             'mail_events',
             'catalog_sync',
+            'warehouses',
         ];
 
         $actions = ['viewAny', 'view', 'create', 'update', 'delete'];
@@ -128,6 +129,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'create mail_events',
             'update mail_events',
             'viewAny catalog_sync',
+            'viewAny warehouses',
+            'view warehouses',
+            'update warehouses',
             'viewAny product_collections',
             'view product_collections',
             'create product_collections',
