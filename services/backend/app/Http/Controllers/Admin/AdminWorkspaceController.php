@@ -1172,6 +1172,7 @@ class AdminWorkspaceController extends Controller
                     'value' => $value->value,
                     'slug' => $value->slug,
                     'sort_order' => (int) $value->sort_order,
+                    'color_code' => $this->nullableScalarString($value->color_code),
                 ])->values(),
             ])->values(),
         ]);
@@ -1216,6 +1217,7 @@ class AdminWorkspaceController extends Controller
                     'value' => $value->value,
                     'slug' => $value->slug,
                     'sort_order' => (int) $value->sort_order,
+                    'color_code' => $this->nullableScalarString($value->color_code),
                 ])->values(),
             ],
         ]);
