@@ -7,7 +7,9 @@ use App\Models\Inventory\Warehouse;
 use App\Models\Order\Order;
 use App\Models\Page\Store;
 use App\Models\Product\Attribute;
+use App\Models\Product\Category;
 use App\Models\Product\Product;
+use App\Models\Product\Room;
 use App\Models\Shipping\ShippingLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,6 +65,7 @@ class AdminWorkspaceController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer'],
+            'room_id' => ['nullable', 'integer'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -84,10 +87,35 @@ class AdminWorkspaceController extends Controller
         }
 
         if (! empty($validated['category_id'])) {
+            $categoryIds = Category::getAllDescendantIdsFor((int) $validated['category_id']);
+
             $query->whereHas(
                 'taxons',
-                fn ($builder) => $builder->where('taxons.id', $validated['category_id'])
+                fn ($builder) => $builder->whereIn('taxons.id', $categoryIds)
             );
+        }
+
+        if (! empty($validated['room_id'])) {
+            $roomIds = Room::getAllDescendantIdsFor((int) $validated['room_id']);
+
+            $categoryIds = Room::query()
+                ->whereIn('id', $roomIds)
+                ->with('productCategories:id')
+                ->get()
+                ->flatMap(fn (Room $room) => $room->productCategories->pluck('id'))
+                ->unique()
+                ->flatMap(fn ($categoryId) => Category::getAllDescendantIdsFor((int) $categoryId))
+                ->unique()
+                ->values();
+
+            if ($categoryIds->isEmpty()) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas(
+                    'taxons',
+                    fn ($builder) => $builder->whereIn('taxons.id', $categoryIds->all())
+                );
+            }
         }
 
         $products = $query->paginate($validated['per_page'] ?? 30);
@@ -410,7 +438,9 @@ class AdminWorkspaceController extends Controller
                 ? (float) $product->original_price
                 : null,
             'stock' => (int) ($product->stock ?? 0),
-            'variants_count' => (int) $product->variants_count,
+            'variants_count' => $product->relationLoaded('variants')
+                ? $product->variants->count()
+                : (int) ($product->variants_count ?? $product->variants()->count()),
             'categories' => $product->taxons->map(fn ($category) => [
                 'id' => $category->id,
                 'name' => $category->name,
