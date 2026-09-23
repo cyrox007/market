@@ -75,6 +75,7 @@ type ProductDraft = {
   weight: string
   tax_category_id: string
   shipping_category_id: string
+  manufacturer_id: string
   warehouse_stocks: Array<{
     warehouse_id: number
     quantity: string
@@ -219,6 +220,7 @@ function productDraft(product: ProductDetails): ProductDraft {
     weight: product.weight === null ? '' : String(product.weight),
     tax_category_id: product.tax_category_id === null ? '' : String(product.tax_category_id),
     shipping_category_id: product.shipping_category_id === null ? '' : String(product.shipping_category_id),
+    manufacturer_id: product.manufacturer_id === null ? '' : String(product.manufacturer_id),
     warehouse_stocks: product.warehouse_stocks.map((row) => ({
       warehouse_id: row.warehouse_id,
       quantity: String(row.quantity),
@@ -948,6 +950,7 @@ function ProductEditor({
   const [saving, setSaving] = useState(false)
   const [attributesSaving, setAttributesSaving] = useState(false)
   const [mediaSaving, setMediaSaving] = useState(false)
+  const [oneCSaving, setOneCSaving] = useState(false)
   const [variantDraftState, setVariantDraftState] = useState<VariantDraft | null>(null)
   const [variantSaving, setVariantSaving] = useState(false)
   const [variantMessage, setVariantMessage] = useState<string | null>(null)
@@ -1066,6 +1069,7 @@ function ProductEditor({
           weight: numberOrNull(draft.weight),
           tax_category_id: draft.tax_category_id ? Number(draft.tax_category_id) : null,
           shipping_category_id: draft.shipping_category_id ? Number(draft.shipping_category_id) : null,
+          manufacturer_id: draft.manufacturer_id ? Number(draft.manufacturer_id) : null,
           warehouse_stocks: draft.warehouse_stocks.map((row) => ({
             warehouse_id: row.warehouse_id,
             quantity: Number(row.quantity.replace(',', '.') || 0),
@@ -1080,6 +1084,33 @@ function ProductEditor({
       setError(saveError instanceof Error ? saveError.message : String(saveError))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const syncFromOneC = async () => {
+    if (!canUpdate || !product.external_id) return
+
+    const confirmed = window.confirm(
+      'Синхронизация из 1С может изменить карточку товара, категории, производителя, характеристики, остатки и вариации. Продолжить?',
+    )
+    if (!confirmed) return
+
+    setOneCSaving(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const response = await backendApi.syncProductFromOneC(
+        product.id,
+        session.csrf_token,
+      )
+
+      applySavedProduct(response.product)
+      setMessage(response.message)
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : String(syncError))
+    } finally {
+      setOneCSaving(false)
     }
   }
 
@@ -1527,6 +1558,24 @@ function ProductEditor({
                 disabled={!canUpdate}
                 onChange={(categoryIds) => setDraft({ ...draft, category_ids: categoryIds })}
               />
+            </Card>
+
+            <Card title="Производитель" subtitle="Справочник производителей, в том числе загруженных из 1С">
+              <label className="field">
+                <span>Производитель</span>
+                <select
+                  value={draft.manufacturer_id}
+                  onChange={(event) => setDraft({ ...draft, manufacturer_id: event.target.value })}
+                  disabled={!canUpdate}
+                >
+                  <option value="">Не выбран</option>
+                  {options.manufacturers.map((manufacturer) => (
+                    <option value={manufacturer.id} key={manufacturer.id}>
+                      {manufacturer.name}{manufacturer.external_id ? ` · 1С: ${manufacturer.external_id}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </Card>
           </div>
         )}
@@ -2108,17 +2157,33 @@ function ProductEditor({
         {tab === 'seo' && (
           <div className="editor-content-wide">
             <div className="editor-two-column">
-              <Card title="1С" subtitle="Идентификатор и синхронизация">
+              <Card title="1С" subtitle="Отдельная серверная операция, не часть обычного сохранения">
                 <dl className="detail-list">
                   <div><dt>External ID</dt><dd>{product.external_id || '—'}</dd></div>
+                  <div><dt>Производитель</dt><dd>{options.manufacturers.find((item) => item.id === product.manufacturer_id)?.name || '—'}</dd></div>
                 </dl>
-                <div className="callout muted compact-callout">
+
+                <div className="callout warn compact-callout">
                   <AlertTriangle size={17} />
                   <div>
-                    <strong>Импорт из 1С пока не запускается из React</strong>
-                    <span>По аудиту текущая операция Filament смешивает импорт и повторное сохранение формы. Сначала выносим её в отдельную серверную команду.</span>
+                    <strong>Синхронизация изменяет несколько частей товара</strong>
+                    <span>Могут обновиться карточка, категории, производитель, характеристики, цены, остатки и торговые предложения.</span>
                   </div>
                 </div>
+
+                <button
+                  className="btn primary sync-1c-button"
+                  type="button"
+                  onClick={syncFromOneC}
+                  disabled={!canUpdate || oneCSaving || !product.external_id}
+                >
+                  {oneCSaving ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
+                  {oneCSaving ? 'Синхронизирую…' : 'Синхронизировать из 1С'}
+                </button>
+
+                {!product.external_id && (
+                  <small className="section-note">Синхронизация недоступна: у товара нет external_id.</small>
+                )}
               </Card>
 
               <Card title="SEO" subtitle="Динамические значения уже формируются MetaUniversalSEO">
