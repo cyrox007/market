@@ -1,145 +1,66 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  AlertTriangle,
   Bell,
   Boxes,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   CircleAlert,
-  CircleCheck,
-  ExternalLink,
-  Eye,
-  FolderTree,
-  Image,
-  LayoutDashboard,
   ClipboardList,
-  Link2,
-  ListFilter,
+  ExternalLink,
+  FolderTree,
+  Loader2,
   MapPin,
   Moon,
-  MoreHorizontal,
   Package,
   Pencil,
-  Plus,
+  RefreshCw,
   Search,
   Settings,
   SlidersHorizontal,
   Store,
   Sun,
-  Tag,
   Truck,
-  Users,
+  UserRound,
   Warehouse,
 } from 'lucide-react'
+import {
+  AuthRequiredError,
+  backendApi,
+  type AdminOrder,
+  type AttributeDefinition,
+  type CategoryNode,
+  type LocationRecord,
+  type ProductDetails,
+  type ProductSummary,
+  type SessionInfo,
+  type StoreRecord,
+} from './api'
 
 type Theme = 'light' | 'dark'
-type ModuleKey = 'products' | 'attributes' | 'orders' | 'locations' | 'warehouses' | 'stores'
+type ModuleKey = 'products' | 'attributes' | 'orders' | 'stores' | 'locations' | 'warehouses'
 type SectionKind = 'categories' | 'rooms'
-type ProductTab = 'main' | 'attributes' | 'variants' | 'stock' | 'media' | 'relations' | 'service'
-type MainStep = 0 | 1 | 2
+type ProductTab = 'main' | 'attributes' | 'variants' | 'stock'
 
-type Product = {
+type TreeRow = {
   id: number
+  slug: string
   name: string
-  sku: string
-  price: string
-  stock: number
-  state: 'Активен' | 'Черновик' | 'Скрыт'
-  category: string
-  room: string
-  variants: number
-  initials: string
-}
-
-type TreeNode = {
-  id: string
-  label: string
   depth: number
   count: number
-  note?: string
-  active?: boolean
 }
 
-const categories: TreeNode[] = [
-  { id: 'soft', label: 'Мягкая мебель', depth: 0, count: 684 },
-  { id: 'sofas', label: 'Диваны', depth: 1, count: 418, active: true },
-  { id: 'straight', label: 'Прямые диваны', depth: 2, count: 186 },
-  { id: 'corner', label: 'Угловые диваны', depth: 2, count: 144 },
-  { id: 'modular', label: 'Модульные диваны', depth: 2, count: 88 },
-  { id: 'chairs', label: 'Кресла', depth: 1, count: 206 },
-  { id: 'case', label: 'Корпусная мебель', depth: 0, count: 511 },
-  { id: 'beds', label: 'Кровати', depth: 1, count: 173 },
-  { id: 'tables', label: 'Столы и стулья', depth: 0, count: 298 },
-]
-
-const rooms: TreeNode[] = [
-  { id: 'living', label: 'Гостиная', depth: 0, count: 722, note: '6 фильтров' },
-  { id: 'soft-zone', label: 'Мягкая зона', depth: 1, count: 384, note: '4 фильтра', active: true },
-  { id: 'small-living', label: 'Небольшая гостиная', depth: 2, count: 102, note: '7 фильтров' },
-  { id: 'bedroom', label: 'Спальня', depth: 0, count: 489, note: '5 фильтров' },
-  { id: 'kids', label: 'Детская', depth: 0, count: 211, note: '3 фильтра' },
-  { id: 'kitchen', label: 'Кухня', depth: 0, count: 276, note: '2 фильтра' },
-]
-
-const products: Product[] = [
-  { id: 1042, name: 'Диван прямой Лига-060', sku: 'SV-1042', price: '64 990 ₽', stock: 12, state: 'Активен', category: 'Диваны', room: 'Мягкая зона', variants: 8, initials: 'ЛГ' },
-  { id: 1088, name: 'Диван угловой Лига-042', sku: 'SV-1088', price: '89 500 ₽', stock: 5, state: 'Активен', category: 'Диваны', room: 'Мягкая зона', variants: 12, initials: 'ЛГ' },
-  { id: 1140, name: 'Диван прямой Мэдисон', sku: 'SV-1140', price: '52 700 ₽', stock: 0, state: 'Черновик', category: 'Диваны', room: 'Гостиная', variants: 6, initials: 'МД' },
-  { id: 1221, name: 'Диван модульный Норд', sku: 'SV-1221', price: '104 900 ₽', stock: 3, state: 'Активен', category: 'Модульные диваны', room: 'Мягкая зона', variants: 16, initials: 'НР' },
-  { id: 1304, name: 'Диван прямой Остин', sku: 'SV-1304', price: '73 400 ₽', stock: 7, state: 'Скрыт', category: 'Прямые диваны', room: 'Гостиная', variants: 4, initials: 'ОС' },
-]
-
-const attributeGroups = [
-  {
-    title: 'Габариты',
-    description: 'Основные размеры',
-    rows: [['Ширина', '238 см'], ['Глубина', '104 см'], ['Высота', '92 см'], ['Спальное место', '196 × 145 см']],
-  },
-  {
-    title: 'Материалы',
-    description: 'Каркас, обивка и наполнение',
-    rows: [['Каркас', 'Фанера, ЛДСП'], ['Обивка', 'Велюр'], ['Наполнитель', 'ППУ, пружинная змейка'], ['Опоры', 'Пластик']],
-  },
-  {
-    title: 'Внешний вид',
-    description: 'Коммерческие свойства',
-    rows: [['Цвет', 'Серый'], ['Стиль', 'Современный'], ['Механизм', 'Еврокнижка'], ['Подлокотники', 'Мягкие']],
-  },
-]
-
-const variants = [
-  ['Серый / 238 см', 'SV-1042-GR', '64 990 ₽', '4'],
-  ['Бежевый / 238 см', 'SV-1042-BE', '66 490 ₽', '3'],
-  ['Графит / 238 см', 'SV-1042-GF', '66 490 ₽', '2'],
-  ['Зелёный / 238 см', 'SV-1042-GN', '67 900 ₽', '3'],
-]
-
-const nav: Array<{
-  title: string
-  items: Array<[ModuleKey, string, typeof Package]>
-}> = [
-  {
-    title: 'Каталог',
-    items: [
-      ['products', 'Товары и разделы', Package],
-      ['attributes', 'Характеристики', SlidersHorizontal],
-    ],
-  },
-  {
-    title: 'Продажи',
-    items: [
-      ['orders', 'Заказы', ClipboardList],
-      ['stores', 'Магазины', Store],
-    ],
-  },
-  {
-    title: 'Логистика',
-    items: [
-      ['locations', 'Локации', MapPin],
-      ['warehouses', 'Склады', Warehouse],
-    ],
-  },
-]
+type ProductDraft = {
+  name: string
+  sku: string
+  gtin: string
+  description: string
+  state: string
+  priority: string
+  price: string
+  original_price: string
+}
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem('sv-admin-theme')
@@ -151,90 +72,200 @@ function initialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function formatMoney(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '—'
+  }
+
+  return new Intl.NumberFormat('ru-RU').format(value) + ' ₽'
+}
+
+function flattenTree(nodes: CategoryNode[], depth = 0): TreeRow[] {
+  return nodes.flatMap((node) => [
+    {
+      id: node.id,
+      slug: node.slug,
+      name: node.name,
+      depth,
+      count: node.products_count ?? 0,
+    },
+    ...flattenTree(node.children ?? [], depth + 1),
+  ])
+}
+
+function stateLabel(state: string): string {
+  return {
+    active: 'Активен',
+    draft: 'Черновик',
+    inactive: 'Неактивен',
+    unlisted: 'Скрыт',
+    unavailable: 'Недоступен',
+    retired: 'Снят с продажи',
+  }[state] ?? state
+}
+
+function productDraft(product: ProductDetails): ProductDraft {
+  return {
+    name: product.name ?? '',
+    sku: product.sku ?? '',
+    gtin: product.gtin ?? '',
+    description: product.description ?? '',
+    state: product.state ?? 'draft',
+    priority: String(product.priority ?? 0),
+    price: String(product.price ?? 0),
+    original_price: product.original_price === null ? '' : String(product.original_price),
+  }
+}
+
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [module, setModule] = useState<ModuleKey>('products')
-  const [sectionKind, setSectionKind] = useState<SectionKind>('categories')
-  const [productId, setProductId] = useState(products[0].id)
-  const [tab, setTab] = useState<ProductTab>('main')
-  const [mainStep, setMainStep] = useState<MainStep>(0)
-  const [filledOnly, setFilledOnly] = useState(true)
-  const [showProblems, setShowProblems] = useState(true)
+  const [session, setSession] = useState<SessionInfo | null>(null)
+  const [authRequired, setAuthRequired] = useState(false)
+  const [sessionError, setSessionError] = useState<string | null>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('sv-admin-theme', theme)
   }, [theme])
 
-  const product = useMemo(
-    () => products.find((item) => item.id === productId) ?? products[0],
-    [productId],
-  )
+  useEffect(() => {
+    backendApi.session()
+      .then((value) => {
+        setSession(value)
+        setAuthRequired(false)
+      })
+      .catch((error) => {
+        if (error instanceof AuthRequiredError) {
+          setAuthRequired(true)
+          return
+        }
 
-  const openProblem = () => {
-    setTab('main')
-    setMainStep(0)
-    setShowProblems(true)
+        setSessionError(error instanceof Error ? error.message : String(error))
+      })
+  }, [])
+
+  if (authRequired) {
+    return (
+      <LoginRequired theme={theme} setTheme={setTheme} />
+    )
+  }
+
+  if (!session && !sessionError) {
+    return <FullScreenLoading text="Подключаюсь к Laravel и проверяю административную сессию…" />
+  }
+
+  if (sessionError) {
+    return <FullScreenError title="Backend недоступен" message={sessionError} />
+  }
+
+  if (!session) {
+    return null
   }
 
   return (
     <div className="app">
-      <Topbar theme={theme} setTheme={setTheme} />
+      <Topbar theme={theme} setTheme={setTheme} session={session} />
 
       <div className="frame">
-        <Sidebar module={module} setModule={setModule} />
+        <Sidebar module={module} setModule={setModule} session={session} />
 
         <main className="workspace">
           <ModuleHeader module={module} />
 
           {module === 'products' && (
-            <div className="catalog-layout">
-              <SectionTree kind={sectionKind} setKind={setSectionKind} />
-              <ProductList selected={productId} select={setProductId} />
-              <ProductEditor
-                product={product}
-                tab={tab}
-                setTab={setTab}
-                mainStep={mainStep}
-                setMainStep={setMainStep}
-                filledOnly={filledOnly}
-                setFilledOnly={setFilledOnly}
-                showProblems={showProblems}
-                setShowProblems={setShowProblems}
-                openProblem={openProblem}
-              />
-            </div>
+            <ProductsWorkspace session={session} />
           )}
 
-          {module === 'attributes' && <AttributesWorkspace />}
-          {module === 'orders' && <OrdersWorkspace />}
-          {module === 'locations' && <LocationsWorkspace />}
-          {module === 'warehouses' && <WarehousesWorkspace />}
-          {module === 'stores' && <StoresWorkspace />}
+          {module === 'attributes' && (
+            <AttributesWorkspace session={session} />
+          )}
+
+          {module === 'orders' && (
+            <OrdersWorkspace />
+          )}
+
+          {module === 'stores' && (
+            <StoresWorkspace />
+          )}
+
+          {module === 'locations' && (
+            <LocationsWorkspace />
+          )}
+
+          {module === 'warehouses' && (
+            <UnavailableWorkspace
+              icon={Warehouse}
+              title="Склады пока не подключены"
+              text="В текущем develop для складов нет отдельной policy/permission. Не открываю этот ресурс через общий доступ к панели — сначала добавим нормальные права."
+            />
+          )}
         </main>
       </div>
     </div>
   )
 }
 
-function Topbar({ theme, setTheme }: { theme: Theme; setTheme: (value: Theme) => void }) {
+function LoginRequired({
+  theme,
+  setTheme,
+}: {
+  theme: Theme
+  setTheme: (value: Theme) => void
+}) {
+  return (
+    <div className="login-state">
+      <div className="login-card">
+        <span className="brand-mark"><Package size={20} /></span>
+        <span className="eyebrow">Новая админ-панель</span>
+        <h1>Нужна административная сессия</h1>
+        <p>
+          Прототип теперь работает с реальным Laravel backend. Войдите через Filament,
+          открытый через этот же локальный адрес, чтобы браузер получил сессионную cookie.
+        </p>
+        <div className="login-actions">
+          <a className="btn primary" href="/admin_sv/login">Войти в админку</a>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          >
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            Тема
+          </button>
+        </div>
+        <small>
+          После входа вернитесь на <strong>http://localhost:5174</strong>.
+        </small>
+      </div>
+    </div>
+  )
+}
+
+function Topbar({
+  theme,
+  setTheme,
+  session,
+}: {
+  theme: Theme
+  setTheme: (value: Theme) => void
+  session: SessionInfo
+}) {
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="brand-mark"><Package size={18} /></span>
-        <div><strong>Светофор Мебели</strong><small>Новая админ-панель · прототип</small></div>
+        <span className="brand-mark"><Package size={17} /></span>
+        <div>
+          <strong>Светофор Мебели</strong>
+          <small>React-админка · Laravel backend</small>
+        </div>
       </div>
 
       <div className="top-tools">
-        <span className="demo-badge">Демо-данные</span>
-        <label className="global-search">
-          <Search size={16} />
-          <input placeholder="Товар, SKU, раздел..." />
-          <kbd>⌘ K</kbd>
-        </label>
+        <span className="live-badge"><i /> Backend подключён</span>
 
-        <a className="icon-btn" href="/" target="_blank" rel="noreferrer" aria-label="Открыть сайт">
-          <ExternalLink size={18} />
+        <a className="icon-btn" href="/admin_sv" aria-label="Открыть Filament">
+          <ExternalLink size={17} />
         </a>
 
         <button
@@ -243,30 +274,61 @@ function Topbar({ theme, setTheme }: { theme: Theme; setTheme: (value: Theme) =>
           aria-label="Переключить тему"
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
         >
-          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+          {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
         </button>
 
         <button className="icon-btn notify" type="button" aria-label="Уведомления">
-          <Bell size={18} />
+          <Bell size={17} />
           <i />
         </button>
 
-        <button className="user-btn" type="button">
-          <span>SA</span>
-          <div><strong>Администратор</strong><small>Каталог и контент</small></div>
-          <ChevronDown size={15} />
-        </button>
+        <div className="user-btn user-static">
+          <span><UserRound size={15} /></span>
+          <div>
+            <strong>{session.user.name}</strong>
+            <small>{session.user.email}</small>
+          </div>
+        </div>
       </div>
     </header>
   )
 }
 
+const nav: Array<{
+  title: string
+  items: Array<[ModuleKey, string, typeof Package, keyof SessionInfo['permissions'] | null]>
+}> = [
+  {
+    title: 'Каталог',
+    items: [
+      ['products', 'Товары и разделы', Package, 'products'],
+      ['attributes', 'Характеристики', SlidersHorizontal, 'attributes'],
+    ],
+  },
+  {
+    title: 'Продажи',
+    items: [
+      ['orders', 'Заказы', ClipboardList, 'orders'],
+      ['stores', 'Магазины', Store, 'stores'],
+    ],
+  },
+  {
+    title: 'Логистика',
+    items: [
+      ['locations', 'Локации', MapPin, 'shipping_locations'],
+      ['warehouses', 'Склады', Warehouse, null],
+    ],
+  },
+]
+
 function Sidebar({
   module,
   setModule,
+  session,
 }: {
   module: ModuleKey
   setModule: (value: ModuleKey) => void
+  session: SessionInfo
 }) {
   return (
     <aside className="sidebar">
@@ -275,645 +337,1291 @@ function Sidebar({
           <div className="nav-group" key={group.title}>
             <div className="nav-title">{group.title}</div>
 
-            {group.items.map(([key, label, Icon]) => (
-              <button
-                className={module === key ? 'nav-link active' : 'nav-link'}
-                type="button"
-                onClick={() => setModule(key)}
-                key={key}
-              >
-                <Icon size={18} />
-                <span>{label}</span>
-              </button>
-            ))}
+            {group.items.map(([key, label, Icon, permissionKey]) => {
+              const allowed = permissionKey === null || session.permissions[permissionKey]?.view
+
+              return (
+                <button
+                  className={module === key ? 'nav-link active' : 'nav-link'}
+                  type="button"
+                  onClick={() => allowed && setModule(key)}
+                  disabled={!allowed}
+                  key={key}
+                >
+                  <Icon size={17} />
+                  <span>{label}</span>
+                  {!allowed && <em>нет доступа</em>}
+                </button>
+              )
+            })}
           </div>
         ))}
       </nav>
 
       <div className="sidebar-foot">
         <span />
-        <div><strong>Прототип UI</strong><small>Backend пока не подключён</small></div>
+        <div>
+          <strong>Живые данные</strong>
+          <small>Источник: svetofor.local</small>
+        </div>
       </div>
     </aside>
   )
 }
 
-const moduleHeaders: Record<ModuleKey, {
-  eyebrow: string
-  title: string
-  description: string
-}> = {
-  products: {
-    eyebrow: 'Рабочее место оператора',
-    title: 'Товары и разделы',
-    description: 'Категории, комнаты, список товаров и редактор находятся рядом. Прокручивается только активная рабочая область.',
-  },
-  attributes: {
-    eyebrow: 'Справочник каталога',
-    title: 'Характеристики товаров',
-    description: 'Отдельно настраиваем структуру свойства и его значения. В карточке товара оператор только назначает готовые свойства.',
-  },
-  orders: {
-    eyebrow: 'Продажи',
-    title: 'Заказы',
-    description: 'Список заказов и карточка выбранного заказа в одном экране без постоянных переходов назад.',
-  },
-  locations: {
-    eyebrow: 'Логистика',
-    title: 'Локации доставки',
-    description: 'Дерево территорий и настройки выбранной локации: тарифы, обработка, перевозчики и услуги.',
-  },
-  warehouses: {
-    eyebrow: 'Логистика',
-    title: 'Склады',
-    description: 'Склад, остатки и способы доставки разделены на понятные рабочие вкладки.',
-  },
-  stores: {
-    eyebrow: 'Продажи',
-    title: 'Магазины',
-    description: 'Точки продаж: адреса, контакты, режим работы и параметры отображения на сайте.',
-  },
+const headers: Record<ModuleKey, [string, string, string]> = {
+  products: [
+    'Рабочее место оператора',
+    'Товары и разделы',
+    'Реальные категории, комнаты и товары из текущей базы. Изменения основной карточки сохраняются в Laravel.',
+  ],
+  attributes: [
+    'Справочник каталога',
+    'Характеристики товаров',
+    'Реальные свойства и значения. Настройки свойства сохраняются через AttributePolicy.',
+  ],
+  orders: [
+    'Продажи',
+    'Заказы',
+    'Реальные заказы доступны только для чтения. Опасные действия пока не подключаем из-за замечаний аудита.',
+  ],
+  stores: [
+    'Продажи',
+    'Магазины',
+    'Реальные точки продаж из базы.',
+  ],
+  locations: [
+    'Логистика',
+    'Локации',
+    'Реальная география доставки и текущие тарифные поля.',
+  ],
+  warehouses: [
+    'Логистика',
+    'Склады',
+    'Подключение отложено до появления отдельной политики доступа.',
+  ],
 }
 
 function ModuleHeader({ module }: { module: ModuleKey }) {
-  const meta = moduleHeaders[module]
+  const [eyebrow, title, text] = headers[module]
 
   return (
     <header className="page-head">
       <div>
-        <div className="page-title-line">
-          <span className="eyebrow">{meta.eyebrow}</span>
-          <span className="demo-inline">демо</span>
-        </div>
-        <h1>{meta.title}</h1>
-        <p>{meta.description}</p>
+        <span className="eyebrow">{eyebrow}</span>
+        <h1>{title}</h1>
+        <p>{text}</p>
       </div>
     </header>
   )
 }
 
-function SectionTree({ kind, setKind }: { kind: SectionKind; setKind: (value: SectionKind) => void }) {
-  const nodes = kind === 'categories' ? categories : rooms
+function ProductsWorkspace({ session }: { session: SessionInfo }) {
+  const [kind, setKind] = useState<SectionKind>('categories')
+  const [categories, setCategories] = useState<CategoryNode[]>([])
+  const [rooms, setRooms] = useState<CategoryNode[]>([])
+  const [treeLoading, setTreeLoading] = useState(true)
+  const [treeError, setTreeError] = useState<string | null>(null)
+  const [selectedSection, setSelectedSection] = useState<TreeRow | null>(null)
+  const [products, setProducts] = useState<ProductSummary[]>([])
+  const [productsTotal, setProductsTotal] = useState(0)
+  const [productsLoading, setProductsLoading] = useState(true)
+  const [productsError, setProductsError] = useState<string | null>(null)
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
+  const [search, setSearch] = useState('')
 
-  return (
-    <section className="panel section-panel">
-      <PanelHead eyebrow="Структура" title="Разделы" />
-
-      <div className="segmented">
-        <button className={kind === 'categories' ? 'active' : ''} type="button" onClick={() => setKind('categories')}>Категории</button>
-        <button className={kind === 'rooms' ? 'active' : ''} type="button" onClick={() => setKind('rooms')}>Комнаты</button>
-      </div>
-
-      <label className="small-search">
-        <Search size={14} />
-        <input placeholder={kind === 'categories' ? 'Найти категорию' : 'Найти комнату'} />
-      </label>
-
-      <div className="tree">
-        {nodes.map((node) => (
-          <button
-            className={node.active ? 'tree-row active' : 'tree-row'}
-            style={{ paddingLeft: 8 + node.depth * 13 }}
-            type="button"
-            key={node.id}
-          >
-            <span>{node.depth > 0 ? <ChevronRight size={12} /> : <FolderTree size={14} />}</span>
-            <div><strong>{node.label}</strong>{node.note && <small>{node.note}</small>}</div>
-            <em>{node.count}</em>
-          </button>
-        ))}
-      </div>
-
-      <footer className="panel-foot">
-        <strong>{kind === 'categories' ? 'Категории' : 'Комнаты'}</strong>
-        <span>
-          {kind === 'categories'
-            ? 'Основное дерево каталога и правила характеристик.'
-            : 'Отдельная таксономия до 4 уровней с наследуемыми фильтрами.'}
-        </span>
-      </footer>
-    </section>
+  const tree = useMemo(
+    () => flattenTree(kind === 'categories' ? categories : rooms),
+    [kind, categories, rooms],
   )
-}
 
-function ProductList({ selected, select }: { selected: number; select: (id: number) => void }) {
+  useEffect(() => {
+    Promise.all([backendApi.categoryTree(), backendApi.roomTree()])
+      .then(([categoryResponse, roomResponse]) => {
+        setCategories(categoryResponse.tree)
+        setRooms(roomResponse.tree)
+        setTreeLoading(false)
+      })
+      .catch((error) => {
+        setTreeError(error instanceof Error ? error.message : String(error))
+        setTreeLoading(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    setProductsLoading(true)
+    setProductsError(null)
+
+    const timer = window.setTimeout(() => {
+      const request = kind === 'rooms' && selectedSection
+        ? backendApi.publicProductsByRoom(selectedSection.slug)
+        : backendApi.products({
+            search: search.trim() || undefined,
+            categoryId: kind === 'categories' ? selectedSection?.id ?? null : null,
+          })
+
+      request
+        .then((response) => {
+          if (cancelled) return
+
+          const rows: ProductSummary[] = response.data.map((row) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug,
+            sku: 'sku' in row && row.sku ? row.sku : '',
+            gtin: 'gtin' in row ? row.gtin ?? null : null,
+            state: 'state' in row ? row.state : 'active',
+            price: Number(row.price ?? 0),
+            original_price: 'original_price' in row ? row.original_price ?? null : null,
+            stock: Number(row.stock ?? 0),
+            variants_count: 'variants_count' in row ? row.variants_count : 0,
+            categories: row.categories ?? [],
+          }))
+
+          setProducts(rows)
+          setProductsTotal(response.meta?.total ?? rows.length)
+          setProductsLoading(false)
+
+          if (rows.length > 0 && !rows.some((row) => row.id === selectedProductId)) {
+            setSelectedProductId(rows[0].id)
+          }
+
+          if (rows.length === 0) {
+            setSelectedProductId(null)
+          }
+        })
+        .catch((error) => {
+          if (cancelled) return
+          setProductsError(error instanceof Error ? error.message : String(error))
+          setProductsLoading(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [kind, selectedSection, search])
+
   return (
-    <section className="panel products-panel">
-      <PanelHead eyebrow="Категория" title="Диваны" subtitle="418 товаров · включая дочерние разделы" />
+    <div className="catalog-layout">
+      <section className="panel section-panel">
+        <PanelHead eyebrow="Структура" title="Разделы" subtitle="Данные из Laravel" />
 
-      <div className="product-tools">
-        <label className="small-search">
-          <Search size={14} />
-          <input placeholder="Название или SKU" />
-        </label>
-        <button type="button">Активные <ChevronDown size={13} /></button>
-      </div>
-
-      <div className="products">
-        {products.map((product) => (
+        <div className="segmented">
           <button
-            className={selected === product.id ? 'product-row selected' : 'product-row'}
+            className={kind === 'categories' ? 'active' : ''}
             type="button"
-            onClick={() => select(product.id)}
-            key={product.id}
+            onClick={() => {
+              setKind('categories')
+              setSelectedSection(null)
+            }}
           >
-            <span className="thumb">{product.initials}</span>
-            <div>
-              <strong>{product.name}</strong>
-              <small>{product.sku} · {product.price}</small>
-              <p><em>{product.state}</em><span>{product.stock} шт.</span><span>{product.variants} вар.</span></p>
-            </div>
+            Категории
           </button>
-        ))}
-      </div>
+          <button
+            className={kind === 'rooms' ? 'active' : ''}
+            type="button"
+            onClick={() => {
+              setKind('rooms')
+              setSelectedSection(null)
+            }}
+          >
+            Комнаты
+          </button>
+        </div>
 
-      <footer className="panel-foot pager">
-        <span>1–5 из 418</span>
-        <div><button type="button">‹</button><button type="button">›</button></div>
-      </footer>
-    </section>
+        {treeLoading && <InlineLoading text="Загружаю дерево…" />}
+        {treeError && <InlineError text={treeError} />}
+
+        {!treeLoading && !treeError && (
+          <div className="tree">
+            <button
+              className={selectedSection === null ? 'tree-row active' : 'tree-row'}
+              type="button"
+              onClick={() => setSelectedSection(null)}
+            >
+              <span><FolderTree size={14} /></span>
+              <div><strong>Все товары</strong></div>
+              <em>—</em>
+            </button>
+
+            {tree.map((node) => (
+              <button
+                className={selectedSection?.id === node.id ? 'tree-row active' : 'tree-row'}
+                style={{ paddingLeft: 8 + node.depth * 13 }}
+                type="button"
+                onClick={() => setSelectedSection(node)}
+                key={node.id}
+              >
+                <span>{node.depth > 0 ? <ChevronRight size={12} /> : <FolderTree size={14} />}</span>
+                <div><strong>{node.name}</strong></div>
+                <em>{node.count || ''}</em>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="panel products-panel">
+        <PanelHead
+          eyebrow={kind === 'categories' ? 'Категория' : 'Комната'}
+          title={selectedSection?.name ?? 'Все товары'}
+          subtitle={productsTotal ? `${productsTotal} товаров` : 'Реальные записи'}
+        />
+
+        <label className="small-search workspace-search">
+          <Search size={15} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Название, SKU, штрихкод"
+          />
+        </label>
+
+        <div className="products">
+          {productsLoading && <InlineLoading text="Загружаю товары…" />}
+          {productsError && <InlineError text={productsError} />}
+
+          {!productsLoading && !productsError && products.map((product) => (
+            <button
+              className={selectedProductId === product.id ? 'product-row selected' : 'product-row'}
+              type="button"
+              onClick={() => setSelectedProductId(product.id)}
+              key={product.id}
+            >
+              <span className="thumb">{product.name.slice(0, 2).toUpperCase()}</span>
+              <div>
+                <strong>{product.name}</strong>
+                <small>
+                  {product.sku || `#${product.id}`} · {formatMoney(product.price)}
+                </small>
+                <p>
+                  <em>{stateLabel(product.state)}</em>
+                  <span>{product.stock} шт.</span>
+                  {product.variants_count > 0 && <span>{product.variants_count} вар.</span>}
+                </p>
+              </div>
+            </button>
+          ))}
+
+          {!productsLoading && !productsError && products.length === 0 && (
+            <EmptyState text="В этом разделе товаров нет." />
+          )}
+        </div>
+      </section>
+
+      <ProductEditor
+        productId={selectedProductId}
+        session={session}
+        onProductSaved={(saved) => {
+          setProducts((current) => current.map((item) => (
+            item.id === saved.id ? saved : item
+          )))
+        }}
+      />
+    </div>
   )
 }
 
 function ProductEditor({
-  product,
-  tab,
-  setTab,
-  mainStep,
-  setMainStep,
-  filledOnly,
-  setFilledOnly,
-  showProblems,
-  setShowProblems,
-  openProblem,
+  productId,
+  session,
+  onProductSaved,
 }: {
-  product: Product
-  tab: ProductTab
-  setTab: (value: ProductTab) => void
-  mainStep: MainStep
-  setMainStep: (value: MainStep) => void
-  filledOnly: boolean
-  setFilledOnly: (value: boolean) => void
-  showProblems: boolean
-  setShowProblems: (value: boolean) => void
-  openProblem: () => void
+  productId: number | null
+  session: SessionInfo
+  onProductSaved: (product: ProductDetails) => void
 }) {
+  const [product, setProduct] = useState<ProductDetails | null>(null)
+  const [draft, setDraft] = useState<ProductDraft | null>(null)
+  const [tab, setTab] = useState<ProductTab>('main')
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!productId) {
+      setProduct(null)
+      setDraft(null)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    setMessage(null)
+
+    backendApi.product(productId)
+      .then(({ product: value }) => {
+        if (cancelled) return
+        setProduct(value)
+        setDraft(productDraft(value))
+        setLoading(false)
+      })
+      .catch((loadError) => {
+        if (cancelled) return
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+        setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [productId])
+
+  if (!productId) {
+    return (
+      <section className="panel editor">
+        <EmptyState text="Выберите товар слева." />
+      </section>
+    )
+  }
+
+  if (loading || !product || !draft) {
+    return (
+      <section className="panel editor">
+        <InlineLoading text="Загружаю карточку товара…" />
+      </section>
+    )
+  }
+
+  const requiredChecks = [
+    Boolean(draft.name.trim()),
+    Boolean(draft.sku.trim()),
+    Number(draft.price) >= 0,
+    Boolean(draft.state),
+  ]
+
+  const completion = Math.round(
+    requiredChecks.filter(Boolean).length / requiredChecks.length * 100,
+  )
+
+  const canUpdate = Boolean(session.permissions.products?.update)
+
+  const save = async () => {
+    if (!canUpdate) return
+
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const response = await backendApi.updateProduct(
+        product.id,
+        {
+          name: draft.name.trim(),
+          sku: draft.sku.trim(),
+          gtin: draft.gtin.trim() || null,
+          description: draft.description.trim() || null,
+          state: draft.state,
+          priority: Number(draft.priority || 0),
+          price: Number(draft.price || 0),
+          original_price: draft.original_price.trim() === ''
+            ? null
+            : Number(draft.original_price),
+        },
+        session.csrf_token,
+      )
+
+      setProduct(response.product)
+      setDraft(productDraft(response.product))
+      setMessage(response.message)
+      onProductSaved(response.product)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <section className="panel editor">
       <div className="editor-head">
         <div className="product-title">
-          <span className="hero-thumb">{product.initials}</span>
+          <span className="hero-thumb">{product.name.slice(0, 2).toUpperCase()}</span>
           <div>
             <span className="eyebrow">Товар #{product.id}</span>
             <h2>{product.name}</h2>
-            <p>{product.sku} · {product.category} · {product.room}</p>
+            <p>
+              {product.sku}
+              {product.categories.length > 0 && ' · ' + product.categories.map((item) => item.name).join(', ')}
+            </p>
           </div>
         </div>
 
         <div className="editor-actions">
-          <Status value={product.state} />
-          <button className="btn ghost small" type="button"><Eye size={14} /> На сайте</button>
-          <button className="icon-btn" type="button" aria-label="Дополнительные действия"><MoreHorizontal size={17} /></button>
+          <Status value={stateLabel(product.state)} />
+          {!canUpdate && <span className="readonly-badge">Только чтение</span>}
         </div>
       </div>
 
-      <CompletenessBar
-        showProblems={showProblems}
-        setShowProblems={setShowProblems}
-        openProblem={openProblem}
-      />
+      <div className="quality">
+        <div className="quality-summary">
+          <div className="quality-score">
+            <div className="progress-ring" style={{ background: `conic-gradient(var(--secondary) 0 ${completion}%, var(--border) ${completion}% 100%)` }}>
+              <span>{completion}%</span>
+            </div>
+            <div>
+              <strong>Обязательные поля</strong>
+              <small>{requiredChecks.filter(Boolean).length} из {requiredChecks.length} заполнены</small>
+            </div>
+          </div>
 
-      <EditorTabs tab={tab} setTab={setTab} variants={product.variants} />
+          {error && <span className="chip error"><CircleAlert size={13} /> Ошибка сохранения</span>}
+          {message && <span className="chip ok"><CheckCircle2 size={13} /> {message}</span>}
+        </div>
+
+        {error && (
+          <div className="quality-problems">
+            <div className="backend-error">
+              <CircleAlert size={15} />
+              <strong>{error}</strong>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="tabs">
+        <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
+        <button className={tab === 'attributes' ? 'active' : ''} type="button" onClick={() => setTab('attributes')}>Характеристики <span>{product.attributes.length}</span></button>
+        <button className={tab === 'variants' ? 'active' : ''} type="button" onClick={() => setTab('variants')}>Вариации <span>{product.variants.length}</span></button>
+        <button className={tab === 'stock' ? 'active' : ''} type="button" onClick={() => setTab('stock')}>Остатки</button>
+      </div>
 
       <div className="editor-scroll">
-        {tab === 'main' && <MainTab product={product} step={mainStep} setStep={setMainStep} />}
-        {tab === 'attributes' && <AttributesTab filledOnly={filledOnly} setFilledOnly={setFilledOnly} />}
-        {tab === 'variants' && <VariantsTab />}
-        {tab === 'stock' && <StockTab />}
-        {tab === 'media' && <MediaTab />}
-        {tab === 'relations' && <RelationsTab product={product} />}
-        {tab === 'service' && <ServiceTab product={product} />}
+        {tab === 'main' && (
+          <div className="stack">
+            <Card title="Основная карточка" subtitle="Эти поля сохраняются в реальный товар">
+              <div className="form-grid readable">
+                <LiveField
+                  label="Название"
+                  value={draft.name}
+                  required
+                  onChange={(value) => setDraft({ ...draft, name: value })}
+                />
+                <LiveField
+                  label="SKU"
+                  value={draft.sku}
+                  required
+                  onChange={(value) => setDraft({ ...draft, sku: value })}
+                />
+                <LiveField
+                  label="GTIN / штрихкод"
+                  value={draft.gtin}
+                  onChange={(value) => setDraft({ ...draft, gtin: value })}
+                />
+                <label className="field">
+                  <span>Статус <b>*</b></span>
+                  <select
+                    value={draft.state}
+                    onChange={(event) => setDraft({ ...draft, state: event.target.value })}
+                    disabled={!canUpdate}
+                  >
+                    <option value="draft">Черновик</option>
+                    <option value="active">Активен</option>
+                    <option value="inactive">Неактивен</option>
+                  </select>
+                </label>
+                <LiveField
+                  label="Цена"
+                  value={draft.price}
+                  suffix="₽"
+                  required
+                  onChange={(value) => setDraft({ ...draft, price: value })}
+                  inputMode="decimal"
+                />
+                <LiveField
+                  label="Цена до скидки"
+                  value={draft.original_price}
+                  suffix="₽"
+                  onChange={(value) => setDraft({ ...draft, original_price: value })}
+                  inputMode="decimal"
+                />
+                <LiveField
+                  label="Приоритет"
+                  value={draft.priority}
+                  onChange={(value) => setDraft({ ...draft, priority: value })}
+                  inputMode="numeric"
+                />
+              </div>
+            </Card>
+
+            <Card title="Описание" subtitle="Текст карточки на сайте">
+              <textarea
+                value={draft.description}
+                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                disabled={!canUpdate}
+              />
+            </Card>
+          </div>
+        )}
+
+        {tab === 'attributes' && (
+          <Card
+            title="Характеристики товара"
+            subtitle="Это реальные связи product_product_attributes из базы"
+          >
+            {product.attributes.length === 0 ? (
+              <EmptyState text="У товара нет характеристик." />
+            ) : (
+              <div className="attribute-list live-attributes">
+                {product.attributes.map((attribute) => (
+                  <div className="attribute-row" key={attribute.id}>
+                    <span>{attribute.name}</span>
+                    <strong>
+                      {attribute.custom_value || attribute.value || '—'}
+                    </strong>
+                    <small>
+                      {attribute.is_use_in_variations ? 'вариация' : ''}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="callout muted">
+              <AlertTriangle size={17} />
+              <div>
+                <strong>Редактирование значений подключим следующим шагом</strong>
+                <span>Сейчас здесь уже реальные данные товара, но изменение pivot-связей ещё не отправляется в backend.</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {tab === 'variants' && (
+          <Card title="Вариации" subtitle="Реальные торговые предложения товара">
+            {product.variants.length === 0 ? (
+              <EmptyState text="У товара нет вариаций." />
+            ) : (
+              <Table headers={['Название', 'SKU', 'Цена', 'Остаток', 'Статус']}>
+                {product.variants.map((variant) => (
+                  <tr key={variant.id}>
+                    <td><strong>{variant.name}</strong></td>
+                    <td>{variant.sku}</td>
+                    <td>{formatMoney(variant.price)}</td>
+                    <td>{variant.stock}</td>
+                    <td><Status value={stateLabel(variant.state)} compact /></td>
+                  </tr>
+                ))}
+              </Table>
+            )}
+          </Card>
+        )}
+
+        {tab === 'stock' && (
+          <Card title="Остатки по складам" subtitle="Реальные записи product_warehouse_stocks">
+            {product.warehouse_stocks.length === 0 ? (
+              <EmptyState text="Отдельных складских остатков для товара нет." />
+            ) : (
+              <div className="stock-grid">
+                {product.warehouse_stocks.map((stock) => (
+                  <article className="stock-card" key={stock.warehouse_id}>
+                    <Warehouse size={18} />
+                    <div>
+                      <strong>{stock.warehouse_name || `Склад #${stock.warehouse_id}`}</strong>
+                      <small>ID {stock.warehouse_id}</small>
+                    </div>
+                    <em>{stock.quantity}</em>
+                  </article>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
       </div>
 
       <footer className="editor-foot">
-        <span><CircleCheck size={15} /> Последнее сохранение 2 минуты назад</span>
+        <span>
+          {canUpdate
+            ? 'Сохранение идёт через ProductPolicy и Laravel validation'
+            : 'У пользователя нет разрешения update products'}
+        </span>
         <div>
-          <button className="btn ghost" type="button">Отменить</button>
-          <button className="btn primary" type="button">Сохранить</button>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => setDraft(productDraft(product))}
+            disabled={saving || !canUpdate}
+          >
+            Сбросить
+          </button>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={save}
+            disabled={saving || !canUpdate}
+          >
+            {saving ? <Loader2 className="spin" size={15} /> : null}
+            {saving ? 'Сохраняю…' : 'Сохранить'}
+          </button>
         </div>
       </footer>
     </section>
   )
 }
 
-function CompletenessBar({
-  showProblems,
-  setShowProblems,
-  openProblem,
+function AttributesWorkspace({ session }: { session: SessionInfo }) {
+  const [attributes, setAttributes] = useState<AttributeDefinition[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [draft, setDraft] = useState<AttributeDefinition | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    setError(null)
+
+    backendApi.attributes()
+      .then((response) => {
+        setAttributes(response.data)
+        const id = selectedId ?? response.data[0]?.id ?? null
+        setSelectedId(id)
+        const selected = response.data.find((item) => item.id === id) ?? null
+        setDraft(selected ? { ...selected } : null)
+        setLoading(false)
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+        setLoading(false)
+      })
+  }
+
+  useEffect(load, [])
+
+  const choose = (attribute: AttributeDefinition) => {
+    setSelectedId(attribute.id)
+    setDraft({ ...attribute })
+    setError(null)
+    setMessage(null)
+  }
+
+  const canUpdate = Boolean(session.permissions.attributes?.update)
+
+  const save = async () => {
+    if (!draft || !canUpdate) return
+
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const response = await backendApi.updateAttribute(
+        draft.id,
+        {
+          name: draft.name,
+          slug: draft.slug,
+          type: draft.type,
+          is_filterable: draft.is_filterable,
+          is_required: draft.is_required,
+          is_use_in_variations: draft.is_use_in_variations,
+          allow_custom_value: draft.allow_custom_value,
+          is_multiple: draft.is_multiple,
+          sort_order: draft.sort_order,
+        },
+        session.csrf_token,
+      )
+
+      setAttributes((current) => current.map((item) => (
+        item.id === response.attribute.id ? response.attribute : item
+      )))
+      setDraft({ ...response.attribute })
+      setMessage(response.message)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return <WorkspaceLoading text="Загружаю характеристики из БД…" />
+  }
+
+  if (error && !draft) {
+    return <WorkspaceError text={error} onRetry={load} />
+  }
+
+  return (
+    <div className="module-layout attributes-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="Справочник" title="Свойства" subtitle={`${attributes.length} записей из БД`} />
+
+        <div className="module-list-scroll">
+          {attributes.map((attribute) => (
+            <button
+              className={attribute.id === selectedId ? 'entity-row selected' : 'entity-row'}
+              type="button"
+              onClick={() => choose(attribute)}
+              key={attribute.id}
+            >
+              <span className="entity-icon"><SlidersHorizontal size={17} /></span>
+              <div>
+                <strong>{attribute.name}</strong>
+                <small>{attribute.type} · {attribute.products_count} товаров</small>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        {!draft ? (
+          <EmptyState text="Характеристики не найдены." />
+        ) : (
+          <>
+            <div className="module-detail-head">
+              <div>
+                <span className="eyebrow">Характеристика #{draft.id}</span>
+                <h2>{draft.name}</h2>
+                <p>{draft.values.length} значений · используется у {draft.products_count} товаров</p>
+              </div>
+
+              <div className="editor-actions">
+                {!canUpdate && <span className="readonly-badge">Только чтение</span>}
+                <button
+                  className="btn primary"
+                  type="button"
+                  onClick={save}
+                  disabled={!canUpdate || saving}
+                >
+                  {saving ? <Loader2 className="spin" size={15} /> : null}
+                  {saving ? 'Сохраняю…' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+
+            <div className="module-detail-scroll">
+              {error && <InlineError text={error} />}
+              {message && <InlineSuccess text={message} />}
+
+              <div className="attribute-settings-grid">
+                <Card title="Основные настройки" subtitle="Реальная запись product_attributes">
+                  <div className="form-grid readable">
+                    <LiveField
+                      label="Название"
+                      value={draft.name}
+                      required
+                      onChange={(value) => setDraft({ ...draft, name: value })}
+                    />
+                    <LiveField
+                      label="Slug"
+                      value={draft.slug}
+                      required
+                      onChange={(value) => setDraft({ ...draft, slug: value })}
+                    />
+                    <label className="field">
+                      <span>Тип <b>*</b></span>
+                      <select
+                        value={draft.type}
+                        onChange={(event) => setDraft({ ...draft, type: event.target.value })}
+                        disabled={!canUpdate}
+                      >
+                        <option value="string">Строка</option>
+                        <option value="text">Текст</option>
+                        <option value="integer">Целое число</option>
+                        <option value="decimal">Число</option>
+                        <option value="boolean">Да / нет</option>
+                        <option value="select">Список</option>
+                      </select>
+                    </label>
+                    <LiveField
+                      label="Порядок"
+                      value={String(draft.sort_order)}
+                      onChange={(value) => setDraft({ ...draft, sort_order: Number(value || 0) })}
+                      inputMode="numeric"
+                    />
+                  </div>
+                </Card>
+
+                <Card title="Поведение" subtitle="Переключатели реально сохраняются">
+                  <div className="flag-grid">
+                    <FlagToggle
+                      label="Вариации"
+                      text="Использовать свойство при формировании торговых предложений"
+                      value={draft.is_use_in_variations}
+                      disabled={!canUpdate}
+                      onChange={(value) => setDraft({ ...draft, is_use_in_variations: value })}
+                    />
+                    <FlagToggle
+                      label="Фильтр"
+                      text="Показывать свойство в фильтрах каталога"
+                      value={draft.is_filterable}
+                      disabled={!canUpdate}
+                      onChange={(value) => setDraft({ ...draft, is_filterable: value })}
+                    />
+                    <FlagToggle
+                      label="Обязательная"
+                      text="Без значения товар считается незаполненным"
+                      value={draft.is_required}
+                      disabled={!canUpdate}
+                      onChange={(value) => setDraft({ ...draft, is_required: value })}
+                    />
+                    <FlagToggle
+                      label="Множественная"
+                      text="Разрешить несколько значений у одного товара"
+                      value={draft.is_multiple}
+                      disabled={!canUpdate}
+                      onChange={(value) => setDraft({ ...draft, is_multiple: value })}
+                    />
+                    <FlagToggle
+                      label="Ручное значение"
+                      text="Разрешить значение вне справочника"
+                      value={draft.allow_custom_value}
+                      disabled={!canUpdate}
+                      onChange={(value) => setDraft({ ...draft, allow_custom_value: value })}
+                    />
+                  </div>
+                </Card>
+              </div>
+
+              <Card title="Допустимые значения" subtitle="Реальные product_attribute_values">
+                {draft.values.length === 0 ? (
+                  <EmptyState text="У свойства нет справочника значений." />
+                ) : (
+                  <div className="value-grid">
+                    {draft.values.map((value) => (
+                      <div className="value-card static-value" key={value.id}>
+                        <span>{value.sort_order}</span>
+                        <strong>{value.value}</strong>
+                        <small>{value.slug}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function OrdersWorkspace() {
+  const [orders, setOrders] = useState<AdminOrder[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    backendApi.orders()
+      .then((response) => {
+        setOrders(response.data)
+        setSelectedId((current) => current ?? response.data[0]?.id ?? null)
+        setLoading(false)
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+        setLoading(false)
+      })
+  }
+
+  useEffect(load, [])
+
+  if (loading) return <WorkspaceLoading text="Загружаю заказы…" />
+  if (error) return <WorkspaceError text={error} onRetry={load} />
+
+  const order = orders.find((item) => item.id === selectedId) ?? null
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list wide-list">
+        <PanelHead eyebrow="Очередь" title="Заказы" subtitle={`${orders.length} записей на странице`} />
+
+        <div className="module-list-scroll">
+          {orders.map((item) => (
+            <button
+              className={item.id === selectedId ? 'order-row selected' : 'order-row'}
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+              key={item.id}
+            >
+              <div>
+                <strong>{item.number}</strong>
+                <small>{item.contact_name || 'Без имени'} · {item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—'}</small>
+              </div>
+              <div>
+                <strong>{formatMoney(item.total)}</strong>
+                <small>{item.status_label}</small>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        {!order ? (
+          <EmptyState text="Заказов нет." />
+        ) : (
+          <>
+            <div className="module-detail-head">
+              <div>
+                <span className="eyebrow">Заказ #{order.id}</span>
+                <h2>{order.number}</h2>
+                <p>{order.contact_name || 'Без имени'} · {formatMoney(order.total)} · {order.status_label}</p>
+              </div>
+              <span className="readonly-badge">Только чтение</span>
+            </div>
+
+            <div className="module-detail-scroll">
+              <div className="summary-grid">
+                <Card title="Покупатель" subtitle="Данные из заказа">
+                  <dl className="detail-list">
+                    <div><dt>Имя</dt><dd>{order.contact_name || '—'}</dd></div>
+                    <div><dt>Телефон</dt><dd>{order.contact_phone || '—'}</dd></div>
+                    <div><dt>Email</dt><dd>{order.contact_email || '—'}</dd></div>
+                  </dl>
+                </Card>
+
+                <Card title="Доставка" subtitle="Текущие связи заказа">
+                  <dl className="detail-list">
+                    <div><dt>Локация</dt><dd>{order.shipping_location?.name || '—'}</dd></div>
+                    <div><dt>Способ</dt><dd>{order.shipping_method?.name || '—'}</dd></div>
+                    <div><dt>Статус</dt><dd>{order.status_label}</dd></div>
+                  </dl>
+                </Card>
+              </div>
+
+              <Card title="Состав заказа" subtitle={`${order.items.length} позиций`}>
+                <Table headers={['Товар', 'Количество', 'Цена', 'Сумма']}>
+                  {order.items.map((item) => (
+                    <tr key={item.id}>
+                      <td><strong>{item.name}</strong></td>
+                      <td>{item.quantity}</td>
+                      <td>{formatMoney(item.price)}</td>
+                      <td>{formatMoney(item.total)}</td>
+                    </tr>
+                  ))}
+                </Table>
+              </Card>
+
+              <div className="callout muted">
+                <AlertTriangle size={17} />
+                <div>
+                  <strong>Изменяющие действия намеренно отключены</strong>
+                  <span>По аудиту сначала нужно исправить серверную целостность статусов, возвратов и пересчёта сумм.</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function StoresWorkspace() {
+  const [stores, setStores] = useState<StoreRecord[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    backendApi.stores()
+      .then((response) => {
+        setStores(response.data)
+        setSelectedId((current) => current ?? response.data[0]?.id ?? null)
+        setLoading(false)
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+        setLoading(false)
+      })
+  }
+
+  useEffect(load, [])
+
+  if (loading) return <WorkspaceLoading text="Загружаю магазины…" />
+  if (error) return <WorkspaceError text={error} onRetry={load} />
+
+  const store = stores.find((item) => item.id === selectedId) ?? null
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="Точки продаж" title="Магазины" subtitle={`${stores.length} записей`} />
+
+        <div className="module-list-scroll">
+          {stores.map((item) => (
+            <button
+              className={item.id === selectedId ? 'entity-row selected' : 'entity-row'}
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+              key={item.id}
+            >
+              <span className="entity-icon"><Store size={17} /></span>
+              <div>
+                <strong>{item.name}</strong>
+                <small>{item.city || '—'} · {item.is_active ? 'активен' : 'выключен'}</small>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        {!store ? (
+          <EmptyState text="Магазинов нет." />
+        ) : (
+          <>
+            <div className="module-detail-head">
+              <div>
+                <span className="eyebrow">Магазин #{store.id}</span>
+                <h2>{store.name}</h2>
+                <p>{store.city || 'Город не указан'} · {store.address || 'Адрес не указан'}</p>
+              </div>
+              <span className="readonly-badge">Только чтение</span>
+            </div>
+
+            <div className="module-detail-scroll">
+              <div className="summary-grid">
+                <Card title="Адрес" subtitle="Реальные поля stores">
+                  <dl className="detail-list">
+                    <div><dt>Город</dt><dd>{store.city || '—'}</dd></div>
+                    <div><dt>Адрес</dt><dd>{store.address || '—'}</dd></div>
+                    <div><dt>Регион</dt><dd>{store.region?.name || '—'}</dd></div>
+                    <div><dt>Координаты</dt><dd>{store.coordinates || '—'}</dd></div>
+                  </dl>
+                </Card>
+
+                <Card title="Контакты" subtitle="Текущие данные магазина">
+                  <dl className="detail-list">
+                    <div><dt>Телефон</dt><dd>{store.phone || '—'}</dd></div>
+                    <div><dt>Режим</dt><dd>{store.hours || '—'}</dd></div>
+                    <div><dt>Статус</dt><dd>{store.is_active ? 'Активен' : 'Выключен'}</dd></div>
+                  </dl>
+                </Card>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function LocationsWorkspace() {
+  const [locations, setLocations] = useState<LocationRecord[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    backendApi.locations()
+      .then((response) => {
+        setLocations(response.data)
+        setSelectedId((current) => current ?? response.data[0]?.id ?? null)
+        setLoading(false)
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+        setLoading(false)
+      })
+  }
+
+  useEffect(load, [])
+
+  if (loading) return <WorkspaceLoading text="Загружаю локации…" />
+  if (error) return <WorkspaceError text={error} onRetry={load} />
+
+  const location = locations.find((item) => item.id === selectedId) ?? null
+
+  return (
+    <div className="module-layout split-workspace">
+      <section className="panel module-list">
+        <PanelHead eyebrow="География" title="Локации" subtitle={`${locations.length} записей`} />
+
+        <div className="module-list-scroll">
+          {locations.map((item) => (
+            <button
+              className={item.id === selectedId ? 'entity-row selected' : 'entity-row'}
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+              key={item.id}
+            >
+              <span className="entity-icon"><MapPin size={17} /></span>
+              <div>
+                <strong>{item.name}</strong>
+                <small>{item.type} · {item.parent?.name || 'корень'}</small>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel module-detail">
+        {!location ? (
+          <EmptyState text="Локаций нет." />
+        ) : (
+          <>
+            <div className="module-detail-head">
+              <div>
+                <span className="eyebrow">{location.type}</span>
+                <h2>{location.name}</h2>
+                <p>{location.parent?.name ? `Родитель: ${location.parent.name}` : 'Корневая локация'}</p>
+              </div>
+              <span className="readonly-badge">Только чтение</span>
+            </div>
+
+            <div className="module-detail-scroll">
+              <div className="summary-grid">
+                <Card title="Основное" subtitle="Реальная запись shipping_locations">
+                  <dl className="detail-list">
+                    <div><dt>Slug</dt><dd>{location.slug}</dd></div>
+                    <div><dt>Код</dt><dd>{location.code || '—'}</dd></div>
+                    <div><dt>Статус</dt><dd>{location.is_active ? 'Активна' : 'Выключена'}</dd></div>
+                  </dl>
+                </Card>
+
+                <Card title="Доставка" subtitle="Собственные значения локации">
+                  <dl className="detail-list">
+                    <div><dt>Стоимость</dt><dd>{formatMoney(location.delivery_price)}</dd></div>
+                    <div><dt>Бесплатно от</dt><dd>{formatMoney(location.free_delivery_threshold)}</dd></div>
+                    <div><dt>Срок</dt><dd>{location.delivery_days_min ?? '—'}–{location.delivery_days_max ?? '—'} дней</dd></div>
+                  </dl>
+                </Card>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function LiveField({
+  label,
+  value,
+  onChange,
+  required = false,
+  suffix,
+  inputMode,
 }: {
-  showProblems: boolean
-  setShowProblems: (value: boolean) => void
-  openProblem: () => void
+  label: string
+  value: string
+  onChange: (value: string) => void
+  required?: boolean
+  suffix?: string
+  inputMode?: 'text' | 'numeric' | 'decimal'
 }) {
   return (
-    <div className={showProblems ? 'quality quality-open' : 'quality'}>
-      <div className="quality-summary">
-        <div className="quality-score">
-          <div className="progress-ring"><span>82%</span></div>
-          <div><strong>Заполненность карточки</strong><small>Обязательные поля: 7 из 7</small></div>
-        </div>
-
-        <div className="quality-chips">
-          <span className="chip ok"><CheckCircle2 size={13} /> Обязательные 7/7</span>
-          <button className="chip error" type="button" onClick={openProblem}><CircleAlert size={13} /> 1 ошибка</button>
-          <span className="chip warn">3 рекомендации</span>
-        </div>
-
-        <button className="quality-toggle" type="button" onClick={() => setShowProblems(!showProblems)}>
-          {showProblems ? 'Скрыть' : 'Показать проблемы'}
-          <ChevronDown size={14} />
-        </button>
+    <label className="field">
+      <span>{label} {required && <b>*</b>}</span>
+      <div className="input-wrap">
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          inputMode={inputMode}
+        />
+        {suffix && <em>{suffix}</em>}
       </div>
-
-      {showProblems && (
-        <div className="quality-problems">
-          <button type="button" onClick={openProblem}>
-            <CircleAlert size={15} />
-            <div>
-              <strong>Цена до скидки должна быть выше текущей цены</strong>
-              <span>Основное → Шаг 1 «Карточка» → Цена до скидки</span>
-            </div>
-            <ChevronRight size={15} />
-          </button>
-          <div className="quality-note">
-            <strong>Рекомендации:</strong> заполнить SEO-описание, добавить фото интерьера, указать гарантию.
-          </div>
-        </div>
-      )}
-    </div>
+    </label>
   )
 }
 
-function EditorTabs({ tab, setTab, variants }: { tab: ProductTab; setTab: (value: ProductTab) => void; variants: number }) {
-  const items: Array<[ProductTab, string, number?]> = [
-    ['main', 'Основное'],
-    ['attributes', 'Характеристики'],
-    ['variants', 'Вариации', variants],
-    ['stock', 'Остатки'],
-    ['media', 'Медиа'],
-    ['relations', 'Связи'],
-    ['service', 'SEO / 1С'],
-  ]
-
+function FlagToggle({
+  label,
+  text,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string
+  text: string
+  value: boolean
+  disabled: boolean
+  onChange: (value: boolean) => void
+}) {
   return (
-    <div className="tabs">
-      {items.map(([key, label, count]) => (
-        <button className={tab === key ? 'active' : ''} type="button" onClick={() => setTab(key)} key={key}>
-          {label}
-          {count !== undefined && <span>{count}</span>}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function MainTab({ product, step, setStep }: { product: Product; step: MainStep; setStep: (value: MainStep) => void }) {
-  const steps = [
-    ['Карточка', 'Название, идентификаторы и цены'],
-    ['Размещение', 'Категории, комнаты и описание'],
-    ['Публикация', 'Статус, приоритет и проверка'],
-  ] as const
-
-  return (
-    <div className="step-layout">
-      <aside className="step-nav">
-        <div className="step-nav-title">Основное</div>
-
-        {steps.map(([title, text], index) => (
-          <button
-            className={step === index ? 'step-item active' : 'step-item'}
-            type="button"
-            onClick={() => setStep(index as MainStep)}
-            key={title}
-          >
-            <span>{index + 1}</span>
-            <div><strong>{title}</strong><small>{text}</small></div>
-            {index < step && <CheckCircle2 size={15} />}
-          </button>
-        ))}
-
-        <div className="step-hint">
-          <strong>Зачем шаги?</strong>
-          <span>На экране только один смысловой блок. Оператор не ищет поля в длинной форме.</span>
-        </div>
-      </aside>
-
-      <div className="step-content">
-        {step === 0 && (
-          <Card title="Шаг 1. Карточка товара" subtitle="Основные данные, которые оператор меняет чаще всего">
-            <div className="form-grid">
-              <Field label="Название" value={product.name} wide required />
-              <Field label="SKU" value={product.sku} required />
-              <Field label="GTIN / штрихкод" value="4601234567890" />
-              <Field label="Цена" value="64 990" suffix="₽" required />
-              <Field label="Цена до скидки" value="59 990" suffix="₽" error="Должна быть выше текущей цены" />
-            </div>
-          </Card>
-        )}
-
-        {step === 1 && (
-          <div className="stack">
-            <Card title="Шаг 2. Размещение" subtitle="Категории и комнаты — две разные структуры каталога">
-              <Tags label="Категории" values={['Мягкая мебель', 'Диваны', 'Прямые диваны']} required />
-              <Tags label="Комнаты" values={['Гостиная', 'Мягкая зона']} secondary />
-            </Card>
-
-            <Card title="Описание" subtitle="Контент карточки товара на сайте">
-              <textarea defaultValue="Прямой диван для современной гостиной. Мягкие подлокотники, механизм трансформации «Еврокнижка», вместительный бельевой ящик." />
-            </Card>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="stack">
-            <Card title="Шаг 3. Публикация" subtitle="Финальная проверка перед публикацией">
-              <div className="form-grid">
-                <label className="field">
-                  <span>Статус <b>*</b></span>
-                  <select defaultValue={product.state}>
-                    <option>Активен</option>
-                    <option>Черновик</option>
-                    <option>Скрыт</option>
-                  </select>
-                </label>
-                <Field label="Приоритет" value="100" />
-              </div>
-            </Card>
-
-            <div className="checklist">
-              <div className="checklist-head"><CheckCircle2 size={18} /><div><strong>Критерии готовности</strong><span>Оператор видит, что мешает публикации, до сохранения.</span></div></div>
-              <ul>
-                <li className="done"><CheckCircle2 size={15} /> Название и SKU заполнены</li>
-                <li className="done"><CheckCircle2 size={15} /> Есть категория каталога</li>
-                <li className="done"><CheckCircle2 size={15} /> Указана цена продажи</li>
-                <li className="problem"><CircleAlert size={15} /> Исправить цену до скидки</li>
-                <li><CircleAlert size={15} /> Рекомендуется заполнить SEO-описание</li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        <div className="step-controls">
-          <button className="btn ghost" type="button" disabled={step === 0} onClick={() => setStep(Math.max(0, step - 1) as MainStep)}>Назад</button>
-          <span>Шаг {step + 1} из 3</span>
-          <button className="btn secondary" type="button" disabled={step === 2} onClick={() => setStep(Math.min(2, step + 1) as MainStep)}>Далее</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AttributesTab({ filledOnly, setFilledOnly }: { filledOnly: boolean; setFilledOnly: (value: boolean) => void }) {
-  return (
-    <div className="attributes-tab">
-      <div className="tab-toolbar">
-        <label className="small-search"><Search size={14} /><input placeholder="Найти характеристику" /></label>
-
-        <label className="toggle-line">
-          <input type="checkbox" checked={filledOnly} onChange={(event) => setFilledOnly(event.target.checked)} />
-          <span />
-          Только заполненные
-        </label>
-
-        <button className="btn secondary small" type="button"><Plus size={14} /> Добавить</button>
-      </div>
-
-      <div className="attribute-grid">
-        {attributeGroups.map((group) => <AttributeCard key={group.title} {...group} />)}
-
-        {!filledOnly && (
-          <AttributeCard
-            title="Дополнительные"
-            description="Необязательные свойства"
-            rows={[['Страна производства', '—'], ['Гарантия', '—'], ['Тип ткани', '—'], ['Коллекция', '—']]}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
-
-function AttributeCard({ title, description, rows }: { title: string; description: string; rows: string[][] }) {
-  return (
-    <Card title={title} subtitle={description}>
-      <div className="attribute-list">
-        {rows.map(([label, value]) => (
-          <div className="attribute-row" key={label}>
-            <span>{label}</span>
-            <strong className={value === '—' ? 'empty' : ''}>{value}</strong>
-            <button className="row-action" type="button" aria-label={'Изменить ' + label}><Pencil size={13} /></button>
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
-
-function VariantsTab() {
-  return (
-    <SingleTab
-      title="Торговые предложения"
-      subtitle="Цвет и размер живут на уровне вариаций и не дублируются в характеристиках родителя."
-      action="Добавить вариацию"
+    <button
+      className={value ? 'flag-card enabled' : 'flag-card'}
+      type="button"
+      onClick={() => !disabled && onChange(!value)}
+      disabled={disabled}
     >
-      <div className="info-line">
-        <CircleCheck size={16} />
-        Атрибуты вариаций: <strong>Цвет</strong>, <strong>Размер</strong>. Их можно изменить отдельным действием, не смешивая с таблицей вариантов.
+      <span className="fake-switch"><i /></span>
+      <div>
+        <strong>{label}</strong>
+        <small>{text}</small>
       </div>
-
-      <Table headers={['Вариация', 'SKU', 'Цена', 'Остаток', 'Статус']}>
-        {variants.map((row) => (
-          <tr key={row[1]}>
-            <td><strong>{row[0]}</strong></td>
-            <td>{row[1]}</td>
-            <td>{row[2]}</td>
-            <td>{row[3]} шт.</td>
-            <td><Status value="Активен" compact /></td>
-          </tr>
-        ))}
-      </Table>
-    </SingleTab>
+    </button>
   )
 }
 
-function StockTab() {
-  const rows = [['Воронеж', '7', '1'], ['Москва', '5', '0'], ['Белгород', '0', '0']]
-
-  return (
-    <SingleTab title="Остатки по складам" subtitle="Распределение товара без перехода в отдельный ресурс.">
-      <div className="stock-grid">
-        {rows.map(([name, qty, reserve]) => (
-          <article className="stock-card" key={name}>
-            <Warehouse size={18} />
-            <div><strong>{name}</strong><small>Резерв: {reserve}</small></div>
-            <em>{qty}</em>
-          </article>
-        ))}
-      </div>
-
-      <div className="callout muted">
-        <Warehouse size={17} />
-        <div><strong>Складской учёт включён</strong><span>Для вариативного товара остаток можно раскрыть до каждой вариации.</span></div>
-      </div>
-    </SingleTab>
-  )
-}
-
-function MediaTab() {
-  return (
-    <SingleTab title="Изображения" subtitle="Главное изображение и галерея в одном месте." action="Загрузить">
-      <div className="media-grid">
-        {['Главное', 'Фасад', 'Сбоку', 'В интерьере'].map((label, index) => (
-          <article className={index === 0 ? 'media-card main' : 'media-card'} key={label}>
-            <Image size={26} />
-            <strong>{label}</strong>
-            <small>{index === 0 ? 'Используется в каталоге' : 'Галерея товара'}</small>
-          </article>
-        ))}
-      </div>
-    </SingleTab>
-  )
-}
-
-function RelationsTab({ product }: { product: Product }) {
-  const rows = [
-    [Link2, 'Связанные товары', '6', 'Альтернативы и сопутствующие'],
-    [Package, 'Комплекты', '3', 'Товары в комплекте'],
-    [MapPin, 'Региональные правила', '2', 'Доступность по регионам'],
-    [FolderTree, 'Категории', '3', product.category],
-  ] as const
-
-  return (
-    <div className="relation-grid">
-      {rows.map(([Icon, title, value, text]) => (
-        <article className="relation-card" key={title}>
-          <span><Icon size={18} /></span>
-          <div><small>{title}</small><strong>{value}</strong><p>{text}</p></div>
-          <ChevronRight size={16} />
-        </article>
-      ))}
-    </div>
-  )
-}
-
-function ServiceTab({ product }: { product: Product }) {
-  return (
-    <div className="two-col">
-      <Card title="SEO" subtitle="Редкие поля вынесены из основной работы оператора">
-        <div className="form-grid">
-          <Field label="URL" value="divan-pryamoy-liga-060" wide />
-          <Field label="SEO title" value={product.name} wide />
-          <Field label="SEO description" value="" placeholder="Не заполнено" wide />
-        </div>
-      </Card>
-
-      <Card title="Интеграция с 1С" subtitle="Служебные идентификаторы не мешают основному редактированию">
-        <div className="form-grid">
-          <Field label="ID 1С" value="7e0d84c1-90b3-4a73-85a2-001042" wide />
-          <Field label="SKU" value={product.sku} />
-          <Field label="Источник" value="1С" />
-        </div>
-      </Card>
-    </div>
-  )
-}
-
-function SingleTab({
+function PanelHead({
+  eyebrow,
   title,
   subtitle,
-  action,
+}: {
+  eyebrow: string
+  title: string
+  subtitle?: string
+}) {
+  return (
+    <header className="panel-head">
+      <div>
+        <span className="eyebrow">{eyebrow}</span>
+        <h2>{title}</h2>
+        {subtitle && <p>{subtitle}</p>}
+      </div>
+    </header>
+  )
+}
+
+function Card({
+  title,
+  subtitle,
   children,
 }: {
   title: string
   subtitle: string
-  action?: string
   children: React.ReactNode
 }) {
   return (
-    <div className="single-tab">
-      <div className="single-head">
-        <div><h3>{title}</h3><p>{subtitle}</p></div>
-        {action && <button className="btn primary small" type="button"><Plus size={14} /> {action}</button>}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function Card({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
-  return (
     <section className="card">
-      <header><h3>{title}</h3><p>{subtitle}</p></header>
+      <header>
+        <h3>{title}</h3>
+        <p>{subtitle}</p>
+      </header>
       <div className="card-body">{children}</div>
     </section>
   )
 }
 
-function Field({
-  label,
-  value,
-  suffix,
-  wide,
-  placeholder,
-  required,
-  error,
+function Table({
+  headers,
+  children,
 }: {
-  label: string
-  value: string
-  suffix?: string
-  wide?: boolean
-  placeholder?: string
-  required?: boolean
-  error?: string
+  headers: string[]
+  children: React.ReactNode
 }) {
   return (
-    <label className={wide ? 'field wide' : 'field'}>
-      <span>{label} {required && <b>*</b>}</span>
-      <div className={error ? 'input-wrap invalid' : 'input-wrap'}>
-        <input key={value} defaultValue={value} placeholder={placeholder} />
-        {suffix && <em>{suffix}</em>}
-      </div>
-      {error && <small className="field-error"><CircleAlert size={12} /> {error}</small>}
-    </label>
-  )
-}
-
-function Tags({
-  label,
-  values,
-  secondary,
-  required,
-}: {
-  label: string
-  values: string[]
-  secondary?: boolean
-  required?: boolean
-}) {
-  return (
-    <div className="tag-field">
-      <span>{label} {required && <b>*</b>}</span>
-      <div>
-        {values.map((value) => (
-          <button className={secondary ? 'tag secondary' : 'tag'} type="button" key={value}>{value}</button>
-        ))}
-        <button className="tag add" type="button"><Plus size={11} />Добавить</button>
-      </div>
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
     </div>
   )
 }
 
-function Status({ value, compact }: { value: string; compact?: boolean }) {
-  const ok = value === 'Активен'
+function Status({ value, compact = false }: { value: string; compact?: boolean }) {
+  const ok = value === 'Активен' || value === 'Доставлен'
 
   return (
     <span className={'status ' + (ok ? 'ok ' : '') + (compact ? 'compact' : '')}>
@@ -923,457 +1631,107 @@ function Status({ value, compact }: { value: string; compact?: boolean }) {
   )
 }
 
-function PanelHead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+function InlineLoading({ text }: { text: string }) {
   return (
-    <header className="panel-head">
-      <div>
-        <span className="eyebrow">{eyebrow}</span>
-        <h2>{title}</h2>
-        {subtitle && <p>{subtitle}</p>}
-      </div>
-      <button className="icon-btn compact" type="button"><Plus size={16} /></button>
-    </header>
-  )
-}
-
-function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
-        <tbody>{children}</tbody>
-      </table>
+    <div className="inline-state">
+      <Loader2 className="spin" size={18} />
+      <span>{text}</span>
     </div>
   )
 }
 
-
-type AttributePrototype = {
-  id: number
-  name: string
-  slug: string
-  type: string
-  values: string[]
-  flags: string[]
-  usage: number
-}
-
-const prototypeAttributes: AttributePrototype[] = [
-  { id: 1, name: 'Цвет', slug: 'color', type: 'Список', values: ['Серый', 'Бежевый', 'Графит', 'Зелёный', 'Синий'], flags: ['Вариации', 'Фильтр', 'Обязательная'], usage: 418 },
-  { id: 2, name: 'Размер', slug: 'size', type: 'Список', values: ['180 см', '200 см', '220 см', '238 см'], flags: ['Вариации', 'Фильтр'], usage: 356 },
-  { id: 3, name: 'Материал обивки', slug: 'upholstery', type: 'Список', values: ['Велюр', 'Рогожка', 'Шенилл', 'Экокожа'], flags: ['Фильтр'], usage: 302 },
-  { id: 4, name: 'Механизм', slug: 'mechanism', type: 'Список', values: ['Еврокнижка', 'Дельфин', 'Аккордеон'], flags: ['Фильтр'], usage: 188 },
-  { id: 5, name: 'Гарантия', slug: 'warranty', type: 'Текст', values: [], flags: ['Ручное значение'], usage: 91 },
-]
-
-function AttributesWorkspace() {
-  const [selectedId, setSelectedId] = useState(prototypeAttributes[0].id)
-  const [flags, setFlags] = useState(prototypeAttributes[0].flags)
-  const selected = prototypeAttributes.find((item) => item.id === selectedId) ?? prototypeAttributes[0]
-
-  const choose = (attribute: AttributePrototype) => {
-    setSelectedId(attribute.id)
-    setFlags(attribute.flags)
-  }
-
-  const toggleFlag = (flag: string) => {
-    setFlags((current) => current.includes(flag)
-      ? current.filter((item) => item !== flag)
-      : [...current, flag])
-  }
-
+function InlineError({ text }: { text: string }) {
   return (
-    <div className="module-layout attributes-workspace">
-      <section className="panel module-list">
-        <PanelHead eyebrow="Справочник" title="Свойства" subtitle="Что можно назначать товарам" />
-        <label className="small-search workspace-search"><Search size={16} /><input placeholder="Найти характеристику" /></label>
-
-        <div className="module-list-scroll">
-          {prototypeAttributes.map((attribute) => (
-            <button
-              className={attribute.id === selected.id ? 'entity-row selected' : 'entity-row'}
-              type="button"
-              onClick={() => choose(attribute)}
-              key={attribute.id}
-            >
-              <span className="entity-icon"><SlidersHorizontal size={17} /></span>
-              <div>
-                <strong>{attribute.name}</strong>
-                <small>{attribute.type} · {attribute.usage} товаров</small>
-              </div>
-              <ChevronRight size={16} />
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel module-detail">
-        <div className="module-detail-head">
-          <div>
-            <span className="eyebrow">Характеристика</span>
-            <h2>{selected.name}</h2>
-            <p>Сначала задаём поведение свойства. Затем — допустимые значения. После этого оператор выбирает их в товаре.</p>
-          </div>
-          <button className="btn primary" type="button">Сохранить</button>
-        </div>
-
-        <div className="workflow-strip">
-          <div className="done"><span>1</span><div><strong>Настройка</strong><small>Тип и поведение</small></div></div>
-          <ChevronRight size={16} />
-          <div className={selected.type === 'Список' ? 'active' : ''}><span>2</span><div><strong>Значения</strong><small>Справочник вариантов</small></div></div>
-          <ChevronRight size={16} />
-          <div><span>3</span><div><strong>Использование</strong><small>Назначение товарам</small></div></div>
-        </div>
-
-        <div className="module-detail-scroll">
-          <div className="attribute-settings-grid">
-            <Card title="Основные настройки" subtitle="Редко меняются после начала использования">
-              <div className="form-grid readable">
-                <Field label="Название" value={selected.name} required />
-                <Field label="Код" value={selected.slug} required />
-                <label className="field">
-                  <span>Тип значения <b>*</b></span>
-                  <select defaultValue={selected.type}>
-                    <option>Список</option>
-                    <option>Текст</option>
-                    <option>Число</option>
-                    <option>Логическое</option>
-                  </select>
-                </label>
-                <Field label="Порядок" value="100" />
-              </div>
-            </Card>
-
-            <Card title="Поведение" subtitle="Понятные переключатели вместо набора технических флагов">
-              <div className="flag-grid">
-                {[
-                  ['Вариации', 'Цвет/размер создают отдельные торговые предложения'],
-                  ['Фильтр', 'Показывать покупателю в фильтрах каталога'],
-                  ['Обязательная', 'Без значения карточка считается незаполненной'],
-                  ['Множественная', 'У товара можно выбрать несколько значений'],
-                  ['Ручное значение', 'Разрешить оператору ввести значение вне справочника'],
-                ].map(([flag, description]) => (
-                  <button
-                    className={flags.includes(flag) ? 'flag-card enabled' : 'flag-card'}
-                    type="button"
-                    onClick={() => toggleFlag(flag)}
-                    key={flag}
-                  >
-                    <span className="fake-switch"><i /></span>
-                    <div><strong>{flag}</strong><small>{description}</small></div>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          {selected.type === 'Список' ? (
-            <Card title="Допустимые значения" subtitle="Именно этот список увидит оператор при редактировании товара">
-              <div className="values-toolbar">
-                <label className="small-search values-search"><Search size={15} /><input placeholder="Найти значение" /></label>
-                <button className="btn secondary small" type="button"><Plus size={15} /> Добавить значение</button>
-              </div>
-              <div className="value-grid">
-                {selected.values.map((value, index) => (
-                  <button className="value-card" type="button" key={value}>
-                    <span>{index + 1}</span>
-                    <strong>{value}</strong>
-                    <small>{selected.slug}-{index + 1}</small>
-                    <Pencil size={14} />
-                  </button>
-                ))}
-              </div>
-            </Card>
-          ) : (
-            <div className="callout muted">
-              <CircleCheck size={18} />
-              <div><strong>Справочник значений не нужен</strong><span>Для текстового свойства оператор вводит значение непосредственно в карточке товара.</span></div>
-            </div>
-          )}
-        </div>
-      </section>
+    <div className="inline-state error-state">
+      <CircleAlert size={18} />
+      <span>{text}</span>
     </div>
   )
 }
 
-const prototypeOrders = [
-  ['ORD202609230001', 'Иван Петров', '124 500 ₽', 'Новый', 'Сегодня, 10:42'],
-  ['ORD202609220018', 'Анна Смирнова', '68 990 ₽', 'Принят', 'Вчера, 18:05'],
-  ['ORD202609220011', 'Сергей Волков', '91 200 ₽', 'В пути', 'Вчера, 13:27'],
-  ['ORD202609210044', 'Мария Котова', '47 300 ₽', 'Доставлен', '21 сен, 16:10'],
-]
-
-function OrdersWorkspace() {
-  const [selected, setSelected] = useState(0)
-  const [tab, setTab] = useState<'items' | 'delivery' | 'payment' | 'history'>('items')
-  const order = prototypeOrders[selected]
-
+function InlineSuccess({ text }: { text: string }) {
   return (
-    <div className="module-layout split-workspace">
-      <section className="panel module-list wide-list">
-        <PanelHead eyebrow="Очередь" title="Заказы" subtitle="Последние заказы" />
-        <label className="small-search workspace-search"><Search size={16} /><input placeholder="Номер, имя, телефон" /></label>
-        <div className="module-list-scroll">
-          {prototypeOrders.map((item, index) => (
-            <button className={selected === index ? 'order-row selected' : 'order-row'} type="button" onClick={() => setSelected(index)} key={item[0]}>
-              <div><strong>{item[0]}</strong><small>{item[1]} · {item[4]}</small></div>
-              <div><strong>{item[2]}</strong><Status value={item[3] === 'Новый' ? 'Черновик' : 'Активен'} compact /></div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel module-detail">
-        <div className="module-detail-head">
-          <div><span className="eyebrow">Заказ</span><h2>{order[0]}</h2><p>{order[1]} · {order[2]}</p></div>
-          <div className="editor-actions"><button className="btn ghost" type="button">Печать</button><button className="btn primary" type="button">Изменить статус</button></div>
-        </div>
-
-        <div className="tabs static-tabs">
-          <button className={tab === 'items' ? 'active' : ''} type="button" onClick={() => setTab('items')}>Состав</button>
-          <button className={tab === 'delivery' ? 'active' : ''} type="button" onClick={() => setTab('delivery')}>Доставка</button>
-          <button className={tab === 'payment' ? 'active' : ''} type="button" onClick={() => setTab('payment')}>Оплата</button>
-          <button className={tab === 'history' ? 'active' : ''} type="button" onClick={() => setTab('history')}>История</button>
-        </div>
-
-        <div className="module-detail-scroll">
-          {tab === 'items' && (
-            <>
-              <div className="summary-grid">
-                <Card title="Покупатель" subtitle="Контактные данные">
-                  <dl className="detail-list"><div><dt>Имя</dt><dd>{order[1]}</dd></div><div><dt>Телефон</dt><dd>+7 900 123-45-67</dd></div><div><dt>Email</dt><dd>client@example.ru</dd></div></dl>
-                </Card>
-                <Card title="Заказ" subtitle="Ключевые параметры">
-                  <dl className="detail-list"><div><dt>Сумма</dt><dd>{order[2]}</dd></div><div><dt>Статус</dt><dd>{order[3]}</dd></div><div><dt>Создан</dt><dd>{order[4]}</dd></div></dl>
-                </Card>
-              </div>
-
-              <Card title="Состав заказа" subtitle="3 позиции">
-                <Table headers={['Товар', 'Количество', 'Цена', 'Сумма']}>
-                  <tr><td><strong>Диван прямой Лига-060</strong><small className="table-sub">Серый / 238 см</small></td><td>1</td><td>64 990 ₽</td><td>64 990 ₽</td></tr>
-                  <tr><td><strong>Кресло Лига</strong><small className="table-sub">Серый</small></td><td>1</td><td>31 500 ₽</td><td>31 500 ₽</td></tr>
-                  <tr><td><strong>Пуф Лига</strong></td><td>1</td><td>28 010 ₽</td><td>28 010 ₽</td></tr>
-                </Table>
-              </Card>
-            </>
-          )}
-
-          {tab === 'delivery' && (
-            <div className="summary-grid">
-              <Card title="Адрес доставки" subtitle="Снимок на момент оформления">
-                <dl className="detail-list"><div><dt>Город</dt><dd>Воронеж</dd></div><div><dt>Адрес</dt><dd>ул. Ленина, 10</dd></div><div><dt>Получатель</dt><dd>{order[1]}</dd></div></dl>
-              </Card>
-              <Card title="Логистика" subtitle="Склад и выбранный вариант">
-                <dl className="detail-list"><div><dt>Склад</dt><dd>Воронеж</dd></div><div><dt>Способ</dt><dd>Курьерская доставка</dd></div><div><dt>Стоимость</dt><dd>900 ₽</dd></div><div><dt>Срок</dt><dd>1–2 дня</dd></div></dl>
-              </Card>
-            </div>
-          )}
-
-          {tab === 'payment' && (
-            <div className="summary-grid">
-              <Card title="Оплата" subtitle="Текущее состояние">
-                <dl className="detail-list"><div><dt>Метод</dt><dd>Банковская карта</dd></div><div><dt>Сумма</dt><dd>{order[2]}</dd></div><div><dt>Статус</dt><dd>Оплачено</dd></div></dl>
-              </Card>
-              <Card title="Транзакция" subtitle="Служебная информация">
-                <dl className="detail-list"><div><dt>ID</dt><dd>PAY-23091842</dd></div><div><dt>Шлюз</dt><dd>Raiffeisen</dd></div><div><dt>Время</dt><dd>10:44</dd></div></dl>
-              </Card>
-            </div>
-          )}
-
-          {tab === 'history' && (
-            <Card title="История заказа" subtitle="Изменения статусов и ключевые события">
-              <div className="timeline">
-                <div><span /><strong>Заказ создан</strong><small>Сегодня, 10:42</small></div>
-                <div><span /><strong>Оплата подтверждена</strong><small>Сегодня, 10:44</small></div>
-                <div><span /><strong>Передан на склад</strong><small>Сегодня, 10:47</small></div>
-              </div>
-            </Card>
-          )}
-        </div>
-      </section>
+    <div className="inline-state success-state">
+      <CheckCircle2 size={18} />
+      <span>{text}</span>
     </div>
   )
 }
 
-const prototypeLocations = [
-  ['Центральный федеральный округ', 'ФО', '18 регионов'],
-  ['Воронежская область', 'Регион', '34 города'],
-  ['Воронеж', 'Город', 'Активна'],
-  ['Москва', 'Город', 'Активна'],
-  ['Московская область', 'Регион', '42 города'],
-]
-
-function LocationsWorkspace() {
-  const [selected, setSelected] = useState(2)
-  const [tab, setTab] = useState<'main' | 'delivery' | 'relations'>('main')
-  const location = prototypeLocations[selected]
-
+function EmptyState({ text }: { text: string }) {
   return (
-    <div className="module-layout split-workspace">
-      <section className="panel module-list">
-        <PanelHead eyebrow="География" title="Локации" subtitle="ФО → регион → город" />
-        <label className="small-search workspace-search"><Search size={16} /><input placeholder="Найти локацию" /></label>
-        <div className="module-list-scroll">
-          {prototypeLocations.map((item, index) => (
-            <button className={selected === index ? 'entity-row selected' : 'entity-row'} type="button" onClick={() => setSelected(index)} key={item[0]}>
-              <span className="entity-icon"><MapPin size={17} /></span>
-              <div><strong>{item[0]}</strong><small>{item[1]} · {item[2]}</small></div>
-              <ChevronRight size={16} />
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel module-detail">
-        <div className="module-detail-head"><div><span className="eyebrow">{location[1]}</span><h2>{location[0]}</h2><p>Настройки действуют на эту территорию и могут наследоваться дочерними локациями.</p></div><button className="btn primary" type="button">Сохранить</button></div>
-        <div className="tabs static-tabs">
-          <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
-          <button className={tab === 'delivery' ? 'active' : ''} type="button" onClick={() => setTab('delivery')}>Доставка</button>
-          <button className={tab === 'relations' ? 'active' : ''} type="button" onClick={() => setTab('relations')}>Связи</button>
-        </div>
-        <div className="module-detail-scroll">
-          {tab === 'main' && (
-            <Card title="Основные данные" subtitle="Положение в дереве">
-              <div className="form-grid readable"><Field label="Название" value={location[0]} required /><Field label="Код" value="voronezh" required /><Field label="Родитель" value="Воронежская область" wide /></div>
-            </Card>
-          )}
-          {tab === 'delivery' && (
-            <div className="summary-grid">
-              <Card title="Тариф по умолчанию" subtitle="Используется, если способ доставки не переопределил значение">
-                <div className="form-grid readable"><Field label="Стоимость" value="900" suffix="₽" /><Field label="Бесплатно от" value="15 000" suffix="₽" /><Field label="Срок от" value="1" /><Field label="Срок до" value="2" /></div>
-              </Card>
-              <Card title="Обработка" subtitle="Дополнительные параметры">
-                <dl className="detail-list"><div><dt>Подъём</dt><dd>Разрешён</dd></div><div><dt>Сборка</dt><dd>Доступна</dd></div><div><dt>Доп. услуги</dt><dd>3</dd></div></dl>
-              </Card>
-            </div>
-          )}
-          {tab === 'relations' && (
-            <div className="relation-grid">
-              <article className="relation-card"><span><Truck size={18} /></span><div><small>Перевозчики</small><strong>3</strong><p>Доступны для этой локации</p></div><ChevronRight size={16} /></article>
-              <article className="relation-card"><span><Warehouse size={18} /></span><div><small>Склады</small><strong>2</strong><p>Могут доставлять сюда</p></div><ChevronRight size={16} /></article>
-            </div>
-          )}
-        </div>
-      </section>
+    <div className="empty-state">
+      <Package size={24} />
+      <span>{text}</span>
     </div>
   )
 }
 
-const prototypeWarehouses = [
-  ['Воронеж', 'Bo00001', '12 480 ед.', '3 способа'],
-  ['Москва', 'Mo00007', '24 113 ед.', '5 способов'],
-  ['Белгород', 'Bl00003', '4 827 ед.', '2 способа'],
-]
-
-function WarehousesWorkspace() {
-  const [selected, setSelected] = useState(0)
-  const [tab, setTab] = useState<'main' | 'stock' | 'delivery'>('main')
-  const warehouse = prototypeWarehouses[selected]
-
+function WorkspaceLoading({ text }: { text: string }) {
   return (
-    <div className="module-layout split-workspace">
-      <section className="panel module-list">
-        <PanelHead eyebrow="Остатки" title="Склады" subtitle="Физические источники товара" />
-        <div className="module-list-scroll">
-          {prototypeWarehouses.map((item, index) => (
-            <button className={selected === index ? 'entity-row selected' : 'entity-row'} type="button" onClick={() => setSelected(index)} key={item[1]}>
-              <span className="entity-icon"><Warehouse size={17} /></span>
-              <div><strong>{item[0]}</strong><small>{item[1]} · {item[2]}</small></div>
-              <ChevronRight size={16} />
-            </button>
-          ))}
-        </div>
-      </section>
+    <section className="panel workspace-state">
+      <InlineLoading text={text} />
+    </section>
+  )
+}
 
-      <section className="panel module-detail">
-        <div className="module-detail-head"><div><span className="eyebrow">Склад</span><h2>{warehouse[0]}</h2><p>{warehouse[1]} · {warehouse[2]} · {warehouse[3]}</p></div><button className="btn primary" type="button">Сохранить</button></div>
-        <div className="tabs static-tabs">
-          <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
-          <button className={tab === 'stock' ? 'active' : ''} type="button" onClick={() => setTab('stock')}>Остатки</button>
-          <button className={tab === 'delivery' ? 'active' : ''} type="button" onClick={() => setTab('delivery')}>Способы доставки</button>
-        </div>
-        <div className="module-detail-scroll">
-          {tab === 'main' && (
-            <div className="summary-grid">
-              <Card title="Основное" subtitle="Идентификаторы склада"><div className="form-grid readable"><Field label="Название" value={warehouse[0]} required /><Field label="Внешний ID" value={warehouse[1]} required /></div></Card>
-              <Card title="Сводка" subtitle="То, что оператору важно видеть сразу"><dl className="detail-list"><div><dt>Остатки</dt><dd>{warehouse[2]}</dd></div><div><dt>Способы доставки</dt><dd>{warehouse[3]}</dd></div><div><dt>Статус</dt><dd>Активен</dd></div></dl></Card>
-            </div>
-          )}
-          {tab === 'stock' && (
-            <Card title="Остатки по складу" subtitle="Быстрый контроль без перехода в другой раздел">
-              <Table headers={['Товар', 'SKU', 'Остаток', 'Резерв']}>
-                <tr><td>Диван прямой Лига-060</td><td>SV-1042</td><td>7</td><td>1</td></tr>
-                <tr><td>Кресло Лига</td><td>SV-2040</td><td>12</td><td>2</td></tr>
-                <tr><td>Пуф Лига</td><td>SV-3050</td><td>8</td><td>0</td></tr>
-              </Table>
-            </Card>
-          )}
-          {tab === 'delivery' && (
-            <Card title="Способы доставки" subtitle="Отдельные схемы доставки этого склада">
-              <div className="value-grid">
-                <button className="value-card" type="button"><span>1</span><strong>Курьерская доставка</strong><small>14 зон</small><ChevronRight size={14} /></button>
-                <button className="value-card" type="button"><span>2</span><strong>Доставка ТК</strong><small>32 зоны</small><ChevronRight size={14} /></button>
-                <button className="value-card" type="button"><span>3</span><strong>Резервный маршрут</strong><small>5 зон</small><ChevronRight size={14} /></button>
-              </div>
-            </Card>
-          )}
-        </div>
-      </section>
+function WorkspaceError({
+  text,
+  onRetry,
+}: {
+  text: string
+  onRetry: () => void
+}) {
+  return (
+    <section className="panel workspace-state">
+      <InlineError text={text} />
+      <button className="btn ghost" type="button" onClick={onRetry}>
+        <RefreshCw size={15} />
+        Повторить
+      </button>
+    </section>
+  )
+}
+
+function UnavailableWorkspace({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof Warehouse
+  title: string
+  text: string
+}) {
+  return (
+    <section className="panel workspace-state">
+      <Icon size={28} />
+      <h2>{title}</h2>
+      <p>{text}</p>
+    </section>
+  )
+}
+
+function FullScreenLoading({ text }: { text: string }) {
+  return (
+    <div className="full-state">
+      <Loader2 className="spin" size={26} />
+      <strong>{text}</strong>
     </div>
   )
 }
 
-const prototypeStores = [
-  ['Светофор — Московский проспект', 'Воронеж', '10:00–20:00'],
-  ['Светофор — Левый берег', 'Воронеж', '10:00–19:00'],
-  ['Светофор — Москва', 'Москва', '10:00–21:00'],
-]
-
-function StoresWorkspace() {
-  const [selected, setSelected] = useState(0)
-  const [tab, setTab] = useState<'main' | 'contacts' | 'schedule'>('main')
-  const store = prototypeStores[selected]
-
+function FullScreenError({
+  title,
+  message,
+}: {
+  title: string
+  message: string
+}) {
   return (
-    <div className="module-layout split-workspace">
-      <section className="panel module-list">
-        <PanelHead eyebrow="Точки продаж" title="Магазины" subtitle="Физические магазины" />
-        <div className="module-list-scroll">
-          {prototypeStores.map((item, index) => (
-            <button className={selected === index ? 'entity-row selected' : 'entity-row'} type="button" onClick={() => setSelected(index)} key={item[0]}>
-              <span className="entity-icon"><Store size={17} /></span>
-              <div><strong>{item[0]}</strong><small>{item[1]} · {item[2]}</small></div>
-              <ChevronRight size={16} />
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel module-detail">
-        <div className="module-detail-head"><div><span className="eyebrow">Магазин</span><h2>{store[0]}</h2><p>{store[1]} · сегодня {store[2]}</p></div><button className="btn primary" type="button">Сохранить</button></div>
-        <div className="tabs static-tabs">
-          <button className={tab === 'main' ? 'active' : ''} type="button" onClick={() => setTab('main')}>Основное</button>
-          <button className={tab === 'contacts' ? 'active' : ''} type="button" onClick={() => setTab('contacts')}>Контакты</button>
-          <button className={tab === 'schedule' ? 'active' : ''} type="button" onClick={() => setTab('schedule')}>Режим работы</button>
-        </div>
-        <div className="module-detail-scroll">
-          {tab === 'main' && (
-            <Card title="Адрес" subtitle="Отображается покупателю"><div className="form-grid readable"><Field label="Город" value={store[1]} required /><Field label="Улица" value="Московский проспект, 90/1" required /><Field label="Координаты" value="51.7062, 39.1667" wide /></div></Card>
-          )}
-          {tab === 'contacts' && (
-            <Card title="Контакты" subtitle="Связь с магазином"><div className="form-grid readable"><Field label="Телефон" value="+7 (473) 200-00-00" /><Field label="Email" value="store@example.ru" /><Field label="Комментарий" value="Основной городской магазин" wide /></div></Card>
-          )}
-          {tab === 'schedule' && (
-            <Card title="Режим работы" subtitle="Расписание по дням недели">
-              <Table headers={['День', 'Открытие', 'Закрытие', 'Статус']}>
-                <tr><td>Пн–Пт</td><td>10:00</td><td>20:00</td><td><Status value="Активен" compact /></td></tr>
-                <tr><td>Суббота</td><td>10:00</td><td>19:00</td><td><Status value="Активен" compact /></td></tr>
-                <tr><td>Воскресенье</td><td>10:00</td><td>18:00</td><td><Status value="Активен" compact /></td></tr>
-              </Table>
-            </Card>
-          )}
-        </div>
-      </section>
+    <div className="full-state">
+      <CircleAlert size={28} />
+      <strong>{title}</strong>
+      <span>{message}</span>
     </div>
   )
 }
