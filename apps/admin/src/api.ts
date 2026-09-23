@@ -187,6 +187,19 @@ export type StoreRecord = {
   } | null
 }
 
+export type WarehouseRecord = {
+  id: number
+  external_id: string
+  name: string
+  is_active: boolean
+  product_stocks_count: number
+  shipping_locations_count: number
+  shipping_locations: Array<{
+    id: number
+    name: string
+  }>
+}
+
 export type LocationRecord = {
   id: number
   parent_id: number | null
@@ -311,4 +324,7 @@ export const backendApi = {
 
   locations: () =>
     request<{ data: LocationRecord[] }>('/admin_sv/api/locations'),
+
+  warehouses: () =>
+    request<{ data: WarehouseRecord[] }>('/admin_sv/api/warehouses'),
 }
