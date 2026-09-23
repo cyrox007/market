@@ -1482,25 +1482,32 @@ class AdminWorkspaceController extends Controller
 
     private function productSummary(Product $product): array
     {
+        $raw = fn (string $key, mixed $fallback = null) =>
+            $product->getRawOriginal($key) ?? $fallback;
+
         return [
-            'id' => $product->id,
-            'name' => $this->scalarString($product->name),
-            'slug' => $this->scalarString($product->slug),
-            'sku' => $this->scalarString($product->sku),
-            'gtin' => $this->nullableScalarString($product->gtin),
-            'state' => $this->scalarString($product->getRawOriginal('state') ?? $product->state),
-            'price' => (float) $product->price,
-            'original_price' => $product->original_price !== null
-                ? (float) $product->original_price
+            'id' => (int) $product->getKey(),
+            'name' => $this->scalarString($raw('name', $product->name)),
+            'slug' => $this->scalarString($raw('slug', $product->slug)),
+            'sku' => $this->scalarString($raw('sku', $product->sku)),
+            'gtin' => $this->nullableScalarString($raw('gtin', $product->gtin)),
+            'state' => $this->scalarString($raw('state', $product->state)),
+            'price' => (float) $raw('price', $product->price ?? 0),
+            'original_price' => $raw('original_price', $product->original_price) !== null
+                ? (float) $raw('original_price', $product->original_price)
                 : null,
-            'stock' => (int) ($product->stock ?? 0),
+            'stock' => (int) $raw('stock', $product->stock ?? 0),
             'variants_count' => $product->relationLoaded('variants')
                 ? $product->variants->count()
                 : (int) ($product->variants_count ?? $product->variants()->count()),
             'categories' => $product->taxons->map(fn ($category) => [
-                'id' => $category->id,
-                'name' => $this->scalarString($category->name),
-                'slug' => $this->scalarString($category->slug),
+                'id' => (int) $category->getKey(),
+                'name' => $this->scalarString(
+                    $category->getRawOriginal('name') ?? $category->name
+                ),
+                'slug' => $this->scalarString(
+                    $category->getRawOriginal('slug') ?? $category->slug
+                ),
             ])->values(),
             'updated_at' => $product->updated_at?->toIso8601String(),
         ];
@@ -1510,23 +1517,40 @@ class AdminWorkspaceController extends Controller
     {
         $stockSettings = ProductStockSettings::getInstance();
 
+        $raw = fn (string $key, mixed $fallback = null) =>
+            $product->getRawOriginal($key) ?? $fallback;
+
         return array_merge($this->productSummary($product), [
-            'slug' => $this->scalarString($product->slug),
-            'description' => $this->nullableScalarString($product->description),
-            'priority' => (int) ($product->priority ?? 0),
+            'slug' => $this->scalarString($raw('slug', $product->slug)),
+            'description' => $this->nullableScalarString($raw('description', $product->description)),
+            'priority' => (int) $raw('priority', $product->priority ?? 0),
             'is_variable' => $product->isVariable(),
             'category_ids' => $product->taxons->pluck('id')->map(fn ($id) => (int) $id)->values(),
-            'stock' => (float) ($product->getRawOriginal('stock') ?? $product->stock ?? 0),
-            'backorder' => (bool) ($product->getRawOriginal('backorder') ?? $product->backorder ?? false),
-            'units_sold' => (int) ($product->units_sold ?? 0),
-            'length' => $product->length !== null ? (float) $product->length : null,
-            'width' => $product->width !== null ? (float) $product->width : null,
-            'height' => $product->height !== null ? (float) $product->height : null,
-            'weight' => $product->weight !== null ? (float) $product->weight : null,
-            'tax_category_id' => $product->tax_category_id !== null ? (int) $product->tax_category_id : null,
-            'shipping_category_id' => $product->shipping_category_id !== null ? (int) $product->shipping_category_id : null,
-            'manufacturer_id' => $product->manufacturer_id !== null ? (int) $product->manufacturer_id : null,
-            'external_id' => $this->nullableScalarString($product->external_id),
+            'stock' => (float) $raw('stock', $product->stock ?? 0),
+            'backorder' => (bool) $raw('backorder', $product->backorder ?? false),
+            'units_sold' => (int) $raw('units_sold', $product->units_sold ?? 0),
+            'length' => $raw('length', $product->length) !== null
+                ? (float) $raw('length', $product->length)
+                : null,
+            'width' => $raw('width', $product->width) !== null
+                ? (float) $raw('width', $product->width)
+                : null,
+            'height' => $raw('height', $product->height) !== null
+                ? (float) $raw('height', $product->height)
+                : null,
+            'weight' => $raw('weight', $product->weight) !== null
+                ? (float) $raw('weight', $product->weight)
+                : null,
+            'tax_category_id' => $raw('tax_category_id', $product->tax_category_id) !== null
+                ? (int) $raw('tax_category_id', $product->tax_category_id)
+                : null,
+            'shipping_category_id' => $raw('shipping_category_id', $product->shipping_category_id) !== null
+                ? (int) $raw('shipping_category_id', $product->shipping_category_id)
+                : null,
+            'manufacturer_id' => $raw('manufacturer_id', $product->manufacturer_id) !== null
+                ? (int) $raw('manufacturer_id', $product->manufacturer_id)
+                : null,
+            'external_id' => $this->nullableScalarString($raw('external_id', $product->external_id)),
             'warehouse_accounting_enabled' => (bool) $stockSettings->warehouse_accounting_enabled,
             'media' => $product->media
                 ->whereIn('collection_name', ['images', 'gallery'])
