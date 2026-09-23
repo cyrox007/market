@@ -128,6 +128,13 @@ type QuickValueDraft = {
   color_code: string
 }
 
+type ProductCreateDraft = {
+  name: string
+  sku: string
+  external_id: string
+  sync_from_1c: boolean
+}
+
 
 function textValue(value: unknown, fallback = ''): string {
   if (value === null || value === undefined) {
@@ -239,6 +246,15 @@ function quickAttributeDraft(useInVariations = false): QuickAttributeDraft {
     is_use_in_variations: useInVariations,
     allow_custom_value: false,
     is_multiple: false,
+  }
+}
+
+function productCreateDraft(): ProductCreateDraft {
+  return {
+    name: '',
+    sku: '',
+    external_id: '',
+    sync_from_1c: false,
   }
 }
 
@@ -710,6 +726,10 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createDraft, setCreateDraft] = useState<ProductCreateDraft>(productCreateDraft())
+  const [creatingProduct, setCreatingProduct] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('')
   const [sort, setSort] = useState<
@@ -778,9 +798,11 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
         categories={categories}
         onBack={() => setEditingProductId(null)}
         onProductSaved={(saved) => {
-          setProducts((current) => current.map((item) => (
-            item.id === saved.id ? saved : item
-          )))
+          setProducts((current) => (
+            current.some((item) => item.id === saved.id)
+              ? current.map((item) => item.id === saved.id ? saved : item)
+              : [saved, ...current]
+          ))
         }}
       />
     )
@@ -804,7 +826,52 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
     setProductsPage(1)
   }
 
+  const openCreateDialog = () => {
+    setCreateDraft(productCreateDraft())
+    setCreateError(null)
+    setCreateDialogOpen(true)
+  }
+
+  const createProduct = async () => {
+    if (!session.permissions.products?.create) return
+
+    const syncFromOneC = createDraft.sync_from_1c
+    if (!syncFromOneC && !createDraft.name.trim()) {
+      setCreateError('Укажите название товара.')
+      return
+    }
+    if (syncFromOneC && !createDraft.external_id.trim()) {
+      setCreateError('Укажите внешний ID товара в 1С.')
+      return
+    }
+
+    setCreatingProduct(true)
+    setCreateError(null)
+
+    try {
+      const response = await backendApi.createProduct(
+        {
+          name: createDraft.name.trim() || null,
+          sku: createDraft.sku.trim() || null,
+          external_id: createDraft.external_id.trim() || null,
+          category_id: kind === 'categories' ? selectedSection?.id ?? null : null,
+          sync_from_1c: syncFromOneC,
+        },
+        session.csrf_token,
+      )
+
+      setCreateDialogOpen(false)
+      setProductsTotal((total) => total + 1)
+      setEditingProductId(response.product.id)
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setCreatingProduct(false)
+    }
+  }
+
   return (
+    <>
     <div className="catalog-browser-layout">
       <section className="panel section-panel">
         <PanelHead eyebrow="Структура" title="Разделы" subtitle="Категории и комнаты" />
@@ -865,6 +932,12 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
             <h2>{selectedSection?.name ?? 'Все товары'}</h2>
             <p>{productsTotal} товаров</p>
           </div>
+          {session.permissions.products?.create && (
+            <button className="btn primary" type="button" onClick={openCreateDialog}>
+              <Plus size={15} />
+              Создать товар
+            </button>
+          )}
         </div>
 
         <div className="catalog-toolbar">
@@ -990,6 +1063,143 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
               Далее
             </button>
           </div>
+        </footer>
+      </section>
+    </div>
+
+    {createDialogOpen && (
+      <ProductCreateDialog
+        draft={createDraft}
+        selectedCategoryName={kind === 'categories' ? selectedSection?.name ?? null : null}
+        busy={creatingProduct}
+        error={createError}
+        onChange={setCreateDraft}
+        onCreate={() => void createProduct()}
+        onClose={() => {
+          if (!creatingProduct) setCreateDialogOpen(false)
+        }}
+      />
+    )}
+    </>
+  )
+}
+
+function ProductCreateDialog({
+  draft,
+  selectedCategoryName,
+  busy,
+  error,
+  onChange,
+  onCreate,
+  onClose,
+}: {
+  draft: ProductCreateDraft
+  selectedCategoryName: string | null
+  busy: boolean
+  error: string | null
+  onChange: (draft: ProductCreateDraft) => void
+  onCreate: () => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="quick-editor-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose()
+      }}
+    >
+      <section className="quick-editor-dialog product-create-dialog">
+        <header>
+          <div>
+            <span className="eyebrow">Новый товар</span>
+            <h3>{draft.sync_from_1c ? 'Создание по данным 1С' : 'Создание черновика'}</h3>
+          </div>
+          <button className="icon-btn" type="button" onClick={onClose} disabled={busy} aria-label="Закрыть">
+            <X size={16} />
+          </button>
+        </header>
+
+        <div className="quick-editor-body">
+          {error && (
+            <div className="backend-error" role="alert">
+              <CircleAlert size={16} />
+              <div>
+                <strong>Не удалось создать товар</strong>
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+
+          <label className="switch-line product-create-sync">
+            <input
+              type="checkbox"
+              checked={draft.sync_from_1c}
+              disabled={busy}
+              onChange={(event) => onChange({
+                ...draft,
+                sync_from_1c: event.target.checked,
+              })}
+            />
+            <span>
+              <strong>Загрузить карточку из 1С</strong>
+              <small>Создаст товар по external_id и сразу подтянет характеристики, вариации, цены и остатки по складам.</small>
+            </span>
+          </label>
+
+          <div className="form-grid readable">
+            <LiveField
+              label={draft.sync_from_1c ? 'Название (необязательно)' : 'Название'}
+              value={draft.name}
+              required={!draft.sync_from_1c}
+              onChange={(value) => onChange({ ...draft, name: value })}
+            />
+            <LiveField
+              label="SKU (необязательно)"
+              value={draft.sku}
+              onChange={(value) => onChange({ ...draft, sku: value })}
+            />
+            <LiveField
+              label="External ID 1С"
+              value={draft.external_id}
+              required={draft.sync_from_1c}
+              onChange={(value) => onChange({ ...draft, external_id: value })}
+            />
+          </div>
+
+          {selectedCategoryName && (
+            <div className="callout muted compact-callout">
+              <FolderTree size={16} />
+              <div>
+                <strong>Категория будет назначена автоматически</strong>
+                <span>{selectedCategoryName}</span>
+              </div>
+            </div>
+          )}
+
+          {draft.sync_from_1c && (
+            <div className="callout warn compact-callout">
+              <RefreshCw size={16} />
+              <div>
+                <strong>Будет выполнена полноценная синхронизация</strong>
+                <span>После создания откроется карточка с данными из 1С. Для вариативного товара остатки подтягиваются отдельно для каждой вариации по всем складам.</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <footer className="quick-editor-actions">
+          <button className="btn ghost" type="button" onClick={onClose} disabled={busy}>
+            Отмена
+          </button>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={onCreate}
+            disabled={busy || (draft.sync_from_1c ? !draft.external_id.trim() : !draft.name.trim())}
+          >
+            {busy ? <Loader2 className="spin" size={15} /> : <Plus size={15} />}
+            {busy ? 'Создаю…' : draft.sync_from_1c ? 'Создать из 1С' : 'Создать и открыть'}
+          </button>
         </footer>
       </section>
     </div>
