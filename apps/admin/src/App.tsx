@@ -227,7 +227,7 @@ function LoginRequired({
           </button>
         </div>
         <small>
-          После входа вернитесь на <strong>http://localhost:5174</strong>.
+          После входа вернитесь в <strong>/admin-ui/</strong>.
         </small>
       </div>
     </div>
