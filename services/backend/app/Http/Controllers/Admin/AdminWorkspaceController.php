@@ -75,8 +75,6 @@ class AdminWorkspaceController extends Controller
                 'name_desc',
                 'price_asc',
                 'price_desc',
-                'stock_asc',
-                'stock_desc',
             ])],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -139,8 +137,6 @@ class AdminWorkspaceController extends Controller
             'name_desc' => $query->orderByDesc('name'),
             'price_asc' => $query->orderBy('price'),
             'price_desc' => $query->orderByDesc('price'),
-            'stock_asc' => $query->orderBy('stock'),
-            'stock_desc' => $query->orderByDesc('stock'),
             default => $query->orderByDesc('updated_at'),
         };
 
