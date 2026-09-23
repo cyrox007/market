@@ -11,6 +11,10 @@ type RequestOptions = RequestInit & {
 function localizedServerMessage(message: unknown): string {
   const text = String(message ?? '').trim()
 
+  if (/SQLSTATE|Integrity constraint|Column .* cannot be null/i.test(text)) {
+    return 'Не удалось сохранить данные из-за ошибки целостности базы данных. Технические подробности записаны на сервере.'
+  }
+
   const known: Record<string, string> = {
     'This action is unauthorized.': 'Недостаточно прав для выполнения действия.',
     'Unauthenticated.': 'Требуется вход в административную панель.',
