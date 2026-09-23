@@ -432,7 +432,7 @@ function AdminApp() {
   }
 
   if (sessionError) {
-    return <FullScreenError title="Backend недоступен" message={sessionError} />
+    return <FullScreenError title="Сервер недоступен" message={sessionError} />
   }
 
   if (!session) {
@@ -1332,7 +1332,7 @@ function ProductEditor({
 
         if (editorResponse.contract_version !== 2) {
           throw new Error(
-            `Backend редактора товара использует устаревший контракт (ожидался v2, получено ${String(editorResponse.contract_version ?? 'без версии')}). Выполните php artisan optimize:clear.`,
+            `Сервер редактора товара использует устаревший контракт (ожидался v2, получено ${String(editorResponse.contract_version ?? 'без версии')}). Выполните php artisan optimize:clear.`,
           )
         }
 
@@ -1341,7 +1341,7 @@ function ProductEditor({
 
         if (!loadedProduct || Number(loadedProduct.id) !== productId) {
           throw new Error(
-            `Backend вернул некорректную карточку товара #${productId}: отсутствует product.id или id не совпадает.`,
+            `Сервер вернул некорректную карточку товара #${productId}: отсутствует product.id или id не совпадает.`,
           )
         }
 
@@ -1351,7 +1351,7 @@ function ProductEditor({
           || !Array.isArray(editorOptions.available_variation_attributes)
           || !Array.isArray(editorOptions.warehouses)) {
           throw new Error(
-            `Backend вернул неполные справочники редактора товара #${productId}.`,
+            `Сервер вернул неполные справочники редактора товара #${productId}.`,
           )
         }
 
@@ -1363,7 +1363,7 @@ function ProductEditor({
           || !Array.isArray(loadedProduct.attribute_rows)
           || !Array.isArray(loadedProduct.variants)) {
           throw new Error(
-            `Backend вернул неполную карточку товара #${productId}. Редактирование остановлено, чтобы не затереть существующие данные.`,
+            `Сервер вернул неполную карточку товара #${productId}. Редактирование остановлено, чтобы не затереть существующие данные.`,
           )
         }
 
