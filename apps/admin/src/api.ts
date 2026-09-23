@@ -94,6 +94,7 @@ export type ProductSummary = {
     name: string
     slug: string
   }>
+  updated_at: string | null
 }
 
 export type ProductDetails = ProductSummary & {
@@ -104,11 +105,15 @@ export type ProductDetails = ProductSummary & {
     id: number
     name: string
     slug: string
-    value_id: number | null
-    value: string | null
-    custom_value: string | null
+    type: string
+    source: 'product' | 'variants'
     is_multiple: boolean
     is_use_in_variations: boolean
+    values: Array<{
+      value_id: number | null
+      value: string
+      color_code: string | null
+    }>
   }>
   variation_attribute_ids: number[]
   variants: Array<{
@@ -233,6 +238,8 @@ export const backendApi = {
     search?: string
     categoryId?: number | null
     roomId?: number | null
+    state?: string
+    sort?: 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc'
     page?: number
   } = {}) => {
     const query = new URLSearchParams()
@@ -240,6 +247,8 @@ export const backendApi = {
     if (params.search) query.set('search', params.search)
     if (params.categoryId) query.set('category_id', String(params.categoryId))
     if (params.roomId) query.set('room_id', String(params.roomId))
+    if (params.state) query.set('state', params.state)
+    if (params.sort) query.set('sort', params.sort)
     if (params.page) query.set('page', String(params.page))
 
     const suffix = query.toString() ? `?${query.toString()}` : ''
