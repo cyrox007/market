@@ -1148,6 +1148,7 @@ function ProductEditor({
   }
 
   const variantAttributes = product.attributes.filter((attribute) => attribute.source === 'variants')
+  const tabUsesProductSave = tab === 'main' || tab === 'description' || tab === 'inventory'
   const mainImage = product.media.find((item) => item.collection === 'images') ?? null
   const galleryImages = product.media.filter((item) => item.collection === 'gallery')
 
@@ -1882,12 +1883,17 @@ function ProductEditor({
       <footer className="editor-foot">
         <span>
           {tab === 'attributes'
-            ? 'Характеристики сохраняются отдельной командой и не зависят от сохранения основной формы.'
-            : canUpdate
-              ? 'Изменения этой формы сохраняются в реальную локальную БД.'
-              : 'У пользователя нет разрешения update products'}
+            ? 'Характеристики сохраняются отдельной кнопкой внутри вкладки.'
+            : tab === 'media'
+              ? 'Загрузка, замена и удаление изображений сохраняются сразу.'
+              : tabUsesProductSave
+                ? canUpdate
+                  ? 'Изменения этой вкладки сохраняются кнопкой справа.'
+                  : 'У пользователя нет разрешения update products.'
+                : 'На этой вкладке пока нет изменяющих операций.'}
         </span>
-        {tab !== 'attributes' && (
+
+        {tabUsesProductSave && (
           <div>
             <button
               className="btn ghost"
