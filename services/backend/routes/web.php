@@ -47,6 +47,14 @@ Route::middleware([
             ->where('product', '[0-9]+');
         Route::put('/products/{product}/attributes', [AdminWorkspaceController::class, 'updateProductAttributes'])
             ->where('product', '[0-9]+');
+        Route::post('/products/{product}/variants', [AdminWorkspaceController::class, 'createProductVariant'])
+            ->where('product', '[0-9]+');
+        Route::put('/products/{product}/variants/{variant}', [AdminWorkspaceController::class, 'updateProductVariant'])
+            ->where('product', '[0-9]+')
+            ->where('variant', '[0-9]+');
+        Route::delete('/products/{product}/variants/{variant}', [AdminWorkspaceController::class, 'deleteProductVariant'])
+            ->where('product', '[0-9]+')
+            ->where('variant', '[0-9]+');
         Route::post('/products/{product}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
             ->where('product', '[0-9]+');
         Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
