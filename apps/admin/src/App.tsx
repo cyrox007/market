@@ -3522,7 +3522,12 @@ function GalleryManager({
 }) {
   const [draggedId, setDraggedId] = useState<number | null>(null)
   const [fileDragActive, setFileDragActive] = useState(false)
-  const remaining = Math.max(0, maxFiles - items.length)
+  const [orderedItems, setOrderedItems] = useState(items)
+  const remaining = Math.max(0, maxFiles - orderedItems.length)
+
+  useEffect(() => {
+    setOrderedItems(items)
+  }, [items])
 
   const uploadFiles = (files: File[]) => {
     if (remaining <= 0) return
@@ -3537,10 +3542,10 @@ function GalleryManager({
   const moveAround = (targetId: number, placeAfter: boolean) => {
     if (draggedId === null || draggedId === targetId) return
 
-    const dragged = items.find((item) => item.id === draggedId)
+    const dragged = orderedItems.find((item) => item.id === draggedId)
     if (!dragged) return
 
-    const next = items.filter((item) => item.id !== draggedId)
+    const next = orderedItems.filter((item) => item.id !== draggedId)
     const targetIndex = next.findIndex((item) => item.id === targetId)
     if (targetIndex < 0) return
 
@@ -3548,7 +3553,8 @@ function GalleryManager({
     setDraggedId(null)
 
     const ids = next.map((item) => item.id)
-    if (ids.some((id, index) => id !== items[index]?.id)) {
+    if (ids.some((id, index) => id !== orderedItems[index]?.id)) {
+      setOrderedItems(next)
       onReorder(ids)
     }
   }
@@ -3560,9 +3566,9 @@ function GalleryManager({
         <small>Перетаскивайте миниатюры, чтобы изменить порядок.</small>
       </div>
 
-      {items.length > 0 ? (
+      {orderedItems.length > 0 ? (
         <div className="gallery-grid sortable-gallery">
-          {items.map((item, index) => (
+          {orderedItems.map((item, index) => (
             <article
               className={draggedId === item.id ? 'gallery-item sortable dragging' : 'gallery-item sortable'}
               draggable={!disabled && !busy}
@@ -3643,7 +3649,7 @@ function GalleryManager({
         <strong>
           {remaining > 0
             ? `Перетащите фотографии сюда · можно ещё ${remaining}`
-            : 'Достигнут предел в 20 изображений'}
+            : `Достигнут предел в ${maxFiles} изображений`}
         </strong>
         <span>{remaining > 0 ? 'или нажмите и выберите несколько файлов сразу' : 'Удалите фотографию, чтобы загрузить новую'}</span>
         <input
