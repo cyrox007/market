@@ -726,6 +726,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
+  const [sectionsOpen, setSectionsOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createDraft, setCreateDraft] = useState<ProductCreateDraft>(productCreateDraft())
   const [creatingProduct, setCreatingProduct] = useState(false)
@@ -817,6 +818,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const chooseSection = (value: TreeRow | null) => {
     setSelectedSection(value)
     setProductsPage(1)
+    setSectionsOpen(false)
   }
 
   const clearFilters = () => {
@@ -873,7 +875,17 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   return (
     <>
     <div className="catalog-browser-layout">
-      <section className="panel section-panel">
+      <section className={sectionsOpen ? 'panel section-panel catalog-sections-panel open' : 'panel section-panel catalog-sections-panel'}>
+        <div className="catalog-sections-mobile-head">
+          <div>
+            <strong>Разделы каталога</strong>
+            <small>Категории и комнаты</small>
+          </div>
+          <button type="button" onClick={() => setSectionsOpen(false)} aria-label="Закрыть разделы">
+            <X size={16} />
+          </button>
+        </div>
+
         <PanelHead eyebrow="Структура" title="Разделы" subtitle="Категории и комнаты" />
 
         <div className="segmented">
@@ -932,12 +944,22 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
             <h2>{selectedSection?.name ?? 'Все товары'}</h2>
             <p>{productsTotal} товаров</p>
           </div>
-          {session.permissions.products?.create && (
-            <button className="btn primary" type="button" onClick={openCreateDialog}>
-              <Plus size={15} />
-              Создать товар
+          <div className="catalog-head-actions">
+            <button
+              className="btn ghost catalog-section-toggle"
+              type="button"
+              onClick={() => setSectionsOpen(true)}
+            >
+              <FolderTree size={15} />
+              Разделы
             </button>
-          )}
+            {session.permissions.products?.create && (
+              <button className="btn primary" type="button" onClick={openCreateDialog}>
+                <Plus size={15} />
+                Создать товар
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="catalog-toolbar">
@@ -1066,6 +1088,13 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
         </footer>
       </section>
     </div>
+
+    <button
+      className={sectionsOpen ? 'catalog-sections-backdrop open' : 'catalog-sections-backdrop'}
+      type="button"
+      aria-label="Закрыть разделы каталога"
+      onClick={() => setSectionsOpen(false)}
+    />
 
     {createDialogOpen && (
       <ProductCreateDialog
