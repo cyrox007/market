@@ -1136,7 +1136,7 @@ function ProductEditor({
     onProductSaved(saved)
   }
 
-  const saveProduct = async () => {
+  const saveProduct = async (exitAfterSave = false) => {
     if (!canUpdate) return
 
     setSaving(true)
@@ -1176,6 +1176,10 @@ function ProductEditor({
 
       applySavedProduct(response.product)
       setMessage(response.message)
+
+      if (exitAfterSave) {
+        onBack()
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError))
     } finally {
@@ -1737,6 +1741,7 @@ function ProductEditor({
       setMessage(response.message)
     } catch (mediaError) {
       setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
+      throw mediaError
     } finally {
       setMediaSaving(false)
     }
@@ -1763,6 +1768,7 @@ function ProductEditor({
       setVariantMessage(response.message)
     } catch (mediaError) {
       setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
+      throw mediaError
     } finally {
       setVariantSaving(false)
     }
@@ -1807,6 +1813,18 @@ function ProductEditor({
         </div>
 
         <div className="editor-actions">
+          {product.slug && (
+            <a
+              className="btn ghost small"
+              href={`/product/${encodeURIComponent(product.slug)}`}
+              target="_blank"
+              rel="noreferrer"
+              title="Открыть сохранённую карточку товара на сайте"
+            >
+              <ExternalLink size={14} />
+              Просмотр на сайте
+            </a>
+          )}
           <Status value={stateLabel(product.state)} />
           {!canUpdate && <span className="readonly-badge">Только чтение</span>}
         </div>
@@ -1829,17 +1847,20 @@ function ProductEditor({
             </div>
           </div>
 
-          {error && <span className="chip error"><CircleAlert size={13} /> Есть ошибка</span>}
-          {message && <span className="chip ok"><CheckCircle2 size={13} /> {message}</span>}
-          {attributesMessage && <span className="chip ok"><CheckCircle2 size={13} /> {attributesMessage}</span>}
-          {variantMessage && <span className="chip ok"><CheckCircle2 size={13} /> {variantMessage}</span>}
+          {error && <span className="chip error" role="status"><CircleAlert size={13} /> Есть ошибка</span>}
+          {message && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {message}</span>}
+          {attributesMessage && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {attributesMessage}</span>}
+          {variantMessage && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {variantMessage}</span>}
         </div>
 
         {error && (
-          <div className="quality-problems">
+          <div className="quality-problems" role="alert" aria-live="assertive">
             <div className="backend-error">
               <CircleAlert size={15} />
-              <strong>{error}</strong>
+              <div>
+                <strong>Не удалось сохранить изменения</strong>
+                <span>{error}</span>
+              </div>
             </div>
           </div>
         )}
@@ -2593,7 +2614,7 @@ function ProductEditor({
                   busy={mediaSaving}
                   onFiles={(files) => void uploadMedia('gallery', files)}
                   onDelete={(mediaId) => void deleteMedia(mediaId)}
-                  onReorder={(mediaIds) => void reorderMedia(mediaIds)}
+                  onReorder={reorderMedia}
                 />
               </Card>
             </div>
@@ -2693,13 +2714,22 @@ function ProductEditor({
               Сбросить
             </button>
             <button
-              className="btn primary"
+              className="btn ghost"
               type="button"
-              onClick={saveProduct}
+              onClick={() => void saveProduct(true)}
               disabled={saving || !canUpdate}
             >
-              {saving ? <Loader2 className="spin" size={15} /> : null}
-              {saving ? 'Сохраняю…' : 'Сохранить изменения'}
+              {saving ? <Loader2 className="spin" size={15} /> : <ArrowLeft size={14} />}
+              {saving ? 'Сохраняю…' : 'Сохранить и выйти'}
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => void saveProduct(false)}
+              disabled={saving || !canUpdate}
+            >
+              {saving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
+              {saving ? 'Сохраняю…' : 'Сохранить'}
             </button>
           </div>
         )}
@@ -3518,16 +3548,19 @@ function GalleryManager({
   busy: boolean
   onFiles: (files: File[]) => void
   onDelete: (mediaId: number) => void
-  onReorder: (mediaIds: number[]) => void
+  onReorder: (mediaIds: number[]) => Promise<void>
 }) {
   const [draggedId, setDraggedId] = useState<number | null>(null)
   const [fileDragActive, setFileDragActive] = useState(false)
   const [orderedItems, setOrderedItems] = useState(items)
   const remaining = Math.max(0, maxFiles - orderedItems.length)
+  const itemsSignature = items
+    .map((item) => `${item.id}:${item.order}`)
+    .join('|')
 
   useEffect(() => {
     setOrderedItems(items)
-  }, [items])
+  }, [itemsSignature])
 
   const uploadFiles = (files: File[]) => {
     if (remaining <= 0) return
@@ -3539,7 +3572,7 @@ function GalleryManager({
     if (images.length > 0) onFiles(images)
   }
 
-  const moveAround = (targetId: number, placeAfter: boolean) => {
+  const moveAround = async (targetId: number, placeAfter: boolean) => {
     if (draggedId === null || draggedId === targetId) return
 
     const dragged = orderedItems.find((item) => item.id === draggedId)
@@ -3553,9 +3586,16 @@ function GalleryManager({
     setDraggedId(null)
 
     const ids = next.map((item) => item.id)
-    if (ids.some((id, index) => id !== orderedItems[index]?.id)) {
-      setOrderedItems(next)
-      onReorder(ids)
+    if (!ids.some((id, index) => id !== orderedItems[index]?.id)) {
+      return
+    }
+
+    setOrderedItems(next)
+
+    try {
+      await onReorder(ids)
+    } catch {
+      setOrderedItems(items)
     }
   }
 
@@ -3593,7 +3633,7 @@ function GalleryManager({
 
                 const bounds = event.currentTarget.getBoundingClientRect()
                 const placeAfter = event.clientY > bounds.top + bounds.height / 2
-                moveAround(item.id, placeAfter)
+                void moveAround(item.id, placeAfter)
               }}
               key={item.id}
             >
