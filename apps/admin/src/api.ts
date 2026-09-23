@@ -186,6 +186,15 @@ export type ProductDetails = ProductSummary & {
     stock: number
     backorder: boolean
     external_id: string | null
+    media: Array<{
+      id: number
+      collection: 'images' | 'gallery'
+      name: string
+      file_name: string
+      url: string
+      thumb_url: string
+      order: number
+    }>
     attributes: ProductAttributeRow[]
     warehouse_stocks: Array<{
       warehouse_id: number
@@ -454,6 +463,42 @@ export const backendApi = {
         csrfToken,
       },
     ),
+
+  uploadProductVariantMedia: (
+    productId: number,
+    variantId: number,
+    collection: 'images' | 'gallery',
+    file: File,
+    csrfToken: string,
+  ) => {
+    const form = new FormData()
+    form.append('collection', collection)
+    form.append('file', file)
+
+    return request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/variants/${variantId}/media`,
+      {
+        method: 'POST',
+        body: form,
+        csrfToken,
+      },
+    )
+  },
+
+  deleteProductVariantMedia: (
+    productId: number,
+    variantId: number,
+    mediaId: number,
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/variants/${variantId}/media/${mediaId}`,
+      {
+        method: 'DELETE',
+        csrfToken,
+      },
+    ),
+
 
   uploadProductMedia: (
     id: number,
