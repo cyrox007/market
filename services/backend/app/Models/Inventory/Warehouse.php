@@ -3,6 +3,7 @@
 namespace App\Models\Inventory;
 
 use App\Models\Shipping\ShippingLocation;
+use App\Models\Shipping\WarehouseDeliveryMethod;
 use App\Models\Shipping\WarehouseDeliveryRule;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,10 @@ class Warehouse extends Model
         'meta' => 'array',
     ];
 
+    /**
+     * Устаревшие прямые связи склада с локациями.
+     * Оставлены для совместимости с ранее заведёнными данными.
+     */
     public function shippingLocations(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -41,9 +46,17 @@ class Warehouse extends Model
         ])->withTimestamps();
     }
 
+    /**
+     * Устаревшие правила склада. Новая логистика использует deliveryMethods().
+     */
     public function deliveryRules(): HasMany
     {
         return $this->hasMany(WarehouseDeliveryRule::class);
+    }
+
+    public function deliveryMethods(): HasMany
+    {
+        return $this->hasMany(WarehouseDeliveryMethod::class);
     }
 
     public function productStocks(): HasMany
