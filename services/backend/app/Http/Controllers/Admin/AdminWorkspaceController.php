@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Product\GetVariationAttributesForProductAction;
+use App\Actions\Product\SyncVariantVariationAttributesAction;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\ProductWarehouseStock;
 use App\Models\Inventory\Warehouse;
 use App\Models\Order\Order;
 use App\Models\Page\Store;
 use App\Models\Product\Attribute;
+use App\Models\Product\AttributeValue;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\Product\Room;
@@ -40,7 +43,9 @@ class AdminWorkspaceController extends Controller
             'permissions' => [
                 'products' => [
                     'view' => $user->can('viewAny products'),
+                    'create' => $user->can('create products'),
                     'update' => $user->can('update products'),
+                    'delete' => $user->can('delete products'),
                 ],
                 'attributes' => [
                     'view' => $user->can('viewAny attributes'),
@@ -339,6 +344,25 @@ class AdminWorkspaceController extends Controller
                     'color_code' => $this->nullableScalarString($value->color_code),
                 ])->values(),
             ])->values(),
+            'variation_attributes' => app(GetVariationAttributesForProductAction::class)
+                ->execute($product)
+                ->map(fn (Attribute $attribute) => [
+                    'id' => (int) $attribute->id,
+                    'name' => $this->scalarString($attribute->name),
+                    'slug' => $this->scalarString($attribute->slug),
+                    'type' => $this->scalarString($attribute->type),
+                    'is_required' => (bool) $attribute->is_required,
+                    'is_filterable' => (bool) $attribute->is_filterable,
+                    'is_multiple' => (bool) $attribute->is_multiple,
+                    'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
+                    'allow_custom_value' => (bool) $attribute->allow_custom_value,
+                    'values' => $attribute->orderedValues->map(fn ($value) => [
+                        'id' => (int) $value->id,
+                        'value' => $this->scalarString($value->value),
+                        'slug' => $this->scalarString($value->slug),
+                        'color_code' => $this->nullableScalarString($value->color_code),
+                    ])->values(),
+                ])->values(),
             'tax_categories' => TaxCategory::query()
                 ->orderBy('name')
                 ->get(['id', 'name'])
@@ -415,6 +439,135 @@ class AdminWorkspaceController extends Controller
 
         return response()->json([
             'message' => 'Характеристики сохранены',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function createProductVariant(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+        Gate::authorize('create', Product::class);
+
+        if ($product->isVariant()) {
+            throw ValidationException::withMessages([
+                'product' => 'Нельзя создавать торговые предложения у торгового предложения.',
+            ]);
+        }
+
+        $validated = $this->validateVariantRequest($request);
+        $variationData = $this->normalizeVariantAttributeData(
+            $product,
+            $validated['attributes'] ?? []
+        );
+
+        DB::transaction(function () use ($product, $validated, $variationData): void {
+            $variant = Product::query()->create([
+                'parent_product_id' => $product->id,
+                'is_variable' => false,
+                'name' => $validated['name'],
+                'sku' => $validated['sku'],
+                'price' => $validated['price'],
+                'original_price' => $validated['original_price'] ?? null,
+                'stock' => ProductStockSettings::getInstance()->warehouse_accounting_enabled
+                    ? 0
+                    : ($validated['stock'] ?? 0),
+                'backorder' => (bool) $validated['backorder'],
+                'state' => $validated['state'],
+                'external_id' => $validated['external_id'] ?? null,
+                'description' => $product->description,
+                'excerpt' => $product->excerpt,
+                'length' => $product->length,
+                'width' => $product->width,
+                'height' => $product->height,
+                'weight' => $product->weight,
+            ]);
+
+            app(SyncVariantVariationAttributesAction::class)
+                ->execute($variant, $variationData, $product);
+
+            $this->syncWarehouseStocks(
+                $variant,
+                $validated['warehouse_stocks'] ?? []
+            );
+
+            if (! $product->isVariable()) {
+                $product->forceFill(['is_variable' => true])->save();
+            }
+        });
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Торговое предложение создано',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function updateProductVariant(
+        Request $request,
+        Product $product,
+        Product $variant
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+        Gate::authorize('update', $variant);
+        $this->ensureVariantBelongsToProduct($product, $variant);
+
+        $validated = $this->validateVariantRequest($request, $variant);
+        $variationData = $this->normalizeVariantAttributeData(
+            $product,
+            $validated['attributes'] ?? []
+        );
+
+        DB::transaction(function () use ($product, $variant, $validated, $variationData): void {
+            $variant->name = $validated['name'];
+            $variant->sku = $validated['sku'];
+            $variant->price = $validated['price'];
+            $variant->original_price = $validated['original_price'] ?? null;
+            $variant->backorder = (bool) $validated['backorder'];
+            $variant->state = $validated['state'];
+            $variant->external_id = $validated['external_id'] ?? null;
+
+            if (! ProductStockSettings::getInstance()->warehouse_accounting_enabled) {
+                $variant->stock = $validated['stock'] ?? 0;
+            }
+
+            $variant->save();
+
+            app(SyncVariantVariationAttributesAction::class)
+                ->execute($variant, $variationData, $product);
+
+            $this->syncWarehouseStocks(
+                $variant,
+                $validated['warehouse_stocks'] ?? []
+            );
+        });
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Торговое предложение сохранено',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function deleteProductVariant(Product $product, Product $variant): JsonResponse
+    {
+        Gate::authorize('update', $product);
+        Gate::authorize('delete', $variant);
+        $this->ensureVariantBelongsToProduct($product, $variant);
+
+        DB::transaction(function () use ($product, $variant): void {
+            $variant->delete();
+
+            if (! $product->variants()->exists()) {
+                $product->forceFill(['is_variable' => false])->save();
+            }
+        });
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Торговое предложение удалено',
             'product' => $this->productDetails($product),
         ]);
     }
@@ -775,14 +928,9 @@ class AdminWorkspaceController extends Controller
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->values(),
-            'variants' => $product->variants->map(fn (Product $variant) => [
-                'id' => $variant->id,
-                'name' => $this->scalarString($variant->name),
-                'sku' => $this->scalarString($variant->sku),
-                'state' => $this->scalarString($variant->getRawOriginal('state') ?? $variant->state),
-                'price' => (float) $variant->price,
-                'stock' => (int) ($variant->stock ?? 0),
-            ])->values(),
+            'variants' => $product->variants
+                ->map(fn (Product $variant) => $this->variantPayload($variant))
+                ->values(),
             'warehouse_stocks' => $product->warehouseStocks->map(fn ($stock) => [
                 'warehouse_id' => (int) $stock->warehouse_id,
                 'warehouse_name' => $this->nullableScalarString($stock->warehouse?->name),
@@ -831,6 +979,209 @@ class AdminWorkspaceController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function validateVariantRequest(
+        Request $request,
+        ?Product $variant = null
+    ): array {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'sku' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('products', 'sku')->ignore($variant?->id),
+            ],
+            'price' => ['required', 'numeric', 'min:0'],
+            'original_price' => ['nullable', 'numeric', 'min:0'],
+            'stock' => ['nullable', 'numeric', 'min:0'],
+            'backorder' => ['required', 'boolean'],
+            'state' => ['required', Rule::in(['active', 'draft', 'inactive'])],
+            'external_id' => ['nullable', 'string', 'max:255'],
+            'warehouse_stocks' => ['array'],
+            'warehouse_stocks.*.warehouse_id' => ['required', 'integer'],
+            'warehouse_stocks.*.quantity' => ['required', 'numeric', 'min:0'],
+            'attributes' => ['array'],
+            'attributes.*.attribute_id' => ['required', 'integer'],
+            'attributes.*.attribute_value_id' => ['array'],
+            'attributes.*.attribute_value_id.*' => ['integer'],
+            'attributes.*.custom_value' => ['nullable', 'string', 'max:1000'],
+        ]);
+    }
+
+    private function normalizeVariantAttributeData(
+        Product $parent,
+        array $rows
+    ): array {
+        $attributes = app(GetVariationAttributesForProductAction::class)
+            ->execute($parent)
+            ->keyBy('id');
+
+        $rowsByAttribute = collect($rows)->keyBy(
+            fn (array $row) => (int) ($row['attribute_id'] ?? 0)
+        );
+
+        $data = [];
+
+        foreach ($attributes as $attributeId => $attribute) {
+            $row = $rowsByAttribute->get((int) $attributeId, []);
+            $valueIds = collect($row['attribute_value_id'] ?? [])
+                ->filter(fn ($value) => is_numeric($value))
+                ->map(fn ($value) => (int) $value)
+                ->unique()
+                ->values();
+
+            $validValueIds = AttributeValue::query()
+                ->where('attribute_id', $attribute->id)
+                ->whereIn('id', $valueIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values();
+
+            if ($validValueIds->count() !== $valueIds->count()) {
+                throw ValidationException::withMessages([
+                    'attributes' => "Для характеристики «{$attribute->name}» выбрано недопустимое значение.",
+                ]);
+            }
+
+            if (! $attribute->is_multiple && $validValueIds->count() > 1) {
+                throw ValidationException::withMessages([
+                    'attributes' => "Характеристика «{$attribute->name}» допускает только одно значение.",
+                ]);
+            }
+
+            $customValue = trim((string) ($row['custom_value'] ?? ''));
+            if ($customValue !== '' && ! $attribute->allow_custom_value) {
+                throw ValidationException::withMessages([
+                    'attributes' => "Характеристика «{$attribute->name}» не допускает ручное значение.",
+                ]);
+            }
+
+            $required = $attribute->is_required
+                || $attribute->slug === Attribute::SLUG_VARIANT;
+
+            if ($required && $validValueIds->isEmpty() && $customValue === '') {
+                throw ValidationException::withMessages([
+                    'attributes' => "Заполните характеристику «{$attribute->name}».",
+                ]);
+            }
+
+            if ($validValueIds->isNotEmpty()) {
+                $data['variation_attr_' . $attribute->id] = $attribute->is_multiple
+                    ? $validValueIds->all()
+                    : $validValueIds->first();
+            }
+
+            if ($customValue !== '') {
+                $data['variation_custom_' . $attribute->id] = $customValue;
+            }
+        }
+
+        return $data;
+    }
+
+    private function syncWarehouseStocks(Product $product, array $rows): void
+    {
+        if (! ProductStockSettings::getInstance()->warehouse_accounting_enabled) {
+            return;
+        }
+
+        $normalized = collect($rows)
+            ->map(fn (array $row) => [
+                'warehouse_id' => (int) ($row['warehouse_id'] ?? 0),
+                'quantity' => (float) ($row['quantity'] ?? 0),
+            ])
+            ->filter(fn (array $row) => $row['warehouse_id'] > 0)
+            ->unique('warehouse_id')
+            ->values();
+
+        $warehouseIds = Warehouse::query()
+            ->whereIn('id', $normalized->pluck('warehouse_id'))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id);
+
+        if ($warehouseIds->count() !== $normalized->count()) {
+            throw ValidationException::withMessages([
+                'warehouse_stocks' => 'Один или несколько складов не найдены.',
+            ]);
+        }
+
+        $product->warehouseStocks()
+            ->whereNotIn('warehouse_id', $warehouseIds->all())
+            ->delete();
+
+        foreach ($normalized as $row) {
+            ProductWarehouseStock::query()->updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'warehouse_id' => $row['warehouse_id'],
+                ],
+                ['quantity' => $row['quantity']],
+            );
+        }
+    }
+
+    private function ensureVariantBelongsToProduct(
+        Product $product,
+        Product $variant
+    ): void {
+        abort_unless(
+            (int) $variant->parent_product_id === (int) $product->id,
+            404
+        );
+    }
+
+    private function variantPayload(Product $variant): array
+    {
+        $variant->loadMissing(['warehouseStocks.warehouse']);
+
+        $attributeRows = DB::table('product_variant_attributes')
+            ->where('product_id', $variant->id)
+            ->get()
+            ->groupBy('attribute_id')
+            ->map(function ($rows, $attributeId): array {
+                return [
+                    'attribute_id' => (int) $attributeId,
+                    'attribute_value_id' => $rows
+                        ->pluck('attribute_value_id')
+                        ->filter()
+                        ->map(fn ($id) => (int) $id)
+                        ->unique()
+                        ->values()
+                        ->all(),
+                    'custom_value' => (string) (
+                        $rows
+                            ->pluck('custom_value')
+                            ->first(fn ($value) => filled($value))
+                        ?? ''
+                    ),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'id' => (int) $variant->id,
+            'name' => $this->scalarString($variant->name),
+            'sku' => $this->scalarString($variant->sku),
+            'state' => $this->scalarString(
+                $variant->getRawOriginal('state') ?? $variant->state
+            ),
+            'price' => (float) $variant->price,
+            'original_price' => $variant->original_price !== null
+                ? (float) $variant->original_price
+                : null,
+            'stock' => (float) ($variant->getRawOriginal('stock') ?? $variant->stock ?? 0),
+            'backorder' => (bool) ($variant->getRawOriginal('backorder') ?? $variant->backorder ?? false),
+            'external_id' => $this->nullableScalarString($variant->external_id),
+            'attributes' => $attributeRows,
+            'warehouse_stocks' => $variant->warehouseStocks->map(fn ($stock) => [
+                'warehouse_id' => (int) $stock->warehouse_id,
+                'warehouse_name' => $this->nullableScalarString($stock->warehouse?->name),
+                'quantity' => (float) $stock->quantity,
+            ])->values(),
+        ];
     }
 
     private function scalarString(mixed $value): string
