@@ -52,7 +52,9 @@ class AdminWorkspaceController extends Controller
                 ],
                 'attributes' => [
                     'view' => $user->can('viewAny attributes'),
+                    'create' => $user->can('create attributes'),
                     'update' => $user->can('update attributes'),
+                    'delete' => $user->can('delete attributes'),
                 ],
                 'orders' => [
                     'view' => $user->can('viewAny orders'),
@@ -331,6 +333,10 @@ class AdminWorkspaceController extends Controller
 
         $stockSettings = ProductStockSettings::getInstance();
 
+        // Системный атрибут «Вариант» должен существовать до формирования
+        // полного списка параметров торговых предложений.
+        Attribute::ensureVariantAttribute();
+
         $attributes = Attribute::query()
             ->with('orderedValues')
             ->when(
@@ -361,6 +367,29 @@ class AdminWorkspaceController extends Controller
             ])->values(),
             'variation_attributes' => app(GetVariationAttributesForProductAction::class)
                 ->execute($product)
+                ->map(fn (Attribute $attribute) => [
+                    'id' => (int) $attribute->id,
+                    'name' => $this->scalarString($attribute->name),
+                    'slug' => $this->scalarString($attribute->slug),
+                    'type' => $this->scalarString($attribute->type),
+                    'is_required' => (bool) $attribute->is_required,
+                    'is_filterable' => (bool) $attribute->is_filterable,
+                    'is_multiple' => (bool) $attribute->is_multiple,
+                    'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
+                    'allow_custom_value' => (bool) $attribute->allow_custom_value,
+                    'values' => $attribute->orderedValues->map(fn ($value) => [
+                        'id' => (int) $value->id,
+                        'value' => $this->scalarString($value->value),
+                        'slug' => $this->scalarString($value->slug),
+                        'color_code' => $this->nullableScalarString($value->color_code),
+                    ])->values(),
+                ])->values(),
+            'available_variation_attributes' => Attribute::query()
+                ->where('is_use_in_variations', true)
+                ->with('orderedValues')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get()
                 ->map(fn (Attribute $attribute) => [
                     'id' => (int) $attribute->id,
                     'name' => $this->scalarString($attribute->name),
@@ -451,6 +480,57 @@ class AdminWorkspaceController extends Controller
 
         return response()->json([
             'message' => 'Товар синхронизирован с 1С',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function updateProductVariationAttributes(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $validated = $request->validate([
+            'attribute_ids' => ['array'],
+            'attribute_ids.*' => ['integer'],
+        ]);
+
+        $requestedIds = collect($validated['attribute_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $attributes = Attribute::query()
+            ->whereIn('id', $requestedIds)
+            ->where('is_use_in_variations', true)
+            ->get();
+
+        if ($attributes->count() !== $requestedIds->count()) {
+            throw ValidationException::withMessages([
+                'attribute_ids' => 'Одна или несколько характеристик нельзя использовать для вариаций.',
+            ]);
+        }
+
+        $systemVariant = Attribute::ensureVariantAttribute();
+        $selectionIds = $requestedIds
+            ->push((int) $systemVariant->id)
+            ->unique()
+            ->values();
+
+        DB::transaction(function () use ($product, $selectionIds): void {
+            $product->variationAttributeSelection()->sync($selectionIds->all());
+
+            $variantIds = $product->variants()->pluck('id');
+            if ($variantIds->isNotEmpty()) {
+                DB::table('product_variant_attributes')
+                    ->whereIn('product_id', $variantIds)
+                    ->whereNotIn('attribute_id', $selectionIds->all())
+                    ->delete();
+            }
+        });
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Параметры вариаций сохранены',
             'product' => $this->productDetails($product),
         ]);
     }
@@ -704,7 +784,8 @@ class AdminWorkspaceController extends Controller
         $validated = $this->validateVariantRequest($request);
         $variationData = $this->normalizeVariantAttributeData(
             $product,
-            $validated['attributes'] ?? []
+            $validated['attributes'] ?? [],
+            $validated['name']
         );
 
         DB::transaction(function () use ($product, $validated, $variationData): void {
@@ -762,7 +843,8 @@ class AdminWorkspaceController extends Controller
         $validated = $this->validateVariantRequest($request, $variant);
         $variationData = $this->normalizeVariantAttributeData(
             $product,
-            $validated['attributes'] ?? []
+            $validated['attributes'] ?? [],
+            $validated['name']
         );
 
         DB::transaction(function () use ($product, $variant, $validated, $variationData): void {
@@ -835,9 +917,9 @@ class AdminWorkspaceController extends Controller
 
         $collection = $validated['collection'];
 
-        if ($collection === 'gallery' && $variant->getMedia('gallery')->count() >= 10) {
+        if ($collection === 'gallery' && $variant->getMedia('gallery')->count() >= 20) {
             throw ValidationException::withMessages([
-                'file' => 'В галерее уже 10 изображений. Удалите одно из них перед загрузкой нового.',
+                'file' => 'В галерее уже 20 изображений. Удалите одно из них перед загрузкой нового.',
             ]);
         }
 
@@ -884,6 +966,24 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
+    public function reorderProductVariantMedia(
+        Request $request,
+        Product $product,
+        Product $variant
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+        Gate::authorize('update', $variant);
+        $this->ensureVariantBelongsToProduct($product, $variant);
+
+        $this->reorderGallery($request, $variant);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Порядок изображений вариации сохранён',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
     public function uploadProductMedia(Request $request, Product $product): JsonResponse
     {
         Gate::authorize('update', $product);
@@ -895,9 +995,9 @@ class AdminWorkspaceController extends Controller
 
         $collection = $validated['collection'];
 
-        if ($collection === 'gallery' && $product->getMedia('gallery')->count() >= 10) {
+        if ($collection === 'gallery' && $product->getMedia('gallery')->count() >= 20) {
             throw ValidationException::withMessages([
-                'file' => 'В галерее уже 10 изображений. Удалите одно из них перед загрузкой нового.',
+                'file' => 'В галерее уже 20 изображений. Удалите одно из них перед загрузкой нового.',
             ]);
         }
 
@@ -937,6 +1037,110 @@ class AdminWorkspaceController extends Controller
             'message' => 'Изображение удалено',
             'product' => $this->productDetails($product),
         ]);
+    }
+
+    public function reorderProductMedia(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $this->reorderGallery($request, $product);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Порядок изображений сохранён',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function createAttribute(Request $request): JsonResponse
+    {
+        Gate::authorize('create', Attribute::class);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255'],
+            'type' => ['required', Rule::in(['select', 'color', 'string', 'text', 'number', 'number_input'])],
+            'is_filterable' => ['required', 'boolean'],
+            'is_required' => ['required', 'boolean'],
+            'is_use_in_variations' => ['required', 'boolean'],
+            'allow_custom_value' => ['required', 'boolean'],
+            'is_multiple' => ['required', 'boolean'],
+        ]);
+
+        $slug = filled($validated['slug'] ?? null)
+            ? IlluminateSupportStr::slug((string) $validated['slug'])
+            : Attribute::canonicalSlugForName((string) $validated['name']);
+
+        if ($slug === '' || Attribute::query()->where('slug', $slug)->exists()) {
+            throw ValidationException::withMessages([
+                'slug' => $slug === ''
+                    ? 'Не удалось сформировать slug характеристики.'
+                    : 'Характеристика с таким slug уже существует.',
+            ]);
+        }
+
+        $nextOrder = ((int) Attribute::query()->max('sort_order')) + 10;
+
+        $attribute = Attribute::query()->create([
+            ...$validated,
+            'slug' => $slug,
+            'sort_order' => $nextOrder,
+        ]);
+
+        $attribute->load('orderedValues')->loadCount('products');
+
+        return response()->json([
+            'message' => 'Характеристика создана',
+            'attribute' => $this->attributeDefinitionPayload($attribute),
+        ], 201);
+    }
+
+    public function createAttributeValue(Request $request, Attribute $attribute): JsonResponse
+    {
+        Gate::authorize('update', $attribute);
+
+        $validated = $request->validate([
+            'value' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255'],
+            'color_code' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $baseSlug = filled($validated['slug'] ?? null)
+            ? IlluminateSupportStr::slug((string) $validated['slug'])
+            : IlluminateSupportStr::slug((string) $validated['value']);
+
+        if ($baseSlug === '') {
+            $baseSlug = 'value';
+        }
+
+        $slug = $baseSlug;
+        $suffix = 2;
+        while (AttributeValue::query()
+            ->where('attribute_id', $attribute->id)
+            ->where('slug', $slug)
+            ->exists()) {
+            $slug = $baseSlug . '-' . $suffix;
+            $suffix++;
+        }
+
+        $nextOrder = ((int) $attribute->values()->max('sort_order')) + 10;
+
+        AttributeValue::query()->create([
+            'attribute_id' => $attribute->id,
+            'value' => trim((string) $validated['value']),
+            'slug' => $slug,
+            'color_code' => $attribute->type === 'color'
+                ? ($validated['color_code'] ?? null)
+                : null,
+            'sort_order' => $nextOrder,
+        ]);
+
+        $attribute->load('orderedValues')->loadCount('products');
+
+        return response()->json([
+            'message' => 'Значение характеристики создано',
+            'attribute' => $this->attributeDefinitionPayload($attribute),
+        ], 201);
     }
 
     public function attributes(): JsonResponse
@@ -1475,7 +1679,8 @@ class AdminWorkspaceController extends Controller
 
     private function normalizeVariantAttributeData(
         Product $parent,
-        array $rows
+        array $rows,
+        ?string $variantName = null
     ): array {
         $attributes = app(GetVariationAttributesForProductAction::class)
             ->execute($parent)
@@ -1515,6 +1720,16 @@ class AdminWorkspaceController extends Controller
             }
 
             $customValue = trim((string) ($row['custom_value'] ?? ''));
+
+            // Системный «Вариант» не должен блокировать создание торгового предложения:
+            // если оператор не задавал его отдельно, используем название вариации.
+            if ($attribute->slug === Attribute::SLUG_VARIANT
+                && $validValueIds->isEmpty()
+                && $customValue === ''
+                && filled($variantName)) {
+                $customValue = trim((string) $variantName);
+            }
+
             if ($customValue !== '' && ! $attribute->allow_custom_value) {
                 throw ValidationException::withMessages([
                     'attributes' => "Характеристика «{$attribute->name}» не допускает ручное значение.",
@@ -1662,6 +1877,70 @@ class AdminWorkspaceController extends Controller
                 'warehouse_id' => (int) $stock->warehouse_id,
                 'warehouse_name' => $this->nullableScalarString($stock->warehouse?->name),
                 'quantity' => (float) $stock->quantity,
+            ])->values(),
+        ];
+    }
+
+    private function reorderGallery(Request $request, Product $owner): void
+    {
+        $validated = $request->validate([
+            'media_ids' => ['required', 'array', 'max:20'],
+            'media_ids.*' => ['integer'],
+        ]);
+
+        $currentIds = $owner->getMedia('gallery')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $requestedIds = collect($validated['media_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $currentSorted = $currentIds->sort()->values()->all();
+        $requestedSorted = $requestedIds->sort()->values()->all();
+
+        if ($currentSorted !== $requestedSorted) {
+            throw ValidationException::withMessages([
+                'media_ids' => 'Передан неполный или посторонний набор изображений галереи.',
+            ]);
+        }
+
+        DB::transaction(function () use ($owner, $requestedIds): void {
+            foreach ($requestedIds as $index => $mediaId) {
+                Media::query()
+                    ->whereKey($mediaId)
+                    ->where('model_type', $owner->getMorphClass())
+                    ->where('model_id', $owner->id)
+                    ->where('collection_name', 'gallery')
+                    ->update(['order_column' => $index + 1]);
+            }
+        });
+    }
+
+    private function attributeDefinitionPayload(Attribute $attribute): array
+    {
+        $attribute->loadMissing('orderedValues');
+
+        return [
+            'id' => (int) $attribute->id,
+            'name' => $this->scalarString($attribute->name),
+            'slug' => $this->scalarString($attribute->slug),
+            'type' => $this->scalarString($attribute->type),
+            'is_filterable' => (bool) $attribute->is_filterable,
+            'is_required' => (bool) $attribute->is_required,
+            'is_use_in_variations' => (bool) $attribute->is_use_in_variations,
+            'allow_custom_value' => (bool) $attribute->allow_custom_value,
+            'is_multiple' => (bool) $attribute->is_multiple,
+            'sort_order' => (int) $attribute->sort_order,
+            'products_count' => (int) ($attribute->products_count ?? 0),
+            'values' => $attribute->orderedValues->map(fn ($value) => [
+                'id' => (int) $value->id,
+                'value' => $this->scalarString($value->value),
+                'slug' => $this->scalarString($value->slug),
+                'sort_order' => (int) $value->sort_order,
+                'color_code' => $this->nullableScalarString($value->color_code),
             ])->values(),
         ];
     }
