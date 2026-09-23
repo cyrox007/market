@@ -27,10 +27,14 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
     redirect: 'follow',
   })
 
+  if (response.status === 401) {
+    throw new AuthRequiredError()
+  }
+
   const contentType = response.headers.get('content-type') ?? ''
 
   if (!contentType.includes('application/json')) {
-    if (response.url.includes('/admin_sv/login') || response.status === 401) {
+    if (response.url.includes('/admin_sv/login')) {
       throw new AuthRequiredError()
     }
 
