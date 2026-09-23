@@ -1257,6 +1257,66 @@ function ProductEditor({
     }
   }
 
+  const uploadVariantMedia = async (
+    collection: 'images' | 'gallery',
+    file: File | null,
+  ) => {
+    if (!file || !variantDraftState?.id || !canUpdate) return
+
+    setVariantSaving(true)
+    setError(null)
+    setVariantMessage(null)
+
+    try {
+      const response = await backendApi.uploadProductVariantMedia(
+        product.id,
+        variantDraftState.id,
+        collection,
+        file,
+        session.csrf_token,
+      )
+
+      applySavedProduct(response.product)
+      const savedVariant = response.product.variants.find((item) => item.id === variantDraftState.id)
+      if (savedVariant) {
+        setVariantDraftState(variantDraft(response.product, options, savedVariant))
+      }
+      setVariantMessage(response.message)
+    } catch (variantError) {
+      setError(variantError instanceof Error ? variantError.message : String(variantError))
+    } finally {
+      setVariantSaving(false)
+    }
+  }
+
+  const deleteVariantMedia = async (mediaId: number) => {
+    if (!variantDraftState?.id || !canUpdate) return
+
+    setVariantSaving(true)
+    setError(null)
+    setVariantMessage(null)
+
+    try {
+      const response = await backendApi.deleteProductVariantMedia(
+        product.id,
+        variantDraftState.id,
+        mediaId,
+        session.csrf_token,
+      )
+
+      applySavedProduct(response.product)
+      const savedVariant = response.product.variants.find((item) => item.id === variantDraftState.id)
+      if (savedVariant) {
+        setVariantDraftState(variantDraft(response.product, options, savedVariant))
+      }
+      setVariantMessage(response.message)
+    } catch (variantError) {
+      setError(variantError instanceof Error ? variantError.message : String(variantError))
+    } finally {
+      setVariantSaving(false)
+    }
+  }
+
   const uploadMedia = async (
     collection: 'images' | 'gallery',
     file: File | null,
@@ -1306,6 +1366,9 @@ function ProductEditor({
   }
 
   const variantAttributes = product.attributes.filter((attribute) => attribute.source === 'variants')
+  const selectedVariant = variantDraftState?.id === null || variantDraftState === null
+    ? null
+    : product.variants.find((variant) => variant.id === variantDraftState.id) ?? null
   const tabUsesProductSave = tab === 'main' || tab === 'description' || tab === 'inventory'
   const mainImage = product.media.find((item) => item.collection === 'images') ?? null
   const galleryImages = product.media.filter((item) => item.collection === 'gallery')
@@ -1759,8 +1822,11 @@ function ProductEditor({
                   canDelete={Boolean(session.permissions.products?.delete)}
                   saving={variantSaving}
                   onChange={setVariantDraftState}
+                  media={selectedVariant?.media ?? []}
                   onSave={saveVariant}
                   onDelete={deleteVariant}
+                  onUploadMedia={uploadVariantMedia}
+                  onDeleteMedia={deleteVariantMedia}
                   onCancel={() => setVariantDraftState(null)}
                 />
               ) : (
@@ -2148,8 +2214,11 @@ function VariantEditorPanel({
   canDelete,
   saving,
   onChange,
+  media,
   onSave,
   onDelete,
+  onUploadMedia,
+  onDeleteMedia,
   onCancel,
 }: {
   draft: VariantDraft
@@ -2157,9 +2226,12 @@ function VariantEditorPanel({
   canUpdate: boolean
   canDelete: boolean
   saving: boolean
+  media: ProductDetails['variants'][number]['media']
   onChange: (draft: VariantDraft) => void
   onSave: () => void
   onDelete: () => void
+  onUploadMedia: (collection: 'images' | 'gallery', file: File | null) => void
+  onDeleteMedia: (mediaId: number) => void
   onCancel: () => void
 }) {
   const updateAttribute = (
@@ -2187,6 +2259,9 @@ function VariantEditorPanel({
       ],
     })
   }
+
+  const mainImage = media.find((item) => item.collection === 'images') ?? null
+  const galleryImages = media.filter((item) => item.collection === 'gallery')
 
   return (
     <section className="variant-editor-panel">
@@ -2437,6 +2512,91 @@ function VariantEditorPanel({
             })}
           </div>
         </Card>
+
+        {draft.id !== null && (
+          <Card title="Изображения вариации" subtitle="Отдельные изображения конкретного торгового предложения">
+            <div className="variant-media-grid">
+              <div className="main-media-editor">
+                {mainImage ? (
+                  <div className="media-preview main compact">
+                    <img src={mainImage.thumb_url || mainImage.url} alt={mainImage.name} />
+                    <div>
+                      <strong>{mainImage.file_name}</strong>
+                      <a href={mainImage.url} target="_blank" rel="noreferrer">Открыть</a>
+                    </div>
+                    <button
+                      className="icon-danger"
+                      type="button"
+                      onClick={() => onDeleteMedia(mainImage.id)}
+                      disabled={!canUpdate || saving}
+                      aria-label="Удалить главное изображение вариации"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="media-empty compact">Главное изображение не загружено</div>
+                )}
+
+                <label className={canUpdate ? 'media-upload compact' : 'media-upload compact disabled'}>
+                  <Plus size={15} />
+                  <span>{mainImage ? 'Заменить главное' : 'Загрузить главное'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={!canUpdate || saving}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null
+                      onUploadMedia('images', file)
+                      event.currentTarget.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="gallery-editor">
+                {galleryImages.length > 0 ? (
+                  <div className="gallery-grid variant-gallery">
+                    {galleryImages.map((item) => (
+                      <article className="gallery-item" key={item.id}>
+                        <img src={item.thumb_url || item.url} alt={item.name} />
+                        <div>
+                          <span>{item.file_name}</span>
+                          <button
+                            className="icon-danger"
+                            type="button"
+                            onClick={() => onDeleteMedia(item.id)}
+                            disabled={!canUpdate || saving}
+                            aria-label="Удалить изображение вариации"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="media-empty compact">Галерея пустая</div>
+                )}
+
+                <label className={canUpdate && galleryImages.length < 10 ? 'media-upload compact' : 'media-upload compact disabled'}>
+                  <Plus size={15} />
+                  <span>Добавить в галерею ({galleryImages.length}/10)</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={!canUpdate || saving || galleryImages.length >= 10}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null
+                      onUploadMedia('gallery', file)
+                      event.currentTarget.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
       <footer className="variant-editor-actions">
