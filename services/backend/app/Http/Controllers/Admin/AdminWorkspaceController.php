@@ -197,7 +197,7 @@ class AdminWorkspaceController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', Rule::unique('product_attributes', 'slug')->ignore($attribute->id)],
-            'type' => ['required', Rule::in(['string', 'text', 'integer', 'decimal', 'boolean', 'select'])],
+            'type' => ['required', Rule::in(['select', 'color', 'string', 'text', 'number', 'number_input'])],
             'is_filterable' => ['required', 'boolean'],
             'is_required' => ['required', 'boolean'],
             'is_use_in_variations' => ['required', 'boolean'],
