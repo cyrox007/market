@@ -926,60 +926,6 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
-    public function updateProductAttributes(
-        Request $request,
-        Product $product,
-        ProductAttributeSyncService $syncService
-    ): JsonResponse {
-        Gate::authorize('update', $product);
-
-        $validated = $request->validate([
-            'attributes' => ['present', 'array'],
-            'attributes.*.attribute_id' => ['required', 'integer', 'exists:product_attributes,id'],
-            'attributes.*.attribute_value_id' => ['nullable'],
-            'attributes.*.attribute_value_id.*' => ['integer'],
-            'attributes.*.custom_value' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $rows = collect($validated['attributes'])
-            ->map(function (array $row): array {
-                $valueIds = $row['attribute_value_id'] ?? [];
-
-                if ($valueIds !== null && ! is_array($valueIds)) {
-                    $valueIds = [$valueIds];
-                }
-
-                return [
-                    'attribute_id' => (int) $row['attribute_id'],
-                    'attribute_value_id' => array_values(array_filter(
-                        array_map('intval', $valueIds ?? [])
-                    )),
-                    'custom_value' => isset($row['custom_value'])
-                        ? trim((string) $row['custom_value'])
-                        : null,
-                ];
-            })
-            ->values()
-            ->all();
-
-        $syncService->sync($product, $rows);
-        $product->flushCache();
-        Product::flushAllProductCaches();
-
-        $product->refresh()->load([
-            'taxons',
-            'attributes.values',
-            'variants',
-            'warehouseStocks.warehouse',
-            'variationAttributeSelection',
-        ]);
-
-        return response()->json([
-            'message' => 'Характеристики сохранены',
-            'product' => $this->productDetails($product),
-        ]);
-    }
-
     public function updateAttribute(Request $request, Attribute $attribute): JsonResponse
     {
         Gate::authorize('update', $attribute);
