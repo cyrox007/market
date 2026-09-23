@@ -119,6 +119,7 @@ class OrderController extends Controller
             'region',
             'shippingLocation',
             'deliveryWarehouse',
+            'warehouseDeliveryMethod',
             'shippingMethod.carrier',
             'deliveryHandlingType',
             'additionalServices'
@@ -174,6 +175,7 @@ class OrderController extends Controller
                 'region_id' => 'nullable|exists:shipping_locations,id',
                 'shipping_method_id' => 'nullable|integer',
                 'delivery_warehouse_id' => 'nullable|exists:warehouses,id',
+                'warehouse_delivery_method_id' => 'nullable|exists:warehouse_delivery_methods,id',
                 'delivery_handling_type_id' => 'nullable|exists:delivery_handling_types,id',
                 'delivery_floor' => 'nullable|integer|min:1|max:20',
                 'requires_assembly' => 'nullable|boolean',
@@ -309,6 +311,7 @@ class OrderController extends Controller
             $deliveryBasePrice = null;
             $deliveryFreeThreshold = null;
             $deliveryWarehouseId = null;
+            $warehouseDeliveryMethodId = null;
 
             if ($validated['delivery_type'] === 'delivery') {
                 // Получаем локацию доставки
@@ -359,38 +362,67 @@ class OrderController extends Controller
                 }
 
                 $warehouseOption = null;
-                if ($this->warehouseDeliveryOptionsService->hasRulesForLocation($shippingLocation)) {
+                $hasConfiguredDeliveryMethods = $this->warehouseDeliveryOptionsService
+                    ->hasConfiguredMethodsForLocation($shippingLocation);
+
+                if ($hasConfiguredDeliveryMethods) {
                     $warehouseOptions = $this->warehouseDeliveryOptionsService
-                        ->resolveForLocation($shippingLocation, $deliveryItems);
+                        ->resolveForLocation($shippingLocation, $deliveryItems, $subtotal);
 
                     if ($warehouseOptions->isEmpty()) {
                         return response()->json([
-                            'message' => 'Нет склада, который может доставить весь состав заказа в выбранную локацию',
-                            'errors' => ['delivery_warehouse_id' => ['Измените состав заказа или выберите другую локацию доставки']],
+                            'message' => 'Нет способа доставки, который может обслужить весь состав заказа',
+                            'errors' => [
+                                'warehouse_delivery_method_id' => [
+                                    'Измените состав заказа или выберите другую локацию доставки',
+                                ],
+                            ],
                         ], 422);
                     }
 
-                    if (isset($validated['delivery_warehouse_id'])) {
+                    if (isset($validated['warehouse_delivery_method_id'])) {
+                        $warehouseOption = $warehouseOptions->firstWhere(
+                            'warehouse_delivery_method_id',
+                            (int) $validated['warehouse_delivery_method_id']
+                        );
+                    } elseif (isset($validated['delivery_warehouse_id'], $validated['shipping_method_id'])) {
+                        $warehouseOption = $warehouseOptions->first(
+                            fn (array $option): bool =>
+                                $option['warehouse_id'] === (int) $validated['delivery_warehouse_id']
+                                && $option['shipping_method_id'] === (int) $validated['shipping_method_id']
+                        );
+                    } elseif (isset($validated['delivery_warehouse_id'])) {
                         $warehouseOption = $warehouseOptions->firstWhere(
                             'warehouse_id',
                             (int) $validated['delivery_warehouse_id']
                         );
-
-                        if (! $warehouseOption) {
-                            return response()->json([
-                                'message' => 'Выбранный склад недоступен для этого заказа',
-                                'errors' => ['delivery_warehouse_id' => ['Выберите один из доступных вариантов доставки']],
-                            ], 422);
-                        }
+                    } elseif (isset($validated['shipping_method_id'])) {
+                        $warehouseOption = $warehouseOptions->firstWhere(
+                            'shipping_method_id',
+                            (int) $validated['shipping_method_id']
+                        );
                     } else {
                         $warehouseOption = $warehouseOptions->first();
                     }
 
+                    if (! $warehouseOption) {
+                        return response()->json([
+                            'message' => 'Выбранный вариант доставки недоступен для этого заказа',
+                            'errors' => [
+                                'warehouse_delivery_method_id' => [
+                                    'Выберите один из вариантов доставки, рассчитанных сервером',
+                                ],
+                            ],
+                        ], 422);
+                    }
+
                     $deliveryWarehouseId = (int) $warehouseOption['warehouse_id'];
+                    $warehouseDeliveryMethodId = (int) $warehouseOption['warehouse_delivery_method_id'];
+                    $shippingMethod = ShippingMethod::findOrFail($warehouseOption['shipping_method_id']);
+                    $shippingMethod->load('carrier');
                 }
 
-                // Если указан shipping_method_id, валидируем его для выбранной локации.
-                if (isset($validated['shipping_method_id'])) {
+                if (! $warehouseOption && isset($validated['shipping_method_id'])) {
                     $shippingMethod = ShippingMethod::findOrFail($validated['shipping_method_id']);
                     $shippingMethod->load('carrier');
 
@@ -410,14 +442,16 @@ class OrderController extends Controller
 
                         return response()->json([
                             'message' => 'Выбранный способ доставки недоступен для этой локации',
-                            'errors' => ['shipping_method_id' => ['Укажите один из способов доставки, показанных для выбранной локации']],
+                            'errors' => [
+                                'shipping_method_id' => [
+                                    'Укажите один из способов доставки, показанных для выбранной локации',
+                                ],
+                            ],
                         ], 422);
                     }
                 }
 
                 if ($warehouseOption) {
-                    // Правило склада является источником базовой стоимости и срока.
-                    // Обработка доставки/сборка по-прежнему рассчитываются сервером из настроек локации.
                     $calculation = $this->shippingCostCalculator->calculateForLocation(
                         $shippingLocation,
                         $subtotal,
@@ -426,15 +460,10 @@ class OrderController extends Controller
                         (bool) ($validated['requires_assembly'] ?? false)
                     );
 
-                    $deliveryBasePrice = (float) $warehouseOption['delivery_price'];
-                    $deliveryFreeThreshold = $shippingLocation->getEffectiveFreeDeliveryThreshold();
-                    $ruleDeliveryPrice = $deliveryBasePrice;
-
-                    if ($deliveryFreeThreshold !== null && $subtotal >= (float) $deliveryFreeThreshold) {
-                        $ruleDeliveryPrice = 0.0;
-                    }
-
-                    $deliveryCost = $ruleDeliveryPrice + (float) ($calculation->handlingPrice ?? 0);
+                    $deliveryBasePrice = (float) $warehouseOption['delivery_base_price'];
+                    $deliveryFreeThreshold = $warehouseOption['free_delivery_threshold'];
+                    $deliveryCost = (float) $warehouseOption['delivery_price']
+                        + (float) ($calculation->handlingPrice ?? 0);
                     $assemblyCost = $calculation->assemblyPrice ?? 0.0;
                     $deliveryDaysMin = $warehouseOption['delivery_days_min'];
                     $deliveryDaysMax = $warehouseOption['delivery_days_max'];
@@ -604,6 +633,7 @@ class OrderController extends Controller
                     // Новые поля для системы доставки (сохраняем для обоих типов, если указаны)
                     'shipping_location_id' => $shippingLocation?->id,
                     'delivery_warehouse_id' => $deliveryWarehouseId,
+                    'warehouse_delivery_method_id' => $warehouseDeliveryMethodId,
                     'region_id' => $region?->id, // Сохраняем регион для применения правил корзины
                     'shipping_method_id' => $shippingMethod?->id,
                     'delivery_handling_type_id' => $deliveryHandlingType?->id,
@@ -847,6 +877,7 @@ class OrderController extends Controller
                     'statusHistory.user',
                     'shippingLocation',
                     'deliveryWarehouse',
+                    'warehouseDeliveryMethod',
                     'shippingMethod.carrier',
                     'deliveryHandlingType',
                     'additionalServices'
@@ -929,6 +960,7 @@ class OrderController extends Controller
             'statusHistory.user',
             'shippingLocation',
             'deliveryWarehouse',
+            'warehouseDeliveryMethod',
             'shippingMethod.carrier',
             'deliveryHandlingType'
         ]);
