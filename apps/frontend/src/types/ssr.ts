@@ -15,6 +15,8 @@ export interface SSRContext {
   /** SEO текущей страницы (для подстановки в head при SSR) */
   seo?: SeoMetaSSR | null;
   user?: any;
+  /** Сервер уже определил состояние авторизации (в т.ч. что гость не авторизован) — клиенту не нужно повторно дёргать /auth/me. */
+  authChecked?: boolean;
   counters?: {
     cartCount: number;
     wishlistCount: number;
@@ -29,6 +31,10 @@ export interface SSRContext {
   region?: any;
   /** Дерево категорий для шапки — грузится на всех маршрутах */
   categoryTree?: Category[];
+  /** Дерево комнат для шапки — грузится на всех маршрутах */
+  roomTree?: Category[];
+  /** Список городов для селектора региона в шапке */
+  regionsList?: any[];
   // Главная страница
   home?: {
     categories?: any[];

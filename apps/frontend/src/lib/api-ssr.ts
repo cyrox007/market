@@ -261,6 +261,7 @@ export function createSSRApi(req: IncomingMessage) {
           `/regions/detect?${query.toString()}`,
         );
       },
+      list: () => fetchAPI<{ data: any[] }>('/regions'),
     },
   };
 }

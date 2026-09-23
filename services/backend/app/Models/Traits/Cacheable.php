@@ -225,18 +225,29 @@ trait Cacheable
     {
         $categoryId = $this->getKey();
 
-        // Сбрасываем кэш категории
-        Cache::forget(static::cacheKey('show_' . $categoryId));
+        // Ключи show/tree/index кладутся через cached() с тегами модели: на redis они
+        // живут в теговом пространстве, поэтому один plain-forget их не видит — гасим и там.
+        $keys = [
+            static::cacheKey('show_' . $categoryId),
+            static::cacheKey('tree'),
+            static::cacheKey('index'),
+        ];
         if (isset($this->slug)) {
-            Cache::forget(static::cacheKey('show_' . $this->slug));
+            $keys[] = static::cacheKey('show_' . $this->slug);
+        }
+        foreach ($keys as $key) {
+            Cache::forget($key);
+            if (static::supportsCacheTags()) {
+                try {
+                    Cache::tags(static::getCacheTags())->forget($key);
+                } catch (\Throwable $e) {
+                    // теговый форгет недоступен — plain-forget уже выполнен
+                }
+            }
         }
 
         // Сбрасываем маркер «пустая категория» (при изменении категории список товаров мог измениться)
         Cache::forget('empty_category:' . $categoryId);
-
-        // Сбрасываем кэш дерева категорий
-        Cache::forget(static::cacheKey('tree'));
-        Cache::forget(static::cacheKey('index'));
 
         // Сбрасываем кэши товаров этой категории через теги (оптимально)
         if (static::supportsCacheTags()) {
