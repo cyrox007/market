@@ -436,11 +436,18 @@ class AdminWorkspaceController extends Controller
         );
     }
 
-    public function productEditor(Product $product): JsonResponse
+    public function productEditor(int $product): JsonResponse
     {
-        Gate::authorize('view', $product);
+        // В административном API числовой параметр всегда является первичным id.
+        // Не используем implicit route binding модели Vanilo: он может наследовать
+        // другой ключ маршрута и в результате открыть не тот товар.
+        $productModel = Product::query()
+            ->whereKey($product)
+            ->firstOrFail();
 
-        $product->load([
+        Gate::authorize('view', $productModel);
+
+        $productModel->load([
             'taxons',
             'attributes.values',
             'variants',
@@ -453,8 +460,8 @@ class AdminWorkspaceController extends Controller
         ]);
 
         return response()->json([
-            'product' => $this->productDetails($product),
-            'options' => $this->productEditorOptionsPayload($product),
+            'product' => $this->productDetails($productModel),
+            'options' => $this->productEditorOptionsPayload($productModel),
         ]);
     }
 
