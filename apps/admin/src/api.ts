@@ -408,8 +408,9 @@ export const backendApi = {
     request<{ product: ProductDetails }>(`/admin_sv/api/products/${id}`),
 
   productEditor: (id: number) =>
-    request<{ product: ProductDetails; options: ProductEditorOptions }>(
+    request<{ contract_version: number; product: ProductDetails; options: ProductEditorOptions }>(
       `/admin_sv/api/products/${id}/editor`,
+      { cache: 'no-store' },
     ),
 
   productEditorOptions: (id: number) =>
