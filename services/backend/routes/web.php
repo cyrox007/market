@@ -47,6 +47,11 @@ Route::middleware([
             ->where('product', '[0-9]+');
         Route::put('/products/{product}/attributes', [AdminWorkspaceController::class, 'updateProductAttributes'])
             ->where('product', '[0-9]+');
+        Route::post('/products/{product}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
+            ->where('product', '[0-9]+');
+        Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
+            ->where('product', '[0-9]+')
+            ->where('media', '[0-9]+');
         Route::get('/attributes', [AdminWorkspaceController::class, 'attributes']);
         Route::put('/attributes/{attribute}', [AdminWorkspaceController::class, 'updateAttribute'])
             ->where('attribute', '[0-9]+');
