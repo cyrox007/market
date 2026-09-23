@@ -72,13 +72,13 @@ Route::middleware([
         Route::put('/products/{productId}/variants/{variantId}/media-order', [AdminWorkspaceController::class, 'reorderProductVariantMedia'])
             ->where('productId', '[0-9]+')
             ->where('variantId', '[0-9]+');
-        Route::post('/products/{product}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
-            ->where('product', '[0-9]+');
-        Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
-            ->where('product', '[0-9]+')
+        Route::post('/products/{productId}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
+            ->where('productId', '[0-9]+');
+        Route::delete('/products/{productId}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
+            ->where('productId', '[0-9]+')
             ->where('media', '[0-9]+');
-        Route::put('/products/{product}/media-order', [AdminWorkspaceController::class, 'reorderProductMedia'])
-            ->where('product', '[0-9]+');
+        Route::put('/products/{productId}/media-order', [AdminWorkspaceController::class, 'reorderProductMedia'])
+            ->where('productId', '[0-9]+');
 
         Route::post('/products/{product}/related-products', [AdminWorkspaceController::class, 'attachRelatedProduct'])
             ->where('product', '[0-9]+');
