@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Component, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   Bell,
@@ -58,6 +58,62 @@ type ProductDraft = {
   original_price: string
 }
 
+function textValue(value: unknown, fallback = ''): string {
+  if (value === null || value === undefined) {
+    return fallback
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  if (typeof value === 'object' && value !== null && 'value' in value) {
+    return textValue((value as { value?: unknown }).value, fallback)
+  }
+
+  return fallback
+}
+
+class AdminErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Ошибка интерфейса новой админ-панели', error, info)
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="full-state">
+          <CircleAlert size={30} />
+          <strong>Ошибка интерфейса</strong>
+          <span>{this.state.error.message}</span>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => window.location.reload()}
+          >
+            Перезагрузить
+          </button>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
 function initialTheme(): Theme {
   const saved = localStorage.getItem('sv-admin-theme')
 
@@ -80,16 +136,18 @@ function flattenTree(nodes: CategoryNode[], depth = 0): TreeRow[] {
   return nodes.flatMap((node) => [
     {
       id: node.id,
-      slug: node.slug,
-      name: node.name,
+      slug: textValue(node.slug),
+      name: textValue(node.name, 'Без названия'),
       depth,
-      count: node.products_count ?? 0,
+      count: Number(node.products_count ?? 0),
     },
     ...flattenTree(node.children ?? [], depth + 1),
   ])
 }
 
-function stateLabel(state: string): string {
+function stateLabel(state: unknown): string {
+  const normalized = textValue(state, 'Неизвестно')
+
   return {
     active: 'Активен',
     draft: 'Черновик',
@@ -97,23 +155,23 @@ function stateLabel(state: string): string {
     unlisted: 'Скрыт',
     unavailable: 'Недоступен',
     retired: 'Снят с продажи',
-  }[state] ?? state
+  }[normalized] ?? normalized
 }
 
 function productDraft(product: ProductDetails): ProductDraft {
   return {
-    name: product.name ?? '',
-    sku: product.sku ?? '',
-    gtin: product.gtin ?? '',
-    description: product.description ?? '',
-    state: product.state ?? 'draft',
+    name: textValue(product.name),
+    sku: textValue(product.sku),
+    gtin: textValue(product.gtin),
+    description: textValue(product.description),
+    state: textValue(product.state, 'draft'),
     priority: String(product.priority ?? 0),
     price: String(product.price ?? 0),
     original_price: product.original_price === null ? '' : String(product.original_price),
   }
 }
 
-export function App() {
+function AdminApp() {
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [module, setModule] = useState<ModuleKey>('products')
   const [session, setSession] = useState<SessionInfo | null>(null)
@@ -195,6 +253,14 @@ export function App() {
         </main>
       </div>
     </div>
+  )
+}
+
+export function App() {
+  return (
+    <AdminErrorBoundary>
+      <AdminApp />
+    </AdminErrorBoundary>
   )
 }
 
