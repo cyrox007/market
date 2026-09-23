@@ -6,17 +6,18 @@ use App\Events\OrderCancelled;
 use App\Events\OrderCompleted;
 use App\Events\OrderStatusChanged;
 use App\Models\Address\Address;
+use App\Models\Gateway\GatewayLog;
+use App\Models\Inventory\Warehouse;
+use App\Models\Shipping\AdditionalService;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Shipping\ShippingLocation;
-use App\Models\Shipping\AdditionalService;
-use App\Models\Inventory\Warehouse;
+use App\Models\Shipping\WarehouseDeliveryMethod;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\Gateway\GatewayLog;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Vanilo\Contracts\Payable;
 use Vanilo\Shipment\Models\ShippingMethod;
@@ -26,8 +27,7 @@ class Order extends Model implements Payable
     use HasFactory;
 
     /**
-     * Create a new factory instance for the model.
-     * Нужен явный factory-resolver из-за namespace App\Models\Order\Order
+     * Нужен явный factory-resolver из-за namespace App\Models\Order\Order.
      */
     protected static function newFactory()
     {
@@ -54,6 +54,7 @@ class Order extends Model implements Payable
         'address_snapshot',
         'shipping_location_id',
         'delivery_warehouse_id',
+        'warehouse_delivery_method_id',
         'region_id',
         'shipping_method_id',
         'delivery_handling_type_id',
@@ -83,9 +84,6 @@ class Order extends Model implements Payable
         ];
     }
 
-    /**
-     * Boot the model.
-     */
     protected static function boot(): void
     {
         parent::boot();
@@ -94,15 +92,13 @@ class Order extends Model implements Payable
             if (empty($order->number)) {
                 $order->number = static::generateNumber();
             }
+
             if (empty($order->status)) {
                 $order->status = OrderStatus::NEW->value;
             }
         });
     }
 
-    /**
-     * Generate unique order number.
-     */
     protected static function generateNumber(): string
     {
         $prefix = 'ORD';
@@ -111,54 +107,44 @@ class Order extends Model implements Payable
             ->orderBy('id', 'desc')
             ->first();
 
-        if ($lastOrder) {
-            $lastNumber = (int) substr($lastOrder->number, -6);
-            $newNumber = str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
-        } else {
-            $newNumber = '000001';
+        if (! $lastOrder) {
+            return $prefix . $date . '000001';
         }
+
+        $lastNumber = (int) substr($lastOrder->number, -6);
+        $newNumber = str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
 
         return $prefix . $date . $newNumber;
     }
 
-    /**
-     * Get the user that owns the order.
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get the address for the order.
-     */
     public function address(): BelongsTo
     {
         return $this->belongsTo(Address::class);
     }
 
-    /**
-     * Get the shipping location for the order.
-     */
     public function shippingLocation(): BelongsTo
     {
         return $this->belongsTo(ShippingLocation::class);
     }
 
-    /**
-     * Get the region for the order (used for cart rules).
-     */
     public function region(): BelongsTo
     {
         return $this->belongsTo(ShippingLocation::class, 'region_id');
     }
 
-    /**
-     * Get the shipping method for the order.
-     */
     public function deliveryWarehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class, 'delivery_warehouse_id');
+    }
+
+    public function warehouseDeliveryMethod(): BelongsTo
+    {
+        return $this->belongsTo(WarehouseDeliveryMethod::class);
     }
 
     public function shippingMethod(): BelongsTo
@@ -166,25 +152,16 @@ class Order extends Model implements Payable
         return $this->belongsTo(ShippingMethod::class);
     }
 
-    /**
-     * Get the delivery handling type for the order.
-     */
     public function deliveryHandlingType(): BelongsTo
     {
         return $this->belongsTo(DeliveryHandlingType::class);
     }
 
-    /**
-     * Get the items for the order.
-     */
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    /**
-     * Get the additional services for the order.
-     */
     public function additionalServices(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -196,25 +173,16 @@ class Order extends Model implements Payable
             ->withTimestamps();
     }
 
-    /**
-     * Get the status history for the order.
-     */
     public function statusHistory(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class)->orderBy('created_at', 'desc');
     }
 
-    /**
-     * Payments (Vanilo) for this order.
-     */
     public function payments(): MorphMany
     {
         return $this->morphMany(\Vanilo\Payment\Models\PaymentProxy::modelClass(), 'payable');
     }
 
-    /**
-     * Логи шлюзов (оплата, доставка и т.д.) по этому заказу.
-     */
     public function gatewayLogs(): HasMany
     {
         return $this->hasMany(GatewayLog::class)->orderByDesc('created_at');
@@ -281,10 +249,6 @@ class Order extends Model implements Payable
         return 'Заказ № ' . $this->number;
     }
 
-    /**
-     * Change order status.
-     * Автоматически вызывает Vanilo события при изменении статуса
-     */
     public function changeStatus(OrderStatus $status, ?string $comment = null, ?int $userId = null): void
     {
         $oldStatus = $this->status;
@@ -305,43 +269,35 @@ class Order extends Model implements Payable
 
         event(new OrderStatusChanged($this, $oldStatus, $status->value));
 
-        // Возврат остатков при отмене (слушатель HandleOrderCancelled)
         if ($status === OrderStatus::CANCELLED) {
             event(new OrderCancelled($this));
         }
 
-        // Статистика продаж при завершении заказа
         if ($status === OrderStatus::DELIVERED) {
             event(new OrderCompleted($this));
         }
     }
 
-    /**
-     * Calculate total from items.
-     */
     public function calculateTotal(): void
     {
-        // Если items не загружены, загружаем их
-        if (!$this->relationLoaded('items')) {
+        if (! $this->relationLoaded('items')) {
             $this->load('items');
         }
 
-        // Загружаем дополнительные услуги если не загружены
-        if (!$this->relationLoaded('additionalServices')) {
+        if (! $this->relationLoaded('additionalServices')) {
             $this->load('additionalServices');
         }
 
         $subtotal = (float) $this->items->sum('total');
         $this->subtotal = number_format($subtotal, 2, '.', '');
 
-        // Суммируем стоимость дополнительных услуг
-        // Услуги с типом 'custom' (по договоренности) не учитываются в total
         $additionalServicesTotal = (float) $this->additionalServices->sum(function ($service) {
             $priceType = $service->pivot->price_type ?? $service->price_type ?? 'fixed';
-            // Услуги с типом 'custom' не добавляются к итогу
+
             if ($priceType === 'custom') {
                 return 0;
             }
+
             return (float) ($service->pivot->price ?? 0);
         });
 
@@ -349,44 +305,43 @@ class Order extends Model implements Payable
             + (float) ($this->delivery_cost ?? 0)
             + (float) ($this->assembly_cost ?? 0)
             + $additionalServicesTotal;
+
         $this->total = number_format($total, 2, '.', '');
         $this->save();
     }
 
-    /**
-     * Get current status enum.
-     */
     public function getStatusEnumAttribute(): OrderStatus
     {
         return OrderStatus::from($this->status);
     }
 
-    /**
-     * Check if order can be cancelled.
-     * Заказ можно отменить только если он в статусе "новый" (NEW).
-     */
     public function canBeCancelled(): bool
     {
-        return in_array($this->status, [OrderStatus::NEW->value, OrderStatus::AWAITING_PAYMENT->value], true);
+        return in_array(
+            $this->status,
+            [OrderStatus::NEW->value, OrderStatus::AWAITING_PAYMENT->value],
+            true
+        );
     }
 
-    /**
-     * Заказ ожидает онлайн-оплату через эквайринг.
-     */
     public function canPayOnline(): bool
     {
-        if ($this->status !== OrderStatus::AWAITING_PAYMENT->value || !$this->payment_method) {
+        if ($this->status !== OrderStatus::AWAITING_PAYMENT->value || ! $this->payment_method) {
             return false;
         }
 
         $gateway = \App\Models\Payment\PaymentMethod::where('code', $this->payment_method)->value('gateway');
 
-        return in_array((string) $gateway, ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true);
+        return in_array(
+            (string) $gateway,
+            ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'],
+            true
+        );
     }
 
     public function getPaymentGateway(): ?string
     {
-        if (!$this->payment_method) {
+        if (! $this->payment_method) {
             return null;
         }
 
@@ -405,13 +360,11 @@ class Order extends Model implements Payable
             ->first();
     }
 
-    /**
-     * Кэшированная ссылка на платёжную форму (если уже регистрировали платёж в банке).
-     */
     public function getCachedPayformUrl(): ?string
     {
         $payment = $this->getLatestPayment();
-        if (!$payment || !is_array($payment->data)) {
+
+        if (! $payment || ! is_array($payment->data)) {
             return null;
         }
 
@@ -420,9 +373,6 @@ class Order extends Model implements Payable
         return $url !== '' ? $url : null;
     }
 
-    /**
-     * Get status label.
-     */
     public function getStatusLabel(): string
     {
         return match ($this->status) {
@@ -438,11 +388,13 @@ class Order extends Model implements Payable
         };
     }
 
-    /**
-     * Get status as string (bypasses any enum casting).
-     */
     public function getStatusAsString(): string
     {
-        return (string) ($this->getRawOriginal('status') ?? $this->getOriginal('status') ?? $this->getAttributes()['status'] ?? '');
+        return (string) (
+            $this->getRawOriginal('status')
+            ?? $this->getOriginal('status')
+            ?? $this->getAttributes()['status']
+            ?? ''
+        );
     }
 }
