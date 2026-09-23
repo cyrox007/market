@@ -43,5 +43,6 @@ Route::middleware([
         Route::get('/orders', [AdminWorkspaceController::class, 'orders']);
         Route::get('/stores', [AdminWorkspaceController::class, 'stores']);
         Route::get('/locations', [AdminWorkspaceController::class, 'locations']);
+        Route::get('/warehouses', [AdminWorkspaceController::class, 'warehouses']);
     });
 });
