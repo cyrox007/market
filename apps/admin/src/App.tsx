@@ -1096,6 +1096,17 @@ function ProductEditor({
   }
 
   const canUpdate = Boolean(session.permissions.products?.update)
+  const canCreateAttributes = Boolean(session.permissions.attributes?.create)
+  const systemVariantAttribute = options.available_variation_attributes.find(
+    (attribute) => attribute.slug === 'variant',
+  )
+  const activeVariationAttributes = options.available_variation_attributes.filter(
+    (attribute) => attribute.slug === 'variant' || variationSelection.includes(attribute.id),
+  )
+  const variantEditorOptions: ProductEditorOptions = {
+    ...options,
+    variation_attributes: activeVariationAttributes,
+  }
   const requiredChecks = [
     Boolean(draft.name.trim()),
     Number(draft.price) >= 0,
@@ -1261,6 +1272,192 @@ function ProductEditor({
     }
   }
 
+  const patchAttributeOption = (attribute: AttributeDefinition) => {
+    const option = editorAttributeOption(attribute)
+
+    setOptions((current) => {
+      if (!current) return current
+
+      const replaceIn = (items: ProductEditorAttributeOption[]) => {
+        const exists = items.some((item) => item.id === option.id)
+        const next = exists
+          ? items.map((item) => item.id === option.id ? option : item)
+          : [...items, option]
+
+        return sortAttributeOptions(next)
+      }
+
+      const regularAttributes = option.is_use_in_variations && product.is_variable
+        ? current.attributes.filter((item) => item.id !== option.id)
+        : replaceIn(current.attributes)
+
+      return {
+        ...current,
+        attributes: regularAttributes,
+        available_variation_attributes: option.is_use_in_variations
+          ? replaceIn(current.available_variation_attributes)
+          : current.available_variation_attributes.filter((item) => item.id !== option.id),
+        variation_attributes: current.variation_attributes.some((item) => item.id === option.id)
+          ? replaceIn(current.variation_attributes)
+          : current.variation_attributes,
+      }
+    })
+
+    return option
+  }
+
+  const openQuickAttribute = (mode: 'product' | 'variation') => {
+    setQuickAttributeMode(mode)
+    setQuickAttributeState(quickAttributeDraft(mode === 'variation'))
+    setError(null)
+  }
+
+  const saveQuickAttribute = async () => {
+    if (!quickAttributeMode || !canCreateAttributes || !quickAttributeState.name.trim()) return
+
+    setDictionarySaving(true)
+    setError(null)
+
+    try {
+      const response = await backendApi.createAttribute(
+        {
+          ...quickAttributeState,
+          name: quickAttributeState.name.trim(),
+          slug: quickAttributeState.slug.trim() || null,
+          is_use_in_variations: quickAttributeMode === 'variation'
+            ? true
+            : quickAttributeState.is_use_in_variations,
+        },
+        session.csrf_token,
+      )
+
+      const option = patchAttributeOption(response.attribute)
+
+      if (option.is_use_in_variations || quickAttributeMode === 'variation') {
+        setVariationSelection((current) => Array.from(new Set([...current, option.id])))
+        setVariationSelectionDirty(true)
+        setTab('variants')
+      } else {
+        setAttributeRows((current) => [
+          ...current,
+          {
+            attribute_id: option.id,
+            attribute_value_id: [],
+            custom_value: '',
+          },
+        ])
+      }
+
+      setQuickAttributeMode(null)
+      setAttributesMessage(response.message)
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : String(createError))
+    } finally {
+      setDictionarySaving(false)
+    }
+  }
+
+  const openQuickValue = (attributeId: number, context: 'product' | 'variant') => {
+    setQuickValueTarget({ attributeId, context })
+    setQuickValueState({ value: '', slug: '', color_code: '' })
+    setError(null)
+  }
+
+  const saveQuickValue = async () => {
+    if (!quickValueTarget || !quickValueState.value.trim()) return
+
+    setDictionarySaving(true)
+    setError(null)
+
+    try {
+      const response = await backendApi.createAttributeValue(
+        quickValueTarget.attributeId,
+        {
+          value: quickValueState.value.trim(),
+          slug: quickValueState.slug.trim() || null,
+          color_code: quickValueState.color_code.trim() || null,
+        },
+        session.csrf_token,
+      )
+
+      const option = patchAttributeOption(response.attribute)
+      const createdValue = option.values[option.values.length - 1]
+
+      if (createdValue && quickValueTarget.context === 'product') {
+        setAttributeRows((current) => current.map((row) => {
+          if (row.attribute_id !== option.id) return row
+
+          return {
+            ...row,
+            attribute_value_id: option.is_multiple
+              ? Array.from(new Set([...row.attribute_value_id, createdValue.id]))
+              : [createdValue.id],
+            custom_value: '',
+          }
+        }))
+      }
+
+      if (createdValue && quickValueTarget.context === 'variant') {
+        setVariantDraftState((current) => {
+          if (!current) return current
+
+          return {
+            ...current,
+            attributes: current.attributes.map((row) => (
+              row.attribute_id === option.id
+                ? {
+                    ...row,
+                    attribute_value_id: option.is_multiple
+                      ? Array.from(new Set([...row.attribute_value_id, createdValue.id]))
+                      : [createdValue.id],
+                    custom_value: '',
+                  }
+                : row
+            )),
+          }
+        })
+      }
+
+      setQuickValueTarget(null)
+      setAttributesMessage(response.message)
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : String(createError))
+    } finally {
+      setDictionarySaving(false)
+    }
+  }
+
+  const saveVariationSelection = async () => {
+    if (!canUpdate || !variationSelectionDirty) return
+
+    setVariationSelectionSaving(true)
+    setError(null)
+    setVariantMessage(null)
+
+    try {
+      const selectableIds = variationSelection.filter(
+        (id) => id !== systemVariantAttribute?.id,
+      )
+      const response = await backendApi.updateProductVariationAttributes(
+        product.id,
+        selectableIds,
+        session.csrf_token,
+      )
+      const refreshedOptions = await backendApi.productEditorOptions(product.id)
+
+      applySavedProduct(response.product)
+      setOptions(refreshedOptions)
+      setVariationSelection([...response.product.variation_attribute_ids])
+      setVariationSelectionDirty(false)
+      setVariantDraftState(null)
+      setVariantMessage(response.message)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError))
+    } finally {
+      setVariationSelectionSaving(false)
+    }
+  }
+
   const addWarehouseRow = () => {
     const used = new Set(draft.warehouse_stocks.map((row) => row.warehouse_id))
     const warehouse = options.warehouses.find((item) => !used.has(item.id))
@@ -1276,13 +1473,17 @@ function ProductEditor({
   }
 
   const openVariant = (variant: ProductDetails['variants'][number]) => {
-    setVariantDraftState(variantDraft(product, options, variant))
+    if (variationSelectionDirty) return
+
+    setVariantDraftState(variantDraft(product, variantEditorOptions, variant))
     setVariantMessage(null)
     setError(null)
   }
 
   const createVariant = () => {
-    setVariantDraftState(variantDraft(product, options))
+    if (variationSelectionDirty) return
+
+    setVariantDraftState(variantDraft(product, variantEditorOptions))
     setVariantMessage(null)
     setError(null)
   }
@@ -1332,7 +1533,7 @@ function ProductEditor({
 
       setVariantDraftState(
         savedVariant
-          ? variantDraft(response.product, options, savedVariant)
+          ? variantDraft(response.product, variantEditorOptions, savedVariant)
           : null,
       )
       setVariantMessage(response.message)
@@ -1374,29 +1575,48 @@ function ProductEditor({
 
   const uploadVariantMedia = async (
     collection: 'images' | 'gallery',
-    file: File | null,
+    files: File[],
   ) => {
-    if (!file || !variantDraftState?.id || !canUpdate) return
+    if (files.length === 0 || !variantDraftState?.id || !canUpdate) return
+
+    const selected = collection === 'images'
+      ? files.slice(0, 1)
+      : files.slice(0, Math.max(0, 20 - (selectedVariant?.media.filter((item) => item.collection === 'gallery').length ?? 0)))
+
+    if (selected.length === 0) {
+      setError('В галерее уже 20 изображений.')
+      return
+    }
 
     setVariantSaving(true)
     setError(null)
     setVariantMessage(null)
 
     try {
-      const response = await backendApi.uploadProductVariantMedia(
-        product.id,
-        variantDraftState.id,
-        collection,
-        file,
-        session.csrf_token,
-      )
+      let latest: { message: string; product: ProductDetails } | null = null
 
-      applySavedProduct(response.product)
-      const savedVariant = response.product.variants.find((item) => item.id === variantDraftState.id)
-      if (savedVariant) {
-        setVariantDraftState(variantDraft(response.product, options, savedVariant))
+      for (const file of selected) {
+        latest = await backendApi.uploadProductVariantMedia(
+          product.id,
+          variantDraftState.id,
+          collection,
+          file,
+          session.csrf_token,
+        )
       }
-      setVariantMessage(response.message)
+
+      if (!latest) return
+
+      applySavedProduct(latest.product)
+      const savedVariant = latest.product.variants.find((item) => item.id === variantDraftState.id)
+      if (savedVariant) {
+        setVariantDraftState(variantDraft(latest.product, variantEditorOptions, savedVariant))
+      }
+      setVariantMessage(
+        collection === 'gallery' && selected.length > 1
+          ? `Загружено изображений: ${selected.length}`
+          : latest.message,
+      )
     } catch (variantError) {
       setError(variantError instanceof Error ? variantError.message : String(variantError))
     } finally {
@@ -1422,7 +1642,7 @@ function ProductEditor({
       applySavedProduct(response.product)
       const savedVariant = response.product.variants.find((item) => item.id === variantDraftState.id)
       if (savedVariant) {
-        setVariantDraftState(variantDraft(response.product, options, savedVariant))
+        setVariantDraftState(variantDraft(response.product, variantEditorOptions, savedVariant))
       }
       setVariantMessage(response.message)
     } catch (variantError) {
@@ -1434,23 +1654,43 @@ function ProductEditor({
 
   const uploadMedia = async (
     collection: 'images' | 'gallery',
-    file: File | null,
+    files: File[],
   ) => {
-    if (!file || !canUpdate) return
+    if (files.length === 0 || !canUpdate) return
+
+    const selected = collection === 'images'
+      ? files.slice(0, 1)
+      : files.slice(0, Math.max(0, 20 - galleryImages.length))
+
+    if (selected.length === 0) {
+      setError('В галерее уже 20 изображений.')
+      return
+    }
 
     setMediaSaving(true)
     setError(null)
     setMessage(null)
 
     try {
-      const response = await backendApi.uploadProductMedia(
-        product.id,
-        collection,
-        file,
-        session.csrf_token,
+      let latest: { message: string; product: ProductDetails } | null = null
+
+      for (const file of selected) {
+        latest = await backendApi.uploadProductMedia(
+          product.id,
+          collection,
+          file,
+          session.csrf_token,
+        )
+      }
+
+      if (!latest) return
+
+      applySavedProduct(latest.product)
+      setMessage(
+        collection === 'gallery' && selected.length > 1
+          ? `Загружено изображений: ${selected.length}`
+          : latest.message,
       )
-      applySavedProduct(response.product)
-      setMessage(response.message)
     } catch (mediaError) {
       setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
     } finally {
@@ -1477,6 +1717,53 @@ function ProductEditor({
       setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
     } finally {
       setMediaSaving(false)
+    }
+  }
+
+  const reorderMedia = async (mediaIds: number[]) => {
+    if (!canUpdate || mediaSaving) return
+
+    setMediaSaving(true)
+    setError(null)
+
+    try {
+      const response = await backendApi.reorderProductMedia(
+        product.id,
+        mediaIds,
+        session.csrf_token,
+      )
+      applySavedProduct(response.product)
+      setMessage(response.message)
+    } catch (mediaError) {
+      setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
+    } finally {
+      setMediaSaving(false)
+    }
+  }
+
+  const reorderVariantMedia = async (mediaIds: number[]) => {
+    if (!canUpdate || variantSaving || !variantDraftState?.id) return
+
+    setVariantSaving(true)
+    setError(null)
+
+    try {
+      const response = await backendApi.reorderProductVariantMedia(
+        product.id,
+        variantDraftState.id,
+        mediaIds,
+        session.csrf_token,
+      )
+      applySavedProduct(response.product)
+      const savedVariant = response.product.variants.find((item) => item.id === variantDraftState.id)
+      if (savedVariant) {
+        setVariantDraftState(variantDraft(response.product, variantEditorOptions, savedVariant))
+      }
+      setVariantMessage(response.message)
+    } catch (mediaError) {
+      setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
+    } finally {
+      setVariantSaving(false)
     }
   }
 
