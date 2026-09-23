@@ -172,6 +172,106 @@ class AdminWorkspaceController extends Controller
         ]);
     }
 
+    public function createProduct(
+        Request $request,
+        OneCProductSyncService $syncService
+    ): JsonResponse {
+        Gate::authorize('create', Product::class);
+
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:255'],
+            'sku' => ['nullable', 'string', 'max:255'],
+            'external_id' => ['nullable', 'string', 'max:255', Rule::unique('products', 'external_id')],
+            'category_id' => ['nullable', 'integer'],
+            'sync_from_1c' => ['required', 'boolean'],
+        ]);
+
+        $syncFromOneC = (bool) $validated['sync_from_1c'];
+        $name = trim((string) ($validated['name'] ?? ''));
+        $externalId = trim((string) ($validated['external_id'] ?? ''));
+
+        if (! $syncFromOneC && $name === '') {
+            throw ValidationException::withMessages([
+                'name' => 'Укажите название товара.',
+            ]);
+        }
+
+        if ($syncFromOneC && $externalId === '') {
+            throw ValidationException::withMessages([
+                'external_id' => 'Для загрузки из 1С укажите внешний ID товара.',
+            ]);
+        }
+
+        $categoryId = isset($validated['category_id'])
+            ? (int) $validated['category_id']
+            : null;
+
+        if ($categoryId !== null && ! Category::query()->whereKey($categoryId)->exists()) {
+            throw ValidationException::withMessages([
+                'category_id' => 'Выбранная категория не найдена.',
+            ]);
+        }
+
+        if ($syncFromOneC) {
+            $product = $syncService->syncProductByExternalId($externalId);
+
+            if (! $product) {
+                throw ValidationException::withMessages([
+                    'external_id' => 'Товар с таким внешним ID не найден в источнике 1С.',
+                ]);
+            }
+
+            if ($product->isVariant()) {
+                throw ValidationException::withMessages([
+                    'external_id' => 'Указанный внешний ID относится к вариации, а не к родительскому товару.',
+                ]);
+            }
+
+            if ($categoryId !== null) {
+                $product->taxons()->syncWithoutDetaching([$categoryId]);
+            }
+        } else {
+            $baseSlug = IlluminateSupportStr::slug($name);
+            if ($baseSlug === '') {
+                $baseSlug = 'product';
+            }
+
+            $slug = $baseSlug;
+            $suffix = 2;
+            while (Product::query()->where('slug', $slug)->exists()) {
+                $slug = $baseSlug . '-' . $suffix;
+                $suffix++;
+            }
+
+            $product = new Product();
+            $product->name = $name;
+            $product->slug = $slug;
+            $product->sku = trim((string) ($validated['sku'] ?? ''));
+            $product->external_id = $externalId !== '' ? $externalId : null;
+            $product->state = 'draft';
+            $product->priority = 0;
+            $product->price = 0;
+            $product->stock = 0;
+            $product->backorder = false;
+            $product->units_sold = 0;
+            $product->is_variable = false;
+            $product->save();
+
+            if ($categoryId !== null) {
+                $product->taxons()->sync([$categoryId]);
+            }
+        }
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => $syncFromOneC
+                ? 'Товар создан и загружен из 1С'
+                : 'Черновик товара создан',
+            'product' => $this->productDetails($product),
+        ], 201);
+    }
+
     public function product(Product $product): JsonResponse
     {
         Gate::authorize('view', $product);
