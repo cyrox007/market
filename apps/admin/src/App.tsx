@@ -1378,7 +1378,9 @@ function ProductEditor({
 
         const selectedVariationIds = loadedProduct.variation_attribute_ids.length > 0
           ? [...loadedProduct.variation_attribute_ids]
-          : editorOptions.variation_attributes.map((attribute) => attribute.id)
+          : loadedProduct.variants.length > 0
+            ? editorOptions.variation_attributes.map((attribute) => attribute.id)
+            : []
 
         setVariationSelection(Array.from(new Set(selectedVariationIds)))
         setVariationSelectionDirty(false)
@@ -2540,15 +2542,17 @@ function ProductEditor({
                       Новая характеристика
                     </button>
                   )}
-                  <button
-                    className="btn primary"
-                    type="button"
-                    onClick={saveVariationSelection}
-                    disabled={!canUpdate || !variationSelectionDirty || variationSelectionSaving}
-                  >
-                    {variationSelectionSaving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
-                    {variationSelectionSaving ? 'Сохраняю…' : 'Сохранить параметры'}
-                  </button>
+                  {product.variants.length > 0 && variationSelectionDirty && (
+                    <button
+                      className="btn primary"
+                      type="button"
+                      onClick={() => void saveVariationSelection()}
+                      disabled={!canUpdate || variationSelectionSaving}
+                    >
+                      {variationSelectionSaving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
+                      {variationSelectionSaving ? 'Применяю…' : 'Применить изменения'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2618,7 +2622,7 @@ function ProductEditor({
               {variationSelectionDirty && (
                 <div className="variation-unsaved">
                   <CircleAlert size={16} />
-                  Параметры ещё не сохранены. При создании вариации они сохранятся автоматически.
+                  Выбранные параметры применятся автоматически при создании вариации.
                 </div>
               )}
             </section>
@@ -2638,10 +2642,8 @@ function ProductEditor({
                   >
                     {variationSelectionSaving ? <Loader2 className="spin" size={14} /> : <Plus size={14} />}
                     {variationSelectionSaving
-                      ? 'Сохраняю параметры…'
-                      : variationSelectionDirty
-                        ? 'Сохранить и добавить вариацию'
-                        : 'Добавить вариацию'}
+                      ? 'Подготавливаю…'
+                      : 'Добавить вариацию'}
                   </button>
                 </header>
 
@@ -2723,21 +2725,7 @@ function ProductEditor({
                   <Package size={28} />
                   <strong>Создайте первую вариацию</strong>
                   <span>У каждой вариации можно отдельно задать цвет, размер, цену, SKU, остатки по складам и изображения.</span>
-                  {session.permissions.products?.create && (
-                    <button
-                      className="btn primary"
-                      type="button"
-                      onClick={() => void createVariant()}
-                      disabled={!canUpdate || variationSelectionSaving}
-                    >
-                      {variationSelectionSaving ? <Loader2 className="spin" size={15} /> : <Plus size={15} />}
-                      {variationSelectionSaving
-                        ? 'Сохраняю параметры…'
-                        : variationSelectionDirty
-                          ? 'Сохранить параметры и создать'
-                          : 'Создать вариацию'}
-                    </button>
-                  )}
+                  <span className="variant-placeholder-hint">Нажмите «Добавить вариацию» слева.</span>
                 </section>
               )}
             </div>
