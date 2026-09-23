@@ -32,6 +32,11 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class AdminWorkspaceController extends Controller
 {
+    public function __construct()
+    {
+        // Все сообщения административного API должны возвращаться на русском.
+        app()->setLocale('ru');
+    }
     public function session(Request $request): JsonResponse
     {
         $user = $request->user();
