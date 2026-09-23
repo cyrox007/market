@@ -4127,3 +4127,36 @@ body {
     min-width: 100%;
   }
 }
+
+
+/* Ошибки и действия редактора товара */
+.backend-error > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.backend-error > div strong {
+  font-size: .66rem;
+}
+
+.backend-error > div span {
+  margin-top: 2px;
+  color: var(--danger);
+  font-size: .6rem;
+  line-height: 1.4;
+}
+
+.editor-actions .btn {
+  text-decoration: none;
+}
+
+@media (max-width: 720px) {
+  .editor-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .editor-foot > div {
+    flex-wrap: wrap;
+  }
+}
