@@ -55,6 +55,13 @@ Route::middleware([
         Route::delete('/products/{product}/variants/{variant}', [AdminWorkspaceController::class, 'deleteProductVariant'])
             ->where('product', '[0-9]+')
             ->where('variant', '[0-9]+');
+        Route::post('/products/{product}/variants/{variant}/media', [AdminWorkspaceController::class, 'uploadProductVariantMedia'])
+            ->where('product', '[0-9]+')
+            ->where('variant', '[0-9]+');
+        Route::delete('/products/{product}/variants/{variant}/media/{media}', [AdminWorkspaceController::class, 'deleteProductVariantMedia'])
+            ->where('product', '[0-9]+')
+            ->where('variant', '[0-9]+')
+            ->where('media', '[0-9]+');
         Route::post('/products/{product}/media', [AdminWorkspaceController::class, 'uploadProductMedia'])
             ->where('product', '[0-9]+');
         Route::delete('/products/{product}/media/{media}', [AdminWorkspaceController::class, 'deleteProductMedia'])
