@@ -4,13 +4,17 @@ import {
   ArrowLeft,
   ArrowUpDown,
   Bell,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CircleAlert,
   ClipboardList,
   ExternalLink,
   Filter,
   FolderTree,
+  GripVertical,
+  ImagePlus,
   Loader2,
   MapPin,
   Menu,
@@ -36,6 +40,7 @@ import {
   type LocationRecord,
   type ProductAttributeRow,
   type ProductDetails,
+  type ProductEditorAttributeOption,
   type ProductEditorOptions,
   type ProductSummary,
   type SessionInfo,
@@ -97,6 +102,30 @@ type VariantDraft = {
     quantity: string
   }>
   attributes: ProductAttributeRow[]
+}
+
+type MediaItem = ProductDetails['media'][number]
+
+type QuickAttributeDraft = {
+  name: string
+  slug: string
+  type: string
+  is_filterable: boolean
+  is_required: boolean
+  is_use_in_variations: boolean
+  allow_custom_value: boolean
+  is_multiple: boolean
+}
+
+type QuickValueTarget = {
+  attributeId: number
+  context: 'product' | 'variant'
+}
+
+type QuickValueDraft = {
+  value: string
+  slug: string
+  color_code: string
 }
 
 
@@ -172,6 +201,45 @@ function formatMoney(value: number | null | undefined): string {
   }
 
   return new Intl.NumberFormat('ru-RU').format(value) + ' ₽'
+}
+
+function editorAttributeOption(attribute: AttributeDefinition): ProductEditorAttributeOption {
+  return {
+    id: attribute.id,
+    name: attribute.name,
+    slug: attribute.slug,
+    type: attribute.type,
+    is_required: attribute.is_required,
+    is_filterable: attribute.is_filterable,
+    is_multiple: attribute.is_multiple,
+    is_use_in_variations: attribute.is_use_in_variations,
+    allow_custom_value: attribute.allow_custom_value,
+    values: attribute.values.map((value) => ({
+      id: value.id,
+      value: value.value,
+      slug: value.slug,
+      color_code: value.color_code,
+    })),
+  }
+}
+
+function sortAttributeOptions(options: ProductEditorAttributeOption[]) {
+  return [...options].sort((left, right) => (
+    left.name.localeCompare(right.name, 'ru-RU', { sensitivity: 'base' })
+  ))
+}
+
+function quickAttributeDraft(useInVariations = false): QuickAttributeDraft {
+  return {
+    name: '',
+    slug: '',
+    type: useInVariations ? 'select' : 'select',
+    is_filterable: false,
+    is_required: false,
+    is_use_in_variations: useInVariations,
+    allow_custom_value: false,
+    is_multiple: false,
+  }
 }
 
 function flattenTree(nodes: CategoryNode[], depth = 0): TreeRow[] {
@@ -957,6 +1025,15 @@ function ProductEditor({
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [attributesMessage, setAttributesMessage] = useState<string | null>(null)
+  const [variationSelection, setVariationSelection] = useState<number[]>([])
+  const [variationSelectionDirty, setVariationSelectionDirty] = useState(false)
+  const [variationSelectionSaving, setVariationSelectionSaving] = useState(false)
+  const [variationAttributeSearch, setVariationAttributeSearch] = useState('')
+  const [quickAttributeMode, setQuickAttributeMode] = useState<'product' | 'variation' | null>(null)
+  const [quickAttributeState, setQuickAttributeState] = useState<QuickAttributeDraft>(quickAttributeDraft())
+  const [quickValueTarget, setQuickValueTarget] = useState<QuickValueTarget | null>(null)
+  const [quickValueState, setQuickValueState] = useState<QuickValueDraft>({ value: '', slug: '', color_code: '' })
+  const [dictionarySaving, setDictionarySaving] = useState(false)
 
   const flatCategories = useMemo(() => flattenTree(categories), [categories])
 
@@ -984,6 +1061,13 @@ function ProductEditor({
           attribute_value_id: [...row.attribute_value_id],
           custom_value: row.custom_value,
         })))
+
+        const selectedVariationIds = productResponse.product.variation_attribute_ids.length > 0
+          ? [...productResponse.product.variation_attribute_ids]
+          : editorOptions.variation_attributes.map((attribute) => attribute.id)
+
+        setVariationSelection(Array.from(new Set(selectedVariationIds)))
+        setVariationSelectionDirty(false)
         setLoading(false)
       })
       .catch((loadError) => {
