@@ -258,115 +258,6 @@ function productCreateDraft(): ProductCreateDraft {
   }
 }
 
-function normalizeProductDetails(
-  details: ProductDetails,
-  fallback: ProductSummary | null,
-  productId: number,
-): { product: ProductDetails; repaired: boolean } {
-  const raw = details as ProductDetails & Record<string, unknown>
-  let repaired = false
-
-  const chooseText = (
-    current: unknown,
-    fallbackValue: unknown,
-    allowEmpty = true,
-  ) => {
-    const normalized = textValue(current)
-    if (allowEmpty || normalized.trim() !== '') {
-      return normalized
-    }
-
-    const fallbackText = textValue(fallbackValue)
-    if (fallbackText.trim() !== '') repaired = true
-
-    return fallbackText
-  }
-
-  const id = Number(raw.id ?? fallback?.id ?? productId)
-  if (!Number.isFinite(Number(raw.id)) || Number(raw.id) <= 0) repaired = true
-
-  const categories = Array.isArray(raw.categories)
-    ? raw.categories
-    : fallback?.categories ?? []
-  if (!Array.isArray(raw.categories)) repaired = true
-
-  const categoryIds = Array.isArray(raw.category_ids)
-    ? raw.category_ids.map((idValue) => Number(idValue)).filter(Number.isFinite)
-    : categories.map((category) => Number(category.id)).filter(Number.isFinite)
-  if (!Array.isArray(raw.category_ids)) repaired = true
-
-  const arrayOrEmpty = <T,>(value: unknown): T[] => (
-    Array.isArray(value) ? value as T[] : []
-  )
-
-  const normalized: ProductDetails = {
-    ...details,
-    id: Number.isFinite(id) && id > 0 ? id : productId,
-    name: chooseText(raw.name, fallback?.name, false),
-    slug: chooseText(raw.slug, fallback?.slug),
-    sku: chooseText(raw.sku, fallback?.sku),
-    gtin: raw.gtin === undefined ? fallback?.gtin ?? null : textValue(raw.gtin) || null,
-    state: chooseText(raw.state, fallback?.state, false) || 'draft',
-    price: Number.isFinite(Number(raw.price))
-      ? Number(raw.price)
-      : Number(fallback?.price ?? 0),
-    original_price: raw.original_price === null || raw.original_price === undefined
-      ? fallback?.original_price ?? null
-      : Number(raw.original_price),
-    stock: Number.isFinite(Number(raw.stock))
-      ? Number(raw.stock)
-      : Number(fallback?.stock ?? 0),
-    variants_count: Number.isFinite(Number(raw.variants_count))
-      ? Number(raw.variants_count)
-      : Number(fallback?.variants_count ?? 0),
-    categories,
-    updated_at: raw.updated_at === undefined
-      ? fallback?.updated_at ?? null
-      : textValue(raw.updated_at) || null,
-    description: raw.description === undefined ? null : textValue(raw.description) || null,
-    priority: Number(raw.priority ?? 0),
-    is_variable: Boolean(raw.is_variable),
-    category_ids: categoryIds,
-    backorder: Boolean(raw.backorder),
-    units_sold: Number(raw.units_sold ?? 0),
-    length: raw.length === null || raw.length === undefined ? null : Number(raw.length),
-    width: raw.width === null || raw.width === undefined ? null : Number(raw.width),
-    height: raw.height === null || raw.height === undefined ? null : Number(raw.height),
-    weight: raw.weight === null || raw.weight === undefined ? null : Number(raw.weight),
-    tax_category_id: raw.tax_category_id === null || raw.tax_category_id === undefined
-      ? null
-      : Number(raw.tax_category_id),
-    shipping_category_id: raw.shipping_category_id === null || raw.shipping_category_id === undefined
-      ? null
-      : Number(raw.shipping_category_id),
-    manufacturer_id: raw.manufacturer_id === null || raw.manufacturer_id === undefined
-      ? null
-      : Number(raw.manufacturer_id),
-    external_id: raw.external_id === null || raw.external_id === undefined
-      ? null
-      : textValue(raw.external_id) || null,
-    warehouse_accounting_enabled: Boolean(raw.warehouse_accounting_enabled),
-    media: arrayOrEmpty<ProductDetails['media'][number]>(raw.media),
-    related_products: arrayOrEmpty<ProductDetails['related_products'][number]>(raw.related_products),
-    bundle_products: arrayOrEmpty<ProductDetails['bundle_products'][number]>(raw.bundle_products),
-    region_rules: arrayOrEmpty<ProductDetails['region_rules'][number]>(raw.region_rules),
-    attribute_rows: arrayOrEmpty<ProductAttributeRow>(raw.attribute_rows),
-    attributes: arrayOrEmpty<ProductDetails['attributes'][number]>(raw.attributes),
-    variation_attribute_ids: arrayOrEmpty<number>(raw.variation_attribute_ids)
-      .map(Number)
-      .filter(Number.isFinite),
-    variants: arrayOrEmpty<ProductDetails['variants'][number]>(raw.variants),
-    warehouse_stocks: arrayOrEmpty<ProductDetails['warehouse_stocks'][number]>(raw.warehouse_stocks),
-  }
-
-  if (normalized.name.trim() === '' && textValue(fallback?.name).trim() !== '') {
-    normalized.name = textValue(fallback?.name)
-    repaired = true
-  }
-
-  return { product: normalized, repaired }
-}
-
 function flattenTree(nodes: CategoryNode[], depth = 0): TreeRow[] {
   return nodes.flatMap((node) => [
     {
@@ -835,7 +726,6 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
-  const [editingProductSummary, setEditingProductSummary] = useState<ProductSummary | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createDraft, setCreateDraft] = useState<ProductCreateDraft>(productCreateDraft())
   const [creatingProduct, setCreatingProduct] = useState(false)
@@ -904,13 +794,9 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
     return (
       <ProductEditor
         productId={editingProductId}
-        fallbackSummary={editingProductSummary}
         session={session}
         categories={categories}
-        onBack={() => {
-          setEditingProductId(null)
-          setEditingProductSummary(null)
-        }}
+        onBack={() => setEditingProductId(null)}
         onProductSaved={(saved) => {
           setProducts((current) => (
             current.some((item) => item.id === saved.id)
@@ -976,7 +862,6 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
 
       setCreateDialogOpen(false)
       setProductsTotal((total) => total + 1)
-      setEditingProductSummary(null)
       setEditingProductId(response.product.id)
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : String(error))
@@ -1129,10 +1014,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
             <button
               className="catalog-list-row"
               type="button"
-              onClick={() => {
-                setEditingProductSummary(product)
-                setEditingProductId(product.id)
-              }}
+              onClick={() => setEditingProductId(product.id)}
               key={product.id}
             >
               <span className="catalog-product">
@@ -1326,14 +1208,12 @@ function ProductCreateDialog({
 
 function ProductEditor({
   productId,
-  fallbackSummary,
   session,
   categories,
   onBack,
   onProductSaved,
 }: {
   productId: number
-  fallbackSummary: ProductSummary | null
   session: SessionInfo
   categories: CategoryNode[]
   onBack: () => void
@@ -1364,7 +1244,6 @@ function ProductEditor({
   const [quickValueTarget, setQuickValueTarget] = useState<QuickValueTarget | null>(null)
   const [quickValueState, setQuickValueState] = useState<QuickValueDraft>({ value: '', slug: '', color_code: '' })
   const [dictionarySaving, setDictionarySaving] = useState(false)
-  const [loadWarning, setLoadWarning] = useState<string | null>(null)
 
   const flatCategories = useMemo(() => flattenTree(categories), [categories])
 
@@ -1376,7 +1255,6 @@ function ProductEditor({
     setAttributesMessage(null)
     setVariantMessage(null)
     setVariantDraftState(null)
-    setLoadWarning(null)
 
     Promise.all([
       backendApi.product(productId),
@@ -1385,12 +1263,21 @@ function ProductEditor({
       .then(([productResponse, editorOptions]) => {
         if (cancelled) return
 
-        const normalized = normalizeProductDetails(
-          productResponse.product,
-          fallbackSummary,
-          productId,
-        )
-        const loadedProduct = normalized.product
+        const loadedProduct = productResponse.product
+
+        if (!loadedProduct || Number(loadedProduct.id) !== productId) {
+          throw new Error('Backend вернул карточку другого товара или ответ без id.')
+        }
+
+        if (typeof loadedProduct.name !== 'string'
+          || typeof loadedProduct.sku !== 'string'
+          || typeof loadedProduct.state !== 'string'
+          || !Number.isFinite(Number(loadedProduct.price))
+          || !Array.isArray(loadedProduct.category_ids)
+          || !Array.isArray(loadedProduct.attribute_rows)
+          || !Array.isArray(loadedProduct.variants)) {
+          throw new Error('Backend вернул неполную карточку товара. Редактирование остановлено, чтобы не затереть существующие данные.')
+        }
 
         setProduct(loadedProduct)
         setDraft(productDraft(loadedProduct))
@@ -1400,12 +1287,6 @@ function ProductEditor({
           attribute_value_id: [...row.attribute_value_id],
           custom_value: row.custom_value,
         })))
-
-        if (normalized.repaired) {
-          setLoadWarning(
-            'Подробный API вернул неполные данные. Основные поля восстановлены из списка товаров; ответ backend требует проверки.',
-          )
-        }
 
         const selectedVariationIds = loadedProduct.variation_attribute_ids.length > 0
           ? [...loadedProduct.variation_attribute_ids]
@@ -1424,7 +1305,7 @@ function ProductEditor({
     return () => {
       cancelled = true
     }
-  }, [productId, fallbackSummary])
+  }, [productId])
 
   if (loading || !product || !draft || !options) {
     return (
@@ -2193,24 +2074,13 @@ function ProductEditor({
           </div>
 
           {error && <span className="chip error" role="status"><CircleAlert size={13} /> Есть ошибка</span>}
-          {loadWarning && <span className="chip warn" role="status"><AlertTriangle size={13} /> Неполный ответ API</span>}
-          {message && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {message}</span>}
+          {message && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {message}</span>
           {attributesMessage && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {attributesMessage}</span>}
           {variantMessage && <span className="chip ok" role="status"><CheckCircle2 size={13} /> {variantMessage}</span>}
         </div>
 
-        {(error || loadWarning) && (
-          <div className="quality-problems" role={error ? 'alert' : 'status'} aria-live={error ? 'assertive' : 'polite'}>
-            {loadWarning && (
-              <div className="backend-warning">
-                <AlertTriangle size={15} />
-                <div>
-                  <strong>Карточка получена не полностью</strong>
-                  <span>{loadWarning}</span>
-                </div>
-              </div>
-            )}
-            {error && (
+        {error && (
+          <div className="quality-problems" role="alert" aria-live="assertive">
             <div className="backend-error">
               <CircleAlert size={15} />
               <div>
@@ -2218,7 +2088,6 @@ function ProductEditor({
                 <span>{error}</span>
               </div>
             </div>
-            )}
           </div>
         )}
       </div>
