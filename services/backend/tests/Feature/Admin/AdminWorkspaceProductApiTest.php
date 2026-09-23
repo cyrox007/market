@@ -3,8 +3,11 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Product\Attribute;
+use App\Models\Product\AttributeValue;
+use App\Models\Inventory\Warehouse;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
+use App\Models\Settings\ProductStockSettings;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
@@ -13,6 +16,185 @@ use Tests\TestCase;
 
 class AdminWorkspaceProductApiTest extends TestCase
 {
+    public function test_full_variant_lifecycle_with_color_and_warehouse_stock(): void
+    {
+        $permissions = collect([
+            'view products',
+            'create products',
+            'update products',
+            'delete products',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        $role = Role::firstOrCreate([
+            'name' => 'variant_lifecycle_test',
+            'guard_name' => 'web',
+        ]);
+        $role->syncPermissions($permissions);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $settings = ProductStockSettings::getInstance();
+        $settings->warehouse_accounting_enabled = true;
+        $settings->fallback_to_first_warehouse = true;
+        $settings->save();
+
+        $warehouse = Warehouse::query()->create([
+            'external_id' => 'warehouse-variant-test',
+            'name' => 'Тестовый склад вариаций',
+            'is_active' => true,
+        ]);
+
+        $parent = Product::factory()->create([
+            'name' => 'Диван для полного сценария вариаций',
+            'slug' => 'variant-lifecycle-parent',
+            'sku' => 'PARENT-LIFECYCLE',
+            'state' => 'active',
+            'price' => 9000,
+            'parent_product_id' => null,
+            'is_variable' => false,
+        ]);
+
+        $color = Attribute::query()->create([
+            'name' => 'Цвет',
+            'slug' => Attribute::SLUG_COLOR,
+            'type' => 'color',
+            'is_filterable' => true,
+            'is_required' => false,
+            'is_use_in_variations' => true,
+            'allow_custom_value' => false,
+            'is_multiple' => false,
+            'sort_order' => 10,
+        ]);
+
+        $gray = AttributeValue::query()->create([
+            'attribute_id' => $color->id,
+            'value' => 'Серый',
+            'slug' => 'seryi',
+            'color_code' => '#808080',
+            'sort_order' => 10,
+        ]);
+
+        $selectionResponse = $this->actingAs($user, 'web')
+            ->putJson("/admin_sv/api/products/{$parent->id}/variation-attributes", [
+                'attribute_ids' => [$color->id],
+            ]);
+
+        $selectionResponse->assertOk();
+
+        $createResponse = $this->actingAs($user, 'web')
+            ->postJson("/admin_sv/api/products/{$parent->id}/variants", [
+                'name' => 'Диван — Серый',
+                'sku' => 'VAR-LIFECYCLE-001',
+                'price' => 9801,
+                'original_price' => null,
+                'stock' => 0,
+                'backorder' => false,
+                'state' => 'active',
+                'external_id' => null,
+                'warehouse_stocks' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'quantity' => 15,
+                    ],
+                ],
+                'attributes' => [
+                    [
+                        'attribute_id' => $color->id,
+                        'attribute_value_id' => [$gray->id],
+                        'custom_value' => '',
+                    ],
+                ],
+            ]);
+
+        $createResponse->assertOk()
+            ->assertJsonPath('message', 'Торговое предложение создано');
+
+        $variant = Product::query()
+            ->where('parent_product_id', $parent->id)
+            ->where('sku', 'VAR-LIFECYCLE-001')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $variant->id,
+            'attribute_id' => $color->id,
+            'attribute_value_id' => $gray->id,
+        ]);
+        $this->assertDatabaseHas('product_warehouse_stocks', [
+            'product_id' => $variant->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 15,
+        ]);
+
+        $editorResponse = $this->actingAs($user, 'web')
+            ->getJson("/admin_sv/api/products/{$parent->id}/editor");
+
+        $editorResponse->assertOk()
+            ->assertJsonPath('product.id', $parent->id)
+            ->assertJsonCount(1, 'product.variants')
+            ->assertJsonPath('product.variants.0.id', $variant->id)
+            ->assertJsonPath('product.variants.0.sku', 'VAR-LIFECYCLE-001')
+            ->assertJsonPath('product.variants.0.attributes.0.attribute_id', $color->id)
+            ->assertJsonPath('product.variants.0.attributes.0.attribute_value_id.0', $gray->id)
+            ->assertJsonPath('product.variants.0.warehouse_stocks.0.warehouse_id', $warehouse->id)
+            ->assertJsonPath('product.variants.0.warehouse_stocks.0.quantity', 15);
+
+        $updateResponse = $this->actingAs($user, 'web')
+            ->putJson("/admin_sv/api/products/{$parent->id}/variants/{$variant->id}", [
+                'name' => 'Диван — Серый обновлённый',
+                'sku' => 'VAR-LIFECYCLE-001',
+                'price' => 9999,
+                'original_price' => 10999,
+                'stock' => 0,
+                'backorder' => true,
+                'state' => 'active',
+                'external_id' => null,
+                'warehouse_stocks' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'quantity' => 12,
+                    ],
+                ],
+                'attributes' => [
+                    [
+                        'attribute_id' => $color->id,
+                        'attribute_value_id' => [$gray->id],
+                        'custom_value' => '',
+                    ],
+                ],
+            ]);
+
+        $updateResponse->assertOk()
+            ->assertJsonPath('message', 'Торговое предложение сохранено');
+
+        $variant->refresh();
+        $this->assertSame('Диван — Серый обновлённый', $variant->name);
+        $this->assertSame(9999.0, (float) $variant->price);
+        $this->assertTrue((bool) $variant->backorder);
+
+        $this->assertDatabaseHas('product_warehouse_stocks', [
+            'product_id' => $variant->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 12,
+        ]);
+
+        $deleteResponse = $this->actingAs($user, 'web')
+            ->deleteJson("/admin_sv/api/products/{$parent->id}/variants/{$variant->id}");
+
+        $deleteResponse->assertOk()
+            ->assertJsonPath('message', 'Торговое предложение удалено');
+
+        $this->assertDatabaseMissing('products', [
+            'id' => $variant->id,
+        ]);
+
+        $parent->refresh();
+        $this->assertFalse($parent->isVariable());
+    }
+
     public function test_variant_creation_persists_required_product_fields(): void
     {
         $createPermission = Permission::firstOrCreate([
