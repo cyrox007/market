@@ -891,6 +891,7 @@ function ProductEditor({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [attributesSaving, setAttributesSaving] = useState(false)
+  const [mediaSaving, setMediaSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [attributesMessage, setAttributesMessage] = useState<string | null>(null)
@@ -1098,7 +1099,57 @@ function ProductEditor({
     })
   }
 
+  const uploadMedia = async (
+    collection: 'images' | 'gallery',
+    file: File | null,
+  ) => {
+    if (!file || !canUpdate) return
+
+    setMediaSaving(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const response = await backendApi.uploadProductMedia(
+        product.id,
+        collection,
+        file,
+        session.csrf_token,
+      )
+      applySavedProduct(response.product)
+      setMessage(response.message)
+    } catch (mediaError) {
+      setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
+    } finally {
+      setMediaSaving(false)
+    }
+  }
+
+  const deleteMedia = async (mediaId: number) => {
+    if (!canUpdate) return
+
+    setMediaSaving(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const response = await backendApi.deleteProductMedia(
+        product.id,
+        mediaId,
+        session.csrf_token,
+      )
+      applySavedProduct(response.product)
+      setMessage(response.message)
+    } catch (mediaError) {
+      setError(mediaError instanceof Error ? mediaError.message : String(mediaError))
+    } finally {
+      setMediaSaving(false)
+    }
+  }
+
   const variantAttributes = product.attributes.filter((attribute) => attribute.source === 'variants')
+  const mainImage = product.media.find((item) => item.collection === 'images') ?? null
+  const galleryImages = product.media.filter((item) => item.collection === 'gallery')
 
   return (
     <section className="panel product-editor-page">
@@ -1669,15 +1720,99 @@ function ProductEditor({
 
         {tab === 'media' && (
           <div className="editor-content-wide">
-            <Card title="Изображения товара" subtitle="В текущей модели главная коллекция называется «images», галерея — «gallery».">
-              <div className="callout muted">
-                <AlertTriangle size={17} />
-                <div>
-                  <strong>Старый Filament содержит несогласованность коллекции главного изображения</strong>
-                  <span>Форма пишет в «main_image», а модель и сайт читают «images». В новой панели загрузку подключаем к фактической коллекции модели, чтобы не плодить третий вариант.</span>
+            <div className="editor-two-column media-layout">
+              <Card title="Главное изображение" subtitle="Используется реальная коллекция модели «images»">
+                <div className="main-media-editor">
+                  {mainImage ? (
+                    <div className="media-preview main">
+                      <img src={mainImage.thumb_url || mainImage.url} alt={mainImage.name} />
+                      <div>
+                        <strong>{mainImage.file_name}</strong>
+                        <a href={mainImage.url} target="_blank" rel="noreferrer">Открыть оригинал</a>
+                      </div>
+                      <button
+                        className="icon-danger"
+                        type="button"
+                        onClick={() => deleteMedia(mainImage.id)}
+                        disabled={!canUpdate || mediaSaving}
+                        aria-label="Удалить главное изображение"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="media-empty">Главное изображение не загружено</div>
+                  )}
+
+                  <label className={canUpdate ? 'media-upload' : 'media-upload disabled'}>
+                    <Plus size={17} />
+                    <span>{mainImage ? 'Заменить изображение' : 'Загрузить изображение'}</span>
+                    <small>JPEG, PNG или WebP · до 10 МБ</small>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={!canUpdate || mediaSaving}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] ?? null
+                        void uploadMedia('images', file)
+                        event.currentTarget.value = ''
+                      }}
+                    />
+                  </label>
                 </div>
+              </Card>
+
+              <Card title="Галерея" subtitle="Дополнительные фотографии товара">
+                <div className="gallery-editor">
+                  {galleryImages.length === 0 ? (
+                    <div className="media-empty">Галерея пока пустая</div>
+                  ) : (
+                    <div className="gallery-grid">
+                      {galleryImages.map((media) => (
+                        <article className="gallery-item" key={media.id}>
+                          <img src={media.thumb_url || media.url} alt={media.name} />
+                          <div>
+                            <span>{media.file_name}</span>
+                            <button
+                              className="icon-danger"
+                              type="button"
+                              onClick={() => deleteMedia(media.id)}
+                              disabled={!canUpdate || mediaSaving}
+                              aria-label="Удалить изображение"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className={canUpdate ? 'media-upload compact' : 'media-upload compact disabled'}>
+                    <Plus size={16} />
+                    <span>Добавить в галерею</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={!canUpdate || mediaSaving}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] ?? null
+                        void uploadMedia('gallery', file)
+                        event.currentTarget.value = ''
+                      }}
+                    />
+                  </label>
+                </div>
+              </Card>
+            </div>
+
+            <div className="callout muted compact-callout">
+              <AlertTriangle size={17} />
+              <div>
+                <strong>Исправлено расхождение старой формы</strong>
+                <span>Новая панель использует «images» для главной фотографии и «gallery» для галереи — именно эти коллекции зарегистрированы в модели Product и читаются сайтом.</span>
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
