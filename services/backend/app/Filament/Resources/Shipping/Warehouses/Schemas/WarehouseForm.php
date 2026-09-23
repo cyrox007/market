@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Shipping\Warehouses\Schemas;
 
+use App\Models\Shipping\ShippingLocation;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -84,6 +85,17 @@ class WarehouseForm
                                         Select::make('shipping_location_id')
                                             ->label('Территория / регион / город')
                                             ->relationship('location', 'name')
+                                            ->getOptionLabelFromRecordUsing(function (ShippingLocation $record): string {
+                                                $type = match ($record->type) {
+                                                    'federal_district' => 'ФО',
+                                                    'region' => 'регион',
+                                                    'locality' => 'город',
+                                                    default => null,
+                                                };
+
+                                                return $record->full_path
+                                                    . ($type ? ' (' . $type . ')' : '');
+                                            })
                                             ->searchable()
                                             ->preload()
                                             ->required()
