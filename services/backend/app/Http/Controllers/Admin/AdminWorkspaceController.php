@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Inventory\Warehouse;
 use App\Models\Order\Order;
 use App\Models\Page\Store;
 use App\Models\Product\Attribute;
@@ -46,6 +47,10 @@ class AdminWorkspaceController extends Controller
                 'shipping_locations' => [
                     'view' => $user->can('viewAny shipping_locations'),
                     'update' => $user->can('update shipping_locations'),
+                ],
+                'warehouses' => [
+                    'view' => $user->can('viewAny warehouses'),
+                    'update' => $user->can('update warehouses'),
                 ],
             ],
         ]);
@@ -321,6 +326,34 @@ class AdminWorkspaceController extends Controller
                         'id' => $store->region->id,
                         'name' => $store->region->name,
                     ] : null,
+                ])
+                ->values(),
+        ]);
+    }
+
+    public function warehouses(): JsonResponse
+    {
+        Gate::authorize('viewAny', Warehouse::class);
+
+        return response()->json([
+            'data' => Warehouse::query()
+                ->with(['shippingLocations:id,name'])
+                ->withCount(['productStocks', 'shippingLocations'])
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Warehouse $warehouse) => [
+                    'id' => $warehouse->id,
+                    'external_id' => $warehouse->external_id,
+                    'name' => $warehouse->name,
+                    'is_active' => (bool) $warehouse->is_active,
+                    'product_stocks_count' => (int) $warehouse->product_stocks_count,
+                    'shipping_locations_count' => (int) $warehouse->shipping_locations_count,
+                    'shipping_locations' => $warehouse->shippingLocations
+                        ->map(fn ($location) => [
+                            'id' => $location->id,
+                            'name' => $location->name,
+                        ])
+                        ->values(),
                 ])
                 ->values(),
         ]);
