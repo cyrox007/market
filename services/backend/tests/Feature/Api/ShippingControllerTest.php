@@ -5,6 +5,8 @@ namespace Tests\Feature\Api;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Inventory\Warehouse;
 use App\Models\Shipping\ShippingLocation;
+use App\Models\Shipping\WarehouseDeliveryMethod;
+use App\Models\Shipping\WarehouseDeliveryZone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use App\Models\Shipping\Carrier;
@@ -469,22 +471,50 @@ class ShippingControllerTest extends TestCase
             'is_active' => true,
         ]);
 
-        $warehouse->shippingLocations()->attach($location->id, [
-            'delivery_price' => 550,
-            'delivery_days_min' => 1,
-            'delivery_days_max' => 2,
+        $carrier = Carrier::create([
+            'name' => 'Собственная доставка',
+            'is_active' => true,
+        ]);
+
+        $shippingMethod = ShippingMethod::create([
+            'name' => 'Курьер со склада',
+            'carrier_id' => $carrier->id,
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        $deliveryMethod = WarehouseDeliveryMethod::create([
+            'warehouse_id' => $warehouse->id,
+            'shipping_method_id' => $shippingMethod->id,
             'is_active' => true,
             'priority' => 100,
         ]);
 
-        $response = $this->getJson('/api/v1/shipping/delivery-options?location_id=' . $location->id);
+        WarehouseDeliveryZone::create([
+            'warehouse_delivery_method_id' => $deliveryMethod->id,
+            'shipping_location_id' => $location->id,
+            'delivery_price' => 550,
+            'delivery_days_min' => 1,
+            'delivery_days_max' => 2,
+            'is_active' => true,
+            'priority' => 10,
+        ]);
+
+        $response = $this->getJson(
+            '/api/v1/shipping/delivery-options?location_id='
+            . $location->id
+            . '&order_amount=3000'
+        );
 
         $response->assertStatus(200)
+            ->assertJsonPath('data.0.warehouse_delivery_method_id', $deliveryMethod->id)
             ->assertJsonPath('data.0.warehouse_id', $warehouse->id)
+            ->assertJsonPath('data.0.shipping_method_id', $shippingMethod->id)
+            ->assertJsonPath('data.0.shipping_method_name', 'Курьер со склада')
+            ->assertJsonPath('data.0.carrier.name', 'Собственная доставка')
             ->assertJsonPath('data.0.delivery_price', 550)
             ->assertJsonPath('data.0.delivery_days_min', 1)
             ->assertJsonPath('data.0.delivery_days_max', 2)
             ->assertJsonPath('data.0.inherited', false);
     }
-
 }
