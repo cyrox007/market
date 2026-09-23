@@ -3534,7 +3534,7 @@ function GalleryManager({
     if (images.length > 0) onFiles(images)
   }
 
-  const moveBefore = (targetId: number) => {
+  const moveAround = (targetId: number, placeAfter: boolean) => {
     if (draggedId === null || draggedId === targetId) return
 
     const dragged = items.find((item) => item.id === draggedId)
@@ -3544,7 +3544,7 @@ function GalleryManager({
     const targetIndex = next.findIndex((item) => item.id === targetId)
     if (targetIndex < 0) return
 
-    next.splice(targetIndex, 0, dragged)
+    next.splice(targetIndex + (placeAfter ? 1 : 0), 0, dragged)
     setDraggedId(null)
 
     const ids = next.map((item) => item.id)
@@ -3585,7 +3585,9 @@ function GalleryManager({
                   return
                 }
 
-                moveBefore(item.id)
+                const bounds = event.currentTarget.getBoundingClientRect()
+                const placeAfter = event.clientY > bounds.top + bounds.height / 2
+                moveAround(item.id, placeAfter)
               }}
               key={item.id}
             >
