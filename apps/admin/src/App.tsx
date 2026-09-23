@@ -2135,35 +2135,13 @@ function ProductEditor({
 
         {tab === 'links' && (
           <div className="editor-content-wide">
-            <div className="relation-grid">
-              <article className="relation-card">
-                <span><Package size={18} /></span>
-                <div>
-                  <small>Сопутствующие товары</small>
-                  <strong>Отдельная связь</strong>
-                  <p>product_related_products, симметричная привязка.</p>
-                </div>
-                <ChevronRight size={16} />
-              </article>
-              <article className="relation-card">
-                <span><Package size={18} /></span>
-                <div>
-                  <small>Набор / комплект</small>
-                  <strong>Отдельная связь</strong>
-                  <p>product_bundle_products с собственным порядком.</p>
-                </div>
-                <ChevronRight size={16} />
-              </article>
-              <article className="relation-card">
-                <span><MapPin size={18} /></span>
-                <div>
-                  <small>Региональные правила</small>
-                  <strong>Отдельная логика</strong>
-                  <p>Цена, видимость и срок доставки по локациям.</p>
-                </div>
-                <ChevronRight size={16} />
-              </article>
-            </div>
+            <ProductLinksPanel
+              product={product}
+              options={options}
+              canUpdate={canUpdate}
+              csrfToken={session.csrf_token}
+              onProductSaved={applySavedProduct}
+            />
           </div>
         )}
       </div>
@@ -2174,7 +2152,9 @@ function ProductEditor({
             ? 'Характеристики сохраняются отдельной кнопкой внутри вкладки.'
             : tab === 'media'
               ? 'Загрузка, замена и удаление изображений сохраняются сразу.'
-              : tabUsesProductSave
+              : tab === 'links'
+                ? 'Связи и региональные правила сохраняются внутри соответствующих блоков.'
+                : tabUsesProductSave
                 ? canUpdate
                   ? 'Изменения этой вкладки сохраняются кнопкой справа.'
                   : 'У пользователя нет разрешения update products.'
@@ -2204,6 +2184,591 @@ function ProductEditor({
         )}
       </footer>
     </section>
+  )
+}
+
+type RegionRuleDraft = {
+  id: number | null
+  variant_id: string
+  shipping_location_id: string
+  price_override: string
+  price_modifier_type: '' | 'fixed' | 'percent' | 'multiply'
+  price_modifier_value: string
+  is_hidden: boolean
+  delivery_days_override: string
+  priority: string
+  is_active: boolean
+}
+
+function regionRuleDraft(
+  rule?: ProductDetails['region_rules'][number],
+): RegionRuleDraft {
+  return {
+    id: rule?.id ?? null,
+    variant_id: rule?.variant_id === null || rule?.variant_id === undefined
+      ? ''
+      : String(rule.variant_id),
+    shipping_location_id: rule ? String(rule.shipping_location_id) : '',
+    price_override: rule?.price_override === null || rule?.price_override === undefined
+      ? ''
+      : String(rule.price_override),
+    price_modifier_type: rule?.price_modifier_type ?? '',
+    price_modifier_value: rule?.price_modifier_value === null || rule?.price_modifier_value === undefined
+      ? ''
+      : String(rule.price_modifier_value),
+    is_hidden: Boolean(rule?.is_hidden ?? false),
+    delivery_days_override: rule?.delivery_days_override === null || rule?.delivery_days_override === undefined
+      ? ''
+      : String(rule.delivery_days_override),
+    priority: String(rule?.priority ?? 0),
+    is_active: Boolean(rule?.is_active ?? true),
+  }
+}
+
+function ProductLinksPanel({
+  product,
+  options,
+  canUpdate,
+  csrfToken,
+  onProductSaved,
+}: {
+  product: ProductDetails
+  options: ProductEditorOptions
+  canUpdate: boolean
+  csrfToken: string
+  onProductSaved: (product: ProductDetails) => void
+}) {
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [regionDraft, setRegionDraft] = useState<RegionRuleDraft | null>(null)
+
+  const run = async (
+    action: () => Promise<{ message: string; product: ProductDetails }>,
+  ) => {
+    setBusy(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const response = await action()
+      onProductSaved(response.product)
+      setMessage(response.message)
+      return response.product
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : String(actionError))
+      return null
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveRegionRule = async () => {
+    if (!regionDraft || !canUpdate) return
+
+    if (!regionDraft.shipping_location_id) {
+      setError('Выберите локацию доставки.')
+      return
+    }
+
+    const nullableNumber = (value: string): number | null => {
+      if (value.trim() === '') return null
+      const parsed = Number(value.replace(',', '.'))
+      return Number.isFinite(parsed) ? parsed : null
+    }
+
+    const data = {
+      variant_id: regionDraft.variant_id ? Number(regionDraft.variant_id) : null,
+      shipping_location_id: Number(regionDraft.shipping_location_id),
+      price_override: nullableNumber(regionDraft.price_override),
+      price_modifier_type: regionDraft.price_modifier_type || null,
+      price_modifier_value: nullableNumber(regionDraft.price_modifier_value),
+      is_hidden: regionDraft.is_hidden,
+      delivery_days_override: nullableNumber(regionDraft.delivery_days_override),
+      priority: Number(regionDraft.priority || 0),
+      is_active: regionDraft.is_active,
+    }
+
+    const saved = await run(() => (
+      regionDraft.id === null
+        ? backendApi.createProductRegionRule(product.id, data, csrfToken)
+        : backendApi.updateProductRegionRule(product.id, regionDraft.id, data, csrfToken)
+    ))
+
+    if (!saved) return
+
+    const rule = regionDraft.id === null
+      ? saved.region_rules.find((item) => (
+          item.shipping_location_id === data.shipping_location_id
+          && item.variant_id === data.variant_id
+        ))
+      : saved.region_rules.find((item) => item.id === regionDraft.id)
+
+    setRegionDraft(rule ? regionRuleDraft(rule) : null)
+  }
+
+  const deleteRegionRule = async () => {
+    if (!regionDraft?.id || !canUpdate) return
+
+    const confirmed = window.confirm('Удалить региональное правило?')
+    if (!confirmed) return
+
+    const saved = await run(() => backendApi.deleteProductRegionRule(
+      product.id,
+      regionDraft.id as number,
+      csrfToken,
+    ))
+
+    if (saved) setRegionDraft(null)
+  }
+
+  return (
+    <div className="product-links-stack">
+      {error && <InlineError text={error} />}
+      {message && <InlineSuccess text={message} />}
+
+      <div className="editor-two-column">
+        <Card
+          title="Сопутствующие товары"
+          subtitle="Связь симметричная: товар появится сопутствующим в обе стороны"
+        >
+          <ProductRelationSearch
+            productId={product.id}
+            excludedIds={product.related_products.map((item) => item.id)}
+            disabled={!canUpdate || busy}
+            placeholder="Найти товар по названию или SKU"
+            actionLabel="Добавить"
+            onSelect={(id) => {
+              void run(() => backendApi.attachRelatedProduct(product.id, id, csrfToken))
+            }}
+          />
+
+          <div className="linked-product-list">
+            {product.related_products.length === 0 && (
+              <div className="linked-empty">Сопутствующие товары не добавлены.</div>
+            )}
+            {product.related_products.map((item) => (
+              <LinkedProductRow
+                product={item}
+                key={item.id}
+                action={
+                  <button
+                    className="icon-danger"
+                    type="button"
+                    disabled={!canUpdate || busy}
+                    onClick={() => void run(() => backendApi.detachRelatedProduct(
+                      product.id,
+                      item.id,
+                      csrfToken,
+                    ))}
+                    aria-label="Убрать сопутствующий товар"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                }
+              />
+            ))}
+          </div>
+        </Card>
+
+        <Card
+          title="Комплект / набор"
+          subtitle="Односторонний состав товара с собственным порядком"
+        >
+          <ProductRelationSearch
+            productId={product.id}
+            excludedIds={product.bundle_products.map((item) => item.id)}
+            disabled={!canUpdate || busy}
+            placeholder="Добавить товар в комплект"
+            actionLabel="Добавить"
+            onSelect={(id) => {
+              void run(() => backendApi.attachBundleProducts(
+                product.id,
+                [id],
+                csrfToken,
+              ))
+            }}
+          />
+
+          <div className="linked-product-list">
+            {product.bundle_products.length === 0 && (
+              <div className="linked-empty">Состав комплекта не задан.</div>
+            )}
+            {product.bundle_products.map((item) => (
+              <div className="bundle-row" key={item.id}>
+                <LinkedProductRow product={item} />
+                <label className="bundle-order">
+                  <span>Порядок</span>
+                  <input
+                    type="number"
+                    defaultValue={item.sort_order}
+                    disabled={!canUpdate || busy}
+                    onBlur={(event) => {
+                      const next = Number(event.currentTarget.value || 0)
+                      if (next === item.sort_order) return
+                      void run(() => backendApi.updateBundleProduct(
+                        product.id,
+                        item.id,
+                        next,
+                        csrfToken,
+                      ))
+                    }}
+                  />
+                </label>
+                <button
+                  className="icon-danger"
+                  type="button"
+                  disabled={!canUpdate || busy}
+                  onClick={() => void run(() => backendApi.detachBundleProduct(
+                    product.id,
+                    item.id,
+                    csrfToken,
+                  ))}
+                  aria-label="Убрать товар из комплекта"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <section className="region-rules-panel">
+        <header>
+          <div>
+            <h3>Региональные правила</h3>
+            <p>Цена, видимость и срок доставки для территории. Правило локации наследуется её дочерними локациями.</p>
+          </div>
+          <button
+            className="btn primary small"
+            type="button"
+            disabled={!canUpdate || busy}
+            onClick={() => setRegionDraft(regionRuleDraft())}
+          >
+            <Plus size={14} />
+            Добавить правило
+          </button>
+        </header>
+
+        <div className="region-rules-workspace">
+          <div className="region-rule-list">
+            {product.region_rules.length === 0 && (
+              <div className="linked-empty">Региональных правил нет.</div>
+            )}
+            {product.region_rules.map((rule) => (
+              <button
+                className={regionDraft?.id === rule.id ? 'region-rule-row selected' : 'region-rule-row'}
+                type="button"
+                onClick={() => setRegionDraft(regionRuleDraft(rule))}
+                key={rule.id}
+              >
+                <div>
+                  <strong>{rule.location_path || rule.location_name || `Локация #${rule.shipping_location_id}`}</strong>
+                  <small>
+                    {rule.variant_id
+                      ? `Вариация: ${rule.variant_name || '#' + rule.variant_id}`
+                      : 'Весь товар'}
+                  </small>
+                </div>
+                <div>
+                  {rule.is_hidden && <span className="chip error">Скрыт</span>}
+                  {!rule.is_active && <span className="chip">Выключено</span>}
+                  {rule.price_override !== null && <span>{formatMoney(rule.price_override)}</span>}
+                </div>
+                <ChevronRight size={14} />
+              </button>
+            ))}
+          </div>
+
+          {regionDraft ? (
+            <div className="region-rule-editor">
+              <div className="form-grid readable">
+                <label className="field">
+                  <span>Применять к</span>
+                  <select
+                    value={regionDraft.variant_id}
+                    disabled={!canUpdate || busy}
+                    onChange={(event) => setRegionDraft({
+                      ...regionDraft,
+                      variant_id: event.target.value,
+                    })}
+                  >
+                    <option value="">Всему товару</option>
+                    {product.variants.map((variant) => (
+                      <option value={variant.id} key={variant.id}>
+                        {variant.name} · {variant.sku}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Локация <b>*</b></span>
+                  <select
+                    value={regionDraft.shipping_location_id}
+                    disabled={!canUpdate || busy}
+                    onChange={(event) => setRegionDraft({
+                      ...regionDraft,
+                      shipping_location_id: event.target.value,
+                    })}
+                  >
+                    <option value="">Выберите территорию</option>
+                    {options.shipping_locations.map((location) => (
+                      <option value={location.id} key={location.id}>
+                        {location.path || location.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <LiveField
+                  label="Цена для региона"
+                  value={regionDraft.price_override}
+                  suffix="₽"
+                  inputMode="decimal"
+                  onChange={(value) => setRegionDraft({ ...regionDraft, price_override: value })}
+                />
+
+                <label className="field">
+                  <span>Модификатор цены</span>
+                  <select
+                    value={regionDraft.price_modifier_type}
+                    disabled={!canUpdate || busy}
+                    onChange={(event) => setRegionDraft({
+                      ...regionDraft,
+                      price_modifier_type: event.target.value as RegionRuleDraft['price_modifier_type'],
+                      price_modifier_value: event.target.value ? regionDraft.price_modifier_value : '',
+                    })}
+                  >
+                    <option value="">Без модификатора</option>
+                    <option value="fixed">Фиксированная сумма +/-</option>
+                    <option value="percent">Процент %</option>
+                    <option value="multiply">Множитель ×</option>
+                  </select>
+                </label>
+
+                {regionDraft.price_modifier_type && (
+                  <LiveField
+                    label="Значение модификатора"
+                    value={regionDraft.price_modifier_value}
+                    inputMode="decimal"
+                    onChange={(value) => setRegionDraft({ ...regionDraft, price_modifier_value: value })}
+                  />
+                )}
+
+                <LiveField
+                  label="Срок доставки"
+                  value={regionDraft.delivery_days_override}
+                  suffix="дн."
+                  inputMode="numeric"
+                  onChange={(value) => setRegionDraft({ ...regionDraft, delivery_days_override: value })}
+                />
+
+                <LiveField
+                  label="Приоритет"
+                  value={regionDraft.priority}
+                  inputMode="numeric"
+                  onChange={(value) => setRegionDraft({ ...regionDraft, priority: value })}
+                />
+              </div>
+
+              <div className="region-rule-switches">
+                <label className="switch-line">
+                  <input
+                    type="checkbox"
+                    checked={regionDraft.is_hidden}
+                    disabled={!canUpdate || busy}
+                    onChange={(event) => setRegionDraft({
+                      ...regionDraft,
+                      is_hidden: event.target.checked,
+                    })}
+                  />
+                  <span>
+                    <strong>Скрыть товар</strong>
+                    <small>Скрывает товар или выбранную вариацию в этой территории и дочерних локациях.</small>
+                  </span>
+                </label>
+
+                <label className="switch-line">
+                  <input
+                    type="checkbox"
+                    checked={regionDraft.is_active}
+                    disabled={!canUpdate || busy}
+                    onChange={(event) => setRegionDraft({
+                      ...regionDraft,
+                      is_active: event.target.checked,
+                    })}
+                  />
+                  <span>
+                    <strong>Правило активно</strong>
+                    <small>Выключенное правило хранится, но не применяется.</small>
+                  </span>
+                </label>
+              </div>
+
+              <footer className="region-rule-actions">
+                {regionDraft.id !== null ? (
+                  <button
+                    className="btn danger"
+                    type="button"
+                    disabled={!canUpdate || busy}
+                    onClick={() => void deleteRegionRule()}
+                  >
+                    <Trash2 size={14} />
+                    Удалить
+                  </button>
+                ) : <span />}
+
+                <div>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setRegionDraft(null)}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={!canUpdate || busy}
+                    onClick={() => void saveRegionRule()}
+                  >
+                    {busy ? <Loader2 className="spin" size={14} /> : <CheckCircle2 size={14} />}
+                    {regionDraft.id === null ? 'Добавить правило' : 'Сохранить правило'}
+                  </button>
+                </div>
+              </footer>
+            </div>
+          ) : (
+            <div className="region-rule-placeholder">
+              <MapPin size={26} />
+              <strong>Выберите правило</strong>
+              <span>Или добавьте новое для товара или конкретной вариации.</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function ProductRelationSearch({
+  productId,
+  excludedIds,
+  disabled,
+  placeholder,
+  actionLabel,
+  onSelect,
+}: {
+  productId: number
+  excludedIds: number[]
+  disabled: boolean
+  placeholder: string
+  actionLabel: string
+  onSelect: (id: number) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [items, setItems] = useState<ProductSummary[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const query = search.trim()
+    if (query.length < 2) {
+      setItems([])
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+
+    const timer = window.setTimeout(() => {
+      backendApi.products({ search: query, state: 'active', sort: 'name_asc' })
+        .then((response) => {
+          if (cancelled) return
+          const excluded = new Set([productId, ...excludedIds])
+          setItems(response.data.filter((item) => !excluded.has(item.id)).slice(0, 8))
+          setLoading(false)
+        })
+        .catch(() => {
+          if (cancelled) return
+          setItems([])
+          setLoading(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [search, productId, excludedIds.join(',')])
+
+  return (
+    <div className="relation-search">
+      <label className="small-search">
+        <Search size={15} />
+        <input
+          value={search}
+          disabled={disabled}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={placeholder}
+        />
+        {loading && <Loader2 className="spin" size={14} />}
+      </label>
+
+      {items.length > 0 && (
+        <div className="relation-search-results">
+          {items.map((item) => (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                onSelect(item.id)
+                setSearch('')
+                setItems([])
+              }}
+              key={item.id}
+            >
+              <span>
+                <strong>{item.name}</strong>
+                <small>{item.sku || `#${item.id}`} · {formatMoney(item.price)}</small>
+              </span>
+              <em>{actionLabel}</em>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LinkedProductRow({
+  product,
+  action,
+}: {
+  product: {
+    id: number
+    name: string
+    sku: string
+    price: number
+    image_url: string | null
+  }
+  action?: ReactNode
+}) {
+  return (
+    <article className="linked-product-row">
+      {product.image_url ? (
+        <img src={product.image_url} alt="" />
+      ) : (
+        <span className="linked-product-placeholder"><Package size={16} /></span>
+      )}
+      <div>
+        <strong>{product.name}</strong>
+        <small>{product.sku || `#${product.id}`} · {formatMoney(product.price)}</small>
+      </div>
+      {action}
+    </article>
   )
 }
 
