@@ -3316,11 +3316,556 @@ function LinkedProductRow({
   )
 }
 
+type SearchableSelectOption = {
+  value: number
+  label: string
+  hint?: string
+  disabled?: boolean
+  swatch?: string | null
+}
+
+function SearchableSelect({
+  value,
+  options,
+  disabled,
+  placeholder,
+  searchPlaceholder,
+  onChange,
+}: {
+  value: number | null
+  options: SearchableSelectOption[]
+  disabled: boolean
+  placeholder: string
+  searchPlaceholder: string
+  onChange: (value: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const selected = options.find((option) => option.value === value) ?? null
+  const normalized = search.trim().toLocaleLowerCase('ru-RU')
+  const filtered = normalized
+    ? options.filter((option) => (
+        option.label.toLocaleLowerCase('ru-RU').includes(normalized)
+        || (option.hint ?? '').toLocaleLowerCase('ru-RU').includes(normalized)
+      ))
+    : options
+
+  return (
+    <div
+      className={open ? 'searchable-select open' : 'searchable-select'}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false)
+          setSearch('')
+        }
+      }}
+    >
+      <button
+        className="searchable-select-trigger"
+        type="button"
+        disabled={disabled}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>
+          {selected?.swatch && <i style={{ background: selected.swatch }} />}
+          <strong>{selected?.label ?? placeholder}</strong>
+          {selected?.hint && <small>{selected.hint}</small>}
+        </span>
+        <ChevronDown size={15} />
+      </button>
+
+      {open && !disabled && (
+        <div className="searchable-select-popover">
+          <label className="small-search">
+            <Search size={14} />
+            <input
+              autoFocus
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={searchPlaceholder}
+            />
+          </label>
+
+          <div className="searchable-select-options">
+            {filtered.length === 0 && (
+              <span className="searchable-select-empty">Ничего не найдено</span>
+            )}
+
+            {filtered.map((option) => (
+              <button
+                className={option.value === value ? 'searchable-select-option selected' : 'searchable-select-option'}
+                type="button"
+                disabled={option.disabled}
+                onClick={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                  setSearch('')
+                }}
+                key={option.value}
+              >
+                <span>
+                  {option.swatch && <i style={{ background: option.swatch }} />}
+                  <strong>{option.label}</strong>
+                  {option.hint && <small>{option.hint}</small>}
+                </span>
+                {option.value === value && <Check size={14} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SingleImageDropzone({
+  item,
+  disabled,
+  busy,
+  onFiles,
+  onDelete,
+}: {
+  item: MediaItem | null
+  disabled: boolean
+  busy: boolean
+  onFiles: (files: File[]) => void
+  onDelete?: () => void
+}) {
+  const [dragActive, setDragActive] = useState(false)
+
+  const acceptFiles = (files: File[]) => {
+    const images = files.filter((file) => file.type.startsWith('image/'))
+    if (images.length > 0) onFiles(images.slice(0, 1))
+  }
+
+  return (
+    <div className="single-image-manager">
+      {item && (
+        <div className="media-preview main media-thumb-card">
+          <img src={item.thumb_url || item.url} alt={item.name} />
+          <div>
+            <strong>{item.file_name}</strong>
+            <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал</a>
+          </div>
+          {onDelete && (
+            <button
+              className="icon-danger"
+              type="button"
+              onClick={onDelete}
+              disabled={disabled || busy}
+              aria-label="Удалить изображение"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
+      )}
+
+      <label
+        className={[
+          'media-dropzone',
+          'single',
+          dragActive ? 'drag-active' : '',
+          disabled || busy ? 'disabled' : '',
+        ].filter(Boolean).join(' ')}
+        onDragEnter={(event) => {
+          event.preventDefault()
+          if (!disabled && !busy) setDragActive(true)
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setDragActive(false)
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragActive(false)
+          if (disabled || busy) return
+          acceptFiles(Array.from(event.dataTransfer.files))
+        }}
+      >
+        {busy ? <Loader2 className="spin" size={24} /> : <ImagePlus size={24} />}
+        <strong>{item ? 'Заменить главное изображение' : 'Перетащите главное изображение сюда'}</strong>
+        <span>или нажмите для выбора файла · JPEG, PNG, WebP · до 10 МБ</span>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          disabled={disabled || busy}
+          onChange={(event) => {
+            acceptFiles(Array.from(event.currentTarget.files ?? []))
+            event.currentTarget.value = ''
+          }}
+        />
+      </label>
+    </div>
+  )
+}
+
+function GalleryManager({
+  items,
+  maxFiles,
+  disabled,
+  busy,
+  onFiles,
+  onDelete,
+  onReorder,
+}: {
+  items: MediaItem[]
+  maxFiles: number
+  disabled: boolean
+  busy: boolean
+  onFiles: (files: File[]) => void
+  onDelete: (mediaId: number) => void
+  onReorder: (mediaIds: number[]) => void
+}) {
+  const [draggedId, setDraggedId] = useState<number | null>(null)
+  const [fileDragActive, setFileDragActive] = useState(false)
+  const remaining = Math.max(0, maxFiles - items.length)
+
+  const uploadFiles = (files: File[]) => {
+    if (remaining <= 0) return
+
+    const images = files
+      .filter((file) => file.type.startsWith('image/'))
+      .slice(0, remaining)
+
+    if (images.length > 0) onFiles(images)
+  }
+
+  const moveBefore = (targetId: number) => {
+    if (draggedId === null || draggedId === targetId) return
+
+    const dragged = items.find((item) => item.id === draggedId)
+    if (!dragged) return
+
+    const next = items.filter((item) => item.id !== draggedId)
+    const targetIndex = next.findIndex((item) => item.id === targetId)
+    if (targetIndex < 0) return
+
+    next.splice(targetIndex, 0, dragged)
+    setDraggedId(null)
+
+    const ids = next.map((item) => item.id)
+    if (ids.some((id, index) => id !== items[index]?.id)) {
+      onReorder(ids)
+    }
+  }
+
+  return (
+    <div className="gallery-manager">
+      <div className="gallery-manager-head">
+        <span>{items.length} / {maxFiles}</span>
+        <small>Перетаскивайте миниатюры, чтобы изменить порядок.</small>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="gallery-grid sortable-gallery">
+          {items.map((item, index) => (
+            <article
+              className={draggedId === item.id ? 'gallery-item sortable dragging' : 'gallery-item sortable'}
+              draggable={!disabled && !busy}
+              onDragStart={(event) => {
+                setDraggedId(item.id)
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('text/plain', String(item.id))
+              }}
+              onDragEnd={() => setDraggedId(null)}
+              onDragOver={(event) => {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = event.dataTransfer.files.length > 0 ? 'copy' : 'move'
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+
+                if (event.dataTransfer.files.length > 0) {
+                  setDraggedId(null)
+                  uploadFiles(Array.from(event.dataTransfer.files))
+                  return
+                }
+
+                moveBefore(item.id)
+              }}
+              key={item.id}
+            >
+              <div className="gallery-order-badge">{index + 1}</div>
+              <div className="gallery-drag-handle" title="Перетащить">
+                <GripVertical size={15} />
+              </div>
+              <img src={item.thumb_url || item.url} alt={item.name} />
+              <div>
+                <span title={item.file_name}>{item.file_name}</span>
+                <button
+                  className="icon-danger"
+                  type="button"
+                  onClick={() => onDelete(item.id)}
+                  disabled={disabled || busy}
+                  aria-label="Удалить изображение"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="media-empty">Галерея пока пустая</div>
+      )}
+
+      <label
+        className={[
+          'media-dropzone',
+          'gallery',
+          fileDragActive ? 'drag-active' : '',
+          disabled || busy || remaining <= 0 ? 'disabled' : '',
+        ].filter(Boolean).join(' ')}
+        onDragEnter={(event) => {
+          event.preventDefault()
+          if (!disabled && !busy && remaining > 0) setFileDragActive(true)
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setFileDragActive(false)
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setFileDragActive(false)
+          if (disabled || busy || remaining <= 0) return
+          uploadFiles(Array.from(event.dataTransfer.files))
+        }}
+      >
+        {busy ? <Loader2 className="spin" size={22} /> : <ImagePlus size={22} />}
+        <strong>
+          {remaining > 0
+            ? `Перетащите фотографии сюда · можно ещё ${remaining}`
+            : 'Достигнут предел в 20 изображений'}
+        </strong>
+        <span>{remaining > 0 ? 'или нажмите и выберите несколько файлов сразу' : 'Удалите фотографию, чтобы загрузить новую'}</span>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          disabled={disabled || busy || remaining <= 0}
+          onChange={(event) => {
+            uploadFiles(Array.from(event.currentTarget.files ?? []))
+            event.currentTarget.value = ''
+          }}
+        />
+      </label>
+    </div>
+  )
+}
+
+function QuickAttributeDialog({
+  mode,
+  draft,
+  busy,
+  onChange,
+  onSave,
+  onClose,
+}: {
+  mode: 'product' | 'variation'
+  draft: QuickAttributeDraft
+  busy: boolean
+  onChange: (draft: QuickAttributeDraft) => void
+  onSave: () => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="quick-editor-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose()
+      }}
+    >
+      <section className="quick-editor-dialog">
+        <header>
+          <div>
+            <span className="eyebrow">Создание без перехода в справочник</span>
+            <h3>{mode === 'variation' ? 'Новый параметр вариации' : 'Новая характеристика'}</h3>
+          </div>
+          <button className="icon-btn" type="button" onClick={onClose} disabled={busy} aria-label="Закрыть">
+            <X size={16} />
+          </button>
+        </header>
+
+        <div className="quick-editor-body">
+          <div className="form-grid readable">
+            <LiveField
+              label="Название"
+              value={draft.name}
+              required
+              onChange={(value) => onChange({ ...draft, name: value })}
+            />
+            <LiveField
+              label="Slug (необязательно)"
+              value={draft.slug}
+              onChange={(value) => onChange({ ...draft, slug: value })}
+            />
+            <label className="field">
+              <span>Тип <b>*</b></span>
+              <select
+                value={draft.type}
+                onChange={(event) => onChange({ ...draft, type: event.target.value })}
+              >
+                <option value="select">Список</option>
+                <option value="color">Цвет</option>
+                <option value="string">Строка</option>
+                <option value="text">Текст</option>
+                <option value="number">Число из списка</option>
+                <option value="number_input">Число — ручной ввод</option>
+              </select>
+            </label>
+          </div>
+
+          {mode === 'variation' && (
+            <div className="callout muted compact-callout">
+              <SlidersHorizontal size={16} />
+              <div>
+                <strong>Будет использоваться в торговых предложениях</strong>
+                <span>Например, «Цвет» или «Размер». После создания характеристика сразу добавится в параметры этого товара.</span>
+              </div>
+            </div>
+          )}
+
+          <div className="quick-editor-flags">
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.is_filterable}
+                onChange={(event) => onChange({ ...draft, is_filterable: event.target.checked })}
+              />
+              <span><strong>Фильтр</strong><small>Показывать в фильтрах каталога</small></span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.is_required}
+                onChange={(event) => onChange({ ...draft, is_required: event.target.checked })}
+              />
+              <span><strong>Обязательная</strong><small>Требовать значение</small></span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.is_multiple}
+                onChange={(event) => onChange({ ...draft, is_multiple: event.target.checked })}
+              />
+              <span><strong>Несколько значений</strong><small>Можно выбрать больше одного</small></span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.allow_custom_value}
+                onChange={(event) => onChange({ ...draft, allow_custom_value: event.target.checked })}
+              />
+              <span><strong>Ручное значение</strong><small>Разрешить ввод вне справочника</small></span>
+            </label>
+          </div>
+        </div>
+
+        <footer className="quick-editor-actions">
+          <button className="btn ghost" type="button" onClick={onClose} disabled={busy}>Отмена</button>
+          <button className="btn primary" type="button" onClick={onSave} disabled={busy || !draft.name.trim()}>
+            {busy ? <Loader2 className="spin" size={15} /> : <Plus size={15} />}
+            {busy ? 'Создаю…' : 'Создать'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  )
+}
+
+function QuickValueDialog({
+  attribute,
+  draft,
+  busy,
+  onChange,
+  onSave,
+  onClose,
+}: {
+  attribute: ProductEditorAttributeOption
+  draft: QuickValueDraft
+  busy: boolean
+  onChange: (draft: QuickValueDraft) => void
+  onSave: () => void
+  onClose: () => void
+}) {
+  const colorValue = /^#[0-9a-f]{6}$/i.test(draft.color_code)
+    ? draft.color_code
+    : '#000000'
+
+  return (
+    <div
+      className="quick-editor-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose()
+      }}
+    >
+      <section className="quick-editor-dialog compact-dialog">
+        <header>
+          <div>
+            <span className="eyebrow">{attribute.name}</span>
+            <h3>Новое значение характеристики</h3>
+          </div>
+          <button className="icon-btn" type="button" onClick={onClose} disabled={busy} aria-label="Закрыть">
+            <X size={16} />
+          </button>
+        </header>
+
+        <div className="quick-editor-body">
+          <LiveField
+            label="Значение"
+            value={draft.value}
+            required
+            onChange={(value) => onChange({ ...draft, value })}
+          />
+          <LiveField
+            label="Slug (необязательно)"
+            value={draft.slug}
+            onChange={(value) => onChange({ ...draft, slug: value })}
+          />
+
+          {attribute.type === 'color' && (
+            <label className="field color-value-field">
+              <span>Цвет</span>
+              <div>
+                <input
+                  type="color"
+                  value={colorValue}
+                  onChange={(event) => onChange({ ...draft, color_code: event.target.value })}
+                />
+                <input
+                  value={draft.color_code}
+                  onChange={(event) => onChange({ ...draft, color_code: event.target.value })}
+                  placeholder="#000000"
+                />
+              </div>
+            </label>
+          )}
+        </div>
+
+        <footer className="quick-editor-actions">
+          <button className="btn ghost" type="button" onClick={onClose} disabled={busy}>Отмена</button>
+          <button className="btn primary" type="button" onClick={onSave} disabled={busy || !draft.value.trim()}>
+            {busy ? <Loader2 className="spin" size={15} /> : <Plus size={15} />}
+            {busy ? 'Создаю…' : 'Создать значение'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  )
+}
+
 function VariantEditorPanel({
   draft,
   options,
   canUpdate,
   canDelete,
+  canUpdateAttributes,
   saving,
   onChange,
   media,
@@ -3328,19 +3873,24 @@ function VariantEditorPanel({
   onDelete,
   onUploadMedia,
   onDeleteMedia,
+  onReorderMedia,
+  onCreateValue,
   onCancel,
 }: {
   draft: VariantDraft
   options: ProductEditorOptions
   canUpdate: boolean
   canDelete: boolean
+  canUpdateAttributes: boolean
   saving: boolean
   media: ProductDetails['variants'][number]['media']
   onChange: (draft: VariantDraft) => void
   onSave: () => void
   onDelete: () => void
-  onUploadMedia: (collection: 'images' | 'gallery', file: File | null) => void
+  onUploadMedia: (collection: 'images' | 'gallery', files: File[]) => void
   onDeleteMedia: (mediaId: number) => void
+  onReorderMedia: (mediaIds: number[]) => void
+  onCreateValue: (attributeId: number) => void
   onCancel: () => void
 }) {
   const updateAttribute = (
@@ -3371,13 +3921,16 @@ function VariantEditorPanel({
 
   const mainImage = media.find((item) => item.collection === 'images') ?? null
   const galleryImages = media.filter((item) => item.collection === 'gallery')
+  const editableVariationAttributes = options.variation_attributes.filter(
+    (attribute) => attribute.slug !== 'variant',
+  )
 
   return (
     <section className="variant-editor-panel">
       <header className="variant-editor-head">
         <div>
           <span className="eyebrow">
-            {draft.id === null ? 'Новое торговое предложение' : `Торговое предложение #${draft.id}`}
+            {draft.id === null ? 'Новая вариация' : `Вариация #${draft.id}`}
           </span>
           <h3>{draft.name || 'Без названия'}</h3>
         </div>
@@ -3388,7 +3941,7 @@ function VariantEditorPanel({
 
       <div className="variant-editor-scroll">
         <div className="editor-two-column">
-          <Card title="Основные данные" subtitle="Идентичность, цена и публикация вариации">
+          <Card title="Основные данные" subtitle="Каждая вариация имеет собственные SKU и цену">
             <div className="form-grid readable">
               <LiveField
                 label="Название вариации"
@@ -3450,7 +4003,7 @@ function VariantEditorPanel({
             </label>
           </Card>
 
-          <Card title="Остатки" subtitle={options.stock_settings.warehouse_accounting_enabled ? 'По складам' : 'Общий остаток'}>
+          <Card title="Остатки" subtitle={options.stock_settings.warehouse_accounting_enabled ? 'Отдельно по складам для этой вариации' : 'Общий остаток этой вариации'}>
             {!options.stock_settings.warehouse_accounting_enabled ? (
               <LiveField
                 label="Остаток"
@@ -3485,7 +4038,7 @@ function VariantEditorPanel({
                             ))}
                             key={warehouse.id}
                           >
-                            {warehouse.name}
+                            {warehouse.name}{warehouse.external_id ? ` · 1С: ${warehouse.external_id}` : ''}
                           </option>
                         ))}
                       </select>
@@ -3516,6 +4069,13 @@ function VariantEditorPanel({
                   </div>
                 ))}
 
+                {draft.warehouse_stocks.length === 0 && (
+                  <div className="attribute-no-values">
+                    <Warehouse size={15} />
+                    Для этой вариации пока не задан остаток ни на одном складе.
+                  </div>
+                )}
+
                 <button
                   className="btn ghost small"
                   type="button"
@@ -3530,179 +4090,142 @@ function VariantEditorPanel({
           </Card>
         </div>
 
-        <Card title="Параметры вариации" subtitle="Цвет, размер, вариант и другие свойства торгового предложения">
-          <div className="variant-attribute-editor">
-            {options.variation_attributes.map((attribute) => {
-              const row = draft.attributes.find((item) => item.attribute_id === attribute.id)
-                ?? { attribute_id: attribute.id, attribute_value_id: [], custom_value: '' }
-              const required = attribute.is_required || attribute.slug === 'variant'
-              const showCustom = attribute.allow_custom_value
-                && (attribute.values.length === 0 || attribute.type !== 'select')
+        <Card title="Параметры вариации" subtitle="Значения, которыми это торговое предложение отличается от остальных">
+          {editableVariationAttributes.length === 0 ? (
+            <div className="attribute-editor-empty compact">
+              <SlidersHorizontal size={20} />
+              <strong>Параметры не выбраны</strong>
+              <span>Закройте редактор и выберите сверху, например, «Цвет» и «Размер».</span>
+            </div>
+          ) : (
+            <div className="variant-attribute-editor">
+              {editableVariationAttributes.map((attribute) => {
+                const row = draft.attributes.find((item) => item.attribute_id === attribute.id)
+                  ?? { attribute_id: attribute.id, attribute_value_id: [], custom_value: '' }
+                const showCustom = attribute.allow_custom_value
+                  && (attribute.values.length === 0 || attribute.type !== 'select')
 
-              return (
-                <div className="variant-attribute-row" key={attribute.id}>
-                  <div className="variant-attribute-label">
-                    <strong>{attribute.name}{required ? ' *' : ''}</strong>
-                    <small>{attribute.slug}</small>
-                  </div>
+                return (
+                  <div className="variant-attribute-row" key={attribute.id}>
+                    <div className="variant-attribute-label">
+                      <strong>{attribute.name}{attribute.is_required ? ' *' : ''}</strong>
+                      <small>{attribute.slug}</small>
+                    </div>
 
-                  <div className="variant-attribute-control">
-                    {attribute.values.length > 0 && !attribute.is_multiple && (
-                      <label className="field">
-                        <span>Значение из справочника</span>
-                        <select
-                          value={row.attribute_value_id[0] ?? ''}
+                    <div className="variant-attribute-control">
+                      <div className="attribute-value-toolbar">
+                        <span>Значение</span>
+                        {canUpdateAttributes && (
+                          <button
+                            className="btn ghost small"
+                            type="button"
+                            onClick={() => onCreateValue(attribute.id)}
+                            disabled={saving}
+                          >
+                            <Plus size={13} />
+                            Новое значение
+                          </button>
+                        )}
+                      </div>
+
+                      {attribute.values.length > 0 && !attribute.is_multiple && (
+                        <SearchableSelect
+                          value={row.attribute_value_id[0] ?? null}
                           disabled={!canUpdate}
-                          onChange={(event) => updateAttribute(attribute.id, {
-                            attribute_value_id: event.target.value ? [Number(event.target.value)] : [],
+                          placeholder="Не выбрано"
+                          searchPlaceholder={`Найти значение «${attribute.name}»`}
+                          options={attribute.values.map((value) => ({
+                            value: value.id,
+                            label: value.value,
+                            swatch: value.color_code,
+                          }))}
+                          onChange={(valueId) => updateAttribute(attribute.id, {
+                            attribute_value_id: [valueId],
                             custom_value: '',
                           })}
-                        >
-                          <option value="">Не выбрано</option>
-                          {attribute.values.map((value) => (
-                            <option value={value.id} key={value.id}>{value.value}</option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
+                        />
+                      )}
 
-                    {attribute.values.length > 0 && attribute.is_multiple && (
-                      <div className="attribute-multiple-field">
-                        <span>Значения</span>
-                        <div className="attribute-choice-grid">
-                          {attribute.values.map((value) => {
-                            const selected = row.attribute_value_id.includes(value.id)
-                            return (
-                              <button
-                                className={selected ? 'attribute-choice selected' : 'attribute-choice'}
-                                type="button"
-                                disabled={!canUpdate}
-                                onClick={() => {
-                                  const next = selected
-                                    ? row.attribute_value_id.filter((id) => id !== value.id)
-                                    : [...row.attribute_value_id, value.id]
-                                  updateAttribute(attribute.id, {
-                                    attribute_value_id: next,
-                                    custom_value: '',
-                                  })
-                                }}
-                                key={value.id}
-                              >
-                                {value.color_code && <i style={{ background: value.color_code }} />}
-                                {value.value}
-                              </button>
-                            )
-                          })}
+                      {attribute.values.length > 0 && attribute.is_multiple && (
+                        <div className="attribute-multiple-field">
+                          <div className="attribute-choice-grid">
+                            {attribute.values.map((value) => {
+                              const selected = row.attribute_value_id.includes(value.id)
+                              return (
+                                <button
+                                  className={selected ? 'attribute-choice selected' : 'attribute-choice'}
+                                  type="button"
+                                  disabled={!canUpdate}
+                                  onClick={() => {
+                                    const next = selected
+                                      ? row.attribute_value_id.filter((id) => id !== value.id)
+                                      : [...row.attribute_value_id, value.id]
+                                    updateAttribute(attribute.id, {
+                                      attribute_value_id: next,
+                                      custom_value: '',
+                                    })
+                                  }}
+                                  key={value.id}
+                                >
+                                  {value.color_code && <i style={{ background: value.color_code }} />}
+                                  {value.value}
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {showCustom && (
-                      <LiveField
-                        label={attribute.values.length > 0 ? 'Или своё значение' : 'Значение'}
-                        value={row.custom_value}
-                        inputMode={attribute.type === 'number_input' ? 'decimal' : 'text'}
-                        onChange={(value) => updateAttribute(attribute.id, {
-                          custom_value: value,
-                          attribute_value_id: value.trim() ? [] : row.attribute_value_id,
-                        })}
-                      />
-                    )}
+                      {showCustom && (
+                        <LiveField
+                          label={attribute.values.length > 0 ? 'Или своё значение' : 'Значение'}
+                          value={row.custom_value}
+                          inputMode={attribute.type === 'number_input' ? 'decimal' : 'text'}
+                          onChange={(value) => updateAttribute(attribute.id, {
+                            custom_value: value,
+                            attribute_value_id: value.trim() ? [] : row.attribute_value_id,
+                          })}
+                        />
+                      )}
 
-                    {attribute.values.length === 0 && !showCustom && (
-                      <div className="attribute-no-values">
-                        <CircleAlert size={15} />
-                        В справочнике нет значений для этой характеристики.
-                      </div>
-                    )}
+                      {attribute.values.length === 0 && !showCustom && (
+                        <div className="attribute-no-values">
+                          <CircleAlert size={15} />
+                          Значений пока нет. Создайте первое кнопкой выше.
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
+          )}
+
+          <div className="variation-system-note inside-card">
+            <CheckCircle2 size={15} />
+            <span>Служебное значение «Вариант» будет взято из поля «Название вариации».</span>
           </div>
         </Card>
 
         {draft.id !== null && (
-          <Card title="Изображения вариации" subtitle="Отдельные изображения конкретного торгового предложения">
+          <Card title="Изображения вариации" subtitle="Собственная главная фотография и галерея до 20 изображений">
             <div className="variant-media-grid">
-              <div className="main-media-editor">
-                {mainImage ? (
-                  <div className="media-preview main compact">
-                    <img src={mainImage.thumb_url || mainImage.url} alt={mainImage.name} />
-                    <div>
-                      <strong>{mainImage.file_name}</strong>
-                      <a href={mainImage.url} target="_blank" rel="noreferrer">Открыть</a>
-                    </div>
-                    <button
-                      className="icon-danger"
-                      type="button"
-                      onClick={() => onDeleteMedia(mainImage.id)}
-                      disabled={!canUpdate || saving}
-                      aria-label="Удалить главное изображение вариации"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="media-empty compact">Главное изображение не загружено</div>
-                )}
-
-                <label className={canUpdate ? 'media-upload compact' : 'media-upload compact disabled'}>
-                  <Plus size={15} />
-                  <span>{mainImage ? 'Заменить главное' : 'Загрузить главное'}</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={!canUpdate || saving}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      onUploadMedia('images', file)
-                      event.currentTarget.value = ''
-                    }}
-                  />
-                </label>
-              </div>
-
-              <div className="gallery-editor">
-                {galleryImages.length > 0 ? (
-                  <div className="gallery-grid variant-gallery">
-                    {galleryImages.map((item) => (
-                      <article className="gallery-item" key={item.id}>
-                        <img src={item.thumb_url || item.url} alt={item.name} />
-                        <div>
-                          <span>{item.file_name}</span>
-                          <button
-                            className="icon-danger"
-                            type="button"
-                            onClick={() => onDeleteMedia(item.id)}
-                            disabled={!canUpdate || saving}
-                            aria-label="Удалить изображение вариации"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="media-empty compact">Галерея пустая</div>
-                )}
-
-                <label className={canUpdate && galleryImages.length < 10 ? 'media-upload compact' : 'media-upload compact disabled'}>
-                  <Plus size={15} />
-                  <span>Добавить в галерею ({galleryImages.length}/10)</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={!canUpdate || saving || galleryImages.length >= 10}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      onUploadMedia('gallery', file)
-                      event.currentTarget.value = ''
-                    }}
-                  />
-                </label>
-              </div>
+              <SingleImageDropzone
+                item={mainImage}
+                disabled={!canUpdate}
+                busy={saving}
+                onFiles={(files) => onUploadMedia('images', files)}
+                onDelete={mainImage ? () => onDeleteMedia(mainImage.id) : undefined}
+              />
+              <GalleryManager
+                items={galleryImages}
+                maxFiles={20}
+                disabled={!canUpdate}
+                busy={saving}
+                onFiles={(files) => onUploadMedia('gallery', files)}
+                onDelete={onDeleteMedia}
+                onReorder={onReorderMedia}
+              />
             </div>
           </Card>
         )}
@@ -3727,7 +4250,7 @@ function VariantEditorPanel({
           </button>
           <button className="btn primary" type="button" onClick={onSave} disabled={!canUpdate || saving}>
             {saving ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
-            {saving ? 'Сохраняю…' : draft.id === null ? 'Создать' : 'Сохранить'}
+            {saving ? 'Сохраняю…' : draft.id === null ? 'Создать вариацию' : 'Сохранить вариацию'}
           </button>
         </div>
       </footer>
