@@ -353,8 +353,9 @@ export default function Account() {
       return;
     }
 
-    if (profileForm.phone && !/^[\d\s\-+()]+$/.test(profileForm.phone)) {
-      setProfileError('Неверный формат телефона');
+    // Телефон необязателен: пустое поле оставляет текущий номер. Но если введён — должен быть полным (11 цифр).
+    if (profileForm.phone.trim() && profileForm.phone.replace(/\D/g, '').length !== 11) {
+      setProfileError('Укажите корректный номер телефона');
       return;
     }
 
