@@ -22,6 +22,9 @@ export default defineConfig({
       '/filament': proxy,
       '/storage': proxy,
       '/build': proxy,
+      '/css': proxy,
+      '/js': proxy,
+      '/favicon.ico': proxy,
     },
   },
 })
