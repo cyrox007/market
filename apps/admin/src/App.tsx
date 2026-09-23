@@ -16,11 +16,13 @@ import {
   Menu,
   Moon,
   Package,
+  Plus,
   RefreshCw,
   Search,
   SlidersHorizontal,
   Store,
   Sun,
+  Trash2,
   UserRound,
   Warehouse,
   X,
@@ -32,7 +34,9 @@ import {
   type AttributeDefinition,
   type CategoryNode,
   type LocationRecord,
+  type ProductAttributeRow,
   type ProductDetails,
+  type ProductEditorOptions,
   type ProductSummary,
   type SessionInfo,
   type StoreRecord,
@@ -42,7 +46,7 @@ import {
 type Theme = 'light' | 'dark'
 type ModuleKey = 'products' | 'attributes' | 'orders' | 'stores' | 'locations' | 'warehouses'
 type SectionKind = 'categories' | 'rooms'
-type ProductTab = 'main' | 'attributes' | 'variants' | 'stock'
+type ProductTab = 'main' | 'description' | 'attributes' | 'variants' | 'inventory' | 'media' | 'seo' | 'links'
 
 type TreeRow = {
   id: number
@@ -54,6 +58,7 @@ type TreeRow = {
 
 type ProductDraft = {
   name: string
+  slug: string
   sku: string
   gtin: string
   description: string
@@ -61,6 +66,19 @@ type ProductDraft = {
   priority: string
   price: string
   original_price: string
+  category_ids: number[]
+  stock: string
+  backorder: boolean
+  length: string
+  width: string
+  height: string
+  weight: string
+  tax_category_id: string
+  shipping_category_id: string
+  warehouse_stocks: Array<{
+    warehouse_id: number
+    quantity: string
+  }>
 }
 
 function textValue(value: unknown, fallback = ''): string {
@@ -166,6 +184,7 @@ function stateLabel(state: unknown): string {
 function productDraft(product: ProductDetails): ProductDraft {
   return {
     name: textValue(product.name),
+    slug: textValue(product.slug),
     sku: textValue(product.sku),
     gtin: textValue(product.gtin),
     description: textValue(product.description),
@@ -173,6 +192,19 @@ function productDraft(product: ProductDetails): ProductDraft {
     priority: String(product.priority ?? 0),
     price: String(product.price ?? 0),
     original_price: product.original_price === null ? '' : String(product.original_price),
+    category_ids: [...product.category_ids],
+    stock: String(product.stock ?? 0),
+    backorder: Boolean(product.backorder),
+    length: product.length === null ? '' : String(product.length),
+    width: product.width === null ? '' : String(product.width),
+    height: product.height === null ? '' : String(product.height),
+    weight: product.weight === null ? '' : String(product.weight),
+    tax_category_id: product.tax_category_id === null ? '' : String(product.tax_category_id),
+    shipping_category_id: product.shipping_category_id === null ? '' : String(product.shipping_category_id),
+    warehouse_stocks: product.warehouse_stocks.map((row) => ({
+      warehouse_id: row.warehouse_id,
+      quantity: String(row.quantity),
+    })),
   }
 }
 
@@ -617,6 +649,7 @@ function ProductsWorkspace({ session }: { session: SessionInfo }) {
       <ProductEditor
         productId={editingProductId}
         session={session}
+        categories={categories}
         onBack={() => setEditingProductId(null)}
         onProductSaved={(saved) => {
           setProducts((current) => current.map((item) => (
