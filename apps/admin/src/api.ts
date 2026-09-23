@@ -127,6 +127,7 @@ export type ProductEditorOptions = {
   attributes: ProductEditorAttributeOption[]
   manufacturers: Array<{ id: number; name: string; external_id: string | null }>
   variation_attributes: ProductEditorAttributeOption[]
+  available_variation_attributes: ProductEditorAttributeOption[]
   tax_categories: Array<{ id: number; name: string }>
   shipping_categories: Array<{ id: number; name: string }>
   warehouses: Array<{ id: number; name: string; external_id: string | null }>
@@ -266,6 +267,7 @@ export type AttributeDefinition = {
     value: string
     slug: string
     sort_order: number
+    color_code: string | null
   }>
 }
 
@@ -453,6 +455,20 @@ export const backendApi = {
       },
     ),
 
+  updateProductVariationAttributes: (
+    id: number,
+    attributeIds: number[],
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${id}/variation-attributes`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ attribute_ids: attributeIds }),
+        csrfToken,
+      },
+    ),
+
   createProductVariant: (
     productId: number,
     data: {
@@ -552,6 +568,21 @@ export const backendApi = {
       },
     ),
 
+  reorderProductVariantMedia: (
+    productId: number,
+    variantId: number,
+    mediaIds: number[],
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${productId}/variants/${variantId}/media-order`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ media_ids: mediaIds }),
+        csrfToken,
+      },
+    ),
+
 
   uploadProductMedia: (
     id: number,
@@ -582,6 +613,20 @@ export const backendApi = {
       `/admin_sv/api/products/${id}/media/${mediaId}`,
       {
         method: 'DELETE',
+        csrfToken,
+      },
+    ),
+
+  reorderProductMedia: (
+    id: number,
+    mediaIds: number[],
+    csrfToken: string,
+  ) =>
+    request<{ message: string; product: ProductDetails }>(
+      `/admin_sv/api/products/${id}/media-order`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ media_ids: mediaIds }),
         csrfToken,
       },
     ),
@@ -721,6 +766,46 @@ export const backendApi = {
 
   attributes: () =>
     request<{ data: AttributeDefinition[] }>('/admin_sv/api/attributes'),
+
+  createAttribute: (
+    data: {
+      name: string
+      slug?: string | null
+      type: string
+      is_filterable: boolean
+      is_required: boolean
+      is_use_in_variations: boolean
+      allow_custom_value: boolean
+      is_multiple: boolean
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; attribute: AttributeDefinition }>(
+      '/admin_sv/api/attributes',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
+
+  createAttributeValue: (
+    attributeId: number,
+    data: {
+      value: string
+      slug?: string | null
+      color_code?: string | null
+    },
+    csrfToken: string,
+  ) =>
+    request<{ message: string; attribute: AttributeDefinition }>(
+      `/admin_sv/api/attributes/${attributeId}/values`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        csrfToken,
+      },
+    ),
 
   updateAttribute: (
     id: number,
