@@ -1287,6 +1287,19 @@ th {
   font-size: 0.7rem;
 }
 
+
+.catalog-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.catalog-section-toggle,
+.catalog-sections-mobile-head,
+.catalog-sections-backdrop {
+  display: none;
+}
+
 .catalog-toolbar {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 170px 220px auto;
@@ -1642,8 +1655,86 @@ th {
     height: auto;
   }
 
-  .catalog-browser-layout .section-panel {
-    display: none;
+  .catalog-browser-layout .catalog-sections-panel {
+    position: fixed;
+    top: 50px;
+    bottom: 0;
+    left: 0;
+    z-index: 66;
+    display: flex;
+    width: min(320px, 88vw);
+    height: calc(100vh - 50px);
+    flex-direction: column;
+    border-radius: 0 10px 10px 0;
+    transform: translateX(-105%);
+    transition: transform 160ms ease;
+    box-shadow: 14px 0 32px rgba(0, 0, 0, .28);
+  }
+
+  .catalog-browser-layout .catalog-sections-panel.open {
+    transform: translateX(0);
+  }
+
+  .catalog-sections-mobile-head {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .catalog-sections-mobile-head > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .catalog-sections-mobile-head strong {
+    font-size: .68rem;
+  }
+
+  .catalog-sections-mobile-head small {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: .56rem;
+  }
+
+  .catalog-sections-mobile-head button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    place-items: center;
+    color: var(--text);
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+  }
+
+  .catalog-section-toggle {
+    display: inline-flex;
+  }
+
+  .catalog-sections-backdrop {
+    position: fixed;
+    inset: 50px 0 0;
+    z-index: 65;
+    display: block;
+    visibility: hidden;
+    background: rgba(5, 9, 15, .5);
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease, visibility 160ms ease;
+  }
+
+  .catalog-sections-backdrop.open {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .catalog-products-panel {
@@ -2298,10 +2389,6 @@ body {
   .catalog-browser-layout {
     display: block;
     width: 100%;
-  }
-
-  .catalog-browser-layout .section-panel {
-    display: none;
   }
 
   .catalog-products-panel {
