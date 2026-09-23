@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminWorkspaceController;
 use App\Http\Controllers\Admin\OrderPrintController;
 use App\Http\Controllers\Api\ApiMetricsController;
 use Illuminate\Support\Facades\Route;
@@ -28,4 +29,17 @@ Route::middleware([
     Route::get('/orders/{orderId}/print', OrderPrintController::class)
         ->where('orderId', '[0-9]+')
         ->name('admin.orders.print');
+
+    Route::prefix('api')->group(function () {
+        Route::get('/session', [AdminWorkspaceController::class, 'session']);
+        Route::get('/products', [AdminWorkspaceController::class, 'products']);
+        Route::get('/products/{product}', [AdminWorkspaceController::class, 'product'])
+            ->where('product', '[0-9]+');
+        Route::put('/products/{product}', [AdminWorkspaceController::class, 'updateProduct'])
+            ->where('product', '[0-9]+');
+        Route::get('/attributes', [AdminWorkspaceController::class, 'attributes']);
+        Route::get('/orders', [AdminWorkspaceController::class, 'orders']);
+        Route::get('/stores', [AdminWorkspaceController::class, 'stores']);
+        Route::get('/locations', [AdminWorkspaceController::class, 'locations']);
+    });
 });
