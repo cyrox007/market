@@ -13,6 +13,7 @@ use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
+use App\Models\Product\ProductRegionRule;
 use App\Models\Product\Room;
 use App\Models\Settings\ProductStockSettings;
 use App\Models\Shipping\ShippingLocation;
@@ -178,6 +179,9 @@ class AdminWorkspaceController extends Controller
             'warehouseStocks.warehouse',
             'variationAttributeSelection',
             'media',
+            'relatedProducts.media',
+            'bundleProducts.media',
+            'regionRules.region',
         ]);
 
         return response()->json([
@@ -363,6 +367,17 @@ class AdminWorkspaceController extends Controller
                         'color_code' => $this->nullableScalarString($value->color_code),
                     ])->values(),
                 ])->values(),
+            'shipping_locations' => ShippingLocation::query()
+                ->where('is_active', true)
+                ->orderBy('type')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (ShippingLocation $location) => [
+                    'id' => (int) $location->id,
+                    'name' => $this->scalarString($location->name),
+                    'path' => $this->scalarString($location->getFullPathAttribute()),
+                    'type' => $this->scalarString($location->type),
+                ])->values(),
             'tax_categories' => TaxCategory::query()
                 ->orderBy('name')
                 ->get(['id', 'name'])
@@ -439,6 +454,191 @@ class AdminWorkspaceController extends Controller
 
         return response()->json([
             'message' => 'Характеристики сохранены',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function attachRelatedProduct(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $validated = $request->validate([
+            'related_product_id' => ['required', 'integer'],
+        ]);
+
+        $related = Product::query()
+            ->whereNull('parent_product_id')
+            ->whereKey($validated['related_product_id'])
+            ->firstOrFail();
+
+        Gate::authorize('update', $related);
+
+        if ($product->is($related)) {
+            throw ValidationException::withMessages([
+                'related_product_id' => 'Нельзя добавить товар в сопутствующие к самому себе.',
+            ]);
+        }
+
+        $product->attachRelatedProduct($related);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Сопутствующий товар добавлен',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function detachRelatedProduct(Product $product, Product $related): JsonResponse
+    {
+        Gate::authorize('update', $product);
+        Gate::authorize('update', $related);
+
+        $product->detachRelatedProduct($related);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Сопутствующий товар удалён',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function attachBundleProducts(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $productIds = Product::query()
+            ->whereNull('parent_product_id')
+            ->where('id', '!=', $product->id)
+            ->whereIn('id', $validated['product_ids'])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($productIds) !== count(array_unique($validated['product_ids']))) {
+            throw ValidationException::withMessages([
+                'product_ids' => 'Один или несколько товаров для комплекта не найдены.',
+            ]);
+        }
+
+        $product->attachBundleProducts($productIds);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Товары добавлены в комплект',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function updateBundleProduct(
+        Request $request,
+        Product $product,
+        Product $bundle
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+
+        $validated = $request->validate([
+            'sort_order' => ['required', 'integer'],
+        ]);
+
+        $exists = $product->bundleProducts()
+            ->where('products.id', $bundle->id)
+            ->exists();
+
+        abort_unless($exists, 404);
+
+        $product->bundleProducts()->updateExistingPivot(
+            $bundle->id,
+            ['sort_order' => (int) $validated['sort_order']]
+        );
+        $product->flushCache();
+        Product::flushAllProductCaches();
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Порядок товара в комплекте сохранён',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function detachBundleProduct(Product $product, Product $bundle): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $product->detachBundleProduct($bundle);
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Товар удалён из комплекта',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function createProductRegionRule(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $validated = $this->validateRegionRuleRequest($request);
+        $variantId = $this->resolveRegionRuleVariantId(
+            $product,
+            $validated['variant_id'] ?? null
+        );
+
+        ProductRegionRule::query()->create(
+            $this->regionRulePayload($product, $validated, $variantId)
+        );
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Региональное правило добавлено',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function updateProductRegionRule(
+        Request $request,
+        Product $product,
+        ProductRegionRule $rule
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+        $this->ensureRegionRuleBelongsToProduct($product, $rule);
+
+        $validated = $this->validateRegionRuleRequest($request);
+        $variantId = $this->resolveRegionRuleVariantId(
+            $product,
+            $validated['variant_id'] ?? null
+        );
+
+        $rule->fill(
+            $this->regionRulePayload($product, $validated, $variantId)
+        )->save();
+
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Региональное правило сохранено',
+            'product' => $this->productDetails($product),
+        ]);
+    }
+
+    public function deleteProductRegionRule(
+        Product $product,
+        ProductRegionRule $rule
+    ): JsonResponse {
+        Gate::authorize('update', $product);
+        $this->ensureRegionRuleBelongsToProduct($product, $rule);
+
+        $rule->delete();
+        $this->reloadProductRelations($product);
+
+        return response()->json([
+            'message' => 'Региональное правило удалено',
             'product' => $this->productDetails($product),
         ]);
     }
@@ -993,6 +1193,47 @@ class AdminWorkspaceController extends Controller
                     'order' => (int) ($media->order_column ?? 0),
                 ])
                 ->values(),
+            'related_products' => $product->relatedProducts
+                ->map(fn (Product $related) => $this->linkedProductPayload($related))
+                ->values(),
+            'bundle_products' => $product->bundleProducts
+                ->map(function (Product $bundle): array {
+                    $payload = $this->linkedProductPayload($bundle);
+                    $payload['sort_order'] = (int) ($bundle->pivot?->sort_order ?? 0);
+
+                    return $payload;
+                })
+                ->values(),
+            'region_rules' => ProductRegionRule::query()
+                ->with(['region', 'variant'])
+                ->where('product_id', $product->id)
+                ->orderByDesc('priority')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (ProductRegionRule $rule) => [
+                    'id' => (int) $rule->id,
+                    'variant_id' => $rule->variant_id !== null ? (int) $rule->variant_id : null,
+                    'variant_name' => $this->nullableScalarString($rule->variant?->name),
+                    'shipping_location_id' => (int) $rule->shipping_location_id,
+                    'location_name' => $this->nullableScalarString($rule->region?->name),
+                    'location_path' => $rule->region
+                        ? $this->scalarString($rule->region->getFullPathAttribute())
+                        : null,
+                    'price_override' => $rule->price_override !== null
+                        ? (float) $rule->price_override
+                        : null,
+                    'price_modifier_type' => $this->nullableScalarString($rule->price_modifier_type),
+                    'price_modifier_value' => $rule->price_modifier_value !== null
+                        ? (float) $rule->price_modifier_value
+                        : null,
+                    'is_hidden' => (bool) $rule->is_hidden,
+                    'delivery_days_override' => $rule->delivery_days_override !== null
+                        ? (int) $rule->delivery_days_override
+                        : null,
+                    'priority' => (int) $rule->priority,
+                    'is_active' => (bool) $rule->is_active,
+                ])
+                ->values(),
             'attribute_rows' => $this->regularProductAttributeRows($product),
             'attributes' => $this->productAttributeGroups($product),
             'variation_attribute_ids' => $product->variationAttributeSelection
@@ -1019,6 +1260,9 @@ class AdminWorkspaceController extends Controller
             'warehouseStocks.warehouse',
             'variationAttributeSelection',
             'media',
+            'relatedProducts.media',
+            'bundleProducts.media',
+            'regionRules.region',
         ]);
     }
 
@@ -1050,6 +1294,106 @@ class AdminWorkspaceController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function linkedProductPayload(Product $product): array
+    {
+        $product->loadMissing('media');
+
+        $mainImage = $product->getFirstMediaUrl('images', 'thumb')
+            ?: $product->getFirstMediaUrl('images')
+            ?: null;
+
+        return [
+            'id' => (int) $product->id,
+            'name' => $this->scalarString($product->name),
+            'sku' => $this->scalarString($product->sku),
+            'price' => (float) $product->price,
+            'state' => $this->scalarString(
+                $product->getRawOriginal('state') ?? $product->state
+            ),
+            'image_url' => $mainImage,
+        ];
+    }
+
+    private function validateRegionRuleRequest(Request $request): array
+    {
+        return $request->validate([
+            'variant_id' => ['nullable', 'integer'],
+            'shipping_location_id' => ['required', 'integer'],
+            'price_override' => ['nullable', 'numeric'],
+            'price_modifier_type' => ['nullable', Rule::in(['fixed', 'percent', 'multiply'])],
+            'price_modifier_value' => ['nullable', 'numeric'],
+            'is_hidden' => ['required', 'boolean'],
+            'delivery_days_override' => ['nullable', 'integer', 'min:1'],
+            'priority' => ['required', 'integer'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+    }
+
+    private function resolveRegionRuleVariantId(
+        Product $product,
+        mixed $variantId
+    ): ?int {
+        if ($variantId === null || $variantId === '') {
+            return null;
+        }
+
+        $variant = $product->variants()
+            ->whereKey((int) $variantId)
+            ->first();
+
+        if (! $variant) {
+            throw ValidationException::withMessages([
+                'variant_id' => 'Выбранная вариация не принадлежит этому товару.',
+            ]);
+        }
+
+        return (int) $variant->id;
+    }
+
+    private function regionRulePayload(
+        Product $product,
+        array $validated,
+        ?int $variantId
+    ): array {
+        $locationExists = ShippingLocation::query()
+            ->where('is_active', true)
+            ->whereKey($validated['shipping_location_id'])
+            ->exists();
+
+        if (! $locationExists) {
+            throw ValidationException::withMessages([
+                'shipping_location_id' => 'Локация доставки не найдена или отключена.',
+            ]);
+        }
+
+        $modifierType = $validated['price_modifier_type'] ?? null;
+
+        return [
+            'product_id' => $product->id,
+            'variant_id' => $variantId,
+            'shipping_location_id' => (int) $validated['shipping_location_id'],
+            'price_override' => $validated['price_override'] ?? null,
+            'price_modifier_type' => $modifierType,
+            'price_modifier_value' => $modifierType
+                ? ($validated['price_modifier_value'] ?? null)
+                : null,
+            'is_hidden' => (bool) $validated['is_hidden'],
+            'delivery_days_override' => $validated['delivery_days_override'] ?? null,
+            'priority' => (int) $validated['priority'],
+            'is_active' => (bool) $validated['is_active'],
+        ];
+    }
+
+    private function ensureRegionRuleBelongsToProduct(
+        Product $product,
+        ProductRegionRule $rule
+    ): void {
+        abort_unless(
+            (int) $rule->product_id === (int) $product->id,
+            404
+        );
     }
 
     private function validateVariantRequest(
