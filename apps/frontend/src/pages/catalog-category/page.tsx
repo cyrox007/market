@@ -3,6 +3,7 @@ import { useParams, useLocation, Link, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import ProductCard from '../../components/ui/ProductCard';
+import CategoryLandingV2 from './components/CategoryLandingV2';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/SSRContext';
 import { useCounters } from '../../hooks/useCounters';
@@ -550,6 +551,30 @@ export default function CatalogCategory() {
           <h1 className="text-2xl font-bold">Категория не найдена</h1>
         </div>
       </div>
+    );
+  }
+
+  if (category?.children?.length) {
+    return (
+      <CategoryLandingV2
+        category={category}
+        isRooms={isRooms}
+        regionName={region?.name}
+        products={products}
+        total={total}
+        isLoadingProducts={isLoadingProducts}
+        isLoadingMore={isLoadingMore}
+        hasMore={hasMore}
+        loadMoreRef={loadMoreRef}
+        onLoadMore={loadMore}
+        onPrefetchCategory={prefetchCategory}
+        onPrefetchProduct={prefetchProduct}
+        onAddToCart={handleAddToCart}
+        onToggleFavorite={toggleFavorite}
+        onToggleCompare={toggleCompare}
+        isFavorite={(product) => favorites.includes(getProductIdForWishlist(product))}
+        isInCompare={(product) => compareList.includes(getProductIdForCompare(product))}
+      />
     );
   }
 
