@@ -125,7 +125,7 @@ export default function CatalogCategory() {
   const effectiveCategory = category ?? categoryData?.category ?? null;
   const displayName = fragment?.name ?? effectiveCategory?.name ?? 'Каталог';
   const displaySeo = fragment?.seo ?? effectiveCategory?.seo ?? null;
-  const isCategoryLandingV2 = Boolean(effectiveCategory?.children?.length);
+  const isCategoryLandingV2 = !isRooms && Boolean(effectiveCategory?.children?.length);
   const defaultProductsSort = isCategoryLandingV2 ? 'units_sold' : 'created_at';
   const productsPerPage = isCategoryLandingV2 ? 4 : CATALOG_PRODUCTS_PER_PAGE;
   usePageSeo(displaySeo);
@@ -563,7 +563,6 @@ export default function CatalogCategory() {
     return (
       <CategoryLandingV2
         category={category}
-        isRooms={isRooms}
         regionName={region?.name}
         products={products}
         total={total}
