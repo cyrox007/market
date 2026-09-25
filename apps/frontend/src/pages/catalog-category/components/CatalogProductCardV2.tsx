@@ -30,7 +30,7 @@ export default function CatalogProductCardV2({
 }: CatalogProductCardV2Props) {
   const navigate = useNavigate();
   const [isAdding, setAdding] = useState(false);
-  const image = product.thumbnail || product.image_hd || product.image;
+  const image = product.thumbnail || product.image;
   const variableParent = isVariableParent(product);
 
   const handleAdd = async () => {
