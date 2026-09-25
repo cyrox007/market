@@ -563,10 +563,6 @@ export default function CatalogCategory() {
         products={products}
         total={total}
         isLoadingProducts={isLoadingProducts}
-        isLoadingMore={isLoadingMore}
-        hasMore={hasMore}
-        loadMoreRef={loadMoreRef}
-        onLoadMore={loadMore}
         onPrefetchCategory={prefetchCategory}
         onPrefetchProduct={prefetchProduct}
         onAddToCart={handleAddToCart}
