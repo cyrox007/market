@@ -67,7 +67,7 @@ export default function CatalogProductCardV2({
               loading={priority ? 'eager' : 'lazy'}
               fetchPriority={priority ? 'high' : undefined}
               decoding="async"
-              sizes="(max-width: 549px) calc(100vw - 32px), (max-width: 979px) 46vw, 292px"
+              sizes="(max-width: 549px) calc((100vw - 44px) / 2), (max-width: 979px) 46vw, 292px"
             />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-ink-secondary">
@@ -83,11 +83,11 @@ export default function CatalogProductCardV2({
               aria-label={isInCompare ? 'Убрать из сравнения' : 'Добавить к сравнению'}
               onClick={() => onToggleCompare(product)}
               className={[
-                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors max-vsm:size-9',
+                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors max-vsm:size-8',
                 isInCompare ? 'text-brand-green' : 'text-ink',
               ].join(' ')}
             >
-              <ArrowLeftRight className="size-5 max-vsm:size-[18px]" />
+              <ArrowLeftRight className="size-5 max-vsm:size-4" />
             </button>
           ) : null}
 
@@ -97,12 +97,12 @@ export default function CatalogProductCardV2({
               aria-label={isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
               onClick={() => onToggleFavorite(product)}
               className={[
-                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors max-vsm:size-9',
+                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors max-vsm:size-8',
                 isFavorite ? 'text-brand-red' : 'text-ink',
               ].join(' ')}
             >
               <Heart
-                className="size-5 max-vsm:size-[18px]"
+                className="size-5 max-vsm:size-4"
                 fill={isFavorite ? 'currentColor' : 'none'}
               />
             </button>
@@ -116,14 +116,23 @@ export default function CatalogProductCardV2({
         ) : null}
 
         {colors.length ? (
-          <div className="absolute right-3 top-[58px] z-10 flex flex-col gap-1.5 rounded-pill bg-surface/90 p-1.5 shadow-btn backdrop-blur-sm max-vsm:right-2 max-vsm:top-[52px]">
-            {colors.map((color, index) => (
-              <span
+          <div className="absolute right-3 top-[58px] z-10 flex flex-col gap-1.5 max-vsm:right-2 max-vsm:top-[50px] max-vsm:gap-1">
+            {colors.slice(0, 3).map((color, index) => (
+              <div
                 key={color.slug || color.name || index}
                 title={color.name || undefined}
-                className="size-6 rounded-full border border-surface-border max-vsm:size-5"
-                style={{ backgroundColor: color.code || '#E8E5E1' }}
-              />
+                className="flex min-w-[58px] flex-col items-center rounded-[14px] bg-surface/75 px-1.5 py-1 text-center shadow-btn backdrop-blur-[2px] max-vsm:min-w-0 max-vsm:rounded-full max-vsm:bg-surface/90 max-vsm:p-1"
+              >
+                <span
+                  className="size-8 rounded-full border border-surface-border max-vsm:size-5"
+                  style={{ backgroundColor: color.code || '#E8E5E1' }}
+                />
+                {color.name ? (
+                  <span className="mt-0.5 max-w-[52px] truncate text-[8px] leading-none text-ink max-vsm:hidden">
+                    {color.name}
+                  </span>
+                ) : null}
+              </div>
             ))}
           </div>
         ) : null}
@@ -140,14 +149,14 @@ export default function CatalogProductCardV2({
             disabled={isAdding || unavailable}
             onClick={handleAdd}
             className={[
-              'absolute bottom-3 right-3 z-10 flex size-11 items-center justify-center rounded-full text-ink shadow-btn transition-transform max-vsm:bottom-2 max-vsm:right-2 max-vsm:size-10',
+              'absolute bottom-3 right-3 z-10 flex size-11 items-center justify-center rounded-full text-ink shadow-btn transition-transform max-vsm:bottom-2 max-vsm:right-2 max-vsm:size-9',
               unavailable
                 ? 'cursor-not-allowed bg-surface-border text-ink-secondary'
                 : 'bg-brand-yellow hover:scale-105',
               isAdding ? 'cursor-wait opacity-60' : '',
             ].join(' ')}
           >
-            <ShoppingCart className="size-5 max-vsm:size-[18px]" />
+            <ShoppingCart className="size-5 max-vsm:size-4" />
           </button>
       </div>
 
