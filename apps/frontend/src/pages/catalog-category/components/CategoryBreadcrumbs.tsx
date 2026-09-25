@@ -3,13 +3,9 @@ import { ChevronRight } from 'lucide-react';
 
 interface CategoryBreadcrumbsProps {
   name: string;
-  isRooms?: boolean;
 }
 
-export default function CategoryBreadcrumbs({ name, isRooms = false }: CategoryBreadcrumbsProps) {
-  const sectionLabel = isRooms ? 'Комнаты' : 'Каталог';
-  const sectionPath = isRooms ? '/' : '/catalog';
-
+export default function CategoryBreadcrumbs({ name }: CategoryBreadcrumbsProps) {
   return (
     <nav
       aria-label="Хлебные крошки"
@@ -19,8 +15,8 @@ export default function CategoryBreadcrumbs({ name, isRooms = false }: CategoryB
         Главная
       </Link>
       <ChevronRight className="size-4 shrink-0 max-vsm:size-3.5" aria-hidden />
-      <Link to={sectionPath} className="shrink-0 transition-colors hover:text-brand-green">
-        {sectionLabel}
+      <Link to="/catalog" className="shrink-0 transition-colors hover:text-brand-green">
+        Каталог
       </Link>
       <ChevronRight className="size-4 shrink-0 max-vsm:size-3.5" aria-hidden />
       <span className="truncate text-ink-secondary">{name}</span>
