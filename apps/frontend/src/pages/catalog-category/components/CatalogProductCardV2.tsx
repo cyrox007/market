@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, Heart, ImageIcon, ShoppingCart } from 'lucide-react';
+import { ArrowLeftRight, Heart, ImageIcon, Minus, Plus, ShoppingCart } from 'lucide-react';
 import type { Product } from '../../../lib/api';
 import { isVariableParent } from '../../../utils/cartProduct';
 
 interface CatalogProductCardV2Props {
   product: Product;
+  cartQuantity?: number;
   isFavorite?: boolean;
   isInCompare?: boolean;
   onAddToCart?: (productId: number) => void | Promise<void>;
+  onIncreaseCart?: (productId: number) => void | Promise<void>;
+  onDecreaseCart?: (productId: number) => void | Promise<void>;
   onToggleFavorite?: (product: Product) => void | Promise<void>;
   onToggleCompare?: (product: Product) => void | Promise<void>;
   onPrefetch?: () => void;
@@ -20,9 +23,12 @@ const formatPrice = (price: number) =>
 
 export default function CatalogProductCardV2({
   product,
+  cartQuantity = 0,
   isFavorite = false,
   isInCompare = false,
   onAddToCart,
+  onIncreaseCart,
+  onDecreaseCart,
   onToggleFavorite,
   onToggleCompare,
   onPrefetch,
@@ -30,15 +36,17 @@ export default function CatalogProductCardV2({
 }: CatalogProductCardV2Props) {
   const navigate = useNavigate();
   const [isAdding, setAdding] = useState(false);
+  const [isChangingQuantity, setChangingQuantity] = useState(false);
   const image = product.thumbnail || product.image;
   const variableParent = isVariableParent(product);
+  const unavailable = !variableParent && !product.in_stock && !product.backorder;
 
   const handleAdd = async () => {
     if (variableParent) {
       navigate(`/product/${product.slug}`);
       return;
     }
-    if (!onAddToCart || isAdding) return;
+    if (!onAddToCart || isAdding || unavailable) return;
 
     try {
       setAdding(true);
@@ -48,8 +56,26 @@ export default function CatalogProductCardV2({
     }
   };
 
+  const handleQuantity = async (delta: 1 | -1) => {
+    const handler = delta > 0 ? onIncreaseCart : onDecreaseCart;
+    if (!handler || isChangingQuantity) return;
+
+    try {
+      setChangingQuantity(true);
+      await handler(product.id);
+    } finally {
+      setChangingQuantity(false);
+    }
+  };
+
+  const colors = product.colors?.filter((color) => color.code).slice(0, 4) ?? [];
+
   return (
-    <article className="group min-w-0" onMouseEnter={onPrefetch}>
+    <article
+      className="group min-w-0"
+      onMouseEnter={onPrefetch}
+      onFocusCapture={onPrefetch}
+    >
       <div className="relative aspect-[292/270] overflow-hidden rounded-[12px] bg-surface-grey">
         <Link to={`/product/${product.slug}`} className="block h-full w-full">
           {image ? (
@@ -60,6 +86,7 @@ export default function CatalogProductCardV2({
               loading={priority ? 'eager' : 'lazy'}
               fetchPriority={priority ? 'high' : undefined}
               decoding="async"
+              sizes="(max-width: 549px) calc(100vw - 32px), (max-width: 979px) 46vw, 292px"
             />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-ink-secondary">
@@ -68,57 +95,108 @@ export default function CatalogProductCardV2({
           )}
         </Link>
 
-        <div className="absolute right-3 top-3 flex gap-2 max-vsm:right-2 max-vsm:top-2">
+        <div className="absolute right-3 top-3 z-10 flex gap-2 max-vsm:right-2 max-vsm:top-2">
           {onToggleCompare ? (
             <button
               type="button"
               aria-label={isInCompare ? 'Убрать из сравнения' : 'Добавить к сравнению'}
               onClick={() => onToggleCompare(product)}
               className={[
-                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors',
+                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors max-vsm:size-9',
                 isInCompare ? 'text-brand-green' : 'text-ink',
               ].join(' ')}
             >
-              <ArrowLeftRight className="size-5" />
+              <ArrowLeftRight className="size-5 max-vsm:size-[18px]" />
             </button>
           ) : null}
+
           {onToggleFavorite ? (
             <button
               type="button"
               aria-label={isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
               onClick={() => onToggleFavorite(product)}
               className={[
-                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors',
+                'flex size-10 items-center justify-center rounded-full bg-surface shadow-btn transition-colors max-vsm:size-9',
                 isFavorite ? 'text-brand-red' : 'text-ink',
               ].join(' ')}
             >
-              <Heart className="size-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              <Heart
+                className="size-5 max-vsm:size-[18px]"
+                fill={isFavorite ? 'currentColor' : 'none'}
+              />
             </button>
           ) : null}
         </div>
 
         {product.stock_label ? (
-          <div className="absolute left-3 top-3 max-w-[60%] rounded-pill bg-brand-green px-3 py-1 text-12 font-semibold text-ink-inverse">
+          <div className="absolute left-3 top-3 z-10 max-w-[58%] rounded-pill bg-brand-green px-3 py-1 text-12 font-semibold text-ink-inverse max-vsm:left-2 max-vsm:top-2 max-vsm:px-2 max-vsm:text-10">
             {product.stock_label}
           </div>
         ) : null}
 
-        {(onAddToCart || variableParent) && (
+        {colors.length ? (
+          <div className="absolute right-3 top-[58px] z-10 flex flex-col gap-1.5 rounded-pill bg-surface/90 p-1.5 shadow-btn backdrop-blur-sm max-vsm:right-2 max-vsm:top-[52px]">
+            {colors.map((color, index) => (
+              <span
+                key={color.slug || color.name || index}
+                title={color.name || undefined}
+                className="size-6 rounded-full border border-surface-border max-vsm:size-5"
+                style={{ backgroundColor: color.code || '#E8E5E1' }}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {cartQuantity > 0 && !variableParent ? (
+          <div className="absolute bottom-3 right-3 z-10 flex h-11 items-center rounded-pill bg-brand-yellow px-1 shadow-btn max-vsm:bottom-2 max-vsm:right-2 max-vsm:h-10">
+            <button
+              type="button"
+              aria-label="Уменьшить количество"
+              disabled={isChangingQuantity}
+              onClick={() => handleQuantity(-1)}
+              className="flex size-9 items-center justify-center rounded-full disabled:opacity-50 max-vsm:size-8"
+            >
+              <Minus className="size-4" />
+            </button>
+            <span className="min-w-7 text-center text-14 font-semibold text-ink">{cartQuantity}</span>
+            <button
+              type="button"
+              aria-label="Увеличить количество"
+              disabled={isChangingQuantity}
+              onClick={() => handleQuantity(1)}
+              className="flex size-9 items-center justify-center rounded-full disabled:opacity-50 max-vsm:size-8"
+            >
+              <Plus className="size-4" />
+            </button>
+          </div>
+        ) : (
           <button
             type="button"
-            aria-label={variableParent ? 'Выбрать вариант' : 'Добавить в корзину'}
-            disabled={isAdding}
+            aria-label={
+              unavailable
+                ? 'Товар недоступен'
+                : variableParent
+                  ? 'Выбрать вариант'
+                  : 'Добавить в корзину'
+            }
+            disabled={isAdding || unavailable}
             onClick={handleAdd}
-            className="absolute bottom-3 right-3 flex size-11 items-center justify-center rounded-full bg-brand-yellow text-ink shadow-btn transition-transform hover:scale-105 disabled:cursor-wait disabled:opacity-60 max-vsm:bottom-2 max-vsm:right-2"
+            className={[
+              'absolute bottom-3 right-3 z-10 flex size-11 items-center justify-center rounded-full text-ink shadow-btn transition-transform max-vsm:bottom-2 max-vsm:right-2 max-vsm:size-10',
+              unavailable
+                ? 'cursor-not-allowed bg-surface-border text-ink-secondary'
+                : 'bg-brand-yellow hover:scale-105',
+              isAdding ? 'cursor-wait opacity-60' : '',
+            ].join(' ')}
           >
-            <ShoppingCart className="size-5" />
+            <ShoppingCart className="size-5 max-vsm:size-[18px]" />
           </button>
         )}
       </div>
 
       <Link
         to={`/product/${product.slug}`}
-        className="mt-3 block min-h-[40px] text-16 leading-tight text-ink hover:text-brand-green max-vsm:mt-2 max-vsm:text-14"
+        className="mt-3 block line-clamp-2 min-h-[40px] text-16 leading-[1.25] text-ink transition-colors hover:text-brand-green max-vsm:mt-2 max-vsm:min-h-0 max-vsm:text-14"
       >
         {product.name}
       </Link>
@@ -128,24 +206,11 @@ export default function CatalogProductCardV2({
           {formatPrice(product.price)}
         </span>
         {product.old_price ? (
-          <span className="text-13 text-ink-secondary line-through">
+          <span className="text-13 text-ink-secondary line-through max-vsm:text-12">
             {formatPrice(product.old_price)}
           </span>
         ) : null}
       </div>
-
-      {product.colors?.length ? (
-        <div className="mt-2 flex gap-1.5" aria-label="Доступные цвета">
-          {product.colors.slice(0, 4).map((color, index) => (
-            <span
-              key={color.slug || color.name || index}
-              title={color.name || undefined}
-              className="size-5 rounded-swatch border border-surface-border"
-              style={{ backgroundColor: color.code || '#E8E5E1' }}
-            />
-          ))}
-        </div>
-      ) : null}
     </article>
   );
 }
