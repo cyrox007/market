@@ -18,16 +18,13 @@ export default function CategoryTiles({
   const basePath = isRooms ? '/rooms' : '/catalog';
 
   return (
-    <div
-      className="
-        grid grid-cols-2 gap-x-4 gap-y-5
-        vsm:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6
-        max-vsm:gap-x-3 max-vsm:gap-y-4
-      "
-    >
+    <div className="grid grid-cols-2 gap-x-5 gap-y-6 vsm:grid-cols-4 md:grid-cols-6 max-vsm:gap-x-3 max-vsm:gap-y-5">
       {categories.map((category) => {
         const image =
-          category.image_thumb || category.image_hd || category.image_fullhd || category.image;
+          category.image_thumb ||
+          category.image_hd ||
+          category.image_fullhd ||
+          category.image;
 
         return (
           <Link
@@ -37,22 +34,24 @@ export default function CategoryTiles({
             onMouseEnter={() => onPrefetch?.(category.slug)}
             onFocus={() => onPrefetch?.(category.slug)}
           >
-            <div className="aspect-square overflow-hidden rounded-card bg-surface-grey">
+            <div className="aspect-[188/174] overflow-hidden rounded-[18px] bg-surface-grey p-2 max-vsm:rounded-[16px] max-vsm:p-1.5">
               {image ? (
                 <img
                   src={image}
                   alt={category.name}
-                  className="h-full w-full object-cover transition-transform duration-slow group-hover:scale-[1.025]"
+                  className="h-full w-full rounded-[12px] object-cover transition-transform duration-slow group-hover:scale-[1.02]"
                   loading="lazy"
                   decoding="async"
+                  sizes="(max-width: 549px) 45vw, (max-width: 979px) 23vw, 188px"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-ink-secondary">
+                <div className="flex h-full w-full items-center justify-center rounded-[12px] bg-surface text-ink-secondary">
                   <ImageIcon className="size-8" />
                 </div>
               )}
             </div>
-            <div className="mt-2 text-16 font-medium leading-tight text-ink max-vsm:text-14">
+
+            <div className="mt-2 line-clamp-2 text-16 font-medium leading-[1.25] text-ink max-vsm:text-14">
               {category.name}
             </div>
           </Link>
