@@ -1,4 +1,3 @@
-import type { RefObject } from 'react';
 import type { Category, Product } from '../../../lib/api';
 import { PAGE_CONTAINER } from '../../../lib/layout';
 import CategoryBreadcrumbs from './CategoryBreadcrumbs';
@@ -12,10 +11,6 @@ interface CategoryLandingV2Props {
   products: Product[];
   total: number;
   isLoadingProducts: boolean;
-  isLoadingMore: boolean;
-  hasMore: boolean;
-  loadMoreRef: RefObject<HTMLDivElement | null>;
-  onLoadMore: () => void;
   onPrefetchCategory?: (slug: string) => void;
   onPrefetchProduct?: (slug: string) => void;
   onAddToCart?: (productId: number) => void | Promise<void>;
@@ -42,10 +37,6 @@ export default function CategoryLandingV2({
   products,
   total,
   isLoadingProducts,
-  isLoadingMore,
-  hasMore,
-  loadMoreRef,
-  onLoadMore,
   onPrefetchCategory,
   onPrefetchProduct,
   onAddToCart,
@@ -109,19 +100,6 @@ export default function CategoryLandingV2({
                   />
                 ))}
               </div>
-
-              {hasMore ? (
-                <div ref={loadMoreRef} className="mt-8 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={onLoadMore}
-                    disabled={isLoadingMore}
-                    className="h-11 rounded-pill border border-ink px-6 text-14 font-medium text-ink transition-colors hover:bg-ink hover:text-ink-inverse disabled:cursor-wait disabled:opacity-50"
-                  >
-                    {isLoadingMore ? 'Загружаем…' : 'Показать ещё'}
-                  </button>
-                </div>
-              ) : null}
             </>
           ) : (
             <div className="rounded-card bg-surface-grey px-6 py-10 text-center text-16 text-ink-secondary">
