@@ -76,13 +76,13 @@ export default function CategoryLandingV2({
           </h2>
 
           {isLoadingProducts ? (
-            <div className="grid grid-cols-1 gap-5 vsm:grid-cols-2 md:grid-cols-4 max-vsm:gap-6">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-6 md:grid-cols-4 md:gap-5">
               {Array.from({ length: 4 }).map((_, index) => (
                 <ProductSkeleton key={index} />
               ))}
             </div>
           ) : products.length ? (
-            <div className="grid grid-cols-1 gap-5 vsm:grid-cols-2 md:grid-cols-4 max-vsm:gap-6">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-6 md:grid-cols-4 md:gap-5">
               {products.slice(0, 4).map((product, index) => (
                 <CatalogProductCardV2
                   key={product.id}
