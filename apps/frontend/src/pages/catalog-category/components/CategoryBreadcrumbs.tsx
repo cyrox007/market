@@ -8,7 +8,7 @@ interface CategoryBreadcrumbsProps {
 
 export default function CategoryBreadcrumbs({ name, isRooms = false }: CategoryBreadcrumbsProps) {
   const sectionLabel = isRooms ? 'Комнаты' : 'Каталог';
-  const sectionPath = isRooms ? '/rooms' : '/catalog';
+  const sectionPath = isRooms ? '/' : '/catalog';
 
   return (
     <nav aria-label="Хлебные крошки" className="flex min-w-0 items-center gap-2 text-14 text-ink-secondary">
