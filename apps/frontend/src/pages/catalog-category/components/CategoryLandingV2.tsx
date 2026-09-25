@@ -7,7 +7,6 @@ import CatalogProductCardV2 from './CatalogProductCardV2';
 
 interface CategoryLandingV2Props {
   category: Category;
-  isRooms?: boolean;
   regionName?: string | null;
   products: Product[];
   isLoadingProducts: boolean;
@@ -32,7 +31,6 @@ function ProductSkeleton() {
 
 export default function CategoryLandingV2({
   category,
-  isRooms = false,
   regionName,
   products,
   isLoadingProducts,
@@ -53,7 +51,7 @@ export default function CategoryLandingV2({
   return (
     <main className="bg-surface">
       <div className={`${PAGE_CONTAINER} pb-16 pt-6 max-md:pb-12 max-md:pt-5 max-vsm:pb-10 max-vsm:pt-4`}>
-        <CategoryBreadcrumbs name={category.name} isRooms={isRooms} />
+        <CategoryBreadcrumbs name={category.name} />
 
         <h1 className="mt-7 font-display text-32 font-bold leading-none text-ink max-md:mt-6 max-vsm:mt-5 max-vsm:text-24">
           {category.name}
@@ -65,7 +63,6 @@ export default function CategoryLandingV2({
         >
           <CategoryTiles
             categories={children}
-            isRooms={isRooms}
             onPrefetch={onPrefetchCategory}
           />
         </section>
