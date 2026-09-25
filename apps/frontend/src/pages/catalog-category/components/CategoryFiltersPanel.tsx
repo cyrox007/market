@@ -71,7 +71,9 @@ export default function CategoryFiltersPanel({
   return (
     <aside
       className={[
-        open ? 'fixed inset-0 z-50 overflow-y-auto bg-surface' : 'hidden',
+        open
+          ? 'max-md:fixed max-md:inset-0 max-md:z-50 max-md:overflow-y-auto max-md:bg-surface'
+          : 'max-md:hidden',
         'md:block md:w-[260px] md:shrink-0',
       ].join(' ')}
       aria-label="Фильтры каталога"
