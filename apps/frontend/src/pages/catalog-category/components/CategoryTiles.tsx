@@ -4,18 +4,14 @@ import type { Category } from '../../../lib/api';
 
 interface CategoryTilesProps {
   categories: Category[];
-  isRooms?: boolean;
   onPrefetch?: (slug: string) => void;
 }
 
 export default function CategoryTiles({
   categories,
-  isRooms = false,
   onPrefetch,
 }: CategoryTilesProps) {
   if (!categories.length) return null;
-
-  const basePath = isRooms ? '/rooms' : '/catalog';
 
   return (
     <div className="grid grid-cols-2 gap-x-5 gap-y-6 vsm:grid-cols-4 md:grid-cols-6 max-vsm:gap-x-3 max-vsm:gap-y-5">
@@ -29,7 +25,7 @@ export default function CategoryTiles({
         return (
           <Link
             key={category.id}
-            to={`${basePath}/${category.slug}`}
+            to={`/catalog/${category.slug}`}
             className="group min-w-0"
             onMouseEnter={() => onPrefetch?.(category.slug)}
             onFocus={() => onPrefetch?.(category.slug)}
