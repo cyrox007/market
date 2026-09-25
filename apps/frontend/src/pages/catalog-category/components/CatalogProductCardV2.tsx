@@ -1,17 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, Heart, ImageIcon, Minus, Plus, ShoppingCart } from 'lucide-react';
+import { ArrowLeftRight, Heart, ImageIcon, ShoppingCart } from 'lucide-react';
 import type { Product } from '../../../lib/api';
 import { isVariableParent } from '../../../utils/cartProduct';
 
 interface CatalogProductCardV2Props {
   product: Product;
-  cartQuantity?: number;
   isFavorite?: boolean;
   isInCompare?: boolean;
   onAddToCart?: (productId: number) => void | Promise<void>;
-  onIncreaseCart?: (productId: number) => void | Promise<void>;
-  onDecreaseCart?: (productId: number) => void | Promise<void>;
   onToggleFavorite?: (product: Product) => void | Promise<void>;
   onToggleCompare?: (product: Product) => void | Promise<void>;
   onPrefetch?: () => void;
@@ -23,12 +20,9 @@ const formatPrice = (price: number) =>
 
 export default function CatalogProductCardV2({
   product,
-  cartQuantity = 0,
   isFavorite = false,
   isInCompare = false,
   onAddToCart,
-  onIncreaseCart,
-  onDecreaseCart,
   onToggleFavorite,
   onToggleCompare,
   onPrefetch,
@@ -36,7 +30,6 @@ export default function CatalogProductCardV2({
 }: CatalogProductCardV2Props) {
   const navigate = useNavigate();
   const [isAdding, setAdding] = useState(false);
-  const [isChangingQuantity, setChangingQuantity] = useState(false);
   const image = product.thumbnail || product.image;
   const variableParent = isVariableParent(product);
   const unavailable = !variableParent && !product.in_stock && !product.backorder;
@@ -53,18 +46,6 @@ export default function CatalogProductCardV2({
       await onAddToCart(product.id);
     } finally {
       setAdding(false);
-    }
-  };
-
-  const handleQuantity = async (delta: 1 | -1) => {
-    const handler = delta > 0 ? onIncreaseCart : onDecreaseCart;
-    if (!handler || isChangingQuantity) return;
-
-    try {
-      setChangingQuantity(true);
-      await handler(product.id);
-    } finally {
-      setChangingQuantity(false);
     }
   };
 
@@ -147,30 +128,7 @@ export default function CatalogProductCardV2({
           </div>
         ) : null}
 
-        {cartQuantity > 0 && !variableParent ? (
-          <div className="absolute bottom-3 right-3 z-10 flex h-11 items-center rounded-pill bg-brand-yellow px-1 shadow-btn max-vsm:bottom-2 max-vsm:right-2 max-vsm:h-10">
-            <button
-              type="button"
-              aria-label="Уменьшить количество"
-              disabled={isChangingQuantity}
-              onClick={() => handleQuantity(-1)}
-              className="flex size-9 items-center justify-center rounded-full disabled:opacity-50 max-vsm:size-8"
-            >
-              <Minus className="size-4" />
-            </button>
-            <span className="min-w-7 text-center text-14 font-semibold text-ink">{cartQuantity}</span>
-            <button
-              type="button"
-              aria-label="Увеличить количество"
-              disabled={isChangingQuantity}
-              onClick={() => handleQuantity(1)}
-              className="flex size-9 items-center justify-center rounded-full disabled:opacity-50 max-vsm:size-8"
-            >
-              <Plus className="size-4" />
-            </button>
-          </div>
-        ) : (
-          <button
+        <button
             type="button"
             aria-label={
               unavailable
@@ -191,7 +149,6 @@ export default function CatalogProductCardV2({
           >
             <ShoppingCart className="size-5 max-vsm:size-[18px]" />
           </button>
-        )}
       </div>
 
       <Link
