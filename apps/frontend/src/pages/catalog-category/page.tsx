@@ -204,6 +204,7 @@ export default function CatalogCategory() {
     initialProducts &&
     initialCategory?.slug === categorySlug &&
     productsParams &&
+    !isCategoryLandingV2 &&
     !hasNonDefaultFilters &&
     isSameRegionAsSSR,
   );
@@ -565,7 +566,6 @@ export default function CatalogCategory() {
         category={category}
         regionName={region?.name}
         products={products}
-        total={total}
         isLoadingProducts={isLoadingProducts}
         onPrefetchCategory={prefetchCategory}
         onPrefetchProduct={prefetchProduct}
