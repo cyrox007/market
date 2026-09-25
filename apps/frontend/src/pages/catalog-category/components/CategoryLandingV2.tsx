@@ -14,11 +14,8 @@ interface CategoryLandingV2Props {
   onPrefetchCategory?: (slug: string) => void;
   onPrefetchProduct?: (slug: string) => void;
   onAddToCart?: (productId: number) => void | Promise<void>;
-  onIncreaseCart?: (productId: number) => void | Promise<void>;
-  onDecreaseCart?: (productId: number) => void | Promise<void>;
   onToggleFavorite?: (product: Product) => void | Promise<void>;
   onToggleCompare?: (product: Product) => void | Promise<void>;
-  getCartQuantity?: (product: Product) => number;
   isFavorite?: (product: Product) => boolean;
   isInCompare?: (product: Product) => boolean;
 }
@@ -42,11 +39,8 @@ export default function CategoryLandingV2({
   onPrefetchCategory,
   onPrefetchProduct,
   onAddToCart,
-  onIncreaseCart,
-  onDecreaseCart,
   onToggleFavorite,
   onToggleCompare,
-  getCartQuantity,
   isFavorite,
   isInCompare,
 }: CategoryLandingV2Props) {
@@ -93,11 +87,8 @@ export default function CategoryLandingV2({
                 <CatalogProductCardV2
                   key={product.id}
                   product={product}
-                  cartQuantity={getCartQuantity?.(product) ?? 0}
                   onPrefetch={() => onPrefetchProduct?.(product.slug)}
                   onAddToCart={onAddToCart}
-                  onIncreaseCart={onIncreaseCart}
-                  onDecreaseCart={onDecreaseCart}
                   onToggleFavorite={onToggleFavorite}
                   onToggleCompare={onToggleCompare}
                   isFavorite={isFavorite?.(product)}
