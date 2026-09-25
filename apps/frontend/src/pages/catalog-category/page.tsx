@@ -1,9 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, useLocation, useSearchParams } from 'react-router-dom';
+import { useParams, useLocation, Link, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
+import ProductCard from '../../components/ui/ProductCard';
 import CategoryLandingV2 from './components/CategoryLandingV2';
-import CategoryLeafView from './components/CategoryLeafView';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/SSRContext';
 import { useCounters } from '../../hooks/useCounters';
@@ -18,6 +18,7 @@ import { getCategoryProductsKey, parseCategoryProductsKey } from '../../utils/ss
 import {
   getSortSelectValue,
   parseSortSelectValue,
+  SORT_OPTIONS,
   CATALOG_PRODUCTS_PER_PAGE,
 } from '../../lib/catalog-sort';
 import { normalizeListProduct } from '../../utils/cartProduct';
@@ -26,6 +27,7 @@ import {
   setCategoryFragmentFromCategory,
 } from '../../lib/category-fragment-cache';
 import type { Category, Product, FiltersMeta } from '../../lib/api';
+import { ChevronRight, ListFilter, X } from 'lucide-react';
 
 export default function CatalogCategory() {
   const { category: categorySlug } = useParams<{ category: string }>();
@@ -552,6 +554,8 @@ export default function CatalogCategory() {
     );
   }
 
+  // Category V2: only parent categories with children use the new Figma layout.
+  // Leaf/product-list categories keep the existing implementation untouched.
   if (category?.children?.length) {
     return (
       <CategoryLandingV2
@@ -573,42 +577,324 @@ export default function CatalogCategory() {
   }
 
   return (
-    <CategoryLeafView
-      name={displayName}
-      isRooms={isRooms}
-      filters={filtersMetaDisplay}
-      priceRange={priceRange as [number, number]}
-      selectedColors={selectedColors}
-      selectedSizes={selectedSizes}
-      selectedAttributes={selectedAttributes}
-      filtersOpen={isMobileFilterOpen}
-      products={products}
-      total={total}
-      totalLoaded={pagesData != null}
-      sortValue={getSortSelectValue(searchParams)}
-      isLoadingProducts={isLoadingProducts}
-      isLoadingMore={isLoadingMore}
-      hasMore={hasMore}
-      loadMoreRef={loadMoreRef}
-      onOpenFilters={() => setIsMobileFilterOpen(true)}
-      onCloseFilters={() => setIsMobileFilterOpen(false)}
-      onPriceRangeChange={setPriceRange}
-      onApplyPrice={handlePriceFilter}
-      onColorToggle={handleColorToggle}
-      onSizeToggle={handleSizeToggle}
-      onAttributeToggle={handleAttributeToggle}
-      onResetFilters={handleResetFilters}
-      onSortChange={handleSortChange}
-      onLoadMore={loadMore}
-      onPrefetchProduct={prefetchProduct}
-      onAddToCart={handleAddToCart}
-      onIncreaseCart={(productId) => updateCartQuantityByProduct(productId, 1)}
-      onDecreaseCart={(productId) => updateCartQuantityByProduct(productId, -1)}
-      onToggleFavorite={toggleFavorite}
-      onToggleCompare={toggleCompare}
-      getCartQuantity={getCartQty}
-      isFavorite={(product) => favorites.includes(getProductIdForWishlist(product))}
-      isInCompare={(product) => compareList.includes(getProductIdForCompare(product))}
-    />
+    <div className="min-h-screen bg-white">
+      <div className="max-w-[1280px] mx-auto px-4 py-4 md:py-6">
+        <div className="flex items-start justify-between gap-6 mb-4 md:mb-6">
+          <div className="flex-1">
+            {/* Breadcrumbs */}
+            <div className="flex items-center gap-2 text-sm mb-2">
+              <Link to="/" className="text-gray-600 hover:text-red-600">
+                Главная
+              </Link>
+              <ChevronRight className="size-[1em] text-gray-400" />
+              <Link to="/catalog" className="text-gray-600 hover:text-red-600">
+                Каталог
+              </Link>
+              <ChevronRight className="size-[1em] text-gray-400" />
+              <span className="text-gray-900">{displayName}</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold">{displayName}</h1>
+          </div>
+        </div>
+
+        {/* Subcategories — показываем только после загрузки категории */}
+        {category?.children && category.children.length > 0 && (
+          <div className="flex flex-wrap gap-2 md:gap-3 mb-6 md:mb-8">
+            {category.children.map((subcat) => (
+              <Link
+                key={subcat.id}
+                to={`/catalog/${subcat.slug}`}
+                className="px-4 py-2 rounded-lg text-sm md:text-base transition-colors cursor-pointer whitespace-nowrap bg-gray-100 text-gray-700 hover:bg-red-600 hover:text-white"
+                onMouseEnter={() => prefetchCategory(subcat.slug)}
+                onFocus={() => prefetchCategory(subcat.slug)}
+              >
+                {subcat.name}
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* Mobile Filter Button */}
+        <button
+          onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+          className="lg:hidden w-full mb-4 bg-red-600 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 whitespace-nowrap"
+        >
+          <ListFilter className="size-[1em]" />
+          Фильтры
+        </button>
+
+        {/* Filters and Products */}
+        <div className="flex gap-6">
+          {/* Sidebar Filters */}
+          <div
+            className={`${isMobileFilterOpen ? 'fixed inset-0 z-50 bg-white overflow-y-auto' : 'hidden'} lg:block lg:w-52 lg:flex-shrink-0`}
+          >
+            <div className="lg:hidden flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold text-lg">Фильтры</h3>
+              <button
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="w-8 h-8 flex items-center justify-center"
+              >
+                <X className="size-[1em] text-2xl" />
+              </button>
+            </div>
+
+            <div className="bg-white border-0 lg:border lg:border-gray-200 rounded-none lg:rounded-2xl p-4 lg:p-5 lg:sticky lg:top-4">
+              <h3 className="font-semibold text-base mb-4 hidden lg:block">Фильтры</h3>
+
+              {!filtersMetaDisplay ? (
+                /* Скелетоны фильтров пока meta не загружена */
+                <div className="animate-pulse space-y-5">
+                  <div>
+                    <div className="h-4 bg-gray-200 rounded w-12 mb-2" />
+                    <div className="flex gap-2 mb-2">
+                      <div className="flex-1 h-9 bg-gray-200 rounded-lg" />
+                      <div className="flex-1 h-9 bg-gray-200 rounded-lg" />
+                    </div>
+                    <div className="h-9 bg-gray-200 rounded-lg" />
+                  </div>
+                  <div>
+                    <div className="h-4 bg-gray-200 rounded w-14 mb-2" />
+                    <div className="flex flex-wrap gap-2">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="w-8 h-8 rounded-full bg-gray-200" />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="h-4 bg-gray-200 rounded w-16 mb-2" />
+                    <div className="flex flex-wrap gap-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-9 w-16 bg-gray-200 rounded-lg" />
+                      ))}
+                    </div>
+                  </div>
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i}>
+                      <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
+                      <div className="space-y-2">
+                        {[...Array(3)].map((_, j) => (
+                          <div key={j} className="flex items-center gap-2">
+                            <div className="h-4 w-4 rounded bg-gray-200" />
+                            <div className="h-4 bg-gray-200 rounded flex-1 max-w-[80%]" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Price Range */}
+                  <div className="mb-5">
+                    <label className="block text-sm font-medium mb-2">Цена</label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="number"
+                        value={priceRange[0]}
+                        onChange={(e) => setPriceRange([+e.target.value, priceRange[1]])}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        placeholder="От"
+                      />
+                      <input
+                        type="number"
+                        value={priceRange[1]}
+                        onChange={(e) => setPriceRange([priceRange[0], +e.target.value])}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        placeholder="До"
+                      />
+                    </div>
+                    <button
+                      onClick={handlePriceFilter}
+                      className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                    >
+                      Применить
+                    </button>
+                  </div>
+
+                  {/* Colors — все опции категории, недоступные (count === 0) серыми */}
+                  {filtersMetaDisplay?.colors && filtersMetaDisplay.colors.length > 0 && (
+                    <div className="mb-5">
+                      <label className="block text-sm font-medium mb-2">Цвет</label>
+                      <div className="flex flex-wrap gap-2">
+                        {filtersMetaDisplay.colors.map((color, colorIndex) => {
+                          const disabled = color.count !== undefined && color.count === 0;
+                          const slug = color.slug || color.name || '';
+                          return (
+                            <button
+                              key={`${color.slug || color.name || 'color'}-${colorIndex}`}
+                              type="button"
+                              onClick={() => !disabled && handleColorToggle(slug)}
+                              disabled={disabled}
+                              className={`w-8 h-8 rounded-full border-2 ${
+                                disabled
+                                  ? 'border-gray-200 opacity-50 cursor-not-allowed'
+                                  : selectedColors.includes(slug)
+                                    ? 'border-red-600 scale-110'
+                                    : 'border-gray-300 hover:border-red-600'
+                              }`}
+                              style={{ backgroundColor: color.code || '#f5f5f5' }}
+                              title={disabled ? 'Нет товаров' : color.name || ''}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sizes — все опции категории, недоступные (count === 0) серыми */}
+                  {filtersMetaDisplay?.sizes && filtersMetaDisplay.sizes.length > 0 && (
+                    <div className="mb-5">
+                      <label className="block text-sm font-medium mb-2">Размер</label>
+                      <div className="flex flex-wrap gap-2">
+                        {filtersMetaDisplay.sizes.map((size, sizeIndex) => {
+                          const disabled = size.count !== undefined && size.count === 0;
+                          const value = size.value || '';
+                          return (
+                            <button
+                              key={size.slug || size.value || `size-${sizeIndex}`}
+                              type="button"
+                              onClick={() => !disabled && handleSizeToggle(value)}
+                              disabled={disabled}
+                              className={`px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap ${
+                                disabled
+                                  ? 'border-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                                  : selectedSizes.includes(value)
+                                    ? 'border-red-600 bg-red-50 text-red-600'
+                                    : 'border-gray-300 hover:border-red-600'
+                              }`}
+                            >
+                              {size.name || size.value}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attributes — все опции категории, недоступные (count === 0) серыми */}
+                  {filtersMetaDisplay?.attributes &&
+                    filtersMetaDisplay.attributes.length > 0 &&
+                    filtersMetaDisplay.attributes.map((attr) => (
+                      <div className="mb-5" key={attr.slug}>
+                        <label className="block text-sm font-medium mb-2">{attr.name}</label>
+                        <div className="space-y-2">
+                          {attr.values.map((val) => {
+                            const disabled = val.count !== undefined && val.count === 0;
+                            return (
+                              <label
+                                key={`${attr.slug}-${val.slug}`}
+                                className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={(selectedAttributes[attr.slug] || []).includes(val.slug)}
+                                  onChange={() =>
+                                    !disabled && handleAttributeToggle(attr.slug, val.slug)
+                                  }
+                                  disabled={disabled}
+                                  className="w-4 h-4 text-red-600 rounded disabled:opacity-50"
+                                />
+                                <span className="text-sm text-gray-700">{val.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Сброс фильтров */}
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="w-full mt-4 bg-red-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    Сбросить фильтры
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Products Grid */}
+          <div className="flex-1">
+            {/* Sort */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+              <p className="text-gray-600 text-sm">
+                Найдено товаров: {pagesData != null ? total : '—'}
+              </p>
+              <select
+                value={getSortSelectValue(searchParams)}
+                onChange={(e) => handleSortChange(e.target.value)}
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm pr-8"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Products */}
+            {isLoadingProducts ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="bg-gray-200 rounded-2xl h-96 animate-pulse" />
+                ))}
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">Товары не найдены</p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5"
+                  data-product-shop
+                >
+                  {products.map((product, index) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onMouseEnter={() => prefetchProduct(product.slug)}
+                      onAddToCart={handleAddToCart}
+                      onIncreaseCart={(productId) => updateCartQuantityByProduct(productId, 1)}
+                      onDecreaseCart={(productId) => updateCartQuantityByProduct(productId, -1)}
+                      onToggleFavorite={toggleFavorite}
+                      onToggleCompare={toggleCompare}
+                      cartQuantity={getCartQty(product)}
+                      isFavorite={favorites.includes(getProductIdForWishlist(product))}
+                      isInCompare={compareList.includes(getProductIdForCompare(product))}
+                      priority={index < 8}
+                    />
+                  ))}
+                </div>
+                {/* Подгрузка при прокрутке + кнопка «Загрузить ещё» */}
+                {hasMore && (
+                  <div ref={loadMoreRef} className="flex flex-col items-center gap-4 py-8">
+                    {isLoadingMore ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5 w-full">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="bg-gray-200 rounded-2xl h-96 animate-pulse" />
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => loadMore()}
+                        className="px-6 py-3 border-2 border-red-600 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
+                      >
+                        Загрузить ещё
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
