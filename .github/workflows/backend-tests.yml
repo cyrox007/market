@@ -27,6 +27,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup PHP
+        id: setup_php
+        continue-on-error: true
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -56,14 +58,57 @@ jobs:
           path: /tmp/composer-install.log
           retention-days: 1
 
-      - name: Stop on Composer failure
-        if: steps.composer_install.outcome == 'failure'
-        run: exit 1
-
       - name: Prepare application
+        id: prepare_app
+        continue-on-error: true
         run: |
+          set -o pipefail
           cp .env.example .env
-          php artisan key:generate
+          php artisan key:generate 2>&1 | tee /tmp/prepare-app.log
 
       - name: Run backend test suite
-        run: composer test
+        id: backend_tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          composer test 2>&1 | tee /tmp/backend-tests.log
+
+      - name: Upload backend test diagnostics
+        if: steps.backend_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-log
+          path: /tmp/backend-tests.log
+          retention-days: 1
+
+      - name: Upload prepare diagnostics
+        if: steps.prepare_app.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepare-app-log
+          path: /tmp/prepare-app.log
+          retention-days: 1
+
+      - name: Write diagnostic summary
+        if: always()
+        run: |
+          {
+            echo "setup=${{ steps.setup_php.outcome }}"
+            echo "composer=${{ steps.composer_install.outcome }}"
+            echo "prepare=${{ steps.prepare_app.outcome }}"
+            echo "tests=${{ steps.backend_tests.outcome }}"
+            php -v || true
+            composer --version || true
+          } > /tmp/ci-summary.txt
+
+      - name: Upload diagnostic summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-summary
+          path: /tmp/ci-summary.txt
+          retention-days: 1
+
+      - name: Stop on backend failure
+        if: steps.setup_php.outcome == 'failure' || steps.composer_install.outcome == 'failure' || steps.prepare_app.outcome == 'failure' || steps.backend_tests.outcome == 'failure'
+        run: exit 1

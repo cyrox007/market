@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Categories\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use App\Models\Product\Category;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
@@ -42,6 +43,9 @@ class CategoryForm
                                             ->label(__('filament/admin_sv/category_resource.slug'))
                                             ->maxLength(255)
                                             ->unique(ignoreRecord: true),
+                                        LucideIconSelect::make('icon')
+                                            ->label('Иконка')
+                                            ->helperText('Иконка категории в формате Lucide.'),
                                         Select::make('parent_id')
                                             ->label(__('filament/admin_sv/category_resource.parent_id'))
                                             ->relationship('parent', 'name')

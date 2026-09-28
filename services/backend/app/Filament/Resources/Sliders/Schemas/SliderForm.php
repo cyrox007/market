@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sliders\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
@@ -64,11 +65,10 @@ class SliderForm
                             ->label(__('filament/admin_sv/slider_resource.badge_link'))
                             ->url()
                             ->maxLength(255),
-                        TextInput::make('badge_icon')
+                        LucideIconSelect::make('badge_icon')
                             ->label(__('filament/admin_sv/slider_resource.badge_icon'))
-                            ->maxLength(255)
-                            ->default('ri-flashlight-fill')
-                            ->helperText('Класс иконки Remix Icon, например: ri-flashlight-fill, ri-customer-service-2-line'),
+                            ->default('zap')
+                            ->helperText('Выберите иконку Lucide для бейджа.'),
                     ])->columns(2)->collapsible(),
                 Section::make('SEO настройки')
                     ->description('Управление мета данными')

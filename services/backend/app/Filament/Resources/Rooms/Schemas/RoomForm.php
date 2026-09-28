@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Rooms\Schemas;
 
+use App\Filament\Support\LucideIconSelect;
 use App\Models\Product\Attribute;
 use App\Models\Product\Product;
 use App\Models\Product\Room;
@@ -46,6 +47,9 @@ class RoomForm
                                             ->required()
                                             ->maxLength(255)
                                             ->unique(ignoreRecord: true),
+                                        LucideIconSelect::make('icon')
+                                            ->label('Иконка')
+                                            ->helperText('Иконка комнаты в формате Lucide.'),
                                         Select::make('parent_id')
                                             ->label('Родительская комната')
                                             ->options(function ($record) {
