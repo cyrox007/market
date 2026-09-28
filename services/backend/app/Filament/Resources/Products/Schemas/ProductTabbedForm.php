@@ -141,7 +141,9 @@ class ProductTabbedForm extends ProductForm
                         TextInput::make('sku')
                             ->label(__('filament/admin_sv/product_resource.sku'))
                             ->maxLength(255)
-                            ->helperText('Артикул товара (может повторяться). Если оставить пустым, при сохранении будет подставлен ID товара.'),
+                            ->helperText(fn (?Product $record): string => $record?->isVariable() && ! $record->isVariant()
+                                ? 'У вариативного товара артикул хранится у торговых предложений. Поле можно оставить пустым.'
+                                : 'Артикул товара (может повторяться). Если оставить пустым, при сохранении будет подставлен ID товара.'),
 
                         TextInput::make('gtin')
                             ->label(__('filament/admin_sv/product_resource.gtin'))
