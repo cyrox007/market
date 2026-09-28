@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'View Order',
-    'title' => 'View Order',
+    'navigation_label' => 'Просмотр заказа',
+    'title' => 'Просмотр заказа',
 
 ];

@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Articles',
-    'title' => 'List Articles',
+    'navigation_label' => 'Статьи',
+    'title' => 'Статьи',
 
 ];

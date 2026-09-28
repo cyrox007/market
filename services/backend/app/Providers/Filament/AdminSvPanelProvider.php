@@ -18,6 +18,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use SpyApp\ThemeEdinburgh\ThemeEdinburghPlugin;
 
@@ -33,6 +34,10 @@ class AdminSvPanelProvider extends PanelProvider
             ->plugin(ThemeEdinburghPlugin::make())
             ->viteTheme('resources/css/filament/admin_sv/theme.css')
             ->maxContentWidth(Width::Full)
+            // brandName попадает в заголовок вкладки, brandLogo — в подпись шапки.
+            ->brandName('Светофор-Мебель')
+            ->brandLogo(fn () => new HtmlString('Основной экран'))
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Red,
             ])

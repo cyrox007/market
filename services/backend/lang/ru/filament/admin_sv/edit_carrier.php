@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Carrier',
-    'title' => 'Edit Carrier',
+    'navigation_label' => 'Редактирование службы доставки',
+    'title' => 'Редактирование службы доставки',
 
 ];

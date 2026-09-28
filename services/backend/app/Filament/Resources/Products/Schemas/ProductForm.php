@@ -55,12 +55,20 @@ class ProductForm
                     ->helperText('Полное название товара для отображения на сайте')
                     ->columnSpanFull(),
 
-                TextInput::make('slug')
-                    ->label(__('filament/admin_sv/product_resource.slug'))
-                    ->maxLength(255)
-                    ->unique(Product::class, 'slug', ignoreRecord: true)
-                    ->helperText('ЧПУ для URL. Генерируется из названия автоматически, можно изменить при необходимости')
-                    ->columnSpanFull(),
+                Section::make('Адрес на сайте (ЧПУ)')
+                    ->description('Формируется автоматически из названия')
+                    ->extraAttributes(['class' => 'chpu-section'])
+                    ->schema([
+                        TextInput::make('slug')
+                            ->label(__('filament/admin_sv/product_resource.slug'))
+                            ->maxLength(255)
+                            ->unique(Product::class, 'slug', ignoreRecord: true)
+                            ->helperText('Адрес карточки на сайте: /product/{ЧПУ}. Генерируется из названия, можно изменить.')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->collapsible()
+                    ->collapsed(),
 
                 /* TextInput::make('subtitle')
                             ->label(__('filament/admin_sv/product_resource.subtitle'))
@@ -326,12 +334,13 @@ class ProductForm
             ->schema([
                 SpatieMediaLibraryFileUpload::make('main_image')
                     ->label('Главное изображение')
-                    ->collection('main_image')
+                    // Имя коллекции задаёт модель: главное фото читается из images.
+                    ->collection('images')
                     ->image()
                     ->imageEditor()
                     ->imageCropAspectRatio('1:1')
                     ->maxSize(10240)
-                    ->helperText('Рекомендуемый размер: 800x800px. Максимальный размер файла: 10MB')
+                    ->helperText('Главное фото на карточке товара и в списках. Рекомендуется 800x800px, до 10MB.')
                     ->columnSpanFull(),
 
                 SpatieMediaLibraryFileUpload::make('gallery')

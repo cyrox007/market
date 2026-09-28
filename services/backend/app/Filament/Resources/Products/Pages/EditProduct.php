@@ -18,6 +18,25 @@ class EditProduct extends EditRecord
 
     protected array $productAttributesData = [];
 
+    protected bool $stayAfterSave = false;
+
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getSaveFormAction(),
+            Action::make('saveAndStay')
+                ->label('Сохранить и остаться')
+                ->action('saveAndStay'),
+            $this->getCancelFormAction(),
+        ];
+    }
+
+    public function saveAndStay(): void
+    {
+        $this->stayAfterSave = true;
+        $this->save();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -143,6 +162,6 @@ class EditProduct extends EditRecord
 
     protected function getRedirectUrl(): ?string
     {
-        return ProductResource::getUrl('index');
+        return $this->stayAfterSave ? null : ProductResource::getUrl('index');
     }
 }
