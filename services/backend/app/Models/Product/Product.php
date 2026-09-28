@@ -80,12 +80,36 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             }
         });
 
-        // Если артикул не задан, подставляем ID товара после создания
-        static::created(function (self $product) {
-            $sku = (string) ($product->attributes['sku'] ?? $product->sku ?? '');
-            if ($sku === '' || $sku === null) {
-                $product->forceFill(['sku' => (string) $product->getKey()])->saveQuietly();
+        // У общего вариативного товара собственного артикула нет: SKU живут у торговых предложений.
+        // Для обычных товаров сохраняем прежнее поведение — пустой SKU заменяется ID товара.
+        static::saving(function (self $product) {
+            $sku = trim((string) ($product->attributes['sku'] ?? ''));
+
+            if ($sku !== '') {
+                return;
             }
+
+            if ($product->isVariable() && ! $product->isVariant()) {
+                $product->attributes['sku'] = null;
+
+                return;
+            }
+
+            if ($product->exists && $product->getKey()) {
+                $product->attributes['sku'] = (string) $product->getKey();
+            }
+        });
+
+        // Для нового обычного товара ID становится запасным SKU уже после INSERT,
+        // когда первичный ключ известен. Вариативный родитель сохраняет NULL.
+        static::created(function (self $product) {
+            $sku = trim((string) ($product->attributes['sku'] ?? ''));
+
+            if ($sku !== '' || ($product->isVariable() && ! $product->isVariant())) {
+                return;
+            }
+
+            $product->forceFill(['sku' => (string) $product->getKey()])->saveQuietly();
         });
 
         // Каскадная очистка хотспотов для совместимости со старыми данными
