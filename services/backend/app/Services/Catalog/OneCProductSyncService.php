@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
 /**
- * @deprecated Legacy full product sync. Use OneCStockSyncService for normal
- *             inventory updates. This class intentionally remains available
+ * @deprecated Legacy full product sync. Use the inventory stock refresh actions
+ *             for normal updates. This class intentionally remains available
  *             for compatibility and manual recovery scenarios.
  */
 class OneCProductSyncService extends Svetofor1CCatalogImport
