@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Users',
-    'title' => 'List Users',
+    'navigation_label' => 'Пользователи',
+    'title' => 'Пользователи',
 
 ];

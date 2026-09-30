@@ -198,4 +198,53 @@ class OrderControllerAutoRegistrationTest extends TestCase
             'user_id' => $user->id,
         ]);
     }
+
+    public function test_guest_order_with_phone_of_another_user_registers_without_phone(): void
+    {
+        // Телефон уже занят другим аккаунтом (иной email).
+        User::factory()->create(['phone' => '+79991234567', 'email' => 'owner@example.com']);
+
+        $orderCreatedEvent = MailEvent::factory()->create(['code' => 'order.created', 'is_active' => true]);
+        MailEventTemplate::factory()->create([
+            'mail_event_id' => $orderCreatedEvent->id,
+            'is_active' => true,
+            'is_default' => true,
+        ]);
+        $userRegisteredEvent = MailEvent::factory()->create(['code' => 'user.registered', 'is_active' => true]);
+        MailEventTemplate::factory()->create([
+            'mail_event_id' => $userRegisteredEvent->id,
+            'is_active' => true,
+            'is_default' => true,
+        ]);
+
+        $product = Product::factory()->create([
+            'state' => 'active',
+            'price' => 1000,
+            'stock' => 10,
+            'backorder' => false,
+        ]);
+        $this->addProductToCart($product, 1);
+
+        $response = $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Guest With Taken Phone',
+            'contact_phone' => '89991234567', // тот же номер в ином формате
+            'contact_email' => 'guest@example.com',
+            'payment_method' => 'card',
+            'delivery_type' => 'pickup',
+        ]);
+
+        // Заказ проходит, коллизии уникальности нет.
+        $response->assertStatus(201);
+
+        // Новый юзер создан, но телефон ему не присвоен (остался за владельцем).
+        $newUser = User::where('email', 'guest@example.com')->first();
+        $this->assertNotNull($newUser);
+        $this->assertNull($newUser->phone);
+
+        // В заказе телефон сохранён и нормализован — уйдёт в 1С в едином формате.
+        $this->assertDatabaseHas('orders', [
+            'user_id' => $newUser->id,
+            'contact_phone' => '+79991234567',
+        ]);
+    }
 }

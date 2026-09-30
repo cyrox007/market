@@ -861,17 +861,30 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 continue;
             }
 
+            $attributeSlug = Attribute::canonicalSlugForName($name);
+            $isCanonicalColor = $attributeSlug === Attribute::SLUG_COLOR;
+            $isCanonicalSize = $attributeSlug === Attribute::SLUG_SIZE;
+
             $attribute = Attribute::firstOrCreate(
-                ['slug' => Str::slug($name)],
+                ['slug' => $attributeSlug],
                 [
                     'name' => $name,
-                    'type' => 'text',
+                    'type' => $isCanonicalColor ? 'color' : ($isCanonicalSize ? 'select' : 'text'),
                     'is_filterable' => true,
-                    'is_use_in_variations' => false,
-                    'allow_custom_value' => true,
+                    'is_use_in_variations' => $isCanonicalColor || $isCanonicalSize,
+                    'allow_custom_value' => $isCanonicalSize || (! $isCanonicalColor),
                     'sort_order' => 0,
                 ]
             );
+
+            if ($isCanonicalColor || $isCanonicalSize) {
+                $attribute->forceFill([
+                    'type' => $isCanonicalColor ? 'color' : 'select',
+                    'is_filterable' => true,
+                    'is_use_in_variations' => true,
+                    'allow_custom_value' => $isCanonicalSize,
+                ])->saveQuietly();
+            }
 
             $valueSlug = Str::slug($value);
             if ($valueSlug === '') {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
-use App\Jobs\ProcessRaiffeisenEcomCallbackJob;
+use App\Jobs\ProcessRaiffeisenCallbackJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -33,10 +33,10 @@ class RaiffeisenEcomPaymentTest extends TestCase
         $response->assertStatus(200)
             ->assertJson(['status' => 'ok']);
 
-        Queue::assertPushed(ProcessRaiffeisenEcomCallbackJob::class);
+        Queue::assertPushed(ProcessRaiffeisenCallbackJob::class);
     }
 
-    public function test_raiffeisen_ecom_callback_rejects_unsupported_event(): void
+    public function test_raiffeisen_ecom_callback_queues_unsupported_event_for_async_handling(): void
     {
         Queue::fake();
 
@@ -45,7 +45,9 @@ class RaiffeisenEcomPaymentTest extends TestCase
             'data' => [],
         ]);
 
-        $response->assertStatus(200);
-        Queue::assertPushed(ProcessRaiffeisenEcomCallbackJob::class);
+        $response->assertStatus(200)
+            ->assertJson(['status' => 'ok']);
+
+        Queue::assertPushed(ProcessRaiffeisenCallbackJob::class);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Support\PhoneNumber;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -29,7 +30,12 @@ class UserForm
                         TextInput::make('phone')
                             ->label(__('filament/admin_sv/user_resource.phone'))
                             ->tel()
-                            ->maxLength(20),
+                            ->maxLength(20)
+                            // Нормализуем к канону +7XXXXXXXXXX — единый формат для уникальности и 1С.
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn ($state, callable $set) => $set('phone', PhoneNumber::normalize($state)))
+                            ->dehydrateStateUsing(fn ($state) => PhoneNumber::normalize($state))
+                            ->unique(ignoreRecord: true),
                         TextInput::make('password')
                             ->label(__('filament/admin_sv/user_resource.password'))
                             ->password()

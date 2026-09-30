@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Attribute',
-    'title' => 'Edit Attribute',
+    'navigation_label' => 'Редактирование характеристики',
+    'title' => 'Редактирование характеристики',
 
 ];

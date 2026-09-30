@@ -81,14 +81,18 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       inFlightRef.current = true;
       lastRefreshAtRef.current = now;
       setIsLoading(true);
-      await Promise.all([refreshCartCount(), refreshWishlistCount(), refreshCompareCount()]);
+      // Один запрос вместо трёх: корзина + избранное + сравнение.
+      const data = await api.counters.all();
+      setCartCountValue(data.cart || 0);
+      setWishlistCount(data.wishlist || 0);
+      setCompareCount(data.compare || 0);
     } catch {
       // ignore
     } finally {
       inFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [refreshCartCount, refreshWishlistCount, refreshCompareCount]);
+  }, [setCartCountValue]);
 
   // Загружаем счетчики при монтировании только если нет initialCounters
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Review',
-    'title' => 'Edit Review',
+    'navigation_label' => 'Редактирование отзыва',
+    'title' => 'Редактирование отзыва',
 
 ];

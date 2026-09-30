@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Stores',
-    'title' => 'List Stores',
+    'navigation_label' => 'Магазины',
+    'title' => 'Магазины',
 
 ];

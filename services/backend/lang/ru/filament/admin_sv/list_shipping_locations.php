@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Shipping Locations',
-    'title' => 'List Shipping Locations',
+    'navigation_label' => 'Локации',
+    'title' => 'Локации',
 
 ];

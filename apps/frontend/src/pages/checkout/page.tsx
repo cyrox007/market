@@ -637,6 +637,13 @@ export default function Checkout() {
       return;
     }
 
+    // Неполный номер отклонит бэкенд — предупреждаем сразу.
+    if (contactForm.phone.replace(/\D/g, '').length !== 11) {
+      setError('Укажите корректный номер телефона');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     if (deliveryType === 'delivery') {
       if (!addressForm.city || !addressForm.street || !addressForm.house) {
         setError('Заполните адрес доставки');

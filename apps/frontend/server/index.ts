@@ -16,6 +16,45 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Разбор query-параметров листинга (общий для страниц каталога и комнат). */
+function parseProductQueryFromReq(req: Request) {
+  const query = req.query as Record<string, string | string[] | undefined>;
+  const page = parseInt(Array.isArray(query.page) ? query.page[0] : query.page || '1', 10);
+  const priceMin = query.price_min
+    ? parseInt(Array.isArray(query.price_min) ? query.price_min[0] : query.price_min, 10)
+    : undefined;
+  const priceMax = query.price_max
+    ? parseInt(Array.isArray(query.price_max) ? query.price_max[0] : query.price_max, 10)
+    : undefined;
+  const sortBy = (Array.isArray(query.sort) ? query.sort[0] : query.sort) || 'created_at';
+  const sortOrder = ((Array.isArray(query.order) ? query.order[0] : query.order) || 'desc') as
+    | 'asc'
+    | 'desc';
+  const colors = query.colors
+    ? (Array.isArray(query.colors) ? query.colors : [query.colors]).flatMap((c) =>
+        c.split(',').filter(Boolean),
+      )
+    : [];
+  const sizes = query.sizes
+    ? (Array.isArray(query.sizes) ? query.sizes : [query.sizes]).flatMap((s) =>
+        s.split(',').filter(Boolean),
+      )
+    : [];
+  const attributes: Record<string, string[]> = {};
+  Object.keys(query).forEach((key) => {
+    if (key.startsWith('attr_')) {
+      const slug = key.replace('attr_', '');
+      const value = query[key];
+      attributes[slug] = Array.isArray(value)
+        ? value.flatMap((v) => v.split(',').filter(Boolean))
+        : value
+          ? value.split(',').filter(Boolean)
+          : [];
+    }
+  });
+  return { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes };
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.resolve(__dirname, '../.env') });
 const isProduction = process.env.NODE_ENV === 'production';
@@ -161,6 +200,18 @@ async function createServer() {
             () => ssrApi.categories.tree(),
             { ttl: 300 },
           ),
+          // Дерево комнат — вторая таксономия, тоже нужна шапке на каждом маршруте.
+          withCacheSWR(
+            createCacheKey('/rooms/tree', undefined, undefined),
+            () => ssrApi.rooms.tree(),
+            { ttl: 300 },
+          ),
+          // Список городов для селектора региона в шапке. Кэш общий для всех.
+          withCacheSWR(
+            createCacheKey('/regions', undefined, undefined),
+            () => ssrApi.regions.list(),
+            { ttl: 300 },
+          ),
         ];
 
         if (hasAuthSession) {
@@ -181,7 +232,12 @@ async function createServer() {
             (userResponse.value as { user?: unknown })?.user
           ) {
             ssrContext.user = (userResponse.value as { user: SSRContext['user'] }).user;
+            ssrContext.authChecked = true;
           }
+          // Если запрос профиля не удался — authChecked не ставим, клиент перепроверит сам.
+        } else {
+          // Куки сессии нет — гость точно не авторизован, повторная проверка /auth/me не нужна.
+          ssrContext.authChecked = true;
         }
 
         const regionResponse = parallelResults[resultOffset++];
@@ -189,10 +245,22 @@ async function createServer() {
         const wishlistCountResponse = parallelResults[resultOffset++];
         const compareCountResponse = parallelResults[resultOffset++];
         const categoryTreeResponse = parallelResults[resultOffset++];
+        const roomTreeResponse = parallelResults[resultOffset++];
+        const regionsListResponse = parallelResults[resultOffset++];
 
         if (categoryTreeResponse.status === 'fulfilled') {
           const tree = (categoryTreeResponse.value as { tree?: unknown[] })?.tree;
           if (tree?.length) ssrContext.categoryTree = tree;
+        }
+
+        if (roomTreeResponse.status === 'fulfilled') {
+          const tree = (roomTreeResponse.value as { tree?: unknown[] })?.tree;
+          if (tree?.length) ssrContext.roomTree = tree;
+        }
+
+        if (regionsListResponse.status === 'fulfilled') {
+          const data = (regionsListResponse.value as { data?: unknown[] })?.data;
+          if (data?.length) ssrContext.regionsList = data;
         }
 
         if (
@@ -333,44 +401,8 @@ async function createServer() {
         if (categoryMatch) {
           const categorySlug = categoryMatch[1];
           try {
-            // Парсим query параметры из req.query
-            const query = req.query as Record<string, string | string[] | undefined>;
-            const page = parseInt(
-              Array.isArray(query.page) ? query.page[0] : query.page || '1',
-              10,
-            );
-            const priceMin = query.price_min
-              ? parseInt(Array.isArray(query.price_min) ? query.price_min[0] : query.price_min, 10)
-              : undefined;
-            const priceMax = query.price_max
-              ? parseInt(Array.isArray(query.price_max) ? query.price_max[0] : query.price_max, 10)
-              : undefined;
-            const sortBy = (Array.isArray(query.sort) ? query.sort[0] : query.sort) || 'created_at';
-            const sortOrder = ((Array.isArray(query.order) ? query.order[0] : query.order) ||
-              'desc') as 'asc' | 'desc';
-            const colors = query.colors
-              ? (Array.isArray(query.colors) ? query.colors : [query.colors]).flatMap((c) =>
-                  c.split(',').filter(Boolean),
-                )
-              : [];
-            const sizes = query.sizes
-              ? (Array.isArray(query.sizes) ? query.sizes : [query.sizes]).flatMap((s) =>
-                  s.split(',').filter(Boolean),
-                )
-              : [];
-
-            const attributes: Record<string, string[]> = {};
-            Object.keys(query).forEach((key) => {
-              if (key.startsWith('attr_')) {
-                const slug = key.replace('attr_', '');
-                const value = query[key];
-                attributes[slug] = Array.isArray(value)
-                  ? value.flatMap((v) => v.split(',').filter(Boolean))
-                  : value
-                    ? value.split(',').filter(Boolean)
-                    : [];
-              }
-            });
+            const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
+              parseProductQueryFromReq(req);
 
             const categoryParams = {
               category_slug: categorySlug,
@@ -421,6 +453,66 @@ async function createServer() {
             }
           } catch (error) {
             console.error('SSR category data loading error:', error);
+          }
+        }
+
+        // Страница комнаты /rooms/:room — та же логика, что и категория, но через rooms API.
+        const roomMatch = url.match(/^\/rooms\/([^/]+)/);
+        if (roomMatch) {
+          const roomSlug = roomMatch[1];
+          try {
+            const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
+              parseProductQueryFromReq(req);
+
+            const roomParams = {
+              room_slug: roomSlug,
+              price_min: priceMin,
+              price_max: priceMax,
+              sort_by: sortBy,
+              sort_order: sortOrder,
+              page,
+              per_page: 20,
+              colors,
+              sizes,
+              attributes,
+              region_id: regionId,
+            };
+
+            const [roomResponse, productsResponse] = await Promise.allSettled([
+              withCache(
+                createCacheKey(`/rooms/${roomSlug}`, undefined, undefined),
+                () => ssrApi.rooms.get(roomSlug),
+                { ttl: 300 },
+              ),
+              withCache(
+                createCacheKey('/products', roomParams, undefined),
+                () =>
+                  ssrApi.products.list({
+                    room_slug: roomSlug,
+                    price_min: priceMin,
+                    price_max: priceMax,
+                    sort_by: sortBy,
+                    sort_order: sortOrder,
+                    page,
+                    per_page: 20,
+                    colors,
+                    sizes,
+                    attributes,
+                    region_id: regionId,
+                  }),
+                { ttl: 120 },
+              ),
+            ]);
+
+            ssrContext.category = {};
+            if (roomResponse.status === 'fulfilled') {
+              ssrContext.category.category = roomResponse.value.category;
+            }
+            if (productsResponse.status === 'fulfilled') {
+              ssrContext.category.products = productsResponse.value;
+            }
+          } catch (error) {
+            console.error('SSR room data loading error:', error);
           }
         }
 

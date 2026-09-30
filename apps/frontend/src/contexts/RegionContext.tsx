@@ -22,6 +22,8 @@ interface RegionProviderProps {
   children: ReactNode;
   /** Регион с SSR — чтобы сервер и клиент при гидрации рендерили одно и то же (избегаем hydration mismatch). */
   initialRegion?: ShippingLocation | null;
+  /** Список городов с SSR (предзагрузка) — чтобы не дёргать /regions на монтировании. */
+  initialRegions?: ShippingLocation[];
 }
 
 function getStoredRegionData(): ShippingLocation | null {
@@ -36,11 +38,15 @@ function getStoredRegionData(): ShippingLocation | null {
   }
 }
 
-export function RegionProvider({ children, initialRegion = null }: RegionProviderProps) {
+export function RegionProvider({
+  children,
+  initialRegion = null,
+  initialRegions,
+}: RegionProviderProps) {
   // Первый рендер = initialRegion с SSR, без localStorage (иначе hydration mismatch и белый экран).
   const [region, setRegion] = useState<ShippingLocation | null>(initialRegion ?? null);
-  const [regions, setRegions] = useState<ShippingLocation[]>([]);
-  const [loading, setLoading] = useState<boolean>(() => !initialRegion);
+  const [regions, setRegions] = useState<ShippingLocation[]>(initialRegions ?? []);
+  const [loading, setLoading] = useState<boolean>(() => !initialRegion && !initialRegions?.length);
 
   const loadRegions = useCallback(async () => {
     try {
@@ -158,8 +164,11 @@ export function RegionProvider({ children, initialRegion = null }: RegionProvide
   );
 
   useEffect(() => {
-    loadRegions();
-  }, [loadRegions]);
+    // Список уже предзагружен на SSR — не дёргаем /regions повторно.
+    if (!initialRegions?.length) {
+      loadRegions();
+    }
+  }, [loadRegions, initialRegions]);
 
   useEffect(() => {
     const storedRegion = getStoredRegionData();

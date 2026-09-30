@@ -3,7 +3,7 @@
 return [
 
     'edit' => 'Edit',
-    'navigation_label' => 'List About',
+    'navigation_label' => 'О компании',
     'title' => 'Страница ',
     'редактировать' => 'Редактировать',
 

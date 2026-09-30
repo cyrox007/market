@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'List Orders',
-    'title' => 'List Orders',
+    'navigation_label' => 'Заказы',
+    'title' => 'Заказы',
 
 ];

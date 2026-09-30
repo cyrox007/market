@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductDetailResource;
 use App\Http\Resources\ProductResource;
 use App\Models\Product\Category;
+use App\Models\Product\Room;
+use App\Models\Product\RoomFilters;
 use App\Models\Product\Product;
 use App\Models\Product\ProductCollection;
 use App\Models\Product\Attribute;
@@ -13,6 +15,7 @@ use App\Models\Product\AttributeValue;
 use App\Models\Product\Manufacturer;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Product\ProductRegionRuleService;
+use App\Services\Product\ProductCanonicalAttributeQueryService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -97,6 +100,9 @@ class ProductController extends Controller
             return false;
         }
         if ($request->filled('category_id') || $request->filled('category_slug')) {
+            return false;
+        }
+        if ($request->filled('room_slug') || $request->filled('room_id')) {
             return false;
         }
         if ($request->filled('search') || $request->filled('price_min') || $request->filled('price_max')) {
@@ -208,6 +214,30 @@ class ProductController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
+        // Комната (вторая таксономия): сводим к продуктовым категориям + базовый фильтр из комнаты.
+        $roomSlug = $request->get('room_slug') ?? $request->get('room_id');
+        $roomCategoryIds = null;
+        $roomEffectiveFilters = null;
+        if ($roomSlug) {
+            $room = Room::where('slug', $roomSlug)->orWhere('id', $roomSlug)->first();
+            if ($room) {
+                // Ограничения комнаты (с наследованием) применим ниже — сузив ими фильтр пользователя.
+                $roomEffectiveFilters = $room->effectiveFilters();
+                // productCategories самой комнаты И всех подкомнат (родитель = товары подкомнат).
+                $roomIds = Room::getAllDescendantIdsFor($room->id);
+                $rooms = Room::whereIn('id', $roomIds)->with('productCategories')->get();
+                $ids = [];
+                foreach ($rooms as $r) {
+                    foreach ($r->productCategories as $cat) {
+                        $ids = array_merge($ids, Category::getAllDescendantIdsFor($cat->id));
+                    }
+                }
+                $roomCategoryIds = array_values(array_unique($ids));
+            } else {
+                $roomCategoryIds = []; // комната не найдена — пустой список
+            }
+        }
+
         // Создаем детальный ключ кэша с учетом всех параметров запроса
         $perPage = min($request->get('per_page', 20), 100);
         $page = max(1, (int) $request->input('page', 1));
@@ -240,6 +270,36 @@ class ProductController extends Controller
         $colors = array_values(array_filter(array_map('trim', $colors)));
         $sizes = array_values(array_filter(array_map('trim', $sizes)));
 
+        // Комната диктует потолок ограничений: фильтр пользователя только сужает её, но не ослабляет.
+        // Пустое пересечение (пользователь выбрал запрещённое комнатой) → заведомо пустой результат.
+        $roomForceEmpty = false;
+        if ($roomEffectiveFilters !== null) {
+            $narrowed = RoomFilters::narrow($roomEffectiveFilters, [
+                'price_min' => $priceMin,
+                'price_max' => $priceMax,
+                'colors' => $colors,
+                'attributes' => $attributes,
+            ]);
+            if (array_key_exists('price_min', $narrowed)) {
+                $priceMin = $narrowed['price_min'];
+            }
+            if (array_key_exists('price_max', $narrowed)) {
+                $priceMax = $narrowed['price_max'];
+            }
+            if (array_key_exists('colors', $narrowed)) {
+                $colors = $narrowed['colors'];
+                $roomForceEmpty = $roomForceEmpty || $colors === [];
+            }
+            if (array_key_exists('attributes', $narrowed)) {
+                $attributes = $narrowed['attributes'];
+                foreach ($attributes as $values) {
+                    if ($values === []) {
+                        $roomForceEmpty = true;
+                    }
+                }
+            }
+        }
+
         // Ключ кэша без region_id: состав списка (какие товары на странице) не зависит от региона,
         // цены и is_visible_in_region подставляются в ProductResource при отдаче — один кэш на все регионы.
         $cacheKeyPayload = sprintf(
@@ -258,7 +318,7 @@ class ProductController extends Controller
             json_encode($attributes),
             $manufacturerId ?: $manufacturerSlug ?: 'null'
         );
-        $cacheKey = 'idx:' . md5($cacheKeyPayload);
+        $cacheKey = 'idx:' . md5($cacheKeyPayload . '|room:' . ($roomSlug ?: 'null') . '|empty:' . ($roomForceEmpty ? '1' : '0'));
 
         // ВАЖНО: Получаем регион из запроса ДО построения запроса
         // Передаём объект в request, чтобы ProductResource не вызывал find() на каждый товар (N+1)
@@ -285,6 +345,20 @@ class ProductController extends Controller
                 $query->inCategory($categoryResolved->id);
             } else {
                 // Категория не найдена — не отдаём все товары, а пустой список
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        // Комната запрещает выбранную пользователем комбинацию (пустое пересечение) → пустой список.
+        if ($roomForceEmpty) {
+            $query->whereRaw('1 = 0');
+        }
+
+        // Товары комнаты = объединение товаров её продуктовых категорий (с потомками).
+        if ($roomCategoryIds !== null) {
+            if (! empty($roomCategoryIds)) {
+                $query->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $roomCategoryIds));
+            } else {
                 $query->whereRaw('1 = 0');
             }
         }
@@ -339,87 +413,30 @@ class ProductController extends Controller
         // Базовый запрос для мета-фильтров: все опции категории (без цвет/размер/атрибуты), чтобы показывать все фильтры, недоступные — серыми
         $baseQueryForFilters = (clone $query)->whereNull('parent_product_id');
 
-        // Фильтр по цвету (цвет в самом товаре или в его вариациях)
-        // Убираем пустые значения
-        $colors = array_filter(array_map('trim', $colors));
+        // Канонические цвет и коммерческий размер хранятся как характеристики.
+        // Старые products.color/color_code и физические length/width/height здесь больше не участвуют.
+        $canonicalAttributeQuery = app(ProductCanonicalAttributeQueryService::class);
 
-        if (count($colors) > 0) {
-            // Получаем все уникальные цвета из базы данных для текущей категории
-            // (после применения всех предыдущих фильтров)
-            $baseQueryForColors = (clone $query)->select('products.id');
-            $allProductIds = $baseQueryForColors->pluck('id');
-
-            $allColorsFromDb = collect();
-            if ($allProductIds->isNotEmpty()) {
-                $parentColors = Product::whereIn('id', $allProductIds)
-                    ->whereNotNull('color')
-                    ->where('color', '!=', '')
-                    ->select('color')
-                    ->distinct()
-                    ->pluck('color');
-
-                $variantColors = Product::whereIn('parent_product_id', $allProductIds)
-                    ->whereNotNull('color')
-                    ->where('color', '!=', '')
-                    ->select('color')
-                    ->distinct()
-                    ->pluck('color');
-
-                $allColorsFromDb = $parentColors->concat($variantColors)->unique()->values();
-            }
-
-            // Преобразуем переданные slug'и в полные названия цветов
-            $matchingColorNames = [];
-            foreach ($colors as $colorSlug) {
-                foreach ($allColorsFromDb as $dbColor) {
-                    $dbColorSlug = Str::slug($dbColor);
-                    if ($dbColorSlug === $colorSlug || $dbColor === $colorSlug) {
-                        $matchingColorNames[] = $dbColor;
-                        break;
-                    }
-                }
-            }
-
-            // Если нашли совпадения, применяем фильтр
-            if (count($matchingColorNames) > 0) {
-                $query->where(function ($q) use ($matchingColorNames) {
-                    $q->whereIn('color', $matchingColorNames)
-                        ->orWhereHas('variants', function ($v) use ($matchingColorNames) {
-                            $v->whereIn('color', $matchingColorNames);
-                        });
-                });
-            } else {
-                // Если не нашли совпадений, возвращаем пустой результат
-                $query->whereRaw('1 = 0');
-            }
+        $colors = array_values(array_filter(array_map('trim', $colors)));
+        $canonicalColors = array_values(array_unique(array_merge(
+            $colors,
+            (array) ($attributes[Attribute::SLUG_COLOR] ?? []),
+        )));
+        if ($canonicalColors !== []) {
+            $query = $canonicalAttributeQuery->applyFilter($query, Attribute::SLUG_COLOR, $canonicalColors);
         }
 
-        // Фильтр по размеру (ожидается строка вида "180x90")
-        // Убираем пустые значения
-        $sizes = array_filter(array_map('trim', $sizes));
-
-        if (count($sizes) > 0) {
-            $query->where(function ($q) use ($sizes) {
-                $q->where(function ($qq) use ($sizes) {
-                    foreach ($sizes as $size) {
-                        [$length, $width] = array_pad(explode('x', strtolower($size)), 2, null);
-                        $length = $length ? (int) trim($length) : null;
-                        $width = $width ? (int) trim($width) : null;
-
-                        if ($length && $width) {
-                            $qq->orWhere(function ($qqq) use ($length, $width) {
-                                $qqq->where(function ($p) use ($length, $width) {
-                                    $p->where('length', $length)->where('width', $width);
-                                })
-                                    ->orWhereHas('variants', function ($v) use ($length, $width) {
-                                        $v->where('length', $length)->where('width', $width);
-                                    });
-                            });
-                        }
-                    }
-                });
-            });
+        $sizes = array_values(array_filter(array_map('trim', $sizes)));
+        $canonicalSizes = array_values(array_unique(array_merge(
+            $sizes,
+            (array) ($attributes[Attribute::SLUG_SIZE] ?? []),
+        )));
+        if ($canonicalSizes !== []) {
+            $query = $canonicalAttributeQuery->applyFilter($query, Attribute::SLUG_SIZE, $canonicalSizes);
         }
+
+        // Эти два системных атрибута уже применены единым каноническим фильтром выше.
+        unset($attributes[Attribute::SLUG_COLOR], $attributes[Attribute::SLUG_SIZE]);
 
         // Фильтрация по характеристикам: пустой фильтр = все товары категории; при выборе значений — товары, у которых есть ЛЮБОЕ из выбранных (OR)
         if (is_array($attributes) && count($attributes) > 0) {
@@ -639,7 +656,7 @@ class ProductController extends Controller
      *     @OA\Parameter(
      *         name="size",
      *         in="query",
-     *         description="Размер вариации в формате lengthxwidth (например 280x180)",
+     *         description="Коммерческий размер вариации: значение или slug характеристики size (не физические габариты товара)",
      *         required=false,
      *         @OA\Schema(type="string")
      *     ),
@@ -806,7 +823,19 @@ class ProductController extends Controller
 
         if ($product !== null) {
             if ($product->isVariable() && $attributesParam !== []) {
-                $variant = $product->getVariantByVariationAttributes($attributesParam);
+                $variationSelection = [];
+                foreach ($attributesParam as $attributeSlug => $rawValue) {
+                    $candidates = is_array($rawValue) ? $rawValue : [$rawValue];
+                    foreach ($candidates as $candidate) {
+                        $candidate = trim((string) $candidate);
+                        if ($candidate !== '') {
+                            $variationSelection[$attributeSlug] = $candidate;
+                            break;
+                        }
+                    }
+                }
+
+                $variant = $product->getVariantByVariationAttributes($variationSelection);
                 if ($variant) {
                     return $this->loadVariantForShow($variant);
                 }
@@ -1495,89 +1524,28 @@ class ProductController extends Controller
             ];
         }
 
-        // Цвета из товаров и их вариаций (подзапросы вместо whereIn(массив ID))
-        $parentColors = Product::whereIn('id', $productIdsSubquery())
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->select('color', 'color_code')
-            ->distinct()
-            ->get();
+        $canonicalAttributeQuery = app(ProductCanonicalAttributeQueryService::class);
 
-        $variantColors = Product::whereIn('parent_product_id', $productIdsSubquery())
-            ->active()
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->select('color', 'color_code')
-            ->distinct()
-            ->get();
+        $colors = $canonicalAttributeQuery
+            ->buildFilterMeta(clone $queryForFilters, Attribute::SLUG_COLOR)
+            ->map(fn (array $value) => [
+                'id' => $value['id'],
+                'name' => $value['name'],
+                'slug' => $value['slug'],
+                'code' => $value['code'],
+                'count' => $value['count'],
+            ]);
 
-        $colorCounts = Product::where(function ($q) use ($productIdsSubquery) {
-            $q->whereIn('id', $productIdsSubquery())->orWhereIn('parent_product_id', $productIdsSubquery());
-        })
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->selectRaw('color, COUNT(DISTINCT COALESCE(parent_product_id, id)) as product_count')
-            ->groupBy('color')
-            ->pluck('product_count', 'color');
-
-        $colors = $parentColors->concat($variantColors)
-            ->unique(function ($item) {
-                return ($item->color ?? '') . '|' . ($item->color_code ?? '');
-            })
-            ->values()
-            ->map(function ($color, $index) use ($colorCounts) {
-                $colorName = $color->color ?? '';
-                return [
-                    'id' => $index + 1,
-                    'name' => $color->color,
-                    'slug' => Str::slug($colorName ?: 'color-' . $index),
-                    'code' => $color->color_code,
-                    'count' => (int) ($colorCounts[$colorName] ?? 0),
-                ];
-            });
-
-        // Размеры (подзапросы)
-        $parentSizes = Product::whereIn('id', $productIdsSubquery())
-            ->whereNotNull('length')
-            ->whereNotNull('width')
-            ->select('length', 'width')
-            ->distinct()
-            ->get();
-
-        $variantSizes = Product::whereIn('parent_product_id', $productIdsSubquery())
-            ->active()
-            ->whereNotNull('length')
-            ->whereNotNull('width')
-            ->select('length', 'width')
-            ->distinct()
-            ->get();
-
-        $sizeCounts = Product::where(function ($q) use ($productIdsSubquery) {
-            $q->whereIn('id', $productIdsSubquery())->orWhereIn('parent_product_id', $productIdsSubquery());
-        })
-            ->whereNotNull('length')
-            ->whereNotNull('width')
-            ->selectRaw('length, width, COUNT(DISTINCT COALESCE(parent_product_id, id)) as product_count')
-            ->groupBy('length', 'width')
-            ->get()
-            ->keyBy(fn ($row) => (int) $row->length . 'x' . (int) $row->width);
-
-        $sizes = $parentSizes->concat($variantSizes)
-            ->unique(fn ($item) => ($item->length ?? '') . 'x' . ($item->width ?? ''))
-            ->values()
-            ->map(function ($size, $index) use ($sizeCounts) {
-                $length = (int) $size->length;
-                $width = (int) $size->width;
-                $key = "{$length}x{$width}";
-                $row = $sizeCounts->get($key);
-                return [
-                    'id' => $index + 1,
-                    'name' => "{$size->length} x {$size->width} см",
-                    'slug' => Str::slug($key),
-                    'value' => $key,
-                    'count' => $row ? (int) $row->product_count : 0,
-                ];
-            });
+        // Коммерческие размеры — только характеристика size. Габариты доставки сюда не попадают.
+        $sizes = $canonicalAttributeQuery
+            ->buildFilterMeta(clone $queryForFilters, Attribute::SLUG_SIZE)
+            ->map(fn (array $value) => [
+                'id' => $value['id'],
+                'name' => $value['name'],
+                'slug' => $value['slug'],
+                'value' => $value['value'],
+                'count' => $value['count'],
+            ]);
 
         // ID товаров и вариаций подзапросом для атрибутов (клонируем для каждого использования)
         $productOrVariantIdsSubquery = fn () => Product::query()
@@ -1598,6 +1566,7 @@ class ProductController extends Controller
             ->join('product_product_attributes', 'product_product_attributes.attribute_value_id', '=', 'product_attribute_values.id')
             ->join('product_attributes', 'product_attributes.id', '=', 'product_attribute_values.attribute_id')
             ->where('product_attributes.is_filterable', true)
+            ->whereNotIn('product_attributes.slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE])
             ->whereIn('product_product_attributes.product_id', $productOrVariantIdsSubquery())
             ->get()
             ->groupBy('attribute_id');

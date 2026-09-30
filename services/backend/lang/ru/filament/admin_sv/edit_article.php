@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Article',
-    'title' => 'Edit Article',
+    'navigation_label' => 'Редактирование статьи',
+    'title' => 'Редактирование статьи',
 
 ];

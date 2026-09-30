@@ -23,11 +23,13 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 interface AuthProviderProps {
   children: ReactNode;
   initialUser?: User | null;
+  /** Сервер уже определил состояние авторизации (в т.ч. что гость не авторизован) — не дёргаем /auth/me на монтировании. */
+  authChecked?: boolean;
 }
 
-export function AuthProvider({ children, initialUser = null }: AuthProviderProps) {
+export function AuthProvider({ children, initialUser = null, authChecked = false }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(initialUser);
-  const [isLoading, setIsLoading] = useState(!initialUser);
+  const [isLoading, setIsLoading] = useState(!initialUser && !authChecked);
   const isRefreshingRef = useRef(false);
 
   const refreshUser = useCallback(async (force = false) => {
@@ -52,8 +54,8 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
   }, []);
 
   useEffect(() => {
-    // Если есть initialUser, не загружаем повторно
-    if (initialUser) {
+    // Если есть initialUser или сервер уже проверил авторизацию (в т.ч. гость) — не загружаем повторно
+    if (initialUser || authChecked) {
       setIsLoading(false);
       return;
     }
@@ -76,7 +78,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
     return () => {
       mounted = false;
     };
-  }, [refreshUser, initialUser]);
+  }, [refreshUser, initialUser, authChecked]);
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await api.auth.login(email, password);

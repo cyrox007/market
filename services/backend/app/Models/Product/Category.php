@@ -38,17 +38,23 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
 
         static::bootCacheable();
 
+        // Ограничиваем модель своей таксономией (Category → продуктовая, Room → комнаты),
+        // иначе вторая таксономия «протекает» в запросы каталога.
+        static::addGlobalScope('taxonomy', function (Builder $query) {
+            $query->where($query->getModel()->getTable() . '.taxonomy_id', static::taxonomyIdForCurrentClass());
+        });
+
         // Автоматически устанавливаем taxonomy_id при создании категории
         static::creating(function ($category) {
             if (empty($category->taxonomy_id)) {
-                $category->taxonomy_id = static::getDefaultTaxonomyId();
+                $category->taxonomy_id = static::taxonomyIdForCurrentClass();
             }
         });
 
         // Также устанавливаем при обновлении, если taxonomy_id был удален
         static::updating(function ($category) {
             if (empty($category->taxonomy_id)) {
-                $category->taxonomy_id = static::getDefaultTaxonomyId();
+                $category->taxonomy_id = static::taxonomyIdForCurrentClass();
             }
         });
         
@@ -102,6 +108,43 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
         }
 
         return $taxonomyId;
+    }
+
+    /**
+     * Slug таксономии этой модели (Room переопределяет на 'rooms').
+     */
+    protected static function taxonomySlug(): string
+    {
+        return 'product-categories';
+    }
+
+    protected static function taxonomyName(): string
+    {
+        return 'Product Categories';
+    }
+
+    /** @var array<string, int> */
+    protected static array $taxonomyIdCache = [];
+
+    /**
+     * ID таксономии текущего класса (late static binding), создаётся при отсутствии.
+     */
+    protected static function taxonomyIdForCurrentClass(): int
+    {
+        $slug = static::taxonomySlug();
+
+        // Сбрасываем кэш, если таксономия исчезла (напр. RefreshDatabase между тестами).
+        if (isset(static::$taxonomyIdCache[$slug])
+            && ! Taxonomy::where('id', static::$taxonomyIdCache[$slug])->exists()) {
+            unset(static::$taxonomyIdCache[$slug]);
+        }
+
+        if (! isset(static::$taxonomyIdCache[$slug])) {
+            $taxonomy = Taxonomy::firstOrCreate(['slug' => $slug], ['name' => static::taxonomyName()]);
+            static::$taxonomyIdCache[$slug] = $taxonomy->id;
+        }
+
+        return static::$taxonomyIdCache[$slug];
     }
 
     /**
@@ -194,7 +237,7 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
      */
     public static function getRootPath(): string
     {
-        return self::ROOT_PATH;
+        return static::ROOT_PATH;
     }
 
     /**
@@ -310,7 +353,7 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
             return null;
         }
 
-        return self::ROOT_PATH . '/' . implode('/', $path);
+        return static::ROOT_PATH . '/' . implode('/', $path);
     }
 
     /**

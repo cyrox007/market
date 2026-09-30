@@ -2,7 +2,7 @@
 
 return [
 
-    'navigation_label' => 'Edit Delivery Handling Type',
-    'title' => 'Edit Delivery Handling Type',
+    'navigation_label' => 'Редактирование типа обработки',
+    'title' => 'Редактирование типа обработки',
 
 ];

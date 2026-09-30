@@ -23,15 +23,15 @@
     --theme-surface-card: #ffffff;
     --theme-surface-inset: #f1f3f5;
     --theme-surface-deep: #eceef1;
-    --theme-body-bg: #f5f6f8;
+    --theme-body-bg: #e9ebef;
 
     /* Лёгкие бордеры */
-    --theme-border: rgb(55 65 81 / 0.05);
-    --theme-border-mid: rgb(55 65 81 / 0.08);
-    --theme-border-heavy: rgb(55 65 81 / 0.1);
+    --theme-border: rgb(55 65 81 / 0.09);
+    --theme-border-mid: rgb(55 65 81 / 0.13);
+    --theme-border-heavy: rgb(55 65 81 / 0.18);
 
     /* Тени «парящие», без излишков */
-    --theme-shadow-soft: 0 2px 8px rgb(55 65 81 / 0.06);
+    --theme-shadow-soft: 0 2px 8px rgb(55 65 81 / 0.09);
     --theme-shadow-md:
         0 8px 24px -4px rgb(55 65 81 / 0.08),
         0 2px 8px -2px rgb(55 65 81 / 0.04),
@@ -73,9 +73,9 @@
     --theme-body-bg: #18181b;
 
     /* Лёгкие бордеры */
-    --theme-border: rgb(255 255 255 / 0.04);
-    --theme-border-mid: rgb(255 255 255 / 0.06);
-    --theme-border-heavy: rgb(255 255 255 / 0.08);
+    --theme-border: rgb(255 255 255 / 0.08);
+    --theme-border-mid: rgb(255 255 255 / 0.11);
+    --theme-border-heavy: rgb(255 255 255 / 0.16);
 
     /* Тени «парящие» */
     --theme-shadow-soft: 0 2px 10px rgb(0 0 0 / 0.35);
@@ -108,6 +108,12 @@
 
 .fi-section-header-ctn {
     padding-bottom: 0.5rem !important;
+}
+
+.fi-section {
+    border: 1px solid var(--theme-border-mid);
+    border-radius: var(--theme-radius);
+    box-shadow: var(--theme-shadow-soft);
 }
 
 .fi-modal:not(.fi-width-screen) .fi-modal-window .fi-modal-header.fi-sticky {
@@ -155,6 +161,15 @@
     padding: 1rem !important;
 }
 
+.fi-page-header-main-ctn {
+    padding-top: 0 !important;
+    row-gap: 0.75rem !important;
+}
+
+.fi-main-ctn {
+    padding-top: 0.5rem !important;
+}
+
 .fi-header-heading {
     padding-top: 0.75rem !important;
     padding-bottom: 0.75rem !important;
@@ -169,4 +184,119 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.375rem;
+}
+
+@media (min-width: 1024px) {
+    .fi-topbar-collapse-sidebar-btn-ctn {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        z-index: 31;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 3rem;
+        width: var(--collapsed-sidebar-width);
+        background: var(--theme-surface-card);
+        border-top: 1px solid var(--theme-border-mid);
+        border-right: 1px solid var(--theme-border-mid);
+        transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .fi-sidebar,
+    .fi-sidebar-nav {
+        transition-property: width;
+        transition-duration: 220ms;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .fi-sidebar {
+        overflow-x: hidden;
+    }
+
+    .fi-sidebar-group-label,
+    .fi-sidebar-item-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: clip;
+    }
+
+    .fi-sidebar-group-btn {
+        overflow: hidden;
+        transition: opacity 180ms linear !important;
+    }
+
+    .fi-sidebar:not(.fi-sidebar-open) .fi-sidebar-group-btn {
+        display: flex !important;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .fi-sidebar-item-label {
+        transition: opacity 140ms linear;
+    }
+
+    .fi-sidebar:not(.fi-sidebar-open) .fi-sidebar-item-label {
+        display: block !important;
+        opacity: 0;
+    }
+
+    .fi-sidebar-nav {
+        scrollbar-gutter: stable;
+    }
+
+    .fi-main-ctn {
+        transition-property: width, max-width, padding-left, padding-right;
+    }
+
+    .fi-sidebar.fi-sidebar-open {
+        width: var(--sidebar-width);
+    }
+
+    .fi-sidebar:not(.fi-sidebar-open) {
+        width: var(--collapsed-sidebar-width);
+    }
+
+    .fi-main-ctn {
+        transition-duration: 220ms;
+    }
+
+    body:has(.fi-sidebar.fi-sidebar-open) .fi-topbar-collapse-sidebar-btn-ctn {
+        width: var(--sidebar-width);
+    }
+
+    .fi-topbar-collapse-sidebar-btn-ctn button {
+        width: 100%;
+        height: 100%;
+        gap: 0.5rem;
+        border-radius: 0;
+        transition: background-color 140ms linear;
+    }
+
+    .fi-topbar-collapse-sidebar-btn-ctn button:hover {
+        background-color: var(--theme-border-mid);
+    }
+
+    body:has(.fi-sidebar.fi-sidebar-open) .fi-topbar-close-collapse-sidebar-btn::after {
+        content: "Свернуть меню";
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--theme-slate-dim);
+    }
+
+    .fi-sidebar-nav {
+        padding-bottom: 3.5rem !important;
+    }
+}
+
+.chpu-section .fi-collapsed .fi-section-header-text-ctn {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    flex-wrap: wrap;
+    column-gap: 0.5rem;
+    row-gap: 0;
+}
+.chpu-section .fi-collapsed .fi-section-header-description::before {
+    content: "— ";
 }

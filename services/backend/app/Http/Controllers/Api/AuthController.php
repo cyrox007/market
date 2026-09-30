@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Rules\PhoneNumberRule;
+use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -62,11 +65,14 @@ class AuthController extends Controller
      */
     public function register(Request $request): JsonResponse
     {
+        // Нормализуем до валидации: уникальность и проверка формата — по каноничному виду.
+        $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
-            'phone' => 'nullable|string|max:50',
+            'phone' => ['required', new PhoneNumberRule, 'unique:users,phone'],
         ]);
 
         $user = User::create([
@@ -273,11 +279,6 @@ class AuthController extends Controller
      */
     public function updateProfile(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
-            'phone' => 'sometimes|nullable|string|max:50',
-        ]);
-
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
@@ -286,6 +287,16 @@ class AuthController extends Controller
                 'message' => 'Unauthenticated',
             ], 401);
         }
+
+        // Нормализуем до валидации, уникальность — по каноничному виду, игнорируя себя.
+        if ($request->has('phone')) {
+            $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
+        }
+
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'phone' => ['sometimes', 'required', new PhoneNumberRule, Rule::unique('users', 'phone')->ignore($user->id)],
+        ]);
 
         $user->fill($validated);
         $user->save();

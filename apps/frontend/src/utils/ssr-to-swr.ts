@@ -18,6 +18,11 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
     fallback['/api/categories/tree'] = { tree: ssrContext.categoryTree };
   }
 
+  // Шапка: дерево комнат — вторая таксономия, тоже на любом маршруте
+  if (ssrContext.roomTree?.length) {
+    fallback['/api/rooms/tree'] = { tree: ssrContext.roomTree };
+  }
+
   // Главная страница
   if (ssrContext.home) {
     const regionId = ssrContext.region?.id;
@@ -168,9 +173,10 @@ export interface CategoryProductsKeyOptions {
 export function getCategoryProductsKey(
   categorySlug: string,
   options?: CategoryProductsKeyOptions,
+  slugParam: 'category_slug' | 'room_slug' = 'category_slug',
 ): string {
   const params = new URLSearchParams();
-  params.append('category_slug', categorySlug);
+  params.append(slugParam, categorySlug);
   if (options?.page) params.append('page', options.page.toString());
   if (options?.per_page) params.append('per_page', options.per_page.toString());
   if (options?.price_min) params.append('price_min', options.price_min.toString());
@@ -193,13 +199,14 @@ export function getCategoryProductsKey(
  */
 export function parseCategoryProductsKey(
   key: string,
-): { category_slug: string; page: number; per_page: number; [k: string]: unknown } | null {
+): { page: number; per_page: number; [k: string]: unknown } | null {
   const q = key.indexOf('?');
   if (q === -1) return null;
   const search = key.slice(q + 1);
   const params = new URLSearchParams(search);
+  const room_slug = params.get('room_slug');
   const category_slug = params.get('category_slug');
-  if (!category_slug) return null;
+  if (!room_slug && !category_slug) return null;
   const attributes: Record<string, string[]> = {};
   params.forEach((value, key) => {
     if (key.startsWith('attr_')) {
@@ -218,7 +225,7 @@ export function parseCategoryProductsKey(
   const sizes = params.get('sizes') ? params.get('sizes')!.split(',').filter(Boolean) : [];
   const region_id = params.get('region_id') ? parseInt(params.get('region_id')!, 10) : undefined;
   return {
-    category_slug,
+    ...(room_slug ? { room_slug } : { category_slug: category_slug! }),
     page,
     per_page,
     ...(price_min !== undefined && { price_min }),

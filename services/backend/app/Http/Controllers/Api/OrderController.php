@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Actions\Inventory\Validation\ValidateStockAction;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
+use App\Rules\PhoneNumberRule;
+use App\Support\PhoneNumber;
 use App\Models\Address\Address;
 use App\Models\Order\Order;
 use App\Models\Order\OrderItem;
@@ -151,9 +153,12 @@ class OrderController extends Controller
                 }
             }
 
+            // Тем же нормализатором, что и телефон пользователя — чтобы 1С сопоставлял заказ с юзером по единому формату.
+            $request->merge(['contact_phone' => PhoneNumber::normalize($request->input('contact_phone'))]);
+
             $validated = $request->validate([
                 'contact_name' => 'required|string|max:255',
-                'contact_phone' => 'required|string|max:20',
+                'contact_phone' => ['required', new PhoneNumberRule],
                 'contact_email' => 'required|email|max:255',
                 'payment_method' => [
                     'required',
@@ -256,13 +261,20 @@ class OrderController extends Controller
                 $existingUser = User::where('email', $validated['contact_email'])->first();
 
                 if (!$existingUser) {
+                    // Телефон уникален: если он уже за другим аккаунтом (иной email) — новому юзеру
+                    // не присваиваем (иначе коллизия), но в заказе contact_phone сохраняется и уходит в 1С.
+                    $phone = $validated['contact_phone'] ?? null;
+                    if ($phone !== null && User::where('phone', $phone)->exists()) {
+                        $phone = null;
+                    }
+
                     // Создаем нового пользователя со случайным паролем
                     $autoRegisteredPassword = Str::random(12);
                     $user = User::create([
                         'name' => $validated['contact_name'],
                         'email' => $validated['contact_email'],
                         'password' => $autoRegisteredPassword,
-                        'phone' => $validated['contact_phone'] ?? null,
+                        'phone' => $phone,
                     ]);
 
                     // Автоматически авторизуем пользователя

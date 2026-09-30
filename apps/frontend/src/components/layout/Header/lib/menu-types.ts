@@ -5,11 +5,15 @@ export interface MenuLink {
   label: string;
   /** Маршрута под раздел ещё нет: рисуем приглушённым и не кликаем */
   disabled?: boolean;
+  /** Четвёртый уровень: подпункты под ссылкой (мельче и со сдвигом) */
+  children?: MenuLink[];
 }
 
 export interface MenuGroup {
   /** Заголовок колонки. У каталога его нет, у «Комнат» есть */
   title?: string;
+  /** Ссылка заголовка колонки (для комнат — страница самой подкомнаты) */
+  titleTo?: string;
   links: MenuLink[];
 }
 

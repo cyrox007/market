@@ -19,9 +19,9 @@ class DeliveryHandlingTypeFactory extends Factory
             'slug' => fake()->unique()->slug(),
             'code' => fake()->unique()->slug(),
             'description' => fake()->optional()->sentence(),
-            'requires_floor' => fake()->boolean(),
-            'max_floor' => fake()->optional()->numberBetween(1, 20),
-            'requires_elevator' => fake()->boolean(),
+            'requires_floor' => false,
+            'max_floor' => null,
+            'requires_elevator' => false,
             'is_active' => true,
             'sort_order' => fake()->numberBetween(0, 100),
         ];

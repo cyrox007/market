@@ -6,7 +6,7 @@ use App\Filament\Resources\Products\Pages\CreateProduct;
 use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\Pages\ListProducts;
 use App\Filament\Resources\Products\Pages\ViewProduct;
-use App\Filament\Resources\Products\Schemas\ProductForm;
+use App\Filament\Resources\Products\Schemas\ProductClassicForm;
 use App\Filament\Resources\Products\Schemas\ProductInfolist;
 use App\Filament\Resources\Products\Tables\ProductsTable;
 use App\Models\Product\Product;
@@ -31,13 +31,13 @@ class ProductResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'Товары';
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
     public static function form(Schema $schema): Schema
     {
-        return ProductForm::configure($schema);
+        return ProductClassicForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema
@@ -72,14 +72,17 @@ class ProductResource extends Resource
             'edit' => EditProduct::route('/{record}/edit'),
         ];
     }
+
     public static function getNavigationLabel(): string
     {
         return __('filament/admin_sv/product_resource.navigation_label');
     }
+
     public static function getModelLabel(): string
     {
         return __('filament/admin_sv/product_resource.model_label');
     }
+
     public static function getPluralModelLabel(): string
     {
         return __('filament/admin_sv/product_resource.plural_model_label');
