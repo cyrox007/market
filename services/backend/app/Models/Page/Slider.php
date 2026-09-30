@@ -81,7 +81,7 @@ class Slider extends Model implements HasMedia, PageableContract
                     ->where('is_active', true);
 
                 if ($slider->exists) {
-                    $query->whereKeyNot($slider->getKey());
+                    $query->where($slider->getKeyName(), '!=', $slider->getKey());
                 }
 
                 $query->update(['is_active' => false]);
