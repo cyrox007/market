@@ -32,7 +32,12 @@ class SliderForm
 
                         Select::make('category_id')
                             ->label('Категория')
-                            ->relationship('category', 'name')
+                            ->options(fn (): array => Category::query()
+                                ->root()
+                                ->active()
+                                ->ordered()
+                                ->pluck('name', 'id')
+                                ->toArray())
                             ->searchable()
                             ->preload()
                             ->required(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_CATEGORIES)
