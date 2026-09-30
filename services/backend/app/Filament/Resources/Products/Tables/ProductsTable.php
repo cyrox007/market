@@ -21,6 +21,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -285,6 +286,44 @@ class ProductsTable
 
                 ...self::attributeFilters(),
             ])
+            ->filtersFormSchema(function (array $filters): array {
+                $baseFilters = array_values(array_filter([
+                    $filters['state'] ?? null,
+                    $filters['taxons'] ?? null,
+                    $filters['manufacturer_id'] ?? null,
+                ]));
+
+                $attributeFilters = array_values(array_filter(
+                    $filters,
+                    static fn ($filter, string $name): bool => str_starts_with($name, 'attribute_value_'),
+                    ARRAY_FILTER_USE_BOTH,
+                ));
+
+                if ($attributeFilters === []) {
+                    return $baseFilters;
+                }
+
+                return [
+                    ...$baseFilters,
+                    Section::make('Характеристики')
+                        ->description('Дополнительные фильтры по характеристикам товара. Разверните только при необходимости.')
+                        ->schema($attributeFilters)
+                        ->columns([
+                            'sm' => 2,
+                            'lg' => 3,
+                            'xl' => 4,
+                        ])
+                        ->collapsible()
+                        ->collapsed()
+                        ->columnSpanFull(),
+                ];
+            })
+            ->filtersFormColumns([
+                'sm' => 2,
+                'lg' => 3,
+            ])
+            ->filtersFormWidth(Width::SevenExtraLarge)
+            ->filtersFormMaxHeight('75vh')
             ->defaultSort('updated_at', 'desc')
             ->recordActions([
                 EditAction::make(),
@@ -531,6 +570,10 @@ class ProductsTable
     {
         $attributes = Attribute::query()
             ->where('is_filterable', true)
+            // SelectFilter работает только со справочными значениями AttributeValue.
+            // Текстовые характеристики с одним custom_value раньше создавали пустые
+            // выпадающие списки и раздували панель фильтров без пользы.
+            ->whereHas('values')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
