@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Sliders\Schemas;
 
 use App\Filament\Support\LucideIconSelect;
 use App\Models\Page\Slider;
-use App\Models\Product\Category;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
@@ -20,47 +19,29 @@ class SliderForm
     {
         return $schema
             ->components([
-                Section::make('Расположение на главной')
-                    ->description('На главной используются два управляемых блока: главный промо-слайдер и карусель категорий.')
+                Section::make('Где показывать')
+                    ->description('На главной два независимых блока: верхний промо-блок и нижний широкоформатный баннер.')
                     ->schema([
                         Select::make('placement')
-                            ->label('Блок')
+                            ->label('Блок главной')
                             ->options(Slider::placementLabels())
-                            ->default(Slider::PLACEMENT_HOME_HERO)
+                            ->default(Slider::PLACEMENT_TOP)
                             ->required()
                             ->live(),
 
-                        Select::make('category_id')
-                            ->label('Категория')
-                            ->options(fn (): array => Category::query()
-                                ->root()
-                                ->active()
-                                ->ordered()
-                                ->pluck('name', 'id')
-                                ->toArray())
-                            ->searchable()
-                            ->preload()
-                            ->required(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_CATEGORIES)
-                            ->visible(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_CATEGORIES)
-                            ->helperText('Карточка возьмёт название, ссылку и изображение из категории. Изображение ниже можно использовать как переопределение.')
-                            ->afterStateUpdated(function ($state, $set): void {
-                                if (! $state) {
-                                    return;
-                                }
-
-                                $category = Category::query()->find($state);
-                                if (! $category) {
-                                    return;
-                                }
-
-                                $set('title', (string) $category->name);
-                            }),
+                        Select::make('slot')
+                            ->label('Место в верхнем блоке')
+                            ->options(Slider::slotLabels())
+                            ->default(Slider::SLOT_MAIN)
+                            ->required()
+                            ->visible(fn ($get): bool => $get('placement') === Slider::PLACEMENT_TOP)
+                            ->helperText('Основная карусель видна на desktop и mobile. Боковые карточки — дополнительный desktop-контент справа от неё.'),
 
                         TextInput::make('priority')
                             ->label(__('filament/admin_sv/slider_resource.priority'))
                             ->numeric()
                             ->default(0)
-                            ->helperText('Чем меньше число, тем раньше элемент показывается в своём слайдере.'),
+                            ->helperText('Чем меньше число, тем раньше элемент показывается внутри своего блока.'),
 
                         Toggle::make('is_active')
                             ->label(__('filament/admin_sv/slider_resource.is_active'))
@@ -68,12 +49,12 @@ class SliderForm
                     ])
                     ->columns(2),
 
-                Section::make('Содержимое промо-слайда')
-                    ->description('Текст и переход для большого слайдера главной страницы.')
+                Section::make('Контент')
+                    ->description('Текстовые поля одинаково используются обоими слайдерами. Нижний баннер обычно короче и содержит CTA-кнопку.')
                     ->schema([
                         TextInput::make('title')
                             ->label(__('filament/admin_sv/slider_resource.title'))
-                            ->required(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_HERO)
+                            ->required()
                             ->maxLength(255)
                             ->live(onBlur: true)
                             ->afterStateUpdated(function ($state, $set): void {
@@ -96,46 +77,47 @@ class SliderForm
 
                         TextInput::make('link')
                             ->label(__('filament/admin_sv/slider_resource.link'))
-                            ->maxLength(255)
+                            ->maxLength(2048)
                             ->helperText('Можно указать внутренний путь (/catalog/...) или полный URL.'),
 
                         TextInput::make('button_text')
                             ->label(__('filament/admin_sv/slider_resource.button_text'))
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->helperText('Для нижнего баннера обычно «Подробнее». Для верхней основной карусели кнопка может отсутствовать.'),
                     ])
-                    ->columns(2)
-                    ->visible(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_HERO),
+                    ->columns(2),
 
-                Section::make(__('filament/admin_sv/slider_resource.badge_section'))
-                    ->description(__('filament/admin_sv/slider_resource.badge_section_description'))
+                Section::make('Метка / бейдж')
+                    ->description('Верхний блок использует цветные промо-метки, а нижний баннер может использовать это поле как дату/период акции.')
                     ->schema([
                         TextInput::make('badge_text')
                             ->label(__('filament/admin_sv/slider_resource.badge_text'))
                             ->maxLength(255)
                             ->placeholder('Сезонная распродажа до −60%'),
 
+                        Select::make('badge_tone')
+                            ->label('Цвет метки')
+                            ->options(Slider::badgeToneLabels())
+                            ->default('red'),
+
                         TextInput::make('badge_link')
                             ->label(__('filament/admin_sv/slider_resource.badge_link'))
-                            ->maxLength(255),
+                            ->maxLength(2048),
 
                         LucideIconSelect::make('badge_icon')
                             ->label(__('filament/admin_sv/slider_resource.badge_icon'))
                             ->default('zap')
-                            ->helperText('Выберите иконку Lucide для бейджа.'),
+                            ->helperText('Необязательно. Фронтенд может использовать иконку там, где это предусмотрено макетом.'),
                     ])
                     ->columns(2)
-                    ->collapsible()
-                    ->visible(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_HERO),
+                    ->collapsible(),
 
                 Section::make('Изображения')
-                    ->description('Для промо-слайдера можно задать отдельный мобильный кадр. Для карусели категорий изображения необязательны: по умолчанию используется изображение категории.')
+                    ->description('Desktop и mobile могут иметь разный кадр. Если мобильная картинка не задана, API отдаст desktop-картинку как fallback.')
                     ->schema([
                         SpatieMediaLibraryFileUpload::make('image')
                             ->collection('image')
-                            ->label('Основное изображение')
-                            ->helperText(fn ($get): string => $get('placement') === Slider::PLACEMENT_HOME_CATEGORIES
-                                ? 'Необязательно. Если не загружено, используется изображение выбранной категории.'
-                                : 'Изображение для desktop/tablet.')
+                            ->label('Desktop / основное изображение')
                             ->image()
                             ->imageEditor()
                             ->conversion('thumb')
@@ -143,26 +125,36 @@ class SliderForm
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                             ->columnSpanFull(),
 
+                        TextInput::make('image_url')
+                            ->label('Внешний URL / demo fallback')
+                            ->maxLength(2048)
+                            ->helperText('Используется только если изображение выше не загружено. Удобно для демо-данных и временных материалов.')
+                            ->columnSpanFull(),
+
                         SpatieMediaLibraryFileUpload::make('mobile_image')
                             ->collection('mobile_image')
-                            ->label('Мобильное изображение')
-                            ->helperText('Необязательно. Если не задано, используется основное изображение.')
+                            ->label('Отдельное мобильное изображение')
                             ->image()
                             ->imageEditor()
                             ->conversion('thumb')
                             ->maxSize(10240)
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                            ->columnSpanFull(),
+
+                        TextInput::make('mobile_image_url')
+                            ->label('Внешний URL mobile / demo fallback')
+                            ->maxLength(2048)
+                            ->helperText('Если не задано ни mobile-изображение, ни этот URL, используется desktop.')
                             ->columnSpanFull(),
                     ])
                     ->collapsible(),
 
                 Section::make('SEO настройки')
-                    ->description('Управление мета данными промо-слайда.')
+                    ->description('Необязательные мета-данные конкретного промо-материала.')
                     ->schema([
                         SEO::make(),
                     ])
-                    ->collapsible()
-                    ->visible(fn ($get): bool => $get('placement') === Slider::PLACEMENT_HOME_HERO),
+                    ->collapsible(),
             ]);
     }
 }
