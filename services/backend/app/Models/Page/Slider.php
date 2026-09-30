@@ -6,7 +6,9 @@ use App\Contracts\Models\PageableContract;
 use App\Models\Traits\Cacheable;
 use App\Models\Traits\Pageable;
 use App\Models\Traits\SEO\MetaUniversalSEO;
+use App\Models\Product\Category;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
@@ -23,7 +25,13 @@ class Slider extends Model implements HasMedia, PageableContract
 
     public const ACTIVE = true;
 
+    public const PLACEMENT_HOME_HERO = 'home_hero';
+
+    public const PLACEMENT_HOME_CATEGORIES = 'home_categories';
+
     protected $fillable = [
+        'placement',
+        'category_id',
         'title',
         'description',
         'link',
@@ -39,6 +47,7 @@ class Slider extends Model implements HasMedia, PageableContract
     protected $casts = [
         'is_active' => 'boolean',
         'priority' => 'integer',
+        'category_id' => 'integer',
     ];
 
     /**
@@ -49,6 +58,16 @@ class Slider extends Model implements HasMedia, PageableContract
         parent::boot();
 
         static::bootCacheable();
+
+        static::saving(function (Slider $slider): void {
+            if (
+                $slider->placement === self::PLACEMENT_HOME_CATEGORIES
+                && $slider->category_id
+                && blank($slider->title)
+            ) {
+                $slider->title = (string) Category::query()->find($slider->category_id)?->name;
+            }
+        });
     }
 
     /**
@@ -73,6 +92,67 @@ class Slider extends Model implements HasMedia, PageableContract
     public static function getActiveConstant(): bool
     {
         return self::ACTIVE;
+    }
+
+
+    /**
+     * @return array<string, string>
+     */
+    public static function placementLabels(): array
+    {
+        return [
+            self::PLACEMENT_HOME_HERO => 'Главный промо-слайдер',
+            self::PLACEMENT_HOME_CATEGORIES => 'Карусель категорий',
+        ];
+    }
+
+    public function scopePlacement(Builder $query, string $placement): Builder
+    {
+        return $query->where('placement', $placement);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function getDisplayTitleAttribute(): string
+    {
+        if ($this->placement === self::PLACEMENT_HOME_CATEGORIES && $this->category) {
+            return (string) $this->category->name;
+        }
+
+        return (string) $this->title;
+    }
+
+    public function getDisplayLinkAttribute(): ?string
+    {
+        if ($this->placement === self::PLACEMENT_HOME_CATEGORIES && $this->category) {
+            return $this->category->full_path;
+        }
+
+        return $this->link;
+    }
+
+    public function getDisplayImageMedia(): ?Media
+    {
+        $media = $this->getFirstMedia('image');
+
+        if ($media) {
+            return $media;
+        }
+
+        if ($this->placement === self::PLACEMENT_HOME_CATEGORIES && $this->category) {
+            return $this->category->getFirstMedia('image')
+                ?: $this->category->getFirstMedia('images');
+        }
+
+        return null;
+    }
+
+    public function getDisplayMobileImageMedia(): ?Media
+    {
+        return $this->getFirstMedia('mobile_image') ?: $this->getDisplayImageMedia();
     }
 
     /**
@@ -111,6 +191,10 @@ class Slider extends Model implements HasMedia, PageableContract
         $this->addMediaCollection('image')
             ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp'])
             ->singleFile();
+
+        $this->addMediaCollection('mobile_image')
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp'])
+            ->singleFile();
     }
 
     /**
@@ -124,7 +208,7 @@ class Slider extends Model implements HasMedia, PageableContract
             ->height(300)
             ->fit(Fit::Crop, 300, 300)
             ->optimize()
-            ->performOnCollections('image');
+            ->performOnCollections('image', 'mobile_image');
 
         // Конверсия для основного изображения (Full HD)
         $this->addMediaConversion('fullhd')
