@@ -19,7 +19,7 @@ class SlidersTable
         return $table
             ->columns([
                 TextColumn::make('placement')
-                    ->label('Блок')
+                    ->label('Где показывается')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => Slider::placementLabels()[$state] ?? $state)
                     ->color(fn (string $state): string => match ($state) {
@@ -30,12 +30,12 @@ class SlidersTable
                     ->sortable(),
 
                 TextColumn::make('slot')
-                    ->label('Роль')
+                    ->label('Место')
                     ->badge()
                     ->formatStateUsing(fn (string $state, Slider $record): string =>
                         $record->placement === Slider::PLACEMENT_BOTTOM
-                            ? 'Широкий баннер'
-                            : (Slider::slotLabels()[$state] ?? $state)
+                            ? 'Нижний широкий слайдер'
+                            : (Slider::slotLabels()[$state] ?? 'Верхний блок')
                     )
                     ->toggleable(),
 
@@ -67,11 +67,11 @@ class SlidersTable
             ])
             ->filters([
                 SelectFilter::make('placement')
-                    ->label('Блок главной')
+                    ->label('Часть главной страницы')
                     ->options(Slider::placementLabels()),
 
                 SelectFilter::make('slot')
-                    ->label('Роль в верхнем блоке')
+                    ->label('Место в верхнем блоке')
                     ->options(Slider::slotLabels()),
 
                 SelectFilter::make('is_active')
