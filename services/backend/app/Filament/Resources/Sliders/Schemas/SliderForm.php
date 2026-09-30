@@ -19,41 +19,58 @@ class SliderForm
     {
         return $schema
             ->components([
-                Section::make('Где показывать')
-                    ->description('На главной два независимых блока: верхний промо-блок и нижний широкоформатный баннер.')
+                Section::make('Расположение на главной')
+                    ->description('Сначала выберите, в какой части главной страницы должен появиться материал.')
                     ->schema([
                         Select::make('placement')
-                            ->label('Блок главной')
-                            ->options(Slider::placementLabels())
+                            ->label('Какой блок редактируем?')
+                            ->options([
+                                Slider::PLACEMENT_TOP => 'Верхний блок — большой слайдер и две карточки справа',
+                                Slider::PLACEMENT_BOTTOM => 'Нижний блок — широкий баннер-слайдер',
+                            ])
                             ->default(Slider::PLACEMENT_TOP)
                             ->required()
-                            ->live(),
+                            ->live()
+                            ->helperText('На мобильной версии у верхнего блока показывается только большой слайдер; две маленькие карточки справа скрыты.'),
 
                         Select::make('slot')
-                            ->label('Место в верхнем блоке')
-                            ->options(Slider::slotLabels())
+                            ->label('Куда поставить материал в верхнем блоке?')
+                            ->options([
+                                Slider::SLOT_MAIN => 'Большой слайдер слева',
+                                Slider::SLOT_RIGHT_TOP => 'Маленькая карточка справа — сверху',
+                                Slider::SLOT_RIGHT_BOTTOM => 'Маленькая карточка справа — снизу',
+                            ])
                             ->default(Slider::SLOT_MAIN)
                             ->required()
+                            ->live()
                             ->visible(fn ($get): bool => $get('placement') === Slider::PLACEMENT_TOP)
-                            ->helperText('Основная карусель видна на desktop и mobile. Боковые карточки — дополнительный desktop-контент справа от неё.'),
+                            ->helperText(fn ($get): string => match ($get('slot')) {
+                                Slider::SLOT_RIGHT_TOP => 'Фиксированное место: если включить новый материал, предыдущий активный материал в верхней правой карточке будет выключен.',
+                                Slider::SLOT_RIGHT_BOTTOM => 'Фиксированное место: если включить новый материал, предыдущий активный материал в нижней правой карточке будет выключен.',
+                                default => 'Это большая карусель: здесь можно иметь несколько активных слайдов, они идут по порядку.',
+                            }),
 
                         TextInput::make('priority')
-                            ->label(__('filament/admin_sv/slider_resource.priority'))
+                            ->label('Порядок показа')
                             ->numeric()
                             ->default(0)
-                            ->helperText('Чем меньше число, тем раньше элемент показывается внутри своего блока.'),
+                            ->visible(fn ($get): bool =>
+                                $get('placement') === Slider::PLACEMENT_BOTTOM
+                                || $get('slot') === Slider::SLOT_MAIN
+                            )
+                            ->helperText('Для слайдеров с несколькими материалами: чем меньше число, тем раньше материал показывается.'),
 
                         Toggle::make('is_active')
-                            ->label(__('filament/admin_sv/slider_resource.is_active'))
+                            ->label('Показывать на сайте')
                             ->default(true),
                     ])
                     ->columns(2),
 
-                Section::make('Контент')
-                    ->description('Текстовые поля одинаково используются обоими слайдерами. Нижний баннер обычно короче и содержит CTA-кнопку.')
+                Section::make('Содержимое')
+                    ->description('Заполните то, что посетитель увидит на баннере или карточке.')
                     ->schema([
                         TextInput::make('title')
-                            ->label(__('filament/admin_sv/slider_resource.title'))
+                            ->label('Заголовок')
                             ->required()
                             ->maxLength(255)
                             ->live(onBlur: true)
@@ -66,32 +83,32 @@ class SliderForm
                             }),
 
                         TextInput::make('slug')
-                            ->label(__('filament/admin_sv/slider_resource.slug'))
+                            ->label('Системный адрес')
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
 
                         RichEditor::make('description')
-                            ->label(__('filament/admin_sv/slider_resource.description'))
+                            ->label('Подзаголовок / описание')
                             ->maxLength(1000)
                             ->columnSpanFull(),
 
                         TextInput::make('link')
-                            ->label(__('filament/admin_sv/slider_resource.link'))
+                            ->label('Куда вести по нажатию')
                             ->maxLength(2048)
                             ->helperText('Можно указать внутренний путь (/catalog/...) или полный URL.'),
 
                         TextInput::make('button_text')
-                            ->label(__('filament/admin_sv/slider_resource.button_text'))
+                            ->label('Текст кнопки')
                             ->maxLength(255)
                             ->helperText('Для нижнего баннера обычно «Подробнее». Для верхней основной карусели кнопка может отсутствовать.'),
                     ])
                     ->columns(2),
 
-                Section::make('Метка / бейдж')
-                    ->description('Верхний блок использует цветные промо-метки, а нижний баннер может использовать это поле как дату/период акции.')
+                Section::make('Промо-метка')
+                    ->description('Например: «Выгодно», «Гарантия», «10 — 31 августа» или «Сезонная распродажа до −60%».')
                     ->schema([
                         TextInput::make('badge_text')
-                            ->label(__('filament/admin_sv/slider_resource.badge_text'))
+                            ->label('Текст метки')
                             ->maxLength(255)
                             ->placeholder('Сезонная распродажа до −60%'),
 
@@ -101,23 +118,23 @@ class SliderForm
                             ->default('red'),
 
                         TextInput::make('badge_link')
-                            ->label(__('filament/admin_sv/slider_resource.badge_link'))
+                            ->label('Ссылка с метки')
                             ->maxLength(2048),
 
                         LucideIconSelect::make('badge_icon')
-                            ->label(__('filament/admin_sv/slider_resource.badge_icon'))
+                            ->label('Иконка метки')
                             ->default('zap')
                             ->helperText('Необязательно. Фронтенд может использовать иконку там, где это предусмотрено макетом.'),
                     ])
                     ->columns(2)
                     ->collapsible(),
 
-                Section::make('Изображения')
-                    ->description('Desktop и mobile могут иметь разный кадр. Если мобильная картинка не задана, API отдаст desktop-картинку как fallback.')
+                Section::make('Изображения для компьютера и телефона')
+                    ->description('Можно загрузить отдельную картинку для телефона — это особенно полезно для узкого мобильного кадра. Если её не задать, будет использована основная.')
                     ->schema([
                         SpatieMediaLibraryFileUpload::make('image')
                             ->collection('image')
-                            ->label('Desktop / основное изображение')
+                            ->label('Основное изображение')
                             ->image()
                             ->imageEditor()
                             ->conversion('thumb')
@@ -126,14 +143,14 @@ class SliderForm
                             ->columnSpanFull(),
 
                         TextInput::make('image_url')
-                            ->label('Внешний URL / demo fallback')
+                            ->label('Временная ссылка на основное изображение')
                             ->maxLength(2048)
-                            ->helperText('Используется только если изображение выше не загружено. Удобно для демо-данных и временных материалов.')
+                            ->helperText('Необязательно. Используется только если файл выше не загружен; удобно для тестового контента.')
                             ->columnSpanFull(),
 
                         SpatieMediaLibraryFileUpload::make('mobile_image')
                             ->collection('mobile_image')
-                            ->label('Отдельное мобильное изображение')
+                            ->label('Изображение для телефона')
                             ->image()
                             ->imageEditor()
                             ->conversion('thumb')
@@ -142,9 +159,9 @@ class SliderForm
                             ->columnSpanFull(),
 
                         TextInput::make('mobile_image_url')
-                            ->label('Внешний URL mobile / demo fallback')
+                            ->label('Временная ссылка на изображение для телефона')
                             ->maxLength(2048)
-                            ->helperText('Если не задано ни mobile-изображение, ни этот URL, используется desktop.')
+                            ->helperText('Необязательно. Если ничего не указать, на телефоне будет использовано основное изображение.')
                             ->columnSpanFull(),
                     ])
                     ->collapsible(),
