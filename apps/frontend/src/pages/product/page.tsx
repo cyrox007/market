@@ -293,8 +293,7 @@ export default function Product() {
   const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
   const { changeProductQuantity } = useCartActions();
   const { refreshWishlistCount, refreshCompareCount } = useCounters();
-  const { region: clientRegion, getRegionId } = useRegion();
-  const region = ssrRegion || clientRegion;
+  const { getRegionId } = useRegion();
   const regionId = getRegionId();
   const prefetchProduct = usePrefetchProduct();
 
@@ -985,7 +984,6 @@ export default function Product() {
   // Derived state: все данные для отображения вычисляются из product + selectedVariant
   const displayPrice = selectedVariant?.price ?? product?.price;
   const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
-  const displaySku = selectedVariant?.sku ?? product?.sku;
   const bundleSetTotalPrice =
     bundleProducts.length === 0
       ? null

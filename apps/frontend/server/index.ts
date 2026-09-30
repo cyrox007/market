@@ -28,8 +28,7 @@ function parseProductQueryFromReq(req: Request) {
     : undefined;
   const sortBy = (Array.isArray(query.sort) ? query.sort[0] : query.sort) || 'created_at';
   const sortOrder = ((Array.isArray(query.order) ? query.order[0] : query.order) || 'desc') as
-    | 'asc'
-    | 'desc';
+    'asc' | 'desc';
   const colors = query.colors
     ? (Array.isArray(query.colors) ? query.colors : [query.colors]).flatMap((c) =>
         c.split(',').filter(Boolean),
@@ -727,7 +726,7 @@ async function createServer() {
   });
 
   // Обработка ошибок
-  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     console.error('SSR Error:', err);
     res.status(500).end(err.message);
   });

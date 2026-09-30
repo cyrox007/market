@@ -7,7 +7,7 @@ interface OrderTrackingProps {
   currentStatus: string;
 }
 
-export default function OrderTracking({ statusHistory, currentStatus }: OrderTrackingProps) {
+export default function OrderTracking({ statusHistory }: OrderTrackingProps) {
   if (!statusHistory || statusHistory.length === 0) {
     return null;
   }

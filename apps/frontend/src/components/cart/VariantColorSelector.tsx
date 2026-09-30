@@ -13,8 +13,6 @@ interface VariantColorSelectorProps {
 export default function VariantColorSelector({
   colors,
   selectedColor,
-  selectedSize,
-  variantInfo,
   isDisabled = false,
   onSelect,
   isColorAvailable,

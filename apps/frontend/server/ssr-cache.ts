@@ -234,11 +234,7 @@ export async function withCacheSWR<T>(
     return stale;
   }
 
-  try {
-    const data = await fetcher();
-    ssrCache.set(key, data, options);
-    return data;
-  } catch (error) {
-    throw error;
-  }
+  const data = await fetcher();
+  ssrCache.set(key, data, options);
+  return data;
 }

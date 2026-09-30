@@ -24,7 +24,7 @@ export function render(url: string, context: SSRContext): Promise<string> {
     writable.on('error', reject);
 
     let piped = false;
-    const { pipe, abort } = renderToPipeableStream(
+    const { pipe } = renderToPipeableStream(
       <App ssrContext={context} Router={StaticRouter as any} routerProps={{ location: url }} />,
       {
         onAllReady() {

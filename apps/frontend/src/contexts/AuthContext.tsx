@@ -27,7 +27,11 @@ interface AuthProviderProps {
   authChecked?: boolean;
 }
 
-export function AuthProvider({ children, initialUser = null, authChecked = false }: AuthProviderProps) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+  authChecked = false,
+}: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(initialUser);
   const [isLoading, setIsLoading] = useState(!initialUser && !authChecked);
   const isRefreshingRef = useRef(false);
@@ -64,7 +68,7 @@ export function AuthProvider({ children, initialUser = null, authChecked = false
     let mounted = true;
 
     refreshUser()
-      .then((success) => {
+      .then(() => {
         if (mounted) {
           setIsLoading(false);
         }

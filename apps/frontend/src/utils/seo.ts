@@ -1,9 +1,6 @@
 import type { SeoMeta } from '../lib/api';
 import { SITE_NAME } from '../constants/seo';
 
-const META_NAMES = ['description', 'robots'] as const;
-const OG_PROPERTIES = ['og:title', 'og:description', 'og:image', 'og:url', 'og:type'] as const;
-
 /**
  * Устанавливает в document заголовок и meta-теги из объекта SEO с бэкенда.
  * Используется на страницах товара, категории, «О нас» и т.д.

@@ -8,7 +8,6 @@ import {
   type Address,
   type BonusTransaction,
   type WishlistItem,
-  type Product,
   type ShippingLocation,
   type NotificationSettings,
 } from '../../lib/api';
