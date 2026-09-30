@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Page\Slider;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -11,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('sliders', function (Blueprint $table) {
             $table->string('placement', 40)
-                ->default(Slider::PLACEMENT_HOME_HERO)
+                ->default('home_hero')
                 ->after('id');
             $table->unsignedBigInteger('category_id')
                 ->nullable()
