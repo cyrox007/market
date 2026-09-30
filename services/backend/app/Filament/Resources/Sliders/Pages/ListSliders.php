@@ -4,7 +4,7 @@ namespace App\Filament\Resources\Sliders\Pages;
 
 use App\Filament\Resources\Sliders\SliderResource;
 use App\Models\Page\Slider;
-use App\Models\Product\Category;
+use Database\Seeders\SliderDemoSeeder;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
@@ -16,52 +16,36 @@ class ListSliders extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('bootstrapCategoryCarousel')
-                ->label('Заполнить карусель категориями')
-                ->icon('heroicon-o-squares-plus')
+            Actions\Action::make('createDemoContent')
+                ->label('Добавить демо-контент')
+                ->icon('heroicon-o-sparkles')
                 ->color('gray')
                 ->requiresConfirmation()
-                ->modalHeading('Добавить корневые категории в карусель?')
-                ->modalDescription('Будут созданы только отсутствующие элементы. Уже настроенные элементы не изменятся.')
+                ->modalHeading('Добавить демо-слайды для главной?')
+                ->modalDescription('Добавятся только отсутствующие demo-записи для верхнего и нижнего блоков. Уже существующие записи и ваши изменения не будут перезаписаны.')
                 ->action(function (): void {
-                    $categories = Category::query()
-                        ->root()
-                        ->active()
-                        ->ordered()
-                        ->get();
+                    $before = Slider::query()
+                        ->where('slug', 'like', 'demo-%')
+                        ->count();
 
-                    $created = 0;
+                    app(SliderDemoSeeder::class)->run();
 
-                    foreach ($categories as $index => $category) {
-                        $slider = Slider::query()->firstOrCreate(
-                            [
-                                'placement' => Slider::PLACEMENT_HOME_CATEGORIES,
-                                'category_id' => $category->id,
-                            ],
-                            [
-                                'title' => (string) $category->name,
-                                'slug' => 'home-category-' . $category->slug,
-                                'priority' => $index * 10,
-                                'is_active' => true,
-                            ]
-                        );
-
-                        if ($slider->wasRecentlyCreated) {
-                            $created++;
-                        }
-                    }
+                    $after = Slider::query()
+                        ->where('slug', 'like', 'demo-%')
+                        ->count();
 
                     Notification::make()
-                        ->title('Карусель категорий подготовлена')
-                        ->body("Добавлено элементов: {$created}. Всего активных корневых категорий: {$categories->count()}.")
+                        ->title('Демо-контент подготовлен')
+                        ->body('Добавлено записей: ' . max(0, $after - $before) . '.')
                         ->success()
                         ->send();
                 }),
 
             Actions\CreateAction::make()
-                ->label('Добавить элемент'),
+                ->label('Добавить слайд'),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/list_sliders.title');
@@ -71,7 +55,4 @@ class ListSliders extends ListRecords
     {
         return __('filament/admin_sv/list_sliders.title');
     }
-
 }
-
-
