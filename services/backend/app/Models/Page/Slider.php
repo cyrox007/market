@@ -9,6 +9,7 @@ use App\Models\Traits\SEO\MetaUniversalSEO;
 use App\Models\Product\Category;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
@@ -68,6 +69,15 @@ class Slider extends Model implements HasMedia, PageableContract
                 $slider->title = (string) Category::query()->find($slider->category_id)?->name;
             }
         });
+
+        $forgetPlacementCaches = static function (): void {
+            foreach (array_keys(self::placementLabels()) as $placement) {
+                Cache::forget(self::cacheKey("index_{$placement}"));
+            }
+        };
+
+        static::saved($forgetPlacementCaches);
+        static::deleted($forgetPlacementCaches);
     }
 
     /**
