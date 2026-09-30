@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Products\Pages;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
+use App\Services\Inventory\Integrations\OneCStockSyncService;
 use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -61,20 +62,60 @@ class EditProduct extends EditRecord
                     ->url(fn () => url('/product/' . $this->record->slug))
                     ->openUrlInNewTab(),
 
-                Action::make('syncFrom1C')
-                    ->label('Загрузить из 1С')
-                    ->icon('heroicon-o-arrow-down-tray')
+                Action::make('syncStocksFrom1C')
+                    ->label('Обновить остатки из 1С')
+                    ->icon('heroicon-o-arrow-path')
                     ->color('primary')
+                    ->action(function (): void {
+                        $result = app(OneCStockSyncService::class)->syncProduct($this->record);
+                        $this->record->refresh();
+
+                        if ($result['errors'] > 0) {
+                            Notification::make()
+                                ->title('Остатки обновлены частично')
+                                ->body("Обновлено: {$result['synced']}, ошибок: {$result['errors']}, пропущено: {$result['skipped']}.")
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        if ($result['synced'] === 0) {
+                            Notification::make()
+                                ->title('Нет позиций для обновления')
+                                ->body('У товара или его торговых предложений не указан external_id 1С.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Остатки обновлены из 1С')
+                            ->body("Позиций: {$result['synced']}, складских строк: {$result['warehouse_rows']}.")
+                            ->success()
+                            ->send();
+                    }),
+
+                Action::make('legacySyncFrom1C')
+                    ->label('Legacy: полная загрузка из 1С')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Legacy: полная синхронизация товара из 1С')
+                    ->modalDescription('Старый механизм может изменить контент, цену, характеристики и вариативность товара. Для обычной работы используйте «Обновить остатки из 1С».')
                     ->form([
                         TextInput::make('external_id')
                             ->label('Код товара в 1С')
+                            ->default(fn (): ?string => $this->record?->external_id)
                             ->required()
-                            ->helperText('Введите external_id товара из системы 1С'),
+                            ->helperText('Используйте только для совместимости или восстановления старого сценария.'),
                     ])
                     ->action(function (array $data, $livewire) {
                         $externalId = $data['external_id'];
                         $service = app(OneCProductSyncService::class);
                         $product = $service->syncProductByExternalId($externalId);
+
                         if (! $product) {
                             Notification::make()
                                 ->title('Товар не найден в 1С')
@@ -88,8 +129,8 @@ class EditProduct extends EditRecord
                         $livewire->save();
 
                         Notification::make()
-                            ->title('Товар успешно обновлён из 1С')
-                            ->success()
+                            ->title('Legacy-синхронизация выполнена')
+                            ->warning()
                             ->send();
                     }),
 
