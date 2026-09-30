@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\Page\Slider;
-use App\Models\Product\Category;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -13,112 +12,136 @@ class HomeSlidersApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_default_slider_endpoint_keeps_returning_only_home_hero_items(): void
+    public function test_default_slider_endpoint_returns_top_block_only(): void
     {
         Slider::factory()->create([
-            'placement' => Slider::PLACEMENT_HOME_HERO,
-            'title' => 'Второй',
-            'priority' => 20,
-        ]);
-
-        Slider::factory()->create([
-            'placement' => Slider::PLACEMENT_HOME_HERO,
-            'title' => 'Первый',
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Верхний слайд',
             'priority' => 10,
         ]);
 
-        $category = Category::factory()->create([
-            'name' => 'Диваны',
-            'slug' => 'divany',
-        ]);
-
         Slider::factory()->create([
-            'placement' => Slider::PLACEMENT_HOME_CATEGORIES,
-            'category_id' => $category->id,
-            'title' => 'Диваны',
-            'priority' => 0,
-        ]);
-
-        Slider::factory()->inactive()->create([
-            'placement' => Slider::PLACEMENT_HOME_HERO,
-            'title' => 'Выключенный',
-            'priority' => 0,
+            'placement' => Slider::PLACEMENT_BOTTOM,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Нижний баннер',
+            'priority' => 10,
         ]);
 
         $response = $this->getJson('/api/v1/sliders');
 
         $response
             ->assertOk()
-            ->assertJsonCount(2, 'data')
-            ->assertJsonPath('data.0.title', 'Первый')
-            ->assertJsonPath('data.1.title', 'Второй')
-            ->assertJsonPath('data.0.placement', Slider::PLACEMENT_HOME_HERO);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'Верхний слайд')
+            ->assertJsonPath('data.0.placement', Slider::PLACEMENT_TOP);
     }
 
-    public function test_category_carousel_endpoint_resolves_category_name_and_link(): void
+    public function test_slider_endpoint_filters_by_placement_and_slot(): void
     {
-        $category = Category::factory()->create([
-            'name' => 'Кухни',
-            'slug' => 'kuhni',
-            'priority' => 100,
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Main',
+            'priority' => 10,
         ]);
 
         Slider::factory()->create([
-            'placement' => Slider::PLACEMENT_HOME_CATEGORIES,
-            'category_id' => $category->id,
-            'title' => 'Техническое название',
-            'link' => '/should-not-be-used',
-            'priority' => 5,
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_SIDE,
+            'title' => 'Side',
+            'priority' => 10,
         ]);
 
-        $response = $this->getJson(
-            '/api/v1/sliders?placement=' . Slider::PLACEMENT_HOME_CATEGORIES
-        );
+        $response = $this->getJson('/api/v1/sliders?placement=top&slot=side');
 
         $response
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.placement', Slider::PLACEMENT_HOME_CATEGORIES)
-            ->assertJsonPath('data.0.title', 'Кухни')
-            ->assertJsonPath('data.0.link', '/catalog/kuhni')
-            ->assertJsonPath('data.0.category.id', $category->id)
-            ->assertJsonPath('data.0.category.name', 'Кухни');
+            ->assertJsonPath('data.0.title', 'Side')
+            ->assertJsonPath('data.0.slot', Slider::SLOT_SIDE);
     }
 
-    public function test_home_endpoint_returns_both_managed_slider_blocks(): void
+    public function test_home_endpoint_returns_frontend_ready_structure(): void
     {
         Slider::factory()->create([
-            'placement' => Slider::PLACEMENT_HOME_HERO,
-            'title' => 'Главный слайд',
-            'priority' => 0,
-        ]);
-
-        $category = Category::factory()->create([
-            'name' => 'Спальни',
-            'slug' => 'spalni',
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Top main',
+            'priority' => 10,
         ]);
 
         Slider::factory()->create([
-            'placement' => Slider::PLACEMENT_HOME_CATEGORIES,
-            'category_id' => $category->id,
-            'title' => 'Спальни',
-            'priority' => 0,
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_SIDE,
+            'title' => 'Top side',
+            'priority' => 10,
+        ]);
+
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_BOTTOM,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Bottom',
+            'priority' => 10,
         ]);
 
         $response = $this->getJson('/api/v1/sliders/home');
 
         $response
             ->assertOk()
-            ->assertJsonCount(1, 'data.hero')
-            ->assertJsonCount(1, 'data.categories')
-            ->assertJsonPath('data.hero.0.title', 'Главный слайд')
-            ->assertJsonPath('data.categories.0.title', 'Спальни');
+            ->assertJsonCount(1, 'data.top.main')
+            ->assertJsonCount(1, 'data.top.side')
+            ->assertJsonCount(1, 'data.bottom')
+            ->assertJsonPath('data.top.main.0.title', 'Top main')
+            ->assertJsonPath('data.top.side.0.title', 'Top side')
+            ->assertJsonPath('data.bottom.0.title', 'Bottom');
     }
 
-    public function test_unknown_slider_placement_is_rejected(): void
+    public function test_external_image_urls_are_returned_when_no_media_is_uploaded(): void
+    {
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_BOTTOM,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Demo',
+            'image_url' => '/home/banner-1.jpg',
+            'mobile_image_url' => '/home/banner-1-mobile.jpg',
+        ]);
+
+        $response = $this->getJson('/api/v1/sliders?placement=bottom');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.0.image', '/home/banner-1.jpg')
+            ->assertJsonPath('data.0.image_fullhd', '/home/banner-1.jpg')
+            ->assertJsonPath('data.0.image_mobile', '/home/banner-1-mobile.jpg');
+    }
+
+    public function test_mobile_image_falls_back_to_desktop_image(): void
+    {
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Fallback',
+            'image_url' => '/home/hero-1.jpg',
+            'mobile_image_url' => null,
+        ]);
+
+        $response = $this->getJson('/api/v1/sliders?placement=top&slot=main');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.0.image', '/home/hero-1.jpg')
+            ->assertJsonPath('data.0.image_mobile', '/home/hero-1.jpg');
+    }
+
+    public function test_unknown_placement_and_slot_are_rejected(): void
     {
         $this->getJson('/api/v1/sliders?placement=unknown')
             ->assertStatus(422)
             ->assertJsonPath('message', 'Unknown slider placement.');
+
+        $this->getJson('/api/v1/sliders?placement=top&slot=unknown')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Unknown slider slot.');
     }
 }
