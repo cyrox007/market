@@ -6,17 +6,14 @@ use App\Contracts\Models\PageableContract;
 use App\Models\Traits\Cacheable;
 use App\Models\Traits\Pageable;
 use App\Models\Traits\SEO\MetaUniversalSEO;
-use App\Models\Product\Category;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
-use Spatie\Image\Enums\Fit;
 
 class Slider extends Model implements HasMedia, PageableContract
 {
@@ -26,13 +23,17 @@ class Slider extends Model implements HasMedia, PageableContract
 
     public const ACTIVE = true;
 
-    public const PLACEMENT_HOME_HERO = 'home_hero';
+    public const PLACEMENT_TOP = 'top';
 
-    public const PLACEMENT_HOME_CATEGORIES = 'home_categories';
+    public const PLACEMENT_BOTTOM = 'bottom';
+
+    public const SLOT_MAIN = 'main';
+
+    public const SLOT_SIDE = 'side';
 
     protected $fillable = [
         'placement',
-        'category_id',
+        'slot',
         'title',
         'description',
         'link',
@@ -43,17 +44,16 @@ class Slider extends Model implements HasMedia, PageableContract
         'badge_text',
         'badge_link',
         'badge_icon',
+        'badge_tone',
+        'image_url',
+        'mobile_image_url',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'priority' => 'integer',
-        'category_id' => 'integer',
     ];
 
-    /**
-     * Boot the model.
-     */
     protected static function boot(): void
     {
         parent::boot();
@@ -61,58 +61,59 @@ class Slider extends Model implements HasMedia, PageableContract
         static::bootCacheable();
 
         static::saving(function (Slider $slider): void {
-            if (
-                $slider->placement === self::PLACEMENT_HOME_CATEGORIES
-                && $slider->category_id
-                && blank($slider->title)
-            ) {
-                $slider->title = (string) Category::query()->find($slider->category_id)?->name;
+            if ($slider->placement === self::PLACEMENT_BOTTOM) {
+                // У нижнего блока нет desktop-only боковых карточек.
+                $slider->slot = self::SLOT_MAIN;
             }
         });
-
-        $forgetPlacementCaches = static function (): void {
-            foreach (array_keys(self::placementLabels()) as $placement) {
-                Cache::forget(self::cacheKey("index_{$placement}"));
-            }
-        };
-
-        static::saved($forgetPlacementCaches);
-        static::deleted($forgetPlacementCaches);
     }
 
-    /**
-     * Create a new factory instance for the model.
-     */
     protected static function newFactory()
     {
         return \Database\Factories\SliderFactory::new();
     }
 
-    /**
-     * Get root path constant.
-     */
     public static function getRootPath(): string
     {
         return self::ROOT_PATH;
     }
 
-    /**
-     * Get active status constant.
-     */
     public static function getActiveConstant(): bool
     {
         return self::ACTIVE;
     }
 
-
     /**
-     * @return array<string, string>
+     * @return array<string,string>
      */
     public static function placementLabels(): array
     {
         return [
-            self::PLACEMENT_HOME_HERO => 'Главный промо-слайдер',
-            self::PLACEMENT_HOME_CATEGORIES => 'Карусель категорий',
+            self::PLACEMENT_TOP => 'Верхний промо-блок',
+            self::PLACEMENT_BOTTOM => 'Нижний промо-баннер',
+        ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    public static function slotLabels(): array
+    {
+        return [
+            self::SLOT_MAIN => 'Основная карусель',
+            self::SLOT_SIDE => 'Боковая карточка (desktop)',
+        ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    public static function badgeToneLabels(): array
+    {
+        return [
+            'red' => 'Красный',
+            'yellow' => 'Жёлтый',
+            'green' => 'Зелёный',
         ];
     }
 
@@ -121,81 +122,30 @@ class Slider extends Model implements HasMedia, PageableContract
         return $query->where('placement', $placement);
     }
 
-    public function category(): BelongsTo
+    public function scopeSlot(Builder $query, string $slot): Builder
     {
-        return $this->belongsTo(Category::class, 'category_id');
+        return $query->where('slot', $slot);
     }
 
-    public function getDisplayTitleAttribute(): string
-    {
-        if ($this->placement === self::PLACEMENT_HOME_CATEGORIES && $this->category) {
-            return (string) $this->category->name;
-        }
-
-        return (string) $this->title;
-    }
-
-    public function getDisplayLinkAttribute(): ?string
-    {
-        if ($this->placement === self::PLACEMENT_HOME_CATEGORIES && $this->category) {
-            return $this->category->full_path;
-        }
-
-        return $this->link;
-    }
-
-    public function getDisplayImageMedia(): ?Media
-    {
-        $media = $this->getFirstMedia('image');
-
-        if ($media) {
-            return $media;
-        }
-
-        if ($this->placement === self::PLACEMENT_HOME_CATEGORIES && $this->category) {
-            return $this->category->getFirstMedia('image')
-                ?: $this->category->getFirstMedia('images');
-        }
-
-        return null;
-    }
-
-    public function getDisplayMobileImageMedia(): ?Media
-    {
-        return $this->getFirstMedia('mobile_image') ?: $this->getDisplayImageMedia();
-    }
-
-    /**
-     * Get the name of the active field.
-     */
     public static function getActiveFieldName(): string
     {
         return 'is_active';
     }
 
-    /**
-     * Get the name of the sort field.
-     */
     public static function getSortFieldName(): string
     {
         return 'priority';
     }
 
-    /**
-     * Get full URL path for the slider.
-     */
     public function getFullPathAttribute(): ?string
     {
-        if (!$this->slug) {
+        if (! $this->slug) {
             return null;
         }
 
         return self::ROOT_PATH . '/' . $this->slug;
     }
 
-    /**
-     * Register media collections.
-     */
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('image')
@@ -207,12 +157,8 @@ class Slider extends Model implements HasMedia, PageableContract
             ->singleFile();
     }
 
-    /**
-     * Register media conversions.
-     */
     public function registerMediaConversions(?Media $media = null): void
     {
-        // Конверсия для миниатюр (thumb)
         $this->addMediaConversion('thumb')
             ->width(300)
             ->height(300)
@@ -220,7 +166,6 @@ class Slider extends Model implements HasMedia, PageableContract
             ->optimize()
             ->performOnCollections('image', 'mobile_image');
 
-        // Конверсия для основного изображения (Full HD)
         $this->addMediaConversion('fullhd')
             ->width(1920)
             ->height(1080)
@@ -228,7 +173,6 @@ class Slider extends Model implements HasMedia, PageableContract
             ->optimize()
             ->performOnCollections('image', 'mobile_image');
 
-        // Конверсия для среднего размера (HD)
         $this->addMediaConversion('hd')
             ->width(1280)
             ->height(720)
@@ -237,5 +181,3 @@ class Slider extends Model implements HasMedia, PageableContract
             ->performOnCollections('image', 'mobile_image');
     }
 }
-
-
