@@ -14,7 +14,7 @@ class InventorySync1CMinuteCommand extends Command
 {
     protected $signature = 'inventory:sync-1c-minute';
 
-    protected $description = 'Run minute-based 1C sync for changed products and stocks.';
+    protected $description = '[LEGACY] Run full minute-based 1C catalog/price/stock sync.';
 
     public function handle(
         Get1CSyncCursorAction $getCursorAction,
