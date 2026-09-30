@@ -151,10 +151,11 @@ class EditCategory extends EditRecord
 
         if ($run->status === OzonCategoryImportRun::STATUS_SUCCESS) {
             $parts[] = sprintf(
-                'создано %d, обновлено %d, новых родительских карточек %d',
+                'создано %d, обновлено %d, новых родительских карточек %d, фото поставлено в очередь %d',
                 (int) $run->created_products,
                 (int) $run->updated_products,
                 (int) $run->created_parents,
+                (int) $run->images_queued,
             );
         }
 
