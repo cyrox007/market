@@ -12,6 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 final class SyncOzonProductImagesJob implements ShouldQueue
 {
@@ -39,6 +40,27 @@ final class SyncOzonProductImagesJob implements ShouldQueue
         }
 
         $result = $service->sync($product, $this->mainUrl, $this->galleryUrls);
+
+        if ($result['errors'] !== []) {
+            Log::warning('Ozon image sync: completed with errors', [
+                'product_id' => $product->id,
+                'external_id' => $product->external_id,
+                'result' => $result,
+            ]);
+
+            // Раньше ошибки скачивания проглатывались, поэтому job считался успешным,
+            // хотя у товара не появлялось ни одного изображения.
+            if ($result['downloaded'] === 0 && $result['skipped'] === 0) {
+                throw new RuntimeException(
+                    'Не удалось загрузить изображения Ozon для товара '
+                    . ($product->external_id ?: $product->id)
+                    . ': '
+                    . implode('; ', array_slice($result['errors'], 0, 3))
+                );
+            }
+
+            return;
+        }
 
         Log::info('Ozon image sync: completed', [
             'product_id' => $product->id,
