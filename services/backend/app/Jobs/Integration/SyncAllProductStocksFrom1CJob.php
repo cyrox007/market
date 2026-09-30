@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs\Integration;
 
-use App\Services\Inventory\Integrations\OneCStockSyncService;
+use App\Actions\Inventory\Sync\RefreshAllStocksFrom1CAction;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -33,14 +33,14 @@ class SyncAllProductStocksFrom1CJob implements ShouldQueue
         $this->timeout = max(1, (int) config('catalog_import.config.svetofor_1c.stock_sync_job_timeout', 180));
     }
 
-    public function handle(OneCStockSyncService $service): void
+    public function handle(RefreshAllStocksFrom1CAction $refreshAllStocks): void
     {
         Log::info('1C stock-only job: started', [
             'attempt' => $this->attempts(),
             'queue' => $this->queue,
         ]);
 
-        $result = $service->syncAll();
+        $result = $refreshAllStocks->execute();
 
         Log::info('1C stock-only job: finished', [
             'attempt' => $this->attempts(),
