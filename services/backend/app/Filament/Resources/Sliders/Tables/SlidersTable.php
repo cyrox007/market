@@ -23,24 +23,31 @@ class SlidersTable
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => Slider::placementLabels()[$state] ?? $state)
                     ->color(fn (string $state): string => match ($state) {
-                        Slider::PLACEMENT_HOME_HERO => 'primary',
-                        Slider::PLACEMENT_HOME_CATEGORIES => 'success',
+                        Slider::PLACEMENT_TOP => 'primary',
+                        Slider::PLACEMENT_BOTTOM => 'warning',
                         default => 'gray',
                     })
                     ->sortable(),
 
+                TextColumn::make('slot')
+                    ->label('Роль')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state, Slider $record): string =>
+                        $record->placement === Slider::PLACEMENT_BOTTOM
+                            ? 'Широкий баннер'
+                            : (Slider::slotLabels()[$state] ?? $state)
+                    )
+                    ->toggleable(),
+
                 TextColumn::make('title')
                     ->label(__('filament/admin_sv/slider_resource.title'))
-                    ->formatStateUsing(fn ($state, Slider $record): string => $record->display_title)
-                    ->description(fn (Slider $record): ?string => $record->category?->name)
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
 
-                TextColumn::make('link')
-                    ->label(__('filament/admin_sv/slider_resource.link'))
-                    ->formatStateUsing(fn ($state, Slider $record): ?string => $record->display_link)
-                    ->searchable()
+                TextColumn::make('badge_text')
+                    ->label('Метка')
+                    ->limit(36)
                     ->toggleable(),
 
                 TextColumn::make('priority')
@@ -62,6 +69,10 @@ class SlidersTable
                 SelectFilter::make('placement')
                     ->label('Блок главной')
                     ->options(Slider::placementLabels()),
+
+                SelectFilter::make('slot')
+                    ->label('Роль в верхнем блоке')
+                    ->options(Slider::slotLabels()),
 
                 SelectFilter::make('is_active')
                     ->label('Активен')
