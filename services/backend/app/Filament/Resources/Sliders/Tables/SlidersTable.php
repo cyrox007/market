@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sliders\Tables;
 
+use App\Models\Page\Slider;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -17,27 +18,40 @@ class SlidersTable
     {
         return $table
             ->columns([
+                TextColumn::make('placement')
+                    ->label('Блок')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => Slider::placementLabels()[$state] ?? $state)
+                    ->color(fn (string $state): string => match ($state) {
+                        Slider::PLACEMENT_HOME_HERO => 'primary',
+                        Slider::PLACEMENT_HOME_CATEGORIES => 'success',
+                        default => 'gray',
+                    })
+                    ->sortable(),
+
                 TextColumn::make('title')
                     ->label(__('filament/admin_sv/slider_resource.title'))
+                    ->formatStateUsing(fn ($state, Slider $record): string => $record->display_title)
+                    ->description(fn (Slider $record): ?string => $record->category?->name)
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
-                TextColumn::make('slug')
-                    ->label(__('filament/admin_sv/slider_resource.slug'))
-                    ->searchable()
-                    ->copyable()
-                    ->copyMessage('URL скопирован'),
+
                 TextColumn::make('link')
                     ->label(__('filament/admin_sv/slider_resource.link'))
+                    ->formatStateUsing(fn ($state, Slider $record): ?string => $record->display_link)
                     ->searchable()
                     ->toggleable(),
+
                 TextColumn::make('priority')
                     ->label(__('filament/admin_sv/slider_resource.priority'))
                     ->numeric()
                     ->sortable(),
+
                 IconColumn::make('is_active')
                     ->label(__('filament/admin_sv/slider_resource.is_active'))
                     ->boolean(),
+
                 TextColumn::make('created_at')
                     ->label(__('filament/admin_sv/slider_resource.created_at'))
                     ->dateTime()
@@ -45,6 +59,10 @@ class SlidersTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('placement')
+                    ->label('Блок главной')
+                    ->options(Slider::placementLabels()),
+
                 SelectFilter::make('is_active')
                     ->label('Активен')
                     ->options([
@@ -64,5 +82,3 @@ class SlidersTable
             ->defaultSort('priority', 'asc');
     }
 }
-
-
