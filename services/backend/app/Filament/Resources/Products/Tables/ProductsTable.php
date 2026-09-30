@@ -23,6 +23,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
+use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -50,6 +51,13 @@ class ProductsTable
                     ]);
             })
             ->columns([
+                SpatieMediaLibraryImageColumn::make('image')
+                    ->label('Фото')
+                    ->collection('images')
+                    ->conversion('thumb')
+                    ->square()
+                    ->size(52),
+
                 TextColumn::make('name')
                     ->label(__('filament/admin_sv/product_resource.name'))
                     ->searchable()
