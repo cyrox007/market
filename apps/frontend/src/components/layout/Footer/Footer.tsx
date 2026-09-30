@@ -1,25 +1,33 @@
 import { Link } from 'react-router-dom';
 import { Clock, Mail, Phone, Users } from 'lucide-react';
 import { VkIcon, WhatsAppIcon } from '../../ui/icons/brands';
-import { cn } from '../../../lib/cn';
-import { PAGE_CONTAINER } from '../../../lib/layout';
 import { organizationRequisites } from '../../../data/organizationRequisites';
 import { FOOTER_COLUMNS, FOOTER_CONTACTS } from './lib/links';
 
+/**
+ * Свой контейнер, а не PAGE_CONTAINER: ниже 550 подвал держит 24, остальной сайт — 16.
+ * Замеры трёх состояний — market-docs/25-footer.md
+ */
+const CONTAINER = 'mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-[100px] py-10 max-md:px-6';
+
 const SOCIAL = 'flex items-center rounded-lg bg-brand-green p-2.5 text-ink-inverse';
 
-/** Подвал по макету. Замеры — market-docs/25-footer.md */
+/** Иконки у контактов есть только на десктопе */
+const CONTACT_ICON = 'size-6 shrink-0 max-md:hidden';
+
+const LINK_TEXT = 'text-16 font-medium leading-none max-vsm:text-14 max-vsm:font-normal';
+
 export default function Footer() {
   return (
     <footer className="bg-surface-footer">
-      <div className={cn(PAGE_CONTAINER, 'flex flex-col gap-6 py-10')}>
-        <div className="flex items-start justify-between gap-10 max-md:flex-col">
+      <div className={CONTAINER}>
+        <div className="flex items-start justify-between gap-10 max-md:flex-col max-md:gap-6">
           <Contacts />
 
-          <div className="flex gap-[54px] max-sm:flex-wrap max-sm:gap-x-10 max-sm:gap-y-8">
+          <div className="flex gap-[54px] max-md:grid max-md:w-full max-md:grid-cols-2 max-md:gap-4 max-vsm:grid-cols-1 max-vsm:gap-[23px]">
             {FOOTER_COLUMNS.map((column) => (
               <nav key={column.title} className="flex flex-col gap-2.5" aria-label={column.title}>
-                <h2 className="font-display text-18 font-semibold uppercase leading-none text-ink-inverse">
+                <h2 className="font-display text-18 font-semibold uppercase leading-none text-ink-inverse max-vsm:text-16">
                   {column.title}
                 </h2>
                 {column.links.map((link) =>
@@ -27,7 +35,7 @@ export default function Footer() {
                     <Link
                       key={link.label}
                       to={link.to}
-                      className="text-16 font-medium leading-none text-ink-inverse/[0.72] outline-none transition-colors hover:text-ink-inverse focus-visible:text-ink-inverse motion-reduce:transition-none"
+                      className={`${LINK_TEXT} text-ink-inverse/[0.72] outline-none transition-colors hover:text-ink-inverse focus-visible:text-ink-inverse motion-reduce:transition-none`}
                     >
                       {link.label}
                     </Link>
@@ -35,7 +43,7 @@ export default function Footer() {
                     <span
                       key={link.label}
                       aria-disabled="true"
-                      className="cursor-default text-16 font-medium leading-none text-ink-inverse/40"
+                      className={`${LINK_TEXT} cursor-default text-ink-inverse/40`}
                     >
                       {link.label}
                     </span>
@@ -48,8 +56,8 @@ export default function Footer() {
 
         <div className="h-px w-full bg-ink-inverse/[0.24]" />
 
-        <div className="flex items-end justify-between gap-6 max-md:flex-col max-md:items-start">
-          <div className="flex flex-col gap-3 text-14 font-semibold leading-none text-ink-inverse/[0.46]">
+        <div className="flex items-end justify-between gap-6 text-14 font-semibold leading-none text-ink-inverse/[0.46] max-md:flex-col max-md:items-start max-md:gap-3">
+          <div className="flex flex-col gap-3">
             {requisiteLines().map((line) => (
               <p key={line}>{line}</p>
             ))}
@@ -57,9 +65,7 @@ export default function Footer() {
               © {new Date().getFullYear()} {organizationRequisites.fullName}. Все права защищены.
             </p>
           </div>
-          <p className="text-14 font-semibold uppercase leading-none text-ink-inverse/[0.46]">
-            Разработано компанией «Название компании»
-          </p>
+          <p className="uppercase">Разработано компанией «Название компании»</p>
         </div>
       </div>
     </footer>
@@ -76,14 +82,18 @@ function requisiteLines() {
   ];
 }
 
+/**
+ * Десктоп — столбец с иконками. Ниже 980 — сетка 2 × 2 без иконок: телефон и почта
+ * в первом ряду, часы и соцсети во втором. Ниже 550 — снова столбец.
+ */
 function Contacts() {
   return (
-    <div className="flex flex-col justify-center gap-4">
+    <div className="grid grid-cols-1 gap-4 max-md:w-full max-md:grid-cols-2 max-vsm:grid-cols-1">
       <a
         href={`tel:${FOOTER_CONTACTS.phone.replace(/\D/g, '')}`}
         className="flex items-end gap-3 text-18 font-medium leading-none text-ink-inverse outline-none transition-opacity hover:opacity-80 focus-visible:opacity-80 motion-reduce:transition-none"
       >
-        <Phone className="size-6 shrink-0" />
+        <Phone className={CONTACT_ICON} />
         {FOOTER_CONTACTS.phone}
       </a>
 
@@ -91,12 +101,12 @@ function Contacts() {
         href={`mailto:${FOOTER_CONTACTS.email}`}
         className="flex items-center gap-3 text-18 font-medium leading-none text-ink-inverse outline-none transition-opacity hover:opacity-80 focus-visible:opacity-80 motion-reduce:transition-none"
       >
-        <Mail className="size-6 shrink-0" />
+        <Mail className={CONTACT_ICON} />
         {FOOTER_CONTACTS.email}
       </a>
 
       <p className="flex items-start gap-3 text-18 font-medium text-ink-inverse">
-        <Clock className="size-6 shrink-0" />
+        <Clock className={CONTACT_ICON} />
         <span className="flex flex-col gap-1 leading-none">
           {FOOTER_CONTACTS.hours.map((line) => (
             <span key={line}>{line}</span>
@@ -105,7 +115,7 @@ function Contacts() {
       </p>
 
       <div className="flex items-center gap-3">
-        <Users className="size-6 shrink-0 text-ink-inverse" aria-hidden="true" />
+        <Users className={`${CONTACT_ICON} text-ink-inverse`} aria-hidden="true" />
         <div className="flex items-center gap-2">
           <a
             href="https://vk.com"
