@@ -23,7 +23,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
-use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -48,13 +48,30 @@ class ProductsTable
                         'warehouseStocks',
                         'variants' => fn($q) => $q->where('state', ProductState::ACTIVE),
                         'variants.warehouseStocks',
+                        'variants.media',
                     ]);
             })
             ->columns([
-                SpatieMediaLibraryImageColumn::make('image')
+                ImageColumn::make('admin_image')
                     ->label('Фото')
-                    ->collection('images')
-                    ->conversion('thumb')
+                    ->state(function (Product $record): ?string {
+                        // Сразу используем оригинал: thumb-конверсии MediaLibrary могут ещё
+                        // стоять в очереди после массового Ozon-импорта.
+                        if ($record->main_image_url) {
+                            return $record->main_image_url;
+                        }
+
+                        // У вариативного товара реальные фотографии прежде всего принадлежат ТП.
+                        // Пока представительское фото родителя ещё не обработано, показываем
+                        // главное фото первого предложения, чтобы список не выглядел пустым.
+                        foreach ($record->variants as $variant) {
+                            if ($variant->main_image_url) {
+                                return $variant->main_image_url;
+                            }
+                        }
+
+                        return null;
+                    })
                     ->square()
                     ->size(52),
 
