@@ -39,7 +39,8 @@ class SliderController extends Controller
     /**
      * Готовая структура для главной страницы:
      * - top.main: большая верхняя карусель, работает и на mobile;
-     * - top.side: две desktop-карточки справа;
+     * - top.right_top: фиксированная верхняя карточка справа (desktop);
+     * - top.right_bottom: фиксированная нижняя карточка справа (desktop);
      * - bottom: нижний широкий слайдер.
      */
     public function home(Request $request): JsonResponse
@@ -50,9 +51,14 @@ class SliderController extends Controller
                     'main' => SliderResource::collection(
                         $this->getPlacement(Slider::PLACEMENT_TOP, Slider::SLOT_MAIN)
                     )->resolve($request),
-                    'side' => SliderResource::collection(
-                        $this->getPlacement(Slider::PLACEMENT_TOP, Slider::SLOT_SIDE)
-                    )->resolve($request),
+                    'right_top' => $this->resolveSinglePosition(
+                        $request,
+                        Slider::SLOT_RIGHT_TOP
+                    ),
+                    'right_bottom' => $this->resolveSinglePosition(
+                        $request,
+                        Slider::SLOT_RIGHT_BOTTOM
+                    ),
                 ],
                 'bottom' => SliderResource::collection(
                     $this->getPlacement(Slider::PLACEMENT_BOTTOM)
@@ -82,6 +88,21 @@ class SliderController extends Controller
         return response()->json([
             'slider' => new SliderResource($slider),
         ]);
+    }
+
+    /**
+     * Фиксированные правые позиции возвращаются как один объект или null,
+     * чтобы frontend не определял «верх/низ» по порядку массива.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function resolveSinglePosition(Request $request, string $slot): ?array
+    {
+        $slider = $this->getPlacement(Slider::PLACEMENT_TOP, $slot)->first();
+
+        return $slider
+            ? (new SliderResource($slider))->resolve($request)
+            : null;
     }
 
     /**
