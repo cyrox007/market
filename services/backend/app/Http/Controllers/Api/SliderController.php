@@ -14,7 +14,8 @@ class SliderController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
-        $placement = (string) $request->query('placement', Slider::PLACEMENT_HOME_HERO);
+        $placement = (string) $request->query('placement', Slider::PLACEMENT_TOP);
+        $slot = $request->query('slot');
 
         if (! array_key_exists($placement, Slider::placementLabels())) {
             return response()->json([
@@ -23,27 +24,43 @@ class SliderController extends Controller
             ], 422);
         }
 
-        return SliderResource::collection($this->getPlacement($placement));
+        if ($slot !== null && ! array_key_exists((string) $slot, Slider::slotLabels())) {
+            return response()->json([
+                'message' => 'Unknown slider slot.',
+                'available_slots' => array_keys(Slider::slotLabels()),
+            ], 422);
+        }
+
+        return SliderResource::collection(
+            $this->getPlacement($placement, $slot ? (string) $slot : null)
+        );
     }
 
     /**
-     * Два управляемых слайдера главной одним запросом.
-     *
-     * @return JsonResponse
+     * Готовая структура для главной страницы:
+     * - top.main: большая верхняя карусель, работает и на mobile;
+     * - top.side: две desktop-карточки справа;
+     * - bottom: нижний широкий слайдер.
      */
     public function home(Request $request): JsonResponse
     {
         return response()->json([
             'data' => [
-                'hero' => SliderResource::collection(
-                    $this->getPlacement(Slider::PLACEMENT_HOME_HERO)
-                )->resolve($request),
-                'categories' => SliderResource::collection(
-                    $this->getPlacement(Slider::PLACEMENT_HOME_CATEGORIES)
+                'top' => [
+                    'main' => SliderResource::collection(
+                        $this->getPlacement(Slider::PLACEMENT_TOP, Slider::SLOT_MAIN)
+                    )->resolve($request),
+                    'side' => SliderResource::collection(
+                        $this->getPlacement(Slider::PLACEMENT_TOP, Slider::SLOT_SIDE)
+                    )->resolve($request),
+                ],
+                'bottom' => SliderResource::collection(
+                    $this->getPlacement(Slider::PLACEMENT_BOTTOM)
                 )->resolve($request),
             ],
             'meta' => [
                 'placements' => Slider::placementLabels(),
+                'slots' => Slider::slotLabels(),
             ],
         ]);
     }
@@ -51,7 +68,7 @@ class SliderController extends Controller
     public function show(Request $request, string $slug): JsonResponse
     {
         $slider = Slider::query()
-            ->with(['category.media', 'media'])
+            ->with('media')
             ->where(function ($query) use ($slug): void {
                 $query->where('slug', $slug);
 
@@ -70,16 +87,18 @@ class SliderController extends Controller
     /**
      * @return Collection<int, Slider>
      */
-    private function getPlacement(string $placement): Collection
+    private function getPlacement(string $placement, ?string $slot = null): Collection
     {
-        // Слайдеров мало, поэтому здесь сознательно не используем долгий model-cache:
-        // изменения текста/изображений из админки должны попадать на главную сразу,
-        // включая изменения изображения связанной категории.
-        return Slider::query()
-            ->with(['category.media', 'media'])
+        $query = Slider::query()
+            ->with('media')
             ->placement($placement)
             ->active()
-            ->ordered()
-            ->get();
+            ->ordered();
+
+        if ($slot !== null) {
+            $query->slot($slot);
+        }
+
+        return $query->get();
     }
 }
