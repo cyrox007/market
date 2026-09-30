@@ -20,6 +20,8 @@ class SliderFactory extends Factory
     public function definition(): array
     {
         return [
+            'placement' => Slider::PLACEMENT_HOME_HERO,
+            'category_id' => null,
             'title' => fake()->sentence(3),
             'description' => fake()->paragraph(),
             'link' => fake()->url(),
