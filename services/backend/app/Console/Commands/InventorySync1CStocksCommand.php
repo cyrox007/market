@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Actions\Inventory\Sync\RefreshAllStocksFrom1CAction;
+use App\Actions\Inventory\Sync\RefreshProductStocksFrom1CAction;
 use App\Models\Product\Product;
-use App\Services\Inventory\Integrations\OneCStockSyncService;
 use Illuminate\Console\Command;
 
 class InventorySync1CStocksCommand extends Command
@@ -16,8 +17,11 @@ class InventorySync1CStocksCommand extends Command
 
     protected $description = 'Stock-only sync from 1C. Does not import or modify catalog content.';
 
-    public function handle(OneCStockSyncService $service): int
-    {
+    public function handle(
+        RefreshProductStocksFrom1CAction $refreshProductStocks,
+        RefreshAllStocksFrom1CAction $refreshAllStocks
+    ): int {
+
         $productId = trim((string) $this->option('product-id'));
         $externalId = trim((string) $this->option('external-id'));
 
@@ -36,11 +40,11 @@ class InventorySync1CStocksCommand extends Command
                 return self::FAILURE;
             }
 
-            $result = $service->syncProduct($product);
+            $result = $refreshProductStocks->execute($product);
         } elseif ($externalId !== '') {
-            $result = $service->syncByExternalId($externalId);
+            $result = $refreshProductStocks->executeByExternalId($externalId);
         } else {
-            $result = $service->syncAll();
+            $result = $refreshAllStocks->execute();
         }
 
         $this->table(
