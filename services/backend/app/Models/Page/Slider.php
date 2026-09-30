@@ -226,7 +226,7 @@ class Slider extends Model implements HasMedia, PageableContract
             ->height(1080)
             ->fit(Fit::Contain, 1920, 1080)
             ->optimize()
-            ->performOnCollections('image');
+            ->performOnCollections('image', 'mobile_image');
 
         // Конверсия для среднего размера (HD)
         $this->addMediaConversion('hd')
@@ -234,7 +234,7 @@ class Slider extends Model implements HasMedia, PageableContract
             ->height(720)
             ->fit(Fit::Contain, 1280, 720)
             ->optimize()
-            ->performOnCollections('image');
+            ->performOnCollections('image', 'mobile_image');
     }
 }
 
