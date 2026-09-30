@@ -127,4 +127,69 @@ class Svetofor1CCatalogImportTest extends TestCase
         $this->assertSame(1, $result['created']);
         $this->assertSame(1, $result['updated']);
     }
+
+    public function test_minute_sync_resolves_existing_variant_by_external_id_after_ozon_grouping(): void
+    {
+        $parent = Product::factory()->create([
+            'is_variable' => true,
+            'parent_product_id' => null,
+            'external_id' => null,
+            'sku' => null,
+        ]);
+
+        $variant = Product::factory()->create([
+            'parent_product_id' => $parent->id,
+            'is_variable' => false,
+            'external_id' => 'variant-1c-code',
+            'sku' => 'site-sku',
+            'price' => 1000,
+        ]);
+
+        $importer = new class extends Svetofor1CCatalogImport
+        {
+            public int $persistProductsCalls = 0;
+
+            public function __construct()
+            {
+            }
+
+            protected function fetchProductsRaw(?string $updatedAfter = null): array
+            {
+                return [];
+            }
+
+            protected function mapProducts(array $raw): array
+            {
+                return [[
+                    'name' => 'Название из 1С',
+                    'slug' => 'name-from-1c',
+                    'sku' => 'different-sku',
+                    'price' => 1700,
+                    'description' => null,
+                    'excerpt' => null,
+                    'original_price' => null,
+                    'category_external_ids' => [],
+                    'external_id' => 'variant-1c-code',
+                    '_payload_keys' => ['basePrice'],
+                ]];
+            }
+
+            protected function persistProducts(array $mapped): array
+            {
+                $this->persistProductsCalls++;
+
+                return [0, 0];
+            }
+        };
+
+        $result = $importer->importChangedProducts('2026-09-30T00:00:00.000Z');
+
+        $variant->refresh();
+        $this->assertSame(1700.0, (float) $variant->price);
+        $this->assertSame(1, Product::query()->where('external_id', 'variant-1c-code')->count());
+        $this->assertSame(0, $importer->persistProductsCalls);
+        $this->assertSame(0, $result['created']);
+        $this->assertSame(1, $result['updated']);
+    }
+
 }

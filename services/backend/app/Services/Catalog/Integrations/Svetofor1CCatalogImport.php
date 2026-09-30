@@ -180,8 +180,9 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
     {
         $externalId = (string) ($row['external_id'] ?? '');
         if ($externalId !== '') {
+            // external_id — глобальный код 1С: товар мог стать торговым предложением
+            // после группировки из Ozon, поэтому не ограничиваем поиск родительскими строками.
             $byExternalId = Product::query()
-                ->whereNull('parent_product_id')
                 ->where('external_id', $externalId)
                 ->first();
             if ($byExternalId !== null) {
@@ -780,7 +781,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
             // Модификации (торговые предложения) — запрос по external_id товара
             $productExternalId = $product->external_id ?? $row['external_id'] ?? null;
-            if ($productExternalId !== null && $productExternalId !== '') {
+            if (! $product->isVariant() && $productExternalId !== null && $productExternalId !== '') {
                 try {
                     [$vCreated, $vUpdated] = $this->persistModifications($product, (string) $productExternalId);
                     $created += $vCreated;
@@ -1402,10 +1403,13 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function findOrResolveProduct(array $row): ?Product
     {
-        $query = Product::query()->whereNull('parent_product_id');
+        $rootQuery = Product::query()->whereNull('parent_product_id');
         $externalId = $row['external_id'] ?? null;
         if ($externalId !== null && $externalId !== '') {
-            $found = (clone $query)->where('external_id', (string) $externalId)->first();
+            // Код 1С уникален во всей таблице products. После Ozon-импорта
+            // существующий товар может быть торговым предложением, и его нужно обновить,
+            // а не создавать второй товар с тем же external_id.
+            $found = Product::query()->where('external_id', (string) $externalId)->first();
             if ($found !== null) {
                 return $found;
             }
@@ -1413,7 +1417,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
         $sku = $row['sku'] ?? null;
         if ($sku !== null && $sku !== '') {
-            return $query->where('sku', (string) $sku)->first();
+            return $rootQuery->where('sku', (string) $sku)->first();
         }
 
         return null;

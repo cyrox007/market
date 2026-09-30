@@ -51,5 +51,10 @@ return [
         'opencart_xlsx' => [
             'file' => env('OPENCART_XLSX_FILE', ''),
         ],
+        'ozon' => [
+            // В production оставляем проверку TLS включённой. На локальном Windows/OSPanel
+            // без настроенного CA bundle можно временно установить OZON_IMAGE_VERIFY_SSL=false.
+            'image_verify_ssl' => env('OZON_IMAGE_VERIFY_SSL', true),
+        ],
     ],
 ];
