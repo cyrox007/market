@@ -174,7 +174,10 @@ final class OzonProductImageSyncService
         return Http::timeout(30)
             ->connectTimeout(10)
             ->retry(2, 500)
-            ->withOptions(['allow_redirects' => false])
+            ->withOptions([
+                'allow_redirects' => false,
+                'verify' => (bool) config('catalog_import.config.ozon.image_verify_ssl', true),
+            ])
             ->withHeaders(['User-Agent' => 'Svetofor-Mebel/OzonImport']);
     }
 
