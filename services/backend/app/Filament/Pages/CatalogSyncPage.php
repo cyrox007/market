@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CatalogImportersWidget;
+use App\Filament\Widgets\OneCStockSyncWidget;
 use \App\Filament\Widgets\ProductImageImportWidget;
 use BackedEnum;
 use Filament\Pages\Page;
@@ -36,6 +37,7 @@ class CatalogSyncPage extends Page
     protected function getFooterWidgets(): array
     {
         return [
+            OneCStockSyncWidget::class,
             CatalogImportersWidget::class,
             ProductImageImportWidget::class,
         ];
