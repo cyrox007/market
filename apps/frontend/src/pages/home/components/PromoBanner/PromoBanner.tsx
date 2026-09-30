@@ -1,0 +1,122 @@
+import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Autoplay } from 'swiper/modules';
+import type { Swiper as SwiperType } from 'swiper';
+import { cn } from '../../../../lib/cn';
+import type { PromoItem } from '../PromoBoard/lib/promo-types';
+
+import 'swiper/css';
+
+interface PromoBannerProps {
+  slides?: PromoItem[];
+  className?: string;
+}
+
+const AUTOPLAY_DELAY = 6000;
+
+/** Баннер под «Хит продаж» во всю ширину. Замеры из Figma — market-docs/24-promo-banner.md */
+export default function PromoBanner({ slides = [], className }: PromoBannerProps) {
+  const swiperRef = useRef<SwiperType | null>(null);
+  const progressRef = useRef<HTMLSpanElement>(null);
+  const [active, setActive] = useState(0);
+
+  if (!slides.length) return null;
+
+  return (
+    <section className={cn('mx-auto w-full max-w-[1440px]', className)}>
+      <div className="relative isolate overflow-hidden">
+        <Swiper
+          modules={[Autoplay]}
+          onSwiper={(instance) => (swiperRef.current = instance)}
+          loop={slides.length > 1}
+          autoplay={{ delay: AUTOPLAY_DELAY, disableOnInteraction: false, pauseOnMouseEnter: true }}
+          onSlideChange={(instance) => setActive(instance.realIndex)}
+          onAutoplayTimeLeft={(_instance, _timeLeft, progress) => {
+            if (progressRef.current) progressRef.current.style.width = `${(1 - progress) * 100}%`;
+          }}
+        >
+          {slides.map((slide) => (
+            <SwiperSlide key={slide.id}>
+              <BannerSlide slide={slide} />
+            </SwiperSlide>
+          ))}
+        </Swiper>
+
+        {slides.length > 1 ? (
+          <div className="absolute inset-x-0 bottom-10 z-10 flex items-center justify-center gap-2 max-vsm:bottom-6">
+            {slides.map((slide, index) => {
+              const isActive = index === active;
+              return (
+                <button
+                  key={slide.id}
+                  type="button"
+                  aria-label={`Слайд ${index + 1}`}
+                  aria-current={isActive}
+                  onClick={() => swiperRef.current?.slideToLoop(index)}
+                  className={cn(
+                    'h-1.5 overflow-hidden rounded-lg outline-none transition-[width] duration-slow',
+                    isActive
+                      ? 'w-[39px] bg-ink-inverse/50'
+                      : 'w-1.5 bg-ink-inverse/50 hover:opacity-80',
+                  )}
+                >
+                  {isActive ? (
+                    <span
+                      ref={progressRef}
+                      style={{ width: '0%' }}
+                      className="block h-full rounded-lg bg-brand-yellow"
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function BannerSlide({ slide }: { slide: PromoItem }) {
+  const { title, description, badge, image, to, linkText } = slide;
+
+  return (
+    <div className="relative isolate flex min-h-[244px] flex-col items-start justify-end gap-4 px-[100px] pb-10 pt-[54px] max-md:px-6 max-md:pb-16 max-md:pt-8 max-vsm:px-4">
+      {image ? (
+        <img
+          src={image}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 -z-10 size-full object-cover"
+        />
+      ) : null}
+      {/* Затемнение из макета: сплошные 28%, без градиента */}
+      <div className="absolute inset-0 -z-10 bg-black/[0.28]" />
+
+      {/* leading-none на каждой строке: токены кеглей задают межстрочное сами и перебивают наследование */}
+      <div className="flex flex-col gap-1 text-ink-inverse">
+        {badge ? <p className="text-16 font-medium leading-none">{badge}</p> : null}
+        <div className="flex flex-col gap-2">
+          <h2 className="font-display text-36 font-bold leading-none tracking-[-0.72px] max-md:text-24">
+            {title}
+          </h2>
+          {description ? (
+            <p className="text-18 font-medium leading-none max-md:text-14">{description}</p>
+          ) : null}
+        </div>
+      </div>
+
+      {to && linkText ? (
+        <Link
+          to={to}
+          className="inline-flex w-[302px] items-center justify-center gap-1 rounded-btn bg-brand-yellow px-7 py-4 text-16 font-medium text-ink shadow-card outline-none transition-colors hover:bg-brand-green hover:text-ink-inverse focus-visible:bg-brand-green focus-visible:text-ink-inverse motion-reduce:transition-none max-vsm:w-full"
+        >
+          {linkText}
+          <ChevronRight className="size-5" />
+        </Link>
+      ) : null}
+    </div>
+  );
+}

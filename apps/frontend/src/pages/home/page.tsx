@@ -1,5 +1,6 @@
 import { PromoBoardConnected } from './components/PromoBoard';
 import { CategoryCarouselConnected } from './components/CategoryCarousel';
+import { PromoBannerConnected } from './components/PromoBanner';
 import FeaturedProducts from './components/FeaturedProducts';
 import InteriorIdeas from './components/InteriorIdeas';
 import WhyChooseUs from './components/WhyChooseUs';
@@ -24,6 +25,7 @@ export default function Home() {
       <PromoBoardConnected />
       <CategoryCarouselConnected />
       <FeaturedProducts />
+      <PromoBannerConnected />
       <InteriorIdeas />
       <WhyChooseUs />
       <Newsletter />

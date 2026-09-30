@@ -69,21 +69,13 @@ export default function FeaturedProducts() {
     newProducts.length > 0 || featuredProducts.length > 0 || saleProducts.length > 0;
   const isLoading = (isLoadingNew || isLoadingFeatured || isLoadingSale) && !hasAnyData;
 
+  // В макете главной одна секция. «Новинки» и «Акции» скрыты, но запросы оставлены:
+  // вернуть блок — снова добавить запись в массив.
   const sections = [
     {
-      title: 'Новинки',
-      products: newProducts,
-      link: '/collections/new',
-    },
-    {
-      title: 'Популярное',
+      title: 'Хит продаж',
       products: featuredProducts,
       link: '/collections/featured',
-    },
-    {
-      title: 'Акции',
-      products: saleProducts,
-      link: '/collections/sale',
     },
   ];
 

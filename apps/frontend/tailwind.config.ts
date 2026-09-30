@@ -94,6 +94,7 @@ export default {
         '20': ['20px', { lineHeight: 'normal' }], // замерено: цена на карточке товара
         '24': ['24px', { lineHeight: 'normal' }],
         '32': ['32px', { lineHeight: 'normal' }], // заголовок слайдера ниже 550
+        '36': ['36px', { lineHeight: 'normal' }], // заголовок баннера под «Хит продаж»
         '44': ['44px', { lineHeight: 'normal' }], // заголовок слайдера ниже 980
         '52': ['52px', { lineHeight: 'normal' }],
       },
