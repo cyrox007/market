@@ -362,7 +362,7 @@ class ProductsTable
                         ->modalWidth(Width::FiveExtraLarge)
                         ->stickyModalHeader()
                         ->stickyModalFooter()
-                        ->modalDescription('Будет создана общая карточка, а все выбранные товары станут её торговыми предложениями. ID 1С, SKU, цены и остатки по складам сохраняются.')
+                        ->modalDescription('Будет создана общая карточка, а все выбранные товары станут её торговыми предложениями.')
                         ->deselectRecordsAfterCompletion()
                         ->form(fn(Collection $records): array => self::mergeIntoVariableForm($records))
                         ->action(function (Collection $records, array $data) {

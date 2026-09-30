@@ -443,7 +443,7 @@ class ProductVariantsRelationManager extends RelationManager
                     ->color('gray')
                     ->visible(fn(): bool => $this->getOwnerRecord()->isVariable())
                     ->modalHeading('Привязать существующие товары')
-                    ->modalDescription('Товары станут торговыми предложениями этой карточки. Сама карточка не пересобирается, добавляются только категории привязываемых товаров.')
+                    ->modalDescription('Товары станут торговыми предложениями этой карточки, к ней добавятся их категории.')
                     ->modalSubmitActionLabel('Привязать')
                     ->form([
                         Repeater::make('items')
@@ -634,7 +634,7 @@ class ProductVariantsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Отвязать торговое предложение?')
                     ->modalDescription(fn(Product $record): string => $this->getOwnerRecord()->variants()->count() > 1
-                        ? 'Товар снова станет самостоятельным и появится в каталоге. ID 1С, артикул, ЧПУ, цена и остатки не меняются.'
+                        ? 'Товар снова станет самостоятельным и появится в каталоге.'
                         : 'Это последнее торговое предложение: товар станет самостоятельным, а общая карточка — неактивной. В неё можно снова привязать товары.')
                     ->modalSubmitActionLabel('Отвязать')
                     ->action(function (Product $record): void {
