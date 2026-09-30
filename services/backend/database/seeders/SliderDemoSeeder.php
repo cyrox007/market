@@ -71,10 +71,10 @@ class SliderDemoSeeder extends Seeder
                 'is_active' => true,
             ],
 
-            // Две карточки справа от верхней карусели. На mobile frontend их скрывает.
+            // Верхняя карточка справа от основной карусели. На mobile скрывается.
             [
                 'placement' => Slider::PLACEMENT_TOP,
-                'slot' => Slider::SLOT_SIDE,
+                'slot' => Slider::SLOT_RIGHT_TOP,
                 'slug' => 'demo-top-credit',
                 'title' => 'Кредит и рассрочка',
                 'description' => 'Первый взнос от 0 ₽, срок до 36 месяцев. Оформление прямо на сайте.',
@@ -86,9 +86,10 @@ class SliderDemoSeeder extends Seeder
                 'priority' => 10,
                 'is_active' => true,
             ],
+            // Нижняя карточка справа от основной карусели. На mobile скрывается.
             [
                 'placement' => Slider::PLACEMENT_TOP,
-                'slot' => Slider::SLOT_SIDE,
+                'slot' => Slider::SLOT_RIGHT_BOTTOM,
                 'slug' => 'demo-top-price-guarantee',
                 'title' => 'Гарантия честной цены',
                 'description' => 'Нашли дешевле у конкурента — предложим такую же цену.',
