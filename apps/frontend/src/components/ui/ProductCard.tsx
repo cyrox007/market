@@ -1,9 +1,13 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeftRight, Heart, ImageIcon, ShoppingCart } from 'lucide-react';
 import ProductLink from './ProductLink';
+import { Badge, IconButton } from './primitives';
+import { ColorSwatches, Price, QuantityStepper } from './composites';
+import type { ColorSwatch } from './composites';
 import type { Product } from '../../lib/api';
 import { isVariableParent } from '../../utils/cartProduct';
-import { ArrowLeftRight, Heart, ImageIcon, Minus, Plus } from 'lucide-react';
+import { cn } from '../../lib/cn';
 
 interface ProductCardProps {
   product: Product;
@@ -21,6 +25,15 @@ interface ProductCardProps {
   onMouseLeave?: () => void;
   /** Первый ряд карточек — загрузка изображения с высоким приоритетом для быстрого LCP */
   priority?: boolean;
+}
+
+/** Кнопки лежат поверх растянутой ссылки, иначе клик по ним уводил бы на товар */
+const OVERLAY = 'relative z-10';
+
+function toSwatches(product: Product): ColorSwatch[] {
+  return (product.colors ?? [])
+    .filter((color) => Boolean(color.code))
+    .map((color) => ({ value: color.code as string, title: color.name ?? undefined }));
 }
 
 function ProductCard({
@@ -48,7 +61,7 @@ function ProductCard({
   const navigationLoaderTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Когда приходит актуальное значение из родителя/SWR, сбрасываем локальный optimistic state.
+    // Пришло актуальное значение из родителя — сбрасываем оптимистичное
     setOptimisticCartQuantity(null);
   }, [cartQuantity]);
 
@@ -60,16 +73,17 @@ function ProductCard({
     };
   }, []);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ru-RU').format(price) + ' ₽';
-  };
-
   const variableParent = isVariableParent(product);
+  // image_hd в списке товаров API отдаёт null намеренно — в цепочке он лишний
+  const image = product.thumbnail || product.image;
+  const swatches = toSwatches(product);
+  const unavailable = !variableParent && !product.in_stock && !product.backorder;
 
-  const handleButtonClick = async (e: React.MouseEvent) => {
+  const handleCartClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
+    // У товара с вариациями цвет и размер выбираются на его странице
     if (variableParent) {
       navigate(`/product/${product.slug}`);
       return;
@@ -86,36 +100,21 @@ function ProductCard({
     }
   };
 
-  const handleIncreaseClick = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleQuantityChange = async (next: number) => {
     if (isAdjustingCart) return;
+    const current = displayedCartQuantity;
+    if (next === current) return;
+
     try {
       setIsAdjustingCart(true);
-      setOptimisticCartQuantity((prev) => (prev ?? cartQuantity) + 1);
-      if (onIncreaseCart) {
-        await onIncreaseCart(product.id);
+      setOptimisticCartQuantity(Math.max(0, next));
+
+      if (next > current) {
+        if (onIncreaseCart) await onIncreaseCart(product.id);
+        else if (onAddToCart) await onAddToCart(product.id);
         return;
       }
-      if (onAddToCart) {
-        await onAddToCart(product.id);
-      }
-    } catch {
-      setOptimisticCartQuantity(null);
-      // toast в useCartActions
-    } finally {
-      setIsAdjustingCart(false);
-    }
-  };
-
-  const handleDecreaseClick = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!onDecreaseCart || isAdjustingCart) return;
-    try {
-      setIsAdjustingCart(true);
-      setOptimisticCartQuantity((prev) => Math.max(0, (prev ?? cartQuantity) - 1));
-      await onDecreaseCart(product.id);
+      if (onDecreaseCart) await onDecreaseCart(product.id);
     } catch {
       setOptimisticCartQuantity(null);
       // toast в useCartActions
@@ -127,24 +126,20 @@ function ProductCard({
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onToggleFavorite) {
-      onToggleFavorite(product);
-    }
+    onToggleFavorite?.(product);
   };
 
   const handleCompareClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onToggleCompare) {
-      onToggleCompare(product);
-    }
+    onToggleCompare?.(product);
   };
 
   const handleProductLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (e.defaultPrevented) return;
-    // Для открытия в новой вкладке оставляем стандартное поведение и без локального loader.
+    // Открытие в новой вкладке оставляем стандартным и без индикатора
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    // Показываем loader только если переход реально "долгий", чтобы не было лишнего мигания.
+    // Индикатор только если переход реально долгий, иначе лишнее мигание
     navigationLoaderTimerRef.current = window.setTimeout(() => {
       setShowNavigationLoader(true);
     }, 180);
@@ -152,137 +147,113 @@ function ProductCard({
 
   return (
     <div
-      className={`bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col ${className}`}
+      className={cn('group relative isolate flex flex-col gap-3', className)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <ProductLink
-        to={`/product/${product.slug}`}
-        className={`block flex-1 flex flex-col transition-opacity ${showNavigationLoader ? 'opacity-85' : ''}`}
-        onClick={handleProductLinkClick}
-      >
-        <div className="relative h-48 md:h-80 overflow-hidden">
-          {product.thumbnail || product.image_hd || product.image ? (
-            <img
-              src={product.thumbnail || product.image_hd || product.image}
-              alt={product.name}
-              className="w-full h-full object-cover object-top transition-all duration-300"
-              loading={priority ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={priority ? 'high' : undefined}
-            />
+      <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-btn border border-surface-stroke/[0.08] p-3">
+        {image ? (
+          <img
+            src={image}
+            alt=""
+            className="absolute inset-0 size-full object-cover"
+            loading={priority ? 'eager' : 'lazy'}
+            decoding="async"
+            fetchPriority={priority ? 'high' : undefined}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-grey">
+            <ImageIcon className="size-8 text-ink-secondary" />
+          </div>
+        )}
+
+        <div className={cn(OVERLAY, 'flex items-start justify-between')}>
+          {product.stock_label ? (
+            <Badge variant="info" size="sm">
+              {product.stock_label}
+            </Badge>
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <ImageIcon className="size-[1em] text-3xl text-gray-400" />
-            </div>
+            <span />
           )}
-          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex gap-2">
+
+          <div className="flex items-center gap-2">
             {onToggleCompare && (
-              <button
+              <IconButton
+                label={isInCompare ? 'Убрать из сравнения' : 'Добавить к сравнению'}
+                variant="white"
+                isActive={isInCompare}
+                elevated
                 onClick={handleCompareClick}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${
-                  isInCompare ? 'bg-red-50' : ''
-                }`}
               >
-                <ArrowLeftRight
-                  className={`size-[1em] text-base md:text-lg ${isInCompare ? 'text-red-600' : 'text-gray-600'}`}
-                />
-              </button>
+                <ArrowLeftRight className="size-5" />
+              </IconButton>
             )}
             {onToggleFavorite && (
-              <button
+              <IconButton
+                label={isFavorite ? 'Убрать из избранного' : 'В избранное'}
+                variant="white"
+                isActive={isFavorite}
+                elevated
                 onClick={handleFavoriteClick}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50 cursor-pointer transition-colors ${
-                  isFavorite ? 'bg-red-50' : ''
-                }`}
               >
-                <Heart
-                  className={`size-[1em] text-base md:text-lg ${isFavorite ? 'text-red-500' : 'text-red-600'}`}
-                  fill={isFavorite ? 'currentColor' : 'none'}
-                />
-              </button>
-            )}
-          </div>
-          {showNavigationLoader && (
-            <div className="absolute inset-0 bg-white/45 flex items-center justify-center pointer-events-none">
-              <div className="w-8 h-8 border-2 border-gray-300 border-t-red-600 rounded-full animate-spin" />
-            </div>
-          )}
-        </div>
-        <div className="p-3 md:p-4 flex-1 flex flex-col">
-          {product.category && (
-            <p className="text-xs text-gray-500 mb-1">{product.category.name}</p>
-          )}
-          <h3 className="font-semibold text-sm md:text-base mb-2 line-clamp-2 flex-1">
-            {product.name}
-          </h3>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg md:text-xl font-bold text-red-600">
-              {formatPrice(product.price)}
-            </span>
-            {product.old_price && (
-              <span className="text-xs text-gray-400 line-through">
-                {formatPrice(product.old_price)}
-              </span>
+                <Heart className="size-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              </IconButton>
             )}
           </div>
         </div>
-      </ProductLink>
-      {(onAddToCart || variableParent) && (
-        <div className="px-3 md:px-4 pb-3 md:pb-4 mt-auto">
-          {variableParent ? (
-            <button
-              onClick={handleButtonClick}
-              className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-red-600 text-white hover:bg-red-700"
-            >
-              Выбрать
-            </button>
-          ) : !product.in_stock && !product.backorder ? (
-            <button
-              disabled
-              className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-gray-400 text-white cursor-not-allowed"
-            >
-              Недоступно
-            </button>
-          ) : product.backorder && (product.stock ?? 0) === 0 ? (
-            <button className="w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm bg-yellow-600 text-white hover:bg-yellow-700">
-              Под заказ
-            </button>
-          ) : displayedCartQuantity > 0 ? (
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
-              <button
-                onClick={handleDecreaseClick}
-                disabled={isAdjustingCart}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Minus className="size-[1em]" />
-              </button>
-              <span className="flex-1 text-center font-semibold text-sm md:text-base">
-                {displayedCartQuantity}
-              </span>
-              <button
-                onClick={handleIncreaseClick}
-                disabled={isAdjustingCart}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus className="size-[1em]" />
-              </button>
-            </div>
+
+        <div className={cn(OVERLAY, 'flex items-center justify-between gap-1')}>
+          {displayedCartQuantity > 0 && !variableParent ? (
+            <QuantityStepper
+              value={displayedCartQuantity}
+              min={0}
+              max={product.backorder ? undefined : (product.stock ?? undefined)}
+              onChange={handleQuantityChange}
+            />
           ) : (
-            <button
-              onClick={handleButtonClick}
-              disabled={isAddingToCart}
-              className={`w-full py-2 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-xs md:text-sm disabled:opacity-70 ${
-                addedToCart
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-red-600 text-white hover:bg-red-700'
-              }`}
+            <span />
+          )}
+
+          {(onAddToCart || variableParent) && (
+            <IconButton
+              label={variableParent ? 'Выбрать вариант' : 'В корзину'}
+              variant="yellow"
+              isActive={addedToCart}
+              elevated
+              disabled={unavailable || isAddingToCart}
+              onClick={handleCartClick}
             >
-              {isAddingToCart ? 'Добавляем…' : addedToCart ? 'Добавлено' : 'В корзину'}
-            </button>
+              <ShoppingCart className="size-5" />
+            </IconButton>
           )}
         </div>
-      )}
+
+        {showNavigationLoader && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface/45">
+            <div className="size-8 animate-spin rounded-full border-2 border-surface-border border-t-brand-green" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5 px-0.5">
+        {/* after:inset-0 растягивает ссылку на всю карточку, не вкладывая в неё кнопки */}
+        <ProductLink
+          to={`/product/${product.slug}`}
+          onClick={handleProductLinkClick}
+          className="truncate text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
+        >
+          {product.name}
+        </ProductLink>
+
+        <div className="flex items-end justify-between gap-2">
+          <Price
+            value={product.price}
+            oldValue={product.old_price ?? undefined}
+            from={variableParent}
+          />
+          {swatches.length > 0 && <ColorSwatches colors={swatches} />}
+        </div>
+      </div>
     </div>
   );
 }
@@ -297,9 +268,10 @@ function areEqual(prev: ProductCardProps, next: ProductCardProps): boolean {
     prev.product.is_variant === next.product.is_variant &&
     prev.product.first_available_variant_id === next.product.first_available_variant_id &&
     prev.product.stock === next.product.stock &&
+    prev.product.stock_label === next.product.stock_label &&
     prev.product.thumbnail === next.product.thumbnail &&
-    prev.product.image_hd === next.product.image_hd &&
     prev.product.image === next.product.image &&
+    prev.product.colors === next.product.colors &&
     prev.addedToCart === next.addedToCart &&
     prev.cartQuantity === next.cartQuantity &&
     prev.isFavorite === next.isFavorite &&

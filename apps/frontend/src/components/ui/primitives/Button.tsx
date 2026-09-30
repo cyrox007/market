@@ -6,17 +6,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export type ButtonShape = 'pill' | 'rounded';
 
-/**
- * Поведение при наведении.
- *
- * `none` — принятый вариант: цвет меняется мгновенно, без перехода.
- * Дизайнер подтвердил 07.09.2026, что движение не предполагалось вовсе,
- * в макете нарисованы просто два состояния.
- *
- * Остальные три — заготовка заливки на случай, если решение поменяется.
- * Разбор, почему заливка, а не анимация цвета: market-docs/04-button-hover-motion.md.
- * Включается одним пропом, править компонент не нужно.
- */
+/** `none` — принятый вариант. Остальное — заготовка заливки, market-docs/09. */
 export type ButtonFill = 'none' | 'up' | 'left' | 'center';
 
 interface ButtonOwnProps {
@@ -34,34 +24,16 @@ interface ButtonOwnProps {
 
 type ButtonProps = ButtonOwnProps &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof ButtonOwnProps> & {
-    /** Внутренний переход — рендерится react-router Link */
     to?: string;
-    /** Внешняя ссылка — рендерится <a> */
     href?: string;
     target?: AnchorHTMLAttributes<HTMLAnchorElement>['target'];
     rel?: AnchorHTMLAttributes<HTMLAnchorElement>['rel'];
   };
 
 /**
- * Размеры сняты с макета 07.09.2026 (замеры владельца), а не выведены.
- *
- * Высота задана явно, а не паддингом. Причина: при высоте auto к ней прибавляются
- * и рамка, и то, что решил шрифт через lineHeight: normal — кнопка `outline`
- * получалась на 2 px выше `primary`, а высоты выходили 33/44/52 вместо ровных.
- * Фиксированная высота с центрированием даёт ровно макетное число при любом
- * содержимом. Вертикальный паддинг из макета в комментариях — он в высоте.
- *
- *   sm  «Каталог», «Комнаты» в шапке: 10/24, кегль 14, иконка 24 → 44
- *   md  «Подробнее» на узких экранах: 12, кегль 16, иконка 20    → 44
- *   lg  «Подробнее» на десктопе:      16, кегль 16, иконка 20    → 52
- *
- * Горизонтальный паддинг 24 замерен только у «Каталога». У «Подробнее» ширина
- * в макете фиксированная (302 на десктопе, 224 на мобильных), поэтому свой
- * горизонтальный паддинг там не читается — ставим то же 24 и задаём ширину
- * в месте использования: className="w-[302px] max-md:w-[224px]".
- *
- * Размер иконки в кнопку НЕ зашит: в макете он не следует за кеглем (бургер 24
- * при тексте 14, шеврон 20 при тексте 16). Передаётся явно с иконкой.
+ * Высота задана явно, а не паддингом: при auto к ней прибавляются рамка и то,
+ * что решил шрифт, и `outline` выходил на 2 px выше `primary`.
+ * Замеры и обоснование размеров — market-docs/09-ui-primitives-stage-1.md.
  */
 const SIZE: Record<ButtonSize, string> = {
   sm: 'h-11 px-6 text-14',
@@ -69,14 +41,7 @@ const SIZE: Record<ButtonSize, string> = {
   lg: 'h-[52px] px-6 text-16',
 };
 
-/**
- * Промежуток между иконкой и текстом, замерено 07.09.2026:
- * 8 у «Каталога» и «Комнат» в шапке, 4 между «Подробнее» и шевроном.
- *
- * Величина привязана к размеру, потому что так легли замеры: шапка это `sm`,
- * «Подробнее» — `md` и `lg`. Если найдётся кнопка `sm` с промежутком 4, привязку
- * придётся переносить на место использования.
- */
+/** Промежуток привязан к размеру, потому что так легли замеры (market-docs/09). */
 const GAP: Record<ButtonSize, string> = {
   sm: 'gap-2',
   md: 'gap-1',
@@ -95,7 +60,6 @@ const VARIANT: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-ink',
 };
 
-/** Мгновенная смена цвета — состояние hover из макета, без перехода между ними. */
 const VARIANT_HOVER: Record<ButtonVariant, string> = {
   primary: 'hover:bg-brand-green hover:text-ink-inverse',
   secondary: 'hover:bg-brand-green hover:text-ink-inverse',
@@ -103,7 +67,7 @@ const VARIANT_HOVER: Record<ButtonVariant, string> = {
   ghost: 'hover:text-brand-green',
 };
 
-/** То же самое для клавиатуры: иначе пользователь Tab не видит отклика. */
+/** То же для клавиатуры: иначе пользователь Tab не видит отклика. */
 const VARIANT_FOCUS: Record<ButtonVariant, string> = {
   primary: 'focus-visible:bg-brand-green focus-visible:text-ink-inverse',
   secondary: 'focus-visible:bg-brand-green focus-visible:text-ink-inverse',
@@ -111,8 +75,6 @@ const VARIANT_FOCUS: Record<ButtonVariant, string> = {
     'focus-visible:border-brand-green focus-visible:bg-brand-green focus-visible:text-ink-inverse',
   ghost: 'focus-visible:text-brand-green',
 };
-
-/* --- Заготовка заливки. Не участвует при fill="none". --- */
 
 const FILL_FROM: Record<Exclude<ButtonFill, 'none'>, string> = {
   up: 'translate-y-full',
@@ -143,8 +105,6 @@ export default function Button({
   ...rest
 }: ButtonProps) {
   const isDisabled = disabled || isLoading;
-
-  // Заливка неуместна у ghost (это по сути ссылка) и в выключенном состоянии
   const hasFill = fill !== 'none' && variant !== 'ghost' && !isDisabled;
 
   const root = cn(
@@ -153,14 +113,11 @@ export default function Button({
     'outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
     SIZE[size],
     SHAPE[shape],
-    // Выключенная кнопка по макету серая и без тени
     isDisabled
       ? 'cursor-not-allowed bg-surface-grey text-ink-secondary border-transparent'
       : cn(VARIANT[variant], 'cursor-pointer'),
-    // Смена цвета мгновенная. Чтобы вернуть плавность, достаточно добавить
-    // className="transition-colors" в месте использования.
+    // Цвет меняется мгновенно. Плавность возвращается className="transition-colors".
     !isDisabled && !hasFill && cn(VARIANT_HOVER[variant], VARIANT_FOCUS[variant]),
-    // При включённой заливке цвет фона не трогаем — его закрывает слой
     hasFill && 'motion-reduce:hover:bg-brand-green motion-reduce:hover:text-ink-inverse',
     fullWidth && 'w-full',
     className,

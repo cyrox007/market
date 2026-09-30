@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { MenuGroup, MenuLink, MenuSection } from '../lib/menu-types';
@@ -25,14 +25,6 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
 
   // Хук, а не CSS: раскладки слишком разные. Мигания нет — меню закрыто до клика
   const isAccordion = useMediaQuery('(max-width: 549.98px)');
-
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose?.();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
 
   const explicit = sections.find((section) => section.id === activeId);
 

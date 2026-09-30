@@ -8,6 +8,8 @@ import { cn } from '../../../../lib/cn';
 import { PAGE_CONTAINER } from '../../../../lib/layout';
 
 interface MainBarProps {
+  /** id панели меню для aria-controls */
+  menuId?: string;
   catalogOpen?: boolean;
   roomsOpen?: boolean;
   onCatalogToggle?: () => void;
@@ -29,6 +31,7 @@ const COLLAPSING_BUTTON =
 const COLLAPSING_ICON = 'size-6 max-xl:size-5 max-vsm:size-6';
 
 export default function MainBar({
+  menuId,
   catalogOpen = false,
   roomsOpen = false,
   onCatalogToggle,
@@ -70,6 +73,7 @@ export default function MainBar({
             size="sm"
             onClick={onCatalogToggle}
             aria-expanded={catalogOpen}
+            aria-controls={menuId}
             className={COLLAPSING_BUTTON}
             leftIcon={
               catalogOpen ? <X className={COLLAPSING_ICON} /> : <Menu className={COLLAPSING_ICON} />
@@ -83,6 +87,7 @@ export default function MainBar({
             variant={roomsOpen ? 'primary' : 'secondary'}
             onClick={onRoomsToggle}
             aria-expanded={roomsOpen}
+            aria-controls={menuId}
             className={COLLAPSING_BUTTON}
             leftIcon={
               roomsOpen ? (

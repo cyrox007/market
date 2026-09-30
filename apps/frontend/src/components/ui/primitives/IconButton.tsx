@@ -19,15 +19,7 @@ interface IconButtonOwnProps {
 type IconButtonProps = IconButtonOwnProps &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof IconButtonOwnProps>;
 
-/**
- * Замерено с макета 07.09.2026:
- *   sm 36 — жёлтая кнопка внутри поля поиска, иконка 20
- *   md 40 — свёрнутые «Каталог» и «Комнаты» ниже 980, иконка 20
- *   lg 48 — ⚠️ не замерен, оставлен как был
- *
- * Раньше шкала была 32 / 40 / 48 и целиком выведена. 32 убран: ни одного
- * подтверждения ему в макете не нашлось, а 36 подтверждён.
- */
+/** ⚠️ `lg` не замерен. Замеры и история шкалы — market-docs/09-ui-primitives-stage-1.md. */
 const SIZE: Record<IconButtonSize, string> = {
   sm: 'size-9',
   md: 'size-10',
@@ -49,14 +41,7 @@ const ACTIVE: Record<IconButtonVariant, string> = {
   danger: 'bg-brand-red text-ink-inverse',
 };
 
-/**
- * Круглая иконочная кнопка.
- *
- * Цвет меняется мгновенно, без перехода — дизайнер подтвердил 07.09.2026, что
- * движения в макете не предполагалось. Чтобы вернуть плавность, достаточно
- * передать className="transition-colors duration-fast", токены длительностей
- * в конфиге остались.
- */
+/** Цвет меняется мгновенно. Плавность возвращается className="transition-colors". */
 export default function IconButton({
   label,
   variant = 'white',
