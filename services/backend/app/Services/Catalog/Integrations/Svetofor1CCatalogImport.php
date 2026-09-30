@@ -155,6 +155,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
         if ($hasPrice && array_key_exists('price', $row) && $row['price'] !== null) {
             $product->price = (float) $row['price'];
             $product->saveQuietly();
+            $this->syncParentPriceIfVariant($product);
 
             Log::info('Catalog import: minute sync updated existing product price', [
                 'product_id' => $product->id,
@@ -916,8 +917,24 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
         $product->price = $price;
         $product->saveQuietly();
+        $this->syncParentPriceIfVariant($product);
 
         return true;
+    }
+
+    /**
+     * Цена родителя вариативного товара — минимальная по вариациям.
+     */
+    protected function syncParentPriceIfVariant(Product $product): void
+    {
+        if (! $product->isVariant()) {
+            return;
+        }
+
+        $parent = $product->parentProduct;
+        if ($parent !== null) {
+            Product::syncParentPriceFromVariants($parent);
+        }
     }
 
     protected function syncProductWarehouseStocks(Product $product, string $externalId): void

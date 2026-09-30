@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Products\RelationManagers;
 
+use App\Actions\Product\AttachProductsToVariableProductAction;
+use App\Actions\Product\BuildMergedProductDraftAction;
+use App\Actions\Product\DetachVariantFromParentAction;
 use App\Actions\Product\GetVariationAttributesForProductAction;
 use App\Actions\Product\SyncVariantVariationAttributesAction;
 use App\Filament\Forms\WarehouseStocksFormComponents;
@@ -10,22 +13,28 @@ use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
 use App\Services\Inventory\WarehouseStockResolver;
 use App\Models\Product\AttributeValue;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Schemas\Components\Section;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\ColorPicker;
 use Illuminate\Support\Str;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
+use Illuminate\Support\HtmlString;
 use Vanilo\Product\Models\ProductState;
 
 class ProductVariantsRelationManager extends RelationManager
@@ -122,7 +131,7 @@ class ProductVariantsRelationManager extends RelationManager
             $isInputType = in_array($attr->type, ['string', 'text', 'number_input']);
             $options = $attr->orderedValues->pluck('value', 'id');
             $hasOptions = $options->isNotEmpty();
-            
+
             // Если allow_custom_value включен И есть предопределенные значения —
             // для НЕ-списочных типов (не select) показываем Select + поле для ручного ввода.
             // Для чистых списков (type=select) даём только готовые значения без своего текста.
@@ -167,7 +176,7 @@ class ProductVariantsRelationManager extends RelationManager
                         $value = AttributeValue::create($data);
                         return $value->id;
                     });
-                
+
                 $textField = TextInput::make('variation_custom_' . $attr->id)
                     ->label($attr->name . ' (ручной ввод)')
                     ->maxLength(500)
@@ -428,6 +437,84 @@ class ProductVariantsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
+                Action::make('attachExisting')
+                    ->label('Привязать товар')
+                    ->icon('heroicon-o-link')
+                    ->color('gray')
+                    ->visible(fn(): bool => $this->getOwnerRecord()->isVariable())
+                    ->modalHeading('Привязать существующие товары')
+                    ->modalDescription('Товары станут торговыми предложениями этой карточки. Сама карточка не пересобирается, добавляются только категории привязываемых товаров.')
+                    ->modalSubmitActionLabel('Привязать')
+                    ->form([
+                        Repeater::make('items')
+                            ->label('Товары')
+                            ->schema([
+                                Select::make('product_id')
+                                    ->label('Товар')
+                                    ->searchable()
+                                    ->required()
+                                    ->live()
+                                    ->getSearchResultsUsing(fn(string $search): array => Product::query()
+                                        ->whereNull('parent_product_id')
+                                        ->whereDoesntHave('variants')
+                                        ->where('id', '!=', $this->getOwnerRecord()->getKey())
+                                        ->where(fn($query) => $query->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%"))
+                                        ->limit(50)
+                                        ->get()
+                                        ->mapWithKeys(fn(Product $product) => [$product->id => $product->name . ' (SKU: ' . $product->sku . ')'])
+                                        ->all())
+                                    ->getOptionLabelUsing(fn($value): ?string => ($product = Product::find($value)) ? $product->name . ' (SKU: ' . $product->sku . ')' : null)
+                                    ->afterStateUpdated(function ($state, Set $set): void {
+                                        $product = $state ? Product::find($state) : null;
+                                        $set('variant_label', $product
+                                            ? app(BuildMergedProductDraftAction::class)->suggestLabelForParent($this->getOwnerRecord(), $product)
+                                            : null);
+                                    }),
+                                TextInput::make('variant_label')
+                                    ->label('Название вариации')
+                                    ->required()
+                                    ->maxLength(255),
+                            ])
+                            ->columns(2)
+                            ->minItems(1)
+                            ->defaultItems(1)
+                            ->addActionLabel('Ещё товар')
+                            ->reorderable(false)
+                            ->live(),
+                        Placeholder::make('new_categories')
+                            ->hiddenLabel()
+                            ->visible(fn(Get $get): bool => self::newCategoryNamesForItems($this->getOwnerRecord(), $get('items')) !== [])
+                            ->content(fn(Get $get): HtmlString => new HtmlString(
+                                '<div style="border:1px solid var(--warning-300);background:var(--warning-50);color:var(--warning-800);border-radius:.5rem;padding:.75rem;font-size:.875rem">'
+                                . 'К карточке будут добавлены категории: ' . e(implode(', ', self::newCategoryNamesForItems($this->getOwnerRecord(), $get('items')))) . '.</div>'
+                            )),
+                    ])
+                    ->action(function (array $data): void {
+                        $labels = collect($data['items'] ?? [])
+                            ->filter(fn(array $item) => ! empty($item['product_id']))
+                            ->mapWithKeys(fn(array $item) => [(int) $item['product_id'] => (string) ($item['variant_label'] ?? '')])
+                            ->all();
+
+                        try {
+                            $result = app(AttachProductsToVariableProductAction::class)->execute($this->getOwnerRecord(), $labels);
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Не удалось привязать')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        $body = 'Привязано товаров: ' . count($labels) . '.';
+                        if ($result['added_category_names'] !== []) {
+                            $body .= ' К карточке добавлены категории: ' . implode(', ', $result['added_category_names']) . '.';
+                        }
+
+                        $notification = Notification::make()->title('Товары привязаны')->body($body);
+                        $result['added_category_names'] !== [] ? $notification->warning() : $notification->success();
+                        $notification->send();
+
+                        // Категории и цена карточки изменились — перезагружаем форму
+                        $this->redirect(ProductResource::getUrl('edit', ['record' => $this->getOwnerRecord()]));
+                    }),
                 CreateAction::make()
                     ->label('Добавить торговое предложение')
                     ->icon('heroicon-o-plus')
@@ -491,22 +578,22 @@ class ProductVariantsRelationManager extends RelationManager
                             return $data;
                         }
                         $record->load('variantAttributes');
-                        
+
                         // Группируем атрибуты по ID (один атрибут — несколько значений)
                         $grouped = $record->variantAttributes->groupBy('id');
                         $formAttrs = app(GetVariationAttributesForProductAction::class)->execute($parent);
-                        
+
                         foreach ($formAttrs as $attr) {
                             $items = $grouped->get($attr->id);
                             if (!$items || $items->isEmpty()) {
                                 continue;
                             }
-                            
+
                             // Проверяем кастомные значения
                             $customValues = $items->filter(function ($item) {
                                 return $item->pivot->custom_value !== null && $item->pivot->custom_value !== '';
                             });
-                            
+
                             if ($customValues->isNotEmpty()) {
                                 $data['variation_custom_' . $attr->id] = $customValues->first()->pivot->custom_value;
                             } else {
@@ -516,13 +603,13 @@ class ProductVariantsRelationManager extends RelationManager
                                     ->filter()
                                     ->values()
                                     ->toArray();
-                                
+
                                 if (!empty($valueIds)) {
                                     $data['variation_attr_' . $attr->id] = $valueIds;
                                 }
                             }
                         }
-                        
+
                         return $data;
                     })
                     ->using(function (array $data, Product $record): Product {
@@ -536,6 +623,40 @@ class ProductVariantsRelationManager extends RelationManager
                             $parent->flushCache();
                         }
                         return $record;
+                    }),
+                Action::make('detach')
+                    ->label('Отвязать')
+                    ->icon('heroicon-o-link-slash')
+                    // Заблокированная кнопка серая, активная — отличимого цвета
+                    ->color(fn(Product $record): string => DetachVariantFromParentAction::blockReason($record) !== null ? 'gray' : 'warning')
+                    ->disabled(fn(Product $record): bool => DetachVariantFromParentAction::blockReason($record) !== null)
+                    ->tooltip(fn(Product $record): ?string => DetachVariantFromParentAction::blockReason($record))
+                    ->requiresConfirmation()
+                    ->modalHeading('Отвязать торговое предложение?')
+                    ->modalDescription(fn(Product $record): string => $this->getOwnerRecord()->variants()->count() > 1
+                        ? 'Товар снова станет самостоятельным и появится в каталоге. ID 1С, артикул, ЧПУ, цена и остатки не меняются.'
+                        : 'Это последнее торговое предложение: товар станет самостоятельным, а общая карточка — неактивной. В неё можно снова привязать товары.')
+                    ->modalSubmitActionLabel('Отвязать')
+                    ->action(function (Product $record): void {
+                        try {
+                            app(DetachVariantFromParentAction::class)->execute($record);
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Не удалось отвязать')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        $owner = $this->getOwnerRecord()->refresh();
+                        Notification::make()
+                            ->title('Торговое предложение отвязано')
+                            ->body($owner->variants()->exists()
+                                ? "«{$record->name}» теперь самостоятельный товар."
+                                : "«{$record->name}» теперь самостоятельный товар. Вариантов не осталось — общая карточка переведена в «Неактивен».")
+                            ->success()
+                            ->send();
+
+                        // Форма карточки открыта со старыми статусом/ценой — перезагружаем, чтобы «Сохранить» их не вернул
+                        $this->redirect(ProductResource::getUrl('edit', ['record' => $owner]));
                     }),
                 DeleteAction::make()
                     ->after(function (Product $record) {
@@ -573,4 +694,19 @@ class ProductVariantsRelationManager extends RelationManager
             ->defaultSort('created_at', 'desc');
     }
 
+    /**
+     * @param  array<int|string, array<string, mixed>>|null  $items
+     * @return list<string>
+     */
+    protected static function newCategoryNamesForItems(Product $owner, ?array $items): array
+    {
+        $ids = collect($items ?? [])->pluck('product_id')->filter()->map(fn($id) => (int) $id)->unique()->all();
+        if ($ids === []) {
+            return [];
+        }
+
+        $products = Product::query()->whereIn('id', $ids)->with('taxons')->get();
+
+        return app(AttachProductsToVariableProductAction::class)->newCategoryNames($owner, $products);
+    }
 }

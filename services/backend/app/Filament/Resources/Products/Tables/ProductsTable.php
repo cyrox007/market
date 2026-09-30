@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Products\Tables;
 
 use App\Actions\Inventory\Stock\ResolveWarehouseStockRowAction;
+use App\Actions\Product\BuildMergedProductDraftAction;
+use App\Actions\Product\Data\MergedProductDraft;
 use App\Actions\Product\Data\MergeProductsIntoVariableProductData;
 use App\Actions\Product\MergeProductsIntoVariableProductAction;
 use App\Filament\Resources\Products\ProductResource;
@@ -17,9 +19,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
@@ -362,7 +362,7 @@ class ProductsTable
                         ->modalWidth(Width::FiveExtraLarge)
                         ->stickyModalHeader()
                         ->stickyModalFooter()
-                        ->modalDescription('Товары станут торговыми предложениями одного родителя. ID 1С, SKU и остатки по складам сохраняются.')
+                        ->modalDescription('Будет создана общая карточка, а все выбранные товары станут её торговыми предложениями. ID 1С, SKU, цены и остатки по складам сохраняются.')
                         ->deselectRecordsAfterCompletion()
                         ->form(fn(Collection $records): array => self::mergeIntoVariableForm($records))
                         ->action(function (Collection $records, array $data) {
@@ -376,38 +376,38 @@ class ProductsTable
                             }
 
                             try {
-                                $parentId = (int) $data['parent_id'];
                                 $variantLabelOverrides = [];
 
                                 foreach ($data['variants'] ?? [] as $row) {
                                     $productId = (int) ($row['product_id'] ?? 0);
-                                    if ($productId <= 0 || $productId === $parentId) {
-                                        continue;
-                                    }
-
                                     $label = trim((string) ($row['variant_label'] ?? ''));
-                                    if ($label !== '') {
+                                    if ($productId > 0 && $label !== '') {
                                         $variantLabelOverrides[$productId] = $label;
                                     }
                                 }
 
-                                $parentName = trim((string) ($data['parent_name'] ?? ''));
+                                $draft = app(BuildMergedProductDraftAction::class)->execute($records);
 
                                 $parent = app(MergeProductsIntoVariableProductAction::class)->execute(
                                     new MergeProductsIntoVariableProductData(
-                                        parentId: $parentId,
                                         productIds: $records->pluck('id')->map(fn($id) => (int) $id)->all(),
                                         variantLabelOverrides: $variantLabelOverrides,
-                                        mergeCategories: (bool) ($data['merge_categories'] ?? false),
-                                        parentName: $parentName !== '' ? $parentName : null,
+                                        name: trim((string) ($data['parent_name'] ?? '')) ?: null,
                                     ),
                                 );
 
-                                Notification::make()
+                                $body = 'Создано торговых предложений: ' . $parent->variants()->count();
+                                if ($draft->warnings !== []) {
+                                    $body .= "\n\nВнимание: " . implode(' ', $draft->warnings);
+                                }
+
+                                $notification = Notification::make()
                                     ->title('Товары объединены в вариативный')
-                                    ->body('Создано торговых предложений: ' . $parent->variants()->count())
-                                    ->success()
-                                    ->send();
+                                    ->body($body);
+                                $draft->warnings !== []
+                                    ? $notification->warning()->persistent()
+                                    : $notification->success();
+                                $notification->send();
 
                                 redirect(ProductResource::getUrl('edit', ['record' => $parent]));
                             } catch (\InvalidArgumentException $e) {
@@ -463,130 +463,129 @@ class ProductsTable
      */
     protected static function mergeIntoVariableForm(Collection $records): array
     {
-        $productOptions = $records->mapWithKeys(fn(Product $product) => [
-            $product->id => $product->name . ' (SKU: ' . $product->sku . ')',
-        ])->all();
-
-        $namesById = $records->mapWithKeys(fn(Product $product) => [
-            $product->id => $product->name,
-        ])->all();
-
-        $records->each(fn(Product $product) => $product->loadMissing(['attributes']));
+        $draft = app(BuildMergedProductDraftAction::class)->execute($records);
 
         $repeaterDefaults = $records->map(fn(Product $product) => [
             'product_id' => $product->id,
             'product_label' => $product->name . ' (SKU: ' . $product->sku . ')',
-            'variant_label' => $product->name,
+            'variant_label' => $draft->variantLabels[$product->id] ?? $product->name,
         ])->values()->all();
 
         return [
-            Select::make('parent_id')
-                ->label('Родительский товар (карточка на сайте)')
-                ->options($productOptions)
-                ->default($records->first()?->id)
-                ->required()
-                ->searchable()
-                ->live()
-                ->afterStateUpdated(function ($state, $set) use ($namesById): void {
-                    if ($state && isset($namesById[$state])) {
-                        $set('parent_name', $namesById[$state]);
-                    }
-                }),
-
             TextInput::make('parent_name')
-                ->label('Название вариативного товара')
-                ->default($records->first()?->name)
+                ->label('Название общей карточки')
+                ->helperText('Собрано из общей части названий без кода 1С. Карточка создаётся заново, ЧПУ формируется из названия.')
+                ->default($draft->name)
                 ->required()
                 ->maxLength(255),
 
-            Toggle::make('merge_categories')
-                ->label('Объединить категории на родителе')
-                ->default(true),
+            Placeholder::make('merge_warnings')
+                ->hiddenLabel()
+                ->visible($draft->warnings !== [])
+                ->content(new HtmlString(self::buildMergeWarningsHtml($draft))),
+
+            Placeholder::make('merge_categories')
+                ->label('Категории общей карточки')
+                ->content(new HtmlString(self::buildMergeCategoriesHtml($draft, $records))),
+
+            Placeholder::make('common_specs')
+                ->label('Общие характеристики')
+                ->content(self::buildMergeCommonSpecsText($draft)),
 
             Placeholder::make('differing_specs')
-                ->label('Отличающиеся характеристики')
-                ->content(new HtmlString(self::buildMergeDifferingSpecsHtml($records))),
+                ->label('Отличающиеся характеристики (остаются у вариантов)')
+                ->content(new HtmlString(self::buildMergeDifferingSpecsHtml($draft, $records))),
 
             Repeater::make('variants')
                 ->label('Торговые предложения')
-                ->helperText('Товары, которые станут ТП (кроме родителя). Название вариации — атрибут «Вариант».')
+                ->helperText('Каждый выбранный товар станет торговым предложением. Название вариации — атрибут «Вариант».')
                 ->schema([
                     Hidden::make('product_id'),
                     TextInput::make('product_label')
                         ->label('Товар')
                         ->disabled()
-                        ->dehydrated(false)
-                        ->visible(fn($get): bool => (int) ($get('product_id') ?? 0) !== (int) ($get('../../parent_id') ?? 0)),
+                        ->dehydrated(false),
                     TextInput::make('variant_label')
                         ->label('Название вариации')
                         ->required()
-                        ->maxLength(255)
-                        ->visible(fn($get): bool => (int) ($get('product_id') ?? 0) !== (int) ($get('../../parent_id') ?? 0)),
+                        ->maxLength(255),
                 ])
                 ->default($repeaterDefaults)
                 ->addable(false)
                 ->deletable(false)
                 ->reorderable(false)
-                ->columns(1),
+                ->columns(2),
         ];
+    }
+
+    protected static function buildMergeWarningsHtml(MergedProductDraft $draft): string
+    {
+        $items = collect($draft->warnings)->map(fn(string $warning) => '<li>' . e($warning) . '</li>')->implode('');
+
+        return '<div style="border:1px solid var(--warning-300);background:var(--warning-50);color:var(--warning-800);border-radius:.5rem;padding:.75rem;font-size:.875rem">'
+            . '<p style="font-weight:600">Проверьте перед объединением</p>'
+            . '<ul style="list-style:disc;padding-inline-start:1.25rem;margin-top:.25rem">' . $items . '</ul></div>';
     }
 
     /**
      * @param  Collection<int, Product>  $records
      */
-    protected static function buildMergeDifferingSpecsHtml(Collection $records): string
+    protected static function buildMergeCategoriesHtml(MergedProductDraft $draft, Collection $records): string
     {
-        $specsByProduct = $records->mapWithKeys(function (Product $product): array {
-            $bySlug = [];
-            foreach ($product->buildSpecificationsForApi() as $spec) {
-                $bySlug[$spec['slug']] = $spec;
-            }
-
-            return [$product->id => $bySlug];
-        });
-
-        $allSlugs = $specsByProduct
-            ->flatMap(fn(array $specs): array => array_keys($specs))
-            ->unique()
-            ->values();
-
-        $differingSlugs = $allSlugs->filter(function (string $slug) use ($specsByProduct, $records): bool {
-            $values = $records->map(function (Product $product) use ($specsByProduct, $slug): string {
-                return (string) ($specsByProduct[$product->id][$slug]['value'] ?? '—');
-            })->unique();
-
-            return $values->count() > 1;
-        })->values();
-
-        if ($differingSlugs->isEmpty()) {
-            return '<p class="text-sm text-gray-500">Характеристики совпадают — различаются только названия товаров.</p>';
+        if ($draft->categoryBreakdown === []) {
+            return '<p style="font-size:.875rem;color:var(--gray-500)">У выбранных товаров нет категорий.</p>';
         }
 
-        $headers = $records->map(fn(Product $product): string => '<th class="px-2 py-1 text-left font-medium">'
-            . e(Str::limit($product->name, 40))
-            . '</th>')->implode('');
-
-        $rows = $differingSlugs->map(function (string $slug) use ($records, $specsByProduct): string {
-            $name = $slug;
-            foreach ($specsByProduct as $specs) {
-                if (isset($specs[$slug]['name'])) {
-                    $name = $specs[$slug]['name'];
-                    break;
-                }
+        $total = $records->count();
+        $rows = collect($draft->categoryBreakdown)->map(function (array $category) use ($records, $total, $draft): string {
+            $count = count($category['product_ids']);
+            $details = '';
+            if ($draft->categoriesDiffer && $count < $total) {
+                $names = $records->whereIn('id', $category['product_ids'])
+                    ->map(fn(Product $product) => e(Str::limit($product->name, 60)))
+                    ->implode('; ');
+                $details = ' <span style="color:var(--warning-700)">(' . $names . ')</span>';
             }
 
-            $cells = $records->map(function (Product $product) use ($specsByProduct, $slug): string {
-                $value = $specsByProduct[$product->id][$slug]['value'] ?? '—';
-
-                return '<td class="px-2 py-1">' . e((string) $value) . '</td>';
-            })->implode('');
-
-            return '<tr><td class="px-2 py-1 font-medium text-gray-600">' . e($name) . '</td>' . $cells . '</tr>';
+            return '<li>' . e($category['name']) . ' — ' . $count . ' из ' . $total . $details . '</li>';
         })->implode('');
 
-        return '<div class="max-w-full max-h-64 overflow-auto rounded-lg border border-gray-200 text-sm">'
-            . '<table class="w-full min-w-max">'
-            . '<thead class="bg-gray-50 sticky top-0 z-10"><tr><th class="px-2 py-1 text-left">Характеристика</th>' . $headers . '</tr></thead>'
+        return '<ul style="list-style:disc;padding-inline-start:1.25rem;font-size:.875rem">' . $rows . '</ul>';
+    }
+
+    protected static function buildMergeCommonSpecsText(MergedProductDraft $draft): string
+    {
+        $count = count($draft->commonAttributes);
+
+        return $count > 0
+            ? "{$count} шт. — будут скопированы в общую карточку"
+            : 'Нет совпадающих характеристик';
+    }
+
+    /**
+     * @param  Collection<int, Product>  $records
+     */
+    protected static function buildMergeDifferingSpecsHtml(MergedProductDraft $draft, Collection $records): string
+    {
+        if ($draft->differingAttributes === []) {
+            return '<p style="font-size:.875rem;color:var(--gray-500)">Характеристики совпадают — различаются только названия товаров.</p>';
+        }
+
+        $headers = $records->map(fn(Product $product): string => '<th style="padding:.25rem .5rem;text-align:left;font-weight:600">'
+            . e($draft->variantLabels[$product->id] ?? Str::limit($product->name, 40))
+            . '</th>')->implode('');
+
+        $rows = collect($draft->differingAttributes)->map(function (array $attribute) use ($records): string {
+            $cells = $records->map(fn(Product $product): string => '<td style="padding:.25rem .5rem">'
+                . e($attribute['values'][$product->id] ?? '—')
+                . '</td>')->implode('');
+
+            return '<tr style="border-top:1px solid var(--gray-200)"><td style="padding:.25rem .5rem;color:var(--gray-500)">' . e($attribute['name']) . '</td>' . $cells . '</tr>';
+        })->implode('');
+
+        return '<div style="max-width:100%;max-height:16rem;overflow:auto;border:1px solid var(--gray-200);border-radius:.5rem;font-size:.875rem">'
+            . '<table style="width:100%;min-width:max-content">'
+            . '<thead><tr><th style="padding:.25rem .5rem;text-align:left;font-weight:600">Характеристика</th>' . $headers . '</tr></thead>'
             . '<tbody>' . $rows . '</tbody>'
             . '</table></div>';
     }
