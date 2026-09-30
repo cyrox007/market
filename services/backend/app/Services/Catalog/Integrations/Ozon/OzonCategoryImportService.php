@@ -73,7 +73,22 @@ final class OzonCategoryImportService
      */
     public function preview(string $filePath, Category $category): array
     {
-        $parsed = $this->reader->read($filePath);
+        return $this->previewParsed($this->reader->read($filePath), $category);
+    }
+
+    /**
+     * @param array{rows:list<array<string,mixed>>} $parsed
+     * @return array{
+     *     total_rows:int,
+     *     new_products:int,
+     *     existing_products:int,
+     *     variable_groups:int,
+     *     variable_offers:int,
+     *     errors:list<string>
+     * }
+     */
+    private function previewParsed(array $parsed, Category $category): array
+    {
         $rows = $parsed['rows'];
         $errors = [];
 
@@ -167,12 +182,14 @@ final class OzonCategoryImportService
      */
     public function import(string $filePath, Category $category): array
     {
-        $preview = $this->preview($filePath, $category);
+        // Большие Ozon XLSX раньше полностью читались дважды: для preview и затем
+        // для самого импорта. Читаем файл один раз и проверяем уже разобранные данные.
+        $parsed = $this->reader->read($filePath);
+        $preview = $this->previewParsed($parsed, $category);
         if ($preview['errors'] !== []) {
             throw new RuntimeException('Импорт остановлен: ' . implode(' ', array_slice($preview['errors'], 0, 5)));
         }
 
-        $parsed = $this->reader->read($filePath);
         $headers = $parsed['headers'];
         $groups = $this->buildImportGroups($parsed['rows'], $category);
 
