@@ -7,6 +7,7 @@ use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
 use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -42,58 +43,73 @@ class EditProduct extends EditRecord
     {
         return [
             Action::make('openParentProduct')
-                ->label(function (): string {
-                    $parent = $this->record?->parentProduct;
-
-                    return $parent
-                        ? 'К корневому товару: ' . Str::limit((string) $parent->name, 42)
-                        : 'К корневому товару';
-                })
+                ->label('Корневой товар')
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('info')
+                ->tooltip(fn (): ?string => $this->record?->parentProduct
+                    ? 'Открыть: ' . (string) $this->record->parentProduct->name
+                    : null)
                 ->url(fn (): ?string => $this->record?->parent_product_id
                     ? ProductResource::getUrl('edit', ['record' => $this->record->parent_product_id])
                     : null)
                 ->visible(fn (): bool => (bool) $this->record?->parent_product_id),
 
-            DeleteAction::make(),
-            Action::make('viewOnSite')
-                ->label('Просмотр на сайте')
-                ->icon('heroicon-o-eye')
-                ->url(fn () => url('/product/' . $this->record->slug))
-                ->openUrlInNewTab(),
+            ActionGroup::make([
+                Action::make('viewOnSite')
+                    ->label('Просмотр на сайте')
+                    ->icon('heroicon-o-eye')
+                    ->url(fn () => url('/product/' . $this->record->slug))
+                    ->openUrlInNewTab(),
 
-            Action::make('syncFrom1C')
-                ->label('Загрузить из 1С')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('primary')
-                ->form([
-                    TextInput::make('external_id')
-                        ->label('Код товара в 1С')
-                        ->required()
-                        ->helperText('Введите external_id товара из системы 1С'),
-                ])
-                ->action(function (array $data, $livewire) {
-                    $externalId = $data['external_id'];
-                    $service = app(OneCProductSyncService::class);
-                    $product = $service->syncProductByExternalId($externalId);
-                    if (! $product) {
+                Action::make('syncFrom1C')
+                    ->label('Загрузить из 1С')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('primary')
+                    ->form([
+                        TextInput::make('external_id')
+                            ->label('Код товара в 1С')
+                            ->required()
+                            ->helperText('Введите external_id товара из системы 1С'),
+                    ])
+                    ->action(function (array $data, $livewire) {
+                        $externalId = $data['external_id'];
+                        $service = app(OneCProductSyncService::class);
+                        $product = $service->syncProductByExternalId($externalId);
+                        if (! $product) {
+                            Notification::make()
+                                ->title('Товар не найден в 1С')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $livewire->form->fill($product->toArray());
+                        $livewire->save();
+
                         Notification::make()
-                            ->title('Товар не найден в 1С')
-                            ->danger()
+                            ->title('Товар успешно обновлён из 1С')
+                            ->success()
                             ->send();
-                        return;
-                    }
+                    }),
 
-                    $livewire->form->fill($product->toArray());
-                    $livewire->save();
-
-                    Notification::make()
-                        ->title('Товар успешно обновлён из 1С')
-                        ->success()
-                        ->send();
-                }),
+                DeleteAction::make()
+                    ->label('Удалить'),
+            ])
+                ->label('Действия')
+                ->icon('heroicon-o-ellipsis-horizontal')
+                ->color('gray')
+                ->button(),
         ];
+    }
+
+    /**
+     * На странице редактирования товара хлебные крошки дублируют название товара
+     * и занимают заметную высоту. Возврат к списку остаётся через навигацию/Cancel.
+     */
+    public function hasResourceBreadcrumbs(): bool
+    {
+        return false;
     }
 
     /**
@@ -169,10 +185,10 @@ class EditProduct extends EditRecord
     public function getTitle(): string
     {
         if ($this->record?->isVariant()) {
-            return 'Торговое предложение: ' . Str::limit((string) $this->record->name, 70);
+            return 'ТП: ' . Str::limit((string) $this->record->name, 52);
         }
 
-        return __('filament/admin_sv/edit_product.title');
+        return 'Товар: ' . Str::limit((string) $this->record?->name, 58);
     }
 
     public static function getNavigationLabel(): string
