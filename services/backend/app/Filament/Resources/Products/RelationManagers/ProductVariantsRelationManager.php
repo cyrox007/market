@@ -22,7 +22,7 @@ use Filament\Forms\Components\ColorPicker;
 use Illuminate\Support\Str;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
-use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
@@ -340,10 +340,9 @@ class ProductVariantsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                SpatieMediaLibraryImageColumn::make('image')
+                ImageColumn::make('admin_image')
                     ->label('Фото')
-                    ->collection('images')
-                    ->conversion('thumb')
+                    ->state(fn (Product $record): ?string => $record->main_image_url)
                     ->square()
                     ->size(52),
 
