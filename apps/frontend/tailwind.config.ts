@@ -63,6 +63,7 @@ export default {
           grey: '#F5F3F1', // Surface/Grey
           border: '#E8E5E1', // Surface/Border
           stroke: '#141414', // Surface/Stroke, применяется с прозрачностью
+          footer: '#123A2D', // фон подвала, темнее brand-green — это разные цвета, не оттенки
         },
       },
 
