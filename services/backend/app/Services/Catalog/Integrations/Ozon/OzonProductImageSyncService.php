@@ -139,8 +139,8 @@ final class OzonProductImageSyncService
         }
 
         $contentType = strtolower(trim(explode(';', (string) $response->header('Content-Type'))[0]));
-        if ($contentType !== '' && ! str_starts_with($contentType, 'image/')) {
-            throw new RuntimeException('ссылка вернула не изображение (' . $contentType . ')');
+        if ($contentType !== '' && ! in_array($contentType, ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'], true)) {
+            throw new RuntimeException('неподдерживаемый тип изображения (' . $contentType . ')');
         }
 
         $extension = $this->extensionFor($url, $contentType);
@@ -174,6 +174,7 @@ final class OzonProductImageSyncService
         return Http::timeout(30)
             ->connectTimeout(10)
             ->retry(2, 500)
+            ->withOptions(['allow_redirects' => false])
             ->withHeaders(['User-Agent' => 'Svetofor-Mebel/OzonImport']);
     }
 
