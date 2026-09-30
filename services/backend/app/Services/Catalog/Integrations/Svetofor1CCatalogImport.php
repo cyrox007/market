@@ -16,6 +16,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Vanilo\Category\Models\Taxonomy;
 
+/**
+ * Legacy: полный импорт каталога из 1С.
+ *
+ * Сохраняется для совместимости и аварийных сценариев. Основной рабочий поток
+ * остатков реализован отдельно в OneCStockSyncService и не должен использовать
+ * этот импортёр для повседневного обновления товаров.
+ */
 class Svetofor1CCatalogImport extends AbstractCatalogImport
 {
     protected const DEFAULT_BASE_URL = 'http://api.svetofor-mebel.ru';
@@ -57,7 +64,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
     public static function getLabel(): string
     {
-        return 'Светофор 1C';
+        return 'Светофор 1C (legacy: полный каталог)';
     }
 
     public static function getConfigKey(): ?string
