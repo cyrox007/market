@@ -11,6 +11,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Str;
 
 class EditProduct extends EditRecord
 {
@@ -40,6 +41,21 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('openParentProduct')
+                ->label(function (): string {
+                    $parent = $this->record?->parentProduct;
+
+                    return $parent
+                        ? 'К корневому товару: ' . Str::limit((string) $parent->name, 42)
+                        : 'К корневому товару';
+                })
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('info')
+                ->url(fn (): ?string => $this->record?->parent_product_id
+                    ? ProductResource::getUrl('edit', ['record' => $this->record->parent_product_id])
+                    : null)
+                ->visible(fn (): bool => (bool) $this->record?->parent_product_id),
+
             DeleteAction::make(),
             Action::make('viewOnSite')
                 ->label('Просмотр на сайте')
@@ -152,6 +168,10 @@ class EditProduct extends EditRecord
 
     public function getTitle(): string
     {
+        if ($this->record?->isVariant()) {
+            return 'Торговое предложение: ' . Str::limit((string) $this->record->name, 70);
+        }
+
         return __('filament/admin_sv/edit_product.title');
     }
 
