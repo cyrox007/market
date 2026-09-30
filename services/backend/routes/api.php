@@ -80,6 +80,7 @@ Route::prefix('v1')->group(function () {
     // Sliders (public)
     Route::prefix('sliders')->group(function () {
         Route::get('/', [SliderController::class, 'index']);
+        Route::get('/home', [SliderController::class, 'home']);
         Route::get('/{slug}', [SliderController::class, 'show']);
     });
 
