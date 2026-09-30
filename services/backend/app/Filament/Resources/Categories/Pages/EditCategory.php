@@ -12,6 +12,7 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
@@ -127,6 +128,10 @@ class EditCategory extends EditRecord
 
     private function renderLastOzonImport(): HtmlString|string
     {
+        if (! Schema::hasTable('ozon_category_import_runs')) {
+            return 'История импорта станет доступна после выполнения миграций.';
+        }
+
         $run = OzonCategoryImportRun::query()
             ->where('category_id', $this->record->id)
             ->latest('id')
