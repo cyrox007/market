@@ -45,8 +45,23 @@ return [
             'minute_sync_job_backoff' => (int) env('SVETOFOR_1C_MINUTE_SYNC_JOB_BACKOFF', 20),
             'minute_sync_job_timeout' => (int) env('SVETOFOR_1C_MINUTE_SYNC_JOB_TIMEOUT', 120),
             'force_full_sync_when_catalog_empty' => (bool) env('SVETOFOR_1C_FORCE_FULL_SYNC_WHEN_CATALOG_EMPTY', true),
+            // Новый основной stock-only канал. Он не импортирует каталог и работает
+            // только с остатками уже существующих товаров/ТП по external_id.
             'stock_sync_path' => env('SVETOFOR_1C_STOCK_SYNC_PATH', '/api/v1/integration/1c/v2/cache/stocks'),
+            'stock_product_path_template' => env(
+                'SVETOFOR_1C_STOCK_PRODUCT_PATH_TEMPLATE',
+                '/api/v1/integration/1c/v2/cache/products/{external_id}/stocks'
+            ),
             'stock_sync_timeout' => (int) env('SVETOFOR_1C_STOCK_SYNC_TIMEOUT', 8),
+            'stock_sync_queue' => env('SVETOFOR_1C_STOCK_SYNC_QUEUE', 'integration-1c'),
+            'stock_sync_job_tries' => (int) env('SVETOFOR_1C_STOCK_SYNC_JOB_TRIES', 3),
+            'stock_sync_job_backoff' => (int) env('SVETOFOR_1C_STOCK_SYNC_JOB_BACKOFF', 20),
+            'stock_sync_job_timeout' => (int) env('SVETOFOR_1C_STOCK_SYNC_JOB_TIMEOUT', 180),
+            'stock_sync_schedule_enabled' => (bool) env('SVETOFOR_1C_STOCK_SYNC_SCHEDULE_ENABLED', false),
+
+            // Старый минутный catalog sync оставляем только как legacy-механизм.
+            // По умолчанию он больше не запускается планировщиком.
+            'legacy_minute_sync_schedule_enabled' => (bool) env('SVETOFOR_1C_LEGACY_MINUTE_SYNC_SCHEDULE_ENABLED', false),
         ],
         'opencart_xlsx' => [
             'file' => env('OPENCART_XLSX_FILE', ''),
