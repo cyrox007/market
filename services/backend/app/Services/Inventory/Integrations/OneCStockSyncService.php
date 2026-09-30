@@ -311,6 +311,7 @@ class OneCStockSyncService
     {
         return DB::transaction(function () use ($product, $rows, $aggregate): array {
             $warehouseRows = 0;
+            $seenWarehouseIds = [];
 
             foreach ($rows as $row) {
                 $stockId = trim((string) ($row['stockId']
@@ -349,8 +350,26 @@ class OneCStockSyncService
                     );
                 });
 
+                $seenWarehouseIds[] = (int) $warehouse->id;
                 $warehouseRows++;
             }
+
+            // Endpoint товара отдаёт снимок остатков. Если склад пропал из ответа,
+            // его старое значение нельзя оставлять: иначе WarehouseStockResolver
+            // продолжит видеть устаревший положительный остаток.
+            $staleRows = ProductWarehouseStock::query()
+                ->where('product_id', $product->id)
+                ->whereHas('warehouse', fn ($query) => $query
+                    ->whereNotNull('external_id')
+                    ->where('external_id', '!=', ''));
+
+            if ($seenWarehouseIds !== []) {
+                $staleRows->whereNotIn('warehouse_id', array_values(array_unique($seenWarehouseIds)));
+            }
+
+            ProductWarehouseStock::withoutEvents(function () use ($staleRows): void {
+                $staleRows->update(['quantity' => 0]);
+            });
 
             if ($warehouseRows > 0) {
                 $totalStock = (float) ProductWarehouseStock::query()
@@ -365,6 +384,7 @@ class OneCStockSyncService
 
             $product->stock = $totalStock;
             $product->saveQuietly();
+            $product->flushCache();
 
             return [
                 'warehouse_rows' => $warehouseRows,
