@@ -111,12 +111,12 @@ export default function Button({
     'group relative inline-flex items-center justify-center overflow-hidden',
     'font-medium whitespace-nowrap select-none',
     'outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
+    'transition-colors motion-reduce:transition-none',
     SIZE[size],
     SHAPE[shape],
     isDisabled
       ? 'cursor-not-allowed bg-surface-grey text-ink-secondary border-transparent'
       : cn(VARIANT[variant], 'cursor-pointer'),
-    // Цвет меняется мгновенно. Плавность возвращается className="transition-colors".
     !isDisabled && !hasFill && cn(VARIANT_HOVER[variant], VARIANT_FOCUS[variant]),
     hasFill && 'motion-reduce:hover:bg-brand-green motion-reduce:hover:text-ink-inverse',
     fullWidth && 'w-full',

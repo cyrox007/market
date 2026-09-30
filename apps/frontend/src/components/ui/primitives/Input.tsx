@@ -43,7 +43,6 @@ const SHAPE: Record<InputShape, string> = {
   rounded: 'rounded-btn',
 };
 
-/** Рамка меняет цвет мгновенно. Плавность — wrapperClassName="transition-colors". */
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   {
     inputSize = 'md',
@@ -63,6 +62,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <div
       className={cn(
         'relative inline-flex w-full items-center border',
+        'transition-colors motion-reduce:transition-none',
         HEIGHT[inputSize],
         SHAPE[shape],
         tone === 'grey' ? 'bg-surface-grey' : 'bg-surface',

@@ -41,7 +41,6 @@ const ACTIVE: Record<IconButtonVariant, string> = {
   danger: 'bg-brand-red text-ink-inverse',
 };
 
-/** Цвет меняется мгновенно. Плавность возвращается className="transition-colors". */
 export default function IconButton({
   label,
   variant = 'white',
@@ -63,6 +62,7 @@ export default function IconButton({
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full',
         'outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
+        'transition-colors motion-reduce:transition-none',
         SIZE[size],
         disabled
           ? 'cursor-not-allowed bg-surface-grey text-ink-secondary'
