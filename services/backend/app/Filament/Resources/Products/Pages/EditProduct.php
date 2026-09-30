@@ -5,7 +5,7 @@ namespace App\Filament\Resources\Products\Pages;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
-use App\Services\Inventory\Integrations\OneCStockSyncService;
+use App\Actions\Inventory\Sync\RefreshProductStocksFrom1CAction;
 use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -67,7 +67,7 @@ class EditProduct extends EditRecord
                     ->icon('heroicon-o-arrow-path')
                     ->color('primary')
                     ->action(function (): void {
-                        $result = app(OneCStockSyncService::class)->syncProduct($this->record);
+                        $result = app(RefreshProductStocksFrom1CAction::class)->execute($this->record);
                         $this->record->refresh();
 
                         if ($result['errors'] > 0) {
