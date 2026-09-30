@@ -17,7 +17,7 @@ final class SyncOzonProductImagesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 180;
+    public int $timeout = 600;
     public int $tries = 3;
     public int $backoff = 30;
 
