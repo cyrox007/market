@@ -29,7 +29,9 @@ class Slider extends Model implements HasMedia, PageableContract
 
     public const SLOT_MAIN = 'main';
 
-    public const SLOT_SIDE = 'side';
+    public const SLOT_RIGHT_TOP = 'right_top';
+
+    public const SLOT_RIGHT_BOTTOM = 'right_bottom';
 
     protected $fillable = [
         'placement',
@@ -62,8 +64,27 @@ class Slider extends Model implements HasMedia, PageableContract
 
         static::saving(function (Slider $slider): void {
             if ($slider->placement === self::PLACEMENT_BOTTOM) {
-                // У нижнего блока нет desktop-only боковых карточек.
+                // У нижнего блока нет дополнительных позиций.
                 $slider->slot = self::SLOT_MAIN;
+            }
+
+            // Правая верхняя и правая нижняя зоны — фиксированные места макета.
+            // В каждой из них одновременно может быть только один активный материал.
+            if (
+                $slider->placement === self::PLACEMENT_TOP
+                && in_array($slider->slot, [self::SLOT_RIGHT_TOP, self::SLOT_RIGHT_BOTTOM], true)
+                && $slider->is_active
+            ) {
+                $query = static::query()
+                    ->where('placement', self::PLACEMENT_TOP)
+                    ->where('slot', $slider->slot)
+                    ->where('is_active', true);
+
+                if ($slider->exists) {
+                    $query->whereKeyNot($slider->getKey());
+                }
+
+                $query->update(['is_active' => false]);
             }
         });
     }
@@ -89,8 +110,8 @@ class Slider extends Model implements HasMedia, PageableContract
     public static function placementLabels(): array
     {
         return [
-            self::PLACEMENT_TOP => 'Верхний промо-блок',
-            self::PLACEMENT_BOTTOM => 'Нижний промо-баннер',
+            self::PLACEMENT_TOP => 'Верхний блок главной',
+            self::PLACEMENT_BOTTOM => 'Нижний широкий баннер',
         ];
     }
 
@@ -100,8 +121,9 @@ class Slider extends Model implements HasMedia, PageableContract
     public static function slotLabels(): array
     {
         return [
-            self::SLOT_MAIN => 'Основная карусель',
-            self::SLOT_SIDE => 'Боковая карточка (desktop)',
+            self::SLOT_MAIN => 'Большой слайдер слева',
+            self::SLOT_RIGHT_TOP => 'Маленькая карточка справа — сверху',
+            self::SLOT_RIGHT_BOTTOM => 'Маленькая карточка справа — снизу',
         ];
     }
 
