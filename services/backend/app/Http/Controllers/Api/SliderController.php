@@ -50,19 +50,17 @@ class SliderController extends Controller
 
     public function show(Request $request, string $slug): JsonResponse
     {
-        $slider = Slider::cached("show_{$slug}", function () use ($slug) {
-            return Slider::query()
-                ->with(['category.media', 'media'])
-                ->where(function ($query) use ($slug): void {
-                    $query->where('slug', $slug);
+        $slider = Slider::query()
+            ->with(['category.media', 'media'])
+            ->where(function ($query) use ($slug): void {
+                $query->where('slug', $slug);
 
-                    if (ctype_digit($slug)) {
-                        $query->orWhere('id', (int) $slug);
-                    }
-                })
-                ->active()
-                ->firstOrFail();
-        });
+                if (ctype_digit($slug)) {
+                    $query->orWhere('id', (int) $slug);
+                }
+            })
+            ->active()
+            ->firstOrFail();
 
         return response()->json([
             'slider' => new SliderResource($slider),
@@ -74,13 +72,14 @@ class SliderController extends Controller
      */
     private function getPlacement(string $placement): Collection
     {
-        return Slider::cached("index_{$placement}", function () use ($placement) {
-            return Slider::query()
-                ->with(['category.media', 'media'])
-                ->placement($placement)
-                ->active()
-                ->ordered()
-                ->get();
-        });
+        // Слайдеров мало, поэтому здесь сознательно не используем долгий model-cache:
+        // изменения текста/изображений из админки должны попадать на главную сразу,
+        // включая изменения изображения связанной категории.
+        return Slider::query()
+            ->with(['category.media', 'media'])
+            ->placement($placement)
+            ->active()
+            ->ordered()
+            ->get();
     }
 }
