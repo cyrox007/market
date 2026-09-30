@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Page\Slider;
 use App\Services\Seo\SeoApiTransformer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -10,47 +9,46 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class SliderResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
-        $image = $this->getDisplayImageMedia();
-        $mobileImage = $this->getDisplayMobileImageMedia();
+        $desktop = $this->getFirstMedia('image');
+        $mobile = $this->getFirstMedia('mobile_image');
+
+        $desktopOriginal = $this->mediaUrl($desktop) ?: $this->image_url;
+        $desktopThumb = $this->mediaUrl($desktop, 'thumb') ?: $desktopOriginal;
+        $desktopHd = $this->mediaUrl($desktop, 'hd') ?: $desktopOriginal;
+        $desktopFullHd = $this->mediaUrl($desktop, 'fullhd') ?: $desktopOriginal;
+
+        // Mobile сначала использует отдельный upload/URL, затем desktop fallback.
+        $mobileOriginal = $this->mediaUrl($mobile)
+            ?: $this->mobile_image_url
+            ?: $desktopOriginal;
+        $mobileThumb = $this->mediaUrl($mobile, 'thumb') ?: $mobileOriginal;
+        $mobileHd = $this->mediaUrl($mobile, 'hd') ?: $mobileOriginal;
+        $mobileFullHd = $this->mediaUrl($mobile, 'fullhd') ?: $mobileOriginal;
 
         return [
             'id' => $this->id,
             'placement' => $this->placement,
-            'title' => $this->display_title,
+            'slot' => $this->slot,
+            'title' => $this->title,
             'description' => $this->description,
-            'link' => $this->display_link,
+            'link' => $this->link,
             'button_text' => $this->button_text,
             'badge_text' => $this->badge_text,
             'badge_link' => $this->badge_link,
             'badge_icon' => $this->badge_icon,
+            'badge_tone' => $this->badge_tone,
 
-            'image' => $this->mediaUrl($image),
-            'image_thumb' => $this->mediaUrl($image, 'thumb'),
-            'image_hd' => $this->mediaUrl($image, 'hd'),
-            'image_fullhd' => $this->mediaUrl($image, 'fullhd'),
+            'image' => $desktopOriginal,
+            'image_thumb' => $desktopThumb,
+            'image_hd' => $desktopHd,
+            'image_fullhd' => $desktopFullHd,
 
-            'image_mobile' => $this->mediaUrl($mobileImage),
-            'image_mobile_thumb' => $this->mediaUrl($mobileImage, 'thumb'),
-            'image_mobile_hd' => $this->mediaUrl($mobileImage, 'hd'),
-            'image_mobile_fullhd' => $this->mediaUrl($mobileImage, 'fullhd'),
-
-            'category_id' => $this->category_id,
-            'category' => $this->when(
-                $this->placement === Slider::PLACEMENT_HOME_CATEGORIES && $this->category,
-                fn (): array => [
-                    'id' => $this->category->id,
-                    'name' => $this->category->name,
-                    'slug' => $this->category->slug,
-                    'full_path' => $this->category->full_path,
-                ]
-            ),
+            'image_mobile' => $mobileOriginal,
+            'image_mobile_thumb' => $mobileThumb,
+            'image_mobile_hd' => $mobileHd,
+            'image_mobile_fullhd' => $mobileFullHd,
 
             'priority' => (int) $this->priority,
             'slug' => $this->slug,
