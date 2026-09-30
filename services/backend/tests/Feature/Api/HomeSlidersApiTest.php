@@ -37,64 +37,104 @@ class HomeSlidersApiTest extends TestCase
             ->assertJsonPath('data.0.placement', Slider::PLACEMENT_TOP);
     }
 
-    public function test_slider_endpoint_filters_by_placement_and_slot(): void
+    public function test_slider_endpoint_filters_each_upper_position(): void
     {
         Slider::factory()->create([
             'placement' => Slider::PLACEMENT_TOP,
             'slot' => Slider::SLOT_MAIN,
             'title' => 'Main',
-            'priority' => 10,
         ]);
 
         Slider::factory()->create([
             'placement' => Slider::PLACEMENT_TOP,
-            'slot' => Slider::SLOT_SIDE,
-            'title' => 'Side',
-            'priority' => 10,
+            'slot' => Slider::SLOT_RIGHT_TOP,
+            'title' => 'Right top',
         ]);
 
-        $response = $this->getJson('/api/v1/sliders?placement=top&slot=side');
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_RIGHT_BOTTOM,
+            'title' => 'Right bottom',
+        ]);
 
-        $response
+        $this->getJson('/api/v1/sliders?placement=top&slot=right_top')
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.title', 'Side')
-            ->assertJsonPath('data.0.slot', Slider::SLOT_SIDE);
+            ->assertJsonPath('data.0.title', 'Right top')
+            ->assertJsonPath('data.0.slot', Slider::SLOT_RIGHT_TOP);
+
+        $this->getJson('/api/v1/sliders?placement=top&slot=right_bottom')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'Right bottom')
+            ->assertJsonPath('data.0.slot', Slider::SLOT_RIGHT_BOTTOM);
     }
 
-    public function test_home_endpoint_returns_frontend_ready_structure(): void
+    public function test_home_endpoint_returns_frontend_ready_three_part_upper_block(): void
     {
         Slider::factory()->create([
             'placement' => Slider::PLACEMENT_TOP,
             'slot' => Slider::SLOT_MAIN,
-            'title' => 'Top main',
+            'title' => 'Top main 1',
             'priority' => 10,
         ]);
 
         Slider::factory()->create([
             'placement' => Slider::PLACEMENT_TOP,
-            'slot' => Slider::SLOT_SIDE,
-            'title' => 'Top side',
-            'priority' => 10,
+            'slot' => Slider::SLOT_MAIN,
+            'title' => 'Top main 2',
+            'priority' => 20,
+        ]);
+
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_RIGHT_TOP,
+            'title' => 'Right top',
+        ]);
+
+        Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_RIGHT_BOTTOM,
+            'title' => 'Right bottom',
         ]);
 
         Slider::factory()->create([
             'placement' => Slider::PLACEMENT_BOTTOM,
             'slot' => Slider::SLOT_MAIN,
             'title' => 'Bottom',
-            'priority' => 10,
         ]);
 
         $response = $this->getJson('/api/v1/sliders/home');
 
         $response
             ->assertOk()
-            ->assertJsonCount(1, 'data.top.main')
-            ->assertJsonCount(1, 'data.top.side')
+            ->assertJsonCount(2, 'data.top.main')
+            ->assertJsonPath('data.top.main.0.title', 'Top main 1')
+            ->assertJsonPath('data.top.main.1.title', 'Top main 2')
+            ->assertJsonPath('data.top.right_top.title', 'Right top')
+            ->assertJsonPath('data.top.right_bottom.title', 'Right bottom')
             ->assertJsonCount(1, 'data.bottom')
-            ->assertJsonPath('data.top.main.0.title', 'Top main')
-            ->assertJsonPath('data.top.side.0.title', 'Top side')
             ->assertJsonPath('data.bottom.0.title', 'Bottom');
+    }
+
+    public function test_activating_new_fixed_right_card_disables_previous_one(): void
+    {
+        $old = Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_RIGHT_TOP,
+            'title' => 'Старая карточка',
+            'is_active' => true,
+        ]);
+
+        $new = Slider::factory()->create([
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_RIGHT_TOP,
+            'title' => 'Новая карточка',
+            'is_active' => true,
+        ]);
+
+        $this->assertFalse($old->fresh()->is_active);
+        $this->assertTrue($new->fresh()->is_active);
     }
 
     public function test_external_image_urls_are_returned_when_no_media_is_uploaded(): void
