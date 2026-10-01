@@ -45,8 +45,24 @@ return [
             'minute_sync_job_backoff' => (int) env('SVETOFOR_1C_MINUTE_SYNC_JOB_BACKOFF', 20),
             'minute_sync_job_timeout' => (int) env('SVETOFOR_1C_MINUTE_SYNC_JOB_TIMEOUT', 120),
             'force_full_sync_when_catalog_empty' => (bool) env('SVETOFOR_1C_FORCE_FULL_SYNC_WHEN_CATALOG_EMPTY', true),
+            // Новый stock-only канал: используется и для массового, и для точечного обновления.
+            'stock_product_path_template' => env(
+                'SVETOFOR_1C_STOCK_PRODUCT_PATH_TEMPLATE',
+                '/api/v1/integration/1c/v2/cache/products/{external_id}/stocks'
+            ),
+            'stock_refresh_timeout' => (int) env('SVETOFOR_1C_STOCK_REFRESH_TIMEOUT', 12),
+            'stock_refresh_queue' => env('SVETOFOR_1C_STOCK_REFRESH_QUEUE', 'integration-1c'),
+            'stock_refresh_job_tries' => (int) env('SVETOFOR_1C_STOCK_REFRESH_JOB_TRIES', 3),
+            'stock_refresh_job_backoff' => (int) env('SVETOFOR_1C_STOCK_REFRESH_JOB_BACKOFF', 20),
+            'stock_refresh_job_timeout' => (int) env('SVETOFOR_1C_STOCK_REFRESH_JOB_TIMEOUT', 60),
+
+            // Старый bulk/полный catalog sync оставляем только для legacy-сценариев.
             'stock_sync_path' => env('SVETOFOR_1C_STOCK_SYNC_PATH', '/api/v1/integration/1c/v2/cache/stocks'),
             'stock_sync_timeout' => (int) env('SVETOFOR_1C_STOCK_SYNC_TIMEOUT', 8),
+            'legacy_minute_sync_schedule_enabled' => (bool) env(
+                'SVETOFOR_1C_LEGACY_MINUTE_SYNC_SCHEDULE_ENABLED',
+                false
+            ),
         ],
         'opencart_xlsx' => [
             'file' => env('OPENCART_XLSX_FILE', ''),
