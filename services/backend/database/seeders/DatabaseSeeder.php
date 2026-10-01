@@ -86,6 +86,12 @@ class DatabaseSeeder extends Seeder
         // Заполняем идеи для интерьера с точками
         $this->call(InteriorIdeasSeeder::class);
 
+        // Демо-контент двух слайдеров главной нужен фронтенду в local/testing.
+        // На production/staging его можно добавить вручную из админки или отдельным seeder.
+        if (app()->environment(['local', 'testing'])) {
+            $this->call(SliderDemoSeeder::class);
+        }
+
         // Создаем роли и разрешения
         $this->call(RolesAndPermissionsSeeder::class);
 

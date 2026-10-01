@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sliders\Tables;
 
+use App\Models\Page\Slider;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -17,27 +18,47 @@ class SlidersTable
     {
         return $table
             ->columns([
+                TextColumn::make('placement')
+                    ->label('Где показывается')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => Slider::placementLabels()[$state] ?? $state)
+                    ->color(fn (string $state): string => match ($state) {
+                        Slider::PLACEMENT_TOP => 'primary',
+                        Slider::PLACEMENT_BOTTOM => 'warning',
+                        default => 'gray',
+                    })
+                    ->sortable(),
+
+                TextColumn::make('slot')
+                    ->label('Место')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state, Slider $record): string =>
+                        $record->placement === Slider::PLACEMENT_BOTTOM
+                            ? 'Нижний широкий слайдер'
+                            : (Slider::slotLabels()[$state] ?? 'Верхний блок')
+                    )
+                    ->toggleable(),
+
                 TextColumn::make('title')
                     ->label(__('filament/admin_sv/slider_resource.title'))
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
-                TextColumn::make('slug')
-                    ->label(__('filament/admin_sv/slider_resource.slug'))
-                    ->searchable()
-                    ->copyable()
-                    ->copyMessage('URL скопирован'),
-                TextColumn::make('link')
-                    ->label(__('filament/admin_sv/slider_resource.link'))
-                    ->searchable()
+
+                TextColumn::make('badge_text')
+                    ->label('Метка')
+                    ->limit(36)
                     ->toggleable(),
+
                 TextColumn::make('priority')
                     ->label(__('filament/admin_sv/slider_resource.priority'))
                     ->numeric()
                     ->sortable(),
+
                 IconColumn::make('is_active')
                     ->label(__('filament/admin_sv/slider_resource.is_active'))
                     ->boolean(),
+
                 TextColumn::make('created_at')
                     ->label(__('filament/admin_sv/slider_resource.created_at'))
                     ->dateTime()
@@ -45,6 +66,14 @@ class SlidersTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('placement')
+                    ->label('Часть главной страницы')
+                    ->options(Slider::placementLabels()),
+
+                SelectFilter::make('slot')
+                    ->label('Место в верхнем блоке')
+                    ->options(Slider::slotLabels()),
+
                 SelectFilter::make('is_active')
                     ->label('Активен')
                     ->options([
@@ -64,5 +93,3 @@ class SlidersTable
             ->defaultSort('priority', 'asc');
     }
 }
-
-

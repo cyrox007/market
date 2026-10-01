@@ -20,6 +20,8 @@ class SliderFactory extends Factory
     public function definition(): array
     {
         return [
+            'placement' => Slider::PLACEMENT_TOP,
+            'slot' => Slider::SLOT_MAIN,
             'title' => fake()->sentence(3),
             'description' => fake()->paragraph(),
             'link' => fake()->url(),
@@ -27,6 +29,7 @@ class SliderFactory extends Factory
             'badge_text' => 'Помощь онлайн',
             'badge_link' => null,
             'badge_icon' => 'ri-flashlight-fill',
+            'badge_tone' => 'red',
             'is_active' => true,
             'priority' => fake()->numberBetween(0, 100),
             'slug' => fake()->slug(),
