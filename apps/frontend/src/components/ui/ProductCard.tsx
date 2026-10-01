@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeftRight, Heart, ImageIcon, ShoppingCart } from 'lucide-react';
 import ProductLink from './ProductLink';
-import { Badge, IconButton } from './primitives';
+import { Badge, IconButton, Tooltip } from './primitives';
 import { ColorSwatches, Price, QuantityStepper } from './composites';
 import type { ColorSwatch } from './composites';
 import type { Product } from '../../lib/api';
@@ -123,6 +123,10 @@ function ProductCard({
     }
   };
 
+  // Тексты — из макета, они же подпись кнопки для читалки
+  const favoriteLabel = isFavorite ? 'Удалить из избранного' : 'Добавить в избранное';
+  const compareLabel = isInCompare ? 'Удалить из сравнения' : 'Добавить в сравнение';
+
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -176,28 +180,34 @@ function ProductCard({
             <span />
           )}
 
-          <div className="flex items-center gap-2">
+          {/* relative: обе подсказки встают по правому краю пары кнопок — иначе на узкой
+              карточке подсказка сравнения уходит за левый край фото */}
+          <div className="relative flex items-center gap-2">
             {onToggleCompare && (
-              <IconButton
-                label={isInCompare ? 'Убрать из сравнения' : 'Добавить к сравнению'}
-                variant="white"
-                isActive={isInCompare}
-                elevated
-                onClick={handleCompareClick}
-              >
-                <ArrowLeftRight className="size-5" />
-              </IconButton>
+              <Tooltip text={compareLabel} alignToParent>
+                {/* Нажатое сравнение по макету не красится — состояние видно по подписи */}
+                <IconButton
+                  label={compareLabel}
+                  variant="card"
+                  elevated
+                  onClick={handleCompareClick}
+                >
+                  <ArrowLeftRight className="size-5" />
+                </IconButton>
+              </Tooltip>
             )}
             {onToggleFavorite && (
-              <IconButton
-                label={isFavorite ? 'Убрать из избранного' : 'В избранное'}
-                variant="white"
-                isActive={isFavorite}
-                elevated
-                onClick={handleFavoriteClick}
-              >
-                <Heart className="size-5" fill={isFavorite ? 'currentColor' : 'none'} />
-              </IconButton>
+              <Tooltip text={favoriteLabel} alignToParent>
+                <IconButton
+                  label={favoriteLabel}
+                  variant="card"
+                  isActive={isFavorite}
+                  elevated
+                  onClick={handleFavoriteClick}
+                >
+                  <Heart className="size-5" />
+                </IconButton>
+              </Tooltip>
             )}
           </div>
         </div>

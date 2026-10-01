@@ -5,7 +5,6 @@ import useSWRInfinite from 'swr/infinite';
 import ProductCard from '../../components/ui/ProductCard';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
-import { useCounters } from '../../hooks/useCounters';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { useCartActions } from '../../hooks/useCartActions';
@@ -50,7 +49,6 @@ export default function CatalogCategory() {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { region } = useRegion();
   const {
     cart,
@@ -63,8 +61,8 @@ export default function CatalogCategory() {
   const {
     wishlistProductIds: favorites,
     compareProductIds: compareList,
-    mutateWishlist,
-    mutateCompare,
+    toggleWishlist: toggleWishlistId,
+    toggleCompare: toggleCompareId,
   } = useWishlistAndCompare();
   const prefetchCategory = usePrefetchCategory();
   const prefetchProduct = usePrefetchProduct();
@@ -492,49 +490,11 @@ export default function CatalogCategory() {
     return product.id;
   };
 
-  const toggleFavorite = async (product: Product) => {
-    try {
-      // Для избранного всегда используем родительский товар
-      const productIdToAdd = getProductIdForWishlist(product);
+  const toggleFavorite = (product: Product) =>
+    toggleWishlistId(getProductIdForWishlist(product));
 
-      if (!productIdToAdd || productIdToAdd === 0) {
-        console.error('Invalid product ID for wishlist:', product);
-        return;
-      }
-
-      await api.wishlist.toggle(productIdToAdd);
-      // Обновляем кэш SWR через mutate
-      await mutateWishlist();
-      await refreshWishlistCount();
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      console.error('Product:', product);
-    }
-  };
-
-  const toggleCompare = async (product: Product) => {
-    try {
-      // Для сравнения используем первый доступный вариант для вариативных товаров
-      const productIdToAdd = getProductIdForCompare(product);
-
-      const isInCompare = compareList.includes(productIdToAdd);
-      if (isInCompare) {
-        await api.compare.remove(productIdToAdd);
-      } else {
-        await api.compare.add(productIdToAdd);
-      }
-      // Обновляем кэш SWR через mutate
-      await mutateCompare();
-      // Небольшая задержка, чтобы дать время API обновиться
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await refreshCompareCount();
-    } catch (error: any) {
-      console.error('Failed to toggle compare:', error);
-      if (error.status === 422) {
-        alert(error.data?.message || 'Не удалось добавить товар в сравнение.');
-      }
-    }
-  };
+  const toggleCompare = (product: Product) =>
+    toggleCompareId(getProductIdForCompare(product));
 
   // Показываем «Категория не найдена» только когда загрузка категории завершена и категория не найдена (404 или пустой ответ)
   const categoryNotFound =

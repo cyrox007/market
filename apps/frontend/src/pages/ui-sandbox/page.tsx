@@ -396,7 +396,7 @@ export default function UiSandbox() {
             </Spec>
             <Spec label="isActive · white">
               <IconButton label="В избранном" isActive elevated>
-                <Heart className="size-5" fill="currentColor" />
+                <Heart className="size-5" />
               </IconButton>
             </Spec>
             <Spec label="elevated">
@@ -473,9 +473,9 @@ export default function UiSandbox() {
                 <Heart className="size-5" />
               </IconButton>
             </Spec>
-            <Spec label="избранное · нажато" note="красный, сердце залито">
+            <Spec label="избранное · нажато" note="красный круг, сердце белым контуром">
               <IconButton label="В избранном" isActive elevated>
-                <Heart className="size-5" fill="currentColor" />
+                <Heart className="size-5" />
               </IconButton>
             </Spec>
             <Spec label="в корзину" note="жёлтый">

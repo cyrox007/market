@@ -1,7 +1,11 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
-export type IconButtonVariant = 'white' | 'yellow' | 'grey' | 'danger';
+export type IconButtonVariant = 'white' | 'card' | 'yellow' | 'grey' | 'danger';
+
+/** Ховер только у мыши: после тапа на телефоне он залипает и перекрыл бы нажатое состояние */
+const CARD_HOVER =
+  '[@media(hover:hover)]:hover:bg-brand-green [@media(hover:hover)]:hover:text-ink-inverse';
 export type IconButtonSize = 'sm' | 'md' | 'lg';
 
 interface IconButtonOwnProps {
@@ -28,6 +32,8 @@ const SIZE: Record<IconButtonSize, string> = {
 
 const VARIANT: Record<IconButtonVariant, string> = {
   white: 'bg-surface text-ink hover:bg-surface-grey',
+  // Кнопки поверх фото товара: сравнение и избранное
+  card: `bg-surface text-ink ${CARD_HOVER}`,
   yellow: 'bg-brand-yellow text-ink hover:bg-brand-green hover:text-ink-inverse',
   grey: 'bg-surface-grey text-ink hover:bg-surface-border',
   danger: 'bg-brand-red text-ink-inverse hover:opacity-90',
@@ -36,6 +42,7 @@ const VARIANT: Record<IconButtonVariant, string> = {
 /** Нажатое состояние: у белой кнопки становится красным, у остальных — зелёным */
 const ACTIVE: Record<IconButtonVariant, string> = {
   white: 'bg-brand-red text-ink-inverse hover:bg-brand-red',
+  card: `bg-brand-red text-ink-inverse ${CARD_HOVER}`,
   yellow: 'bg-brand-green text-ink-inverse',
   grey: 'bg-brand-green text-ink-inverse',
   danger: 'bg-brand-red text-ink-inverse',

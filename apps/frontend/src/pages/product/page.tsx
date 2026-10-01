@@ -10,7 +10,6 @@ import VariantAttributeSelector from '../../components/product/VariantAttributeS
 import { api } from '../../lib/api';
 import { useCart } from '../../hooks/useCart';
 import { useCartActions } from '../../hooks/useCartActions';
-import { useCounters } from '../../hooks/useCounters';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
@@ -292,7 +291,6 @@ export default function Product() {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
   const { changeProductQuantity } = useCartActions();
-  const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { getRegionId } = useRegion();
   const regionId = getRegionId();
   const prefetchProduct = usePrefetchProduct();
@@ -338,8 +336,8 @@ export default function Product() {
   const {
     wishlistProductIds: favorites,
     compareProductIds: compareList,
-    mutateWishlist,
-    mutateCompare,
+    toggleWishlist: toggleWishlistId,
+    toggleCompare: toggleCompareId,
   } = useWishlistAndCompare();
 
   const getReviewProductId = (): number | null => {
@@ -655,39 +653,11 @@ export default function Product() {
     return product.id;
   };
 
-  const toggleFavorite = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForWishlist(product);
-      if (!productIdToAdd || productIdToAdd === 0) {
-        console.error('Invalid product ID for wishlist:', product);
-        return;
-      }
-      await api.wishlist.toggle(productIdToAdd);
-      await mutateWishlist();
-      await refreshWishlistCount();
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    }
-  };
+  const toggleFavorite = (product: Product) =>
+    toggleWishlistId(getProductIdForWishlist(product));
 
-  const toggleCompare = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForCompare(product);
-      const isInCompare = compareList.includes(productIdToAdd);
-      if (isInCompare) {
-        await api.compare.remove(productIdToAdd);
-      } else {
-        await api.compare.add(productIdToAdd);
-      }
-      await mutateCompare();
-      await refreshCompareCount();
-    } catch (error: any) {
-      console.error('Failed to toggle compare:', error);
-      if (error.status === 422) {
-        alert(error.data?.message || 'Не удалось добавить товар в сравнение.');
-      }
-    }
-  };
+  const toggleCompare = (product: Product) =>
+    toggleCompareId(getProductIdForCompare(product));
 
   const handleAddRelatedToCart = async (productId: number) => {
     try {
@@ -1088,9 +1058,7 @@ export default function Product() {
                         productIdToWishlist = product.id;
                       }
 
-                      await api.wishlist.toggle(productIdToWishlist);
-                      await mutateWishlist();
-                      await refreshWishlistCount();
+                      await toggleWishlistId(productIdToWishlist);
                     } catch (error) {
                       console.error('Failed to toggle wishlist:', error);
                     }
@@ -1125,13 +1093,7 @@ export default function Product() {
                         productIdToCompare = product.id;
                       }
 
-                      if (compareList.includes(productIdToCompare)) {
-                        await api.compare.remove(productIdToCompare);
-                      } else {
-                        await api.compare.add(productIdToCompare);
-                      }
-                      await mutateCompare();
-                      await refreshCompareCount();
+                      await toggleCompareId(productIdToCompare);
                     } catch (error: any) {
                       console.error('Failed to toggle compare:', error);
                       if (error.status === 422) {

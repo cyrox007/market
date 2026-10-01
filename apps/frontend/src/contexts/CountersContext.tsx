@@ -28,6 +28,14 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
     setCartCount((prev) => Math.max(0, prev + delta));
   }, []);
 
+  const bumpWishlistCount = useCallback((delta: number) => {
+    setWishlistCount((prev) => Math.max(0, prev + delta));
+  }, []);
+
+  const bumpCompareCount = useCallback((delta: number) => {
+    setCompareCount((prev) => Math.max(0, prev + delta));
+  }, []);
+
   const refreshCartCount = useCallback(async () => {
     try {
       const data = await api.cart.count();
@@ -120,6 +128,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       isLoading,
       setCartCount: setCartCountValue,
       bumpCartCount,
+      bumpWishlistCount,
+      bumpCompareCount,
       refreshCartCount,
       refreshWishlistCount,
       refreshCompareCount,
@@ -132,6 +142,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       isLoading,
       setCartCountValue,
       bumpCartCount,
+      bumpWishlistCount,
+      bumpCompareCount,
       refreshCartCount,
       refreshWishlistCount,
       refreshCompareCount,

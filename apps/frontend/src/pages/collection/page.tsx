@@ -5,7 +5,6 @@ import ProductCard from '../../components/ui/ProductCard';
 import { api } from '../../lib/api';
 import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct } from '../../utils/cartProduct';
-import { useCounters } from '../../hooks/useCounters';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
@@ -42,12 +41,11 @@ export default function CollectionPage() {
     changeProductQuantity,
     isLoading: isCartLoading,
   } = useCartActions();
-  const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const {
     wishlistProductIds: favorites,
     compareProductIds: compareList,
-    mutateWishlist,
-    mutateCompare,
+    toggleWishlist: toggleWishlistId,
+    toggleCompare: toggleCompareId,
   } = useWishlistAndCompare();
   const prefetchProduct = usePrefetchProduct();
 
@@ -95,33 +93,11 @@ export default function CollectionPage() {
     return getCartQuantityForProduct(cart?.items, product);
   };
 
-  const toggleFavorite = async (product: Product) => {
-    try {
-      await api.wishlist.toggle(getProductIdForWishlist(product));
-      await mutateWishlist();
-      await refreshWishlistCount();
-    } catch (err) {
-      console.error('Failed to toggle favorite:', err);
-    }
-  };
+  const toggleFavorite = (product: Product) =>
+    toggleWishlistId(getProductIdForWishlist(product));
 
-  const toggleCompare = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForCompare(product);
-      if (compareList.includes(productIdToAdd)) {
-        await api.compare.remove(productIdToAdd);
-      } else {
-        await api.compare.add(productIdToAdd);
-      }
-      await mutateCompare();
-      await refreshCompareCount();
-    } catch (err: unknown) {
-      const e = err as { status?: number; data?: { message?: string } };
-      if (e.status === 422) {
-        alert(e.data?.message || 'Не удалось добавить товар в сравнение.');
-      }
-    }
-  };
+  const toggleCompare = (product: Product) =>
+    toggleCompareId(getProductIdForCompare(product));
 
   if (!slug) {
     return (

@@ -9,6 +9,8 @@ const defaultCountersValue = {
   isLoading: true,
   setCartCount: () => {},
   bumpCartCount: () => {},
+  bumpWishlistCount: () => {},
+  bumpCompareCount: () => {},
   refreshCartCount: async () => {
     throw new Error('CountersProvider not initialized');
   },

@@ -16,3 +16,5 @@ export { default as Input } from './Input';
 export type { InputSize, InputShape } from './Input';
 
 export { default as SearchInput } from './SearchInput';
+
+export { default as Tooltip } from './Tooltip';

@@ -7,6 +7,8 @@ export interface CountersContextType {
   isLoading: boolean;
   setCartCount: (count: number) => void;
   bumpCartCount: (delta: number) => void;
+  bumpWishlistCount: (delta: number) => void;
+  bumpCompareCount: (delta: number) => void;
   refreshCartCount: () => Promise<void>;
   refreshWishlistCount: () => Promise<void>;
   refreshCompareCount: () => Promise<void>;
