@@ -59,7 +59,7 @@ vi.mock('../../hooks/useWishlistAndCompare', () => ({
   }),
 }));
 
-vi.mock('../../contexts/SSRContext', () => ({
+vi.mock('../../contexts/ssr-context', () => ({
   useSSR: () => ({}),
 }));
 

@@ -4,7 +4,7 @@ import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import ProductCard from '../../components/ui/ProductCard';
 import { api } from '../../lib/api';
-import { useSSR } from '../../contexts/SSRContext';
+import { useSSR } from '../../contexts/ssr-context';
 import { useCounters } from '../../hooks/useCounters';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';

@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useCart } from './useCart';
-import { useCartToast } from '../contexts/CartToastContext';
+import { useCartToast } from '../contexts/cart-toast-context';
 import { getCartErrorMessage } from '../utils/cartErrors';
 import {
   isVariableParent,

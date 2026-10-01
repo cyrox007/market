@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { AuthContext } from '../contexts/AuthContext';
+import { AuthContext } from '../contexts/auth-context';
 
 // Значения по умолчанию для случая, когда контекст не инициализирован
 const defaultAuthValue = {

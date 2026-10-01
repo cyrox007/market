@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { api } from '../../../lib/api';
-import { useSSR } from '../../../contexts/SSRContext';
+import { useSSR } from '../../../contexts/ssr-context';
 import type { Product } from '../../../lib/api';
 import { Link } from 'react-router-dom';
 import ProductCard from '../../../components/ui/ProductCard';
@@ -14,9 +14,7 @@ import { PAGE_CONTAINER } from '../../../lib/layout';
 
 export default function FeaturedProducts() {
   const ssrData = useSSR();
-  const initialNewProducts = ssrData?.home?.newProducts || [];
   const initialFeaturedProducts = ssrData?.home?.featuredProducts || [];
-  const initialSaleProducts = ssrData?.home?.saleProducts || [];
 
   const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { getRegionId } = useRegion();
@@ -31,16 +29,6 @@ export default function FeaturedProducts() {
   } = useWishlistAndCompare();
 
   // Используем SWR для загрузки данных с fallback из SSR
-  const { data: newProductsData, isLoading: isLoadingNew } = useSWR(
-    getHomeProductsKey('new', regionId),
-    () => api.products.new(regionId ? { region_id: regionId } : undefined),
-    {
-      fallbackData: initialNewProducts.length > 0 ? { data: initialNewProducts } : undefined,
-      revalidateOnMount: initialNewProducts.length === 0, // Ревалидируем только если нет SSR данных
-      revalidateIfStale: true,
-    },
-  );
-
   const { data: featuredProductsData, isLoading: isLoadingFeatured } = useSWR(
     getHomeProductsKey('featured', regionId),
     () => api.products.featured(regionId ? { region_id: regionId } : undefined),
@@ -52,25 +40,10 @@ export default function FeaturedProducts() {
     },
   );
 
-  const { data: saleProductsData, isLoading: isLoadingSale } = useSWR(
-    getHomeProductsKey('sale', regionId),
-    () => api.products.sale(regionId ? { region_id: regionId } : undefined),
-    {
-      fallbackData: initialSaleProducts.length > 0 ? { data: initialSaleProducts } : undefined,
-      revalidateOnMount: initialSaleProducts.length === 0,
-      revalidateIfStale: true,
-    },
-  );
-
-  const newProducts = newProductsData?.data || [];
   const featuredProducts = featuredProductsData?.data || [];
-  const saleProducts = saleProductsData?.data || [];
-  const hasAnyData =
-    newProducts.length > 0 || featuredProducts.length > 0 || saleProducts.length > 0;
-  const isLoading = (isLoadingNew || isLoadingFeatured || isLoadingSale) && !hasAnyData;
+  const isLoading = isLoadingFeatured && featuredProducts.length === 0;
 
-  // В макете главной одна секция. «Новинки» и «Акции» скрыты, но запросы оставлены:
-  // вернуть блок — снова добавить запись в массив.
+  // В макете главной одна секция; подробности — market-docs/23
   const sections = [
     {
       title: 'Хит продаж',

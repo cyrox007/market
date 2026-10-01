@@ -6,6 +6,7 @@ import { Autoplay } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import { cn } from '../../../../lib/cn';
 import type { PromoItem } from '../PromoBoard/lib/promo-types';
+import SlideImage from '../SlideImage';
 
 import 'swiper/css';
 
@@ -80,18 +81,11 @@ export default function PromoBanner({ slides = [], className }: PromoBannerProps
 }
 
 function BannerSlide({ slide }: { slide: PromoItem }) {
-  const { title, description, badge, image, to, linkText } = slide;
+  const { title, description, badge, image, imageMobile, to, linkText } = slide;
 
   return (
     <div className="relative isolate flex flex-col items-start justify-end gap-4 px-[100px] pb-10 pt-[54px] max-md:px-6 max-vsm:px-4 max-vsm:pb-6 max-vsm:pt-[38px]">
-      {image ? (
-        <img
-          src={image}
-          alt=""
-          loading="lazy"
-          className="absolute inset-0 -z-10 size-full object-cover"
-        />
-      ) : null}
+      <SlideImage image={image} imageMobile={imageMobile} lazy />
       <div className="absolute inset-0 -z-10 bg-black/[0.28]" />
       {/* Только на мобильном: текст ближе к низу, и макет темнит низ сильнее */}
       <div

@@ -1,4 +1,4 @@
-/** Поля повторяют ответ `/sliders`, чтобы блок заработал без переделки, когда бэкендер зальёт данные */
+/** Поля повторяют ответ `/sliders/home`, приводятся к нему в `pages/home/lib/home-sliders.ts` */
 export interface PromoItem {
   id: string | number;
   title: string;
@@ -7,6 +7,8 @@ export interface PromoItem {
   badge?: string | null;
   badgeTone?: 'red' | 'yellow' | 'green';
   image?: string | null;
+  /** Ниже 550 — своё кадрирование; если не задано, берётся `image` */
+  imageMobile?: string | null;
   to?: string | null;
   linkText?: string | null;
 }

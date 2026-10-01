@@ -14,7 +14,7 @@ import { useCounters } from '../../hooks/useCounters';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
-import { useSSR } from '../../contexts/SSRContext';
+import { useSSR } from '../../contexts/ssr-context';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { getProductKey } from '../../utils/ssr-to-swr';
 import { resolveProductStockBadge } from '../../utils/productUtils';

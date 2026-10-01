@@ -3,7 +3,7 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import ProductCard from '../../components/ui/ProductCard';
 import { api } from '../../lib/api';
-import { useSSR } from '../../contexts/SSRContext';
+import { useSSR } from '../../contexts/ssr-context';
 import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct } from '../../utils/cartProduct';
 import { useCounters } from '../../hooks/useCounters';
