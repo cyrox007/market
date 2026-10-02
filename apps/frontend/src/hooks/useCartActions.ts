@@ -22,6 +22,8 @@ type CartProductInput = Pick<
   | 'first_available_variant_id'
   | 'in_stock'
 > & {
+  stock?: number | null;
+  backorder?: boolean;
   thumbnail?: string | null;
   image?: string | null;
   sku?: string;
@@ -103,28 +105,19 @@ export function useCartActions() {
     [cart, showCartToast],
   );
 
+  /** Клики копятся в итоговое количество, тосты — из useCart. market-docs/32 */
   const changeProductQuantity = useCallback(
-    async (product: CartProductInput, delta: number) => {
+    (product: CartProductInput, delta: number) => {
       if (needsVariantChoice(product) && delta > 0) {
         showCartToast('Выберите параметры на странице товара', 'error');
-        return null;
+        return;
       }
-
-      const productId = resolveProductIdForCart(product);
-      const preview = productPreviewFromProduct(product);
-
-      try {
-        const result = await cart.adjustCartQuantity(productId, delta, preview);
-        if (delta > 0 && result) {
-          scheduleSuccessToast(result.was_adjusted ? result.message : 'Количество обновлено');
-        }
-        return result;
-      } catch (error) {
-        showCartToast(getCartErrorMessage(error), 'error');
-        throw error;
-      }
+      cart.adjustCartQuantity(resolveProductIdForCart(product), delta, {
+        preview: productPreviewFromProduct(product),
+        max: product.backorder ? undefined : (product.stock ?? undefined),
+      });
     },
-    [cart, showCartToast, scheduleSuccessToast],
+    [cart, showCartToast],
   );
 
   return {

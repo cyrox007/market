@@ -10,8 +10,11 @@ const useSWRMock = vi.fn(() => ({
   mutate: mutateMock,
 }));
 
+const swrCache = new Map();
+
 vi.mock('swr', () => ({
   default: (...args: any[]) => useSWRMock(...args),
+  useSWRConfig: () => ({ cache: swrCache, mutate: vi.fn() }),
 }));
 
 vi.mock('./useCounters', () => ({

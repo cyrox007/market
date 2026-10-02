@@ -1,11 +1,89 @@
 import { useCallback, useEffect, useRef } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
+import type { Cache, ScopedMutator } from 'swr';
 import { api } from '../lib/api';
-import { runCartMutation } from '../lib/cart-mutation-queue';
+import { runSessionTask } from '../lib/session-queue';
+import { createIntentSync } from '../lib/intent-sync';
 import type { Cart, CartItem } from '../lib/api';
 import { useCounters } from './useCounters';
 import { useRegion } from './useRegion';
-import { findCartLineForProduct, mergeCartItem, patchCartQuantity } from '../utils/cartProduct';
+import { useCartToast } from '../contexts/cart-toast-context';
+import { getCartErrorMessage } from '../utils/cartErrors';
+import {
+  findCartLineForProduct,
+  mergeCartItem,
+  mergeServerLine,
+  patchCartQuantity,
+  setLineQuantity,
+} from '../utils/cartProduct';
+
+interface CartSync {
+  quantities: ReturnType<typeof createIntentSync<number>>;
+  previews: Map<number, Partial<CartItem>>;
+  /** id строки на сервере: экран может уже не показывать строку, а удалить её надо */
+  lineIds: Map<number, number>;
+  /** Значения последнего рендера хука: ключ кэша зависит от региона */
+  context: {
+    cartKey: string;
+    regionId: number | null;
+    showCartToast: (message: string, type?: 'success' | 'error') => void;
+  };
+}
+
+/** 404 на удаление — строки уже нет, этого и хотели */
+async function ensureRemoved(request: Promise<unknown>): Promise<void> {
+  try {
+    await request;
+  } catch (error) {
+    if ((error as { status?: number }).status !== 404) throw error;
+  }
+}
+
+/**
+ * Количество в корзине по товару: экран сразу, на сервер — итог по очереди сессии.
+ * Один синхронизатор на кэш SWR. market-docs/32
+ */
+const cartSyncs = new WeakMap<Cache, CartSync>();
+
+function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
+  const existing = cartSyncs.get(cache);
+  if (existing) return existing;
+
+  const updateCart = (updater: (cart: Cart | undefined) => Cart | null | undefined) =>
+    void mutate<Cart>(sync.context.cartKey, (cart) => updater(cart) ?? cart, { revalidate: false });
+
+  const sync: CartSync = {
+    previews: new Map(),
+    lineIds: new Map(),
+    context: { cartKey: '/api/cart', regionId: null, showCartToast: () => {} },
+    quantities: createIntentSync<number>({
+      send: async (productId, quantity, confirmed) => {
+        const regionId = sync.context.regionId ?? undefined;
+        // Сервер пересоздаёт строку на каждое изменение — id берём из последнего ответа
+        const lineId = sync.lineIds.get(productId) ?? 0;
+        if (quantity === 0) {
+          if (lineId > 0) await ensureRemoved(api.cart.remove(lineId));
+          sync.lineIds.delete(productId);
+          return 0;
+        }
+        // POST суммирует с тем, что уже в корзине, PUT ставит количество
+        const result =
+          lineId > 0
+            ? await api.cart.update(lineId, { quantity, region_id: regionId })
+            : await api.cart.add({ product_id: productId, quantity: quantity - confirmed, region_id: regionId });
+        sync.lineIds.set(productId, result.item.id);
+        if (result.was_adjusted) sync.context.showCartToast(result.message, 'success');
+        updateCart((cart) => mergeServerLine(cart, result.item));
+        return result.item.quantity;
+      },
+      apply: (productId, quantity) =>
+        updateCart((cart) => setLineQuantity(cart, productId, quantity, sync.previews.get(productId))),
+      onError: (_productId, error) => sync.context.showCartToast(getCartErrorMessage(error), 'error'),
+    }),
+  };
+  cartSyncs.set(cache, sync);
+  return sync;
+}
 
 export function useCart() {
   const { setCartCount } = useCounters();
@@ -15,6 +93,11 @@ export function useCart() {
 
   const regionId = regionIdRef.current;
   const cartKey = regionId ? `/api/cart?region_id=${regionId}` : '/api/cart';
+  const { cache, mutate } = useSWRConfig();
+  const cartSync = getCartSync(cache, mutate);
+  cartSync.context.cartKey = cartKey;
+  cartSync.context.regionId = regionId;
+  cartSync.context.showCartToast = useCartToast().showCartToast;
 
   const {
     data: cart,
@@ -63,7 +146,7 @@ export function useCart() {
       variationAttributes?: { attribute_slug: string; value_slug: string }[],
       preview?: Partial<CartItem>,
     ) =>
-      runCartMutation(async () => {
+      runSessionTask(async () => {
         await applyCartToCache((current) =>
           patchCartQuantity(current ?? null, productId, quantity, preview),
         );
@@ -90,7 +173,7 @@ export function useCart() {
 
   const updateQuantity = useCallback(
     (itemId: number, quantity: number) =>
-      runCartMutation(async () => {
+      runSessionTask(async () => {
         await applyCartToCache((current) => {
           const item = current?.items?.find((i) => i.id === itemId);
           if (!item) return current;
@@ -121,7 +204,7 @@ export function useCart() {
       quantity: number,
       variationAttributes?: { attribute_slug: string; value_slug: string }[],
     ) =>
-      runCartMutation(async () => {
+      runSessionTask(async () => {
         try {
           const rid = regionIdRef.current;
           const result = await api.cart.update(itemId, {
@@ -141,7 +224,7 @@ export function useCart() {
 
   const removeFromCart = useCallback(
     (itemId: number) =>
-      runCartMutation(async () => {
+      runSessionTask(async () => {
         await applyCartToCache((current) => {
           const item = current?.items?.find((i) => i.id === itemId);
           if (!item) return current;
@@ -161,7 +244,7 @@ export function useCart() {
 
   const clearCart = useCallback(
     () =>
-      runCartMutation(async () => {
+      runSessionTask(async () => {
         await applyCartToCache(() => ({
           items: [],
           subtotal: 0,
@@ -179,72 +262,30 @@ export function useCart() {
     [applyCartToCache, syncCartFromServer],
   );
 
-  /**
-   * Изменить количество по product_id, читая актуальный кэш внутри очереди.
-   * «+» идёт через POST /cart (сервер суммирует), «−» через PUT/DELETE с реальным item.id.
-   */
+  /** Поставить количество товара; клики копятся, на сервер уходит итог — market-docs/32 */
+  const setCartQuantity = useCallback(
+    (
+      productId: number,
+      quantity: number,
+      options?: { preview?: Partial<CartItem>; /** остаток; нет — без ограничения */ max?: number },
+    ) => {
+      const target = Math.max(0, options?.max === undefined ? quantity : Math.min(quantity, options.max));
+      if (options?.preview) cartSync.previews.set(productId, options.preview);
+      const shown = findCartLineForProduct(cache.get(cartKey)?.data as Cart | undefined, productId);
+      if (shown && shown.id > 0) cartSync.lineIds.set(productId, shown.id);
+      const current = shown?.quantity ?? 0;
+      cartSync.quantities.set(productId, target, current);
+    },
+    [cache, cartKey, cartSync],
+  );
+
+  /** «+» / «−»: от того, что сейчас на экране, включая ещё не отправленные клики */
   const adjustCartQuantity = useCallback(
-    (productId: number, delta: number, preview?: Partial<CartItem>) =>
-      runCartMutation(async () => {
-        if (delta === 0) return;
-
-        if (delta > 0) {
-          await applyCartToCache((current) =>
-            patchCartQuantity(current ?? null, productId, delta, preview),
-          );
-
-          try {
-            const rid = regionIdRef.current;
-            const result = await api.cart.add({
-              product_id: productId,
-              quantity: delta,
-              region_id: rid ?? undefined,
-            });
-            await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
-            return result;
-          } catch (err) {
-            await syncCartFromServer();
-            throw err;
-          }
-        }
-
-        // delta < 0
-        let serverItemId: number | undefined;
-        let newQty = 0;
-
-        await applyCartToCache((current) => {
-          const line = findCartLineForProduct(current ?? null, productId);
-          if (!line || line.id <= 0) return current;
-          serverItemId = line.id;
-          newQty = line.quantity + delta;
-          return patchCartQuantity(current ?? null, productId, delta);
-        });
-
-        if (!serverItemId) {
-          await syncCartFromServer();
-          return;
-        }
-
-        try {
-          const rid = regionIdRef.current;
-          if (newQty <= 0) {
-            await api.cart.remove(serverItemId);
-            await syncCartFromServer();
-            return;
-          }
-
-          const result = await api.cart.update(serverItemId, {
-            quantity: newQty,
-            region_id: rid ?? undefined,
-          });
-          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
-          return result;
-        } catch (err) {
-          await syncCartFromServer();
-          throw err;
-        }
-      }),
-    [applyCartToCache, syncCartFromServer],
+    (productId: number, delta: number, options?: { preview?: Partial<CartItem>; max?: number }) => {
+      const shown = findCartLineForProduct(cache.get(cartKey)?.data as Cart | undefined, productId);
+      setCartQuantity(productId, (shown?.quantity ?? 0) + delta, options);
+    },
+    [cache, cartKey, setCartQuantity],
   );
 
   const loadCart = useCallback(async () => {
@@ -257,6 +298,7 @@ export function useCart() {
     error: error ? (error instanceof Error ? error.message : 'Ошибка загрузки корзины') : null,
     addToCart,
     adjustCartQuantity,
+    setCartQuantity,
     updateQuantity,
     updateVariant,
     removeFromCart,

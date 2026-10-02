@@ -11,6 +11,7 @@ import {
   type ShippingLocation,
   type NotificationSettings,
 } from '../../lib/api';
+import { runSessionTask } from '../../lib/session-queue';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
@@ -532,7 +533,7 @@ export default function Account() {
 
   const handleRemoveFavorite = async (productId: number) => {
     try {
-      await api.wishlist.remove(productId);
+      await runSessionTask(() => api.wishlist.remove(productId));
       setFavorites(favorites.filter((item) => item.product_id !== productId));
       // Небольшая задержка, чтобы дать время API обновиться
       await new Promise((resolve) => setTimeout(resolve, 100));

@@ -4,8 +4,10 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
+import type { Cache, ScopedMutator } from 'swr';
 import { api } from '../lib/api';
+import { createIntentSync } from '../lib/intent-sync';
 import type { Product } from '../lib/api';
 import { useCounters } from './useCounters';
 
@@ -51,26 +53,122 @@ function withCompare(current: CompareData | undefined, id: number, on: boolean):
   return { ...current, products: on ? [...products, { id } as Product] : products };
 }
 
+const WISHLIST_KEY = '/api/wishlist';
+const COMPARE_KEY = '/api/compare';
+
+interface Counters {
+  bumpWishlistCount: (delta: number) => void;
+  bumpCompareCount: (delta: number) => void;
+}
+
+type ListSync = ReturnType<typeof createIntentSync<boolean>>;
+
+interface Syncs {
+  wishlist: ListSync;
+  compare: ListSync;
+  counters: Counters;
+}
+
+/**
+ * Один синхронизатор на кэш SWR: все карточки страницы делят очередь и состояние.
+ * Кэш правится точечно по одному товару — параллельные клики не затирают друг друга.
+ * market-docs/32
+ */
+/** Сервер уже в нужном состоянии: 422 «уже есть» на добавление, 404 «нет» на удаление */
+async function ensure(
+  request: Promise<unknown>,
+  alreadyStatus: number,
+  isAlready: (error: ApiError) => boolean = () => true,
+): Promise<void> {
+  try {
+    await request;
+  } catch (error) {
+    const e = error as ApiError;
+    if (e.status !== alreadyStatus || !isAlready(e)) throw error;
+  }
+}
+
+interface ApiError {
+  status?: number;
+  data?: { message?: string };
+}
+
+/** У сравнения 422 значит и «уже в списке», и «лимит 5» — различаем по тексту. market-docs/15 §9 */
+const alreadyInCompare = (error: ApiError) => /уже/i.test(error.data?.message ?? '');
+
+/** Как в CompareController::add */
+const COMPARE_LIMIT = 5;
+const COMPARE_LIMIT_MESSAGE = 'Максимум 5 товаров для сравнения';
+
+const syncsByCache = new WeakMap<Cache, Syncs>();
+
+function getSyncs(cache: Cache, mutate: ScopedMutator): Syncs {
+  const existing = syncsByCache.get(cache);
+  if (existing) return existing;
+
+  const syncs: Syncs = {
+    counters: { bumpWishlistCount: () => {}, bumpCompareCount: () => {} },
+    wishlist: createIntentSync<boolean>({
+      send: async (id, on) => {
+        if (on) await ensure(api.wishlist.add(id), 422);
+        else await ensure(api.wishlist.remove(id), 404);
+        return on;
+      },
+      apply: (id, on) => {
+        const current = cache.get(WISHLIST_KEY)?.data as WishlistData | undefined;
+        const has = (current?.data ?? []).some((item) => wishlistItemId(item) === id);
+        if (has === on) return;
+        void mutate<WishlistData>(WISHLIST_KEY, (data) => withWishlist(data, id, on), { revalidate: false });
+        syncs.counters.bumpWishlistCount(on ? 1 : -1);
+      },
+      onError: (_id, error) => console.error('Failed to update favorite:', error),
+    }),
+    compare: createIntentSync<boolean>({
+      send: async (id, on) => {
+        if (on) await ensure(api.compare.add(id), 422, alreadyInCompare);
+        else await ensure(api.compare.remove(id), 404);
+        return on;
+      },
+      apply: (id, on) => {
+        const current = cache.get(COMPARE_KEY)?.data as CompareData | undefined;
+        const has = (current?.products ?? []).some((p) => p.id === id);
+        if (has === on) return;
+        void mutate<CompareData>(COMPARE_KEY, (data) => withCompare(data, id, on), { revalidate: false });
+        syncs.counters.bumpCompareCount(on ? 1 : -1);
+      },
+      onError: (_id, error) => {
+        const e = error as ApiError;
+        if (e.status === 422) alert(e.data?.message || 'Не удалось добавить товар в сравнение.');
+        else console.error('Failed to update compare:', error);
+      },
+    }),
+  };
+  syncsByCache.set(cache, syncs);
+  return syncs;
+}
+
 /**
  * Хук для получения списков wishlist и compare
  */
 export function useWishlistAndCompare() {
-  const { bumpWishlistCount, bumpCompareCount, refreshWishlistCount } = useCounters();
+  const { bumpWishlistCount, bumpCompareCount } = useCounters();
+  const { cache, mutate } = useSWRConfig();
+  const syncs = getSyncs(cache, mutate);
+  syncs.counters.bumpWishlistCount = bumpWishlistCount;
+  syncs.counters.bumpCompareCount = bumpCompareCount;
 
-  // Загружаем wishlist
   const { data: wishlistData, mutate: mutateWishlist } = useSWR<WishlistData>(
-    '/api/wishlist',
+    WISHLIST_KEY,
     () => api.wishlist.list().catch(() => ({ data: [] })),
     {
-      revalidateOnFocus: false, // Не обновляем при фокусе
-      revalidateIfStale: false, // Не обновляем устаревшие данные автоматически
-      dedupingInterval: 5000, // Дедупликация 5 секунд
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      dedupingInterval: 5000,
     },
   );
 
-  // Загружаем compare
   const { data: compareData, mutate: mutateCompare } = useSWR<CompareData>(
-    '/api/compare',
+    COMPARE_KEY,
     () => api.compare.list().catch(() => ({ products: [] })),
     {
       revalidateOnFocus: false,
@@ -79,7 +177,6 @@ export function useWishlistAndCompare() {
     },
   );
 
-  // Вычисляем списки ID товаров
   const data = useMemo<WishlistAndCompareData>(() => {
     const wishlistProductIds = (wishlistData?.data ?? [])
       .map(wishlistItemId)
@@ -93,66 +190,25 @@ export function useWishlistAndCompare() {
     };
   }, [wishlistData, compareData]);
 
-  /**
-   * Иконка и счётчик меняются сразу, не дожидаясь сервера; при ошибке SWR откатывает
-   * кэш, счётчик откатываем сами. Список заново не скачивается — market-docs/29.
-   */
+  /** Иконка и счётчик меняются сразу, на сервер уходит итог по очереди — market-docs/29, 32 */
   const toggleWishlist = useCallback(
     async (productId: number) => {
       const on = !data.wishlistProductIds.includes(productId);
-      bumpWishlistCount(on ? 1 : -1);
-      try {
-        let confirmed = on;
-        await mutateWishlist(
-          async (current) => {
-            const response = await api.wishlist.toggle(productId);
-            confirmed = response.in_wishlist;
-            return withWishlist(current, productId, confirmed);
-          },
-          {
-            optimisticData: (current) => withWishlist(current, productId, on),
-            rollbackOnError: true,
-            revalidate: false,
-          },
-        );
-        // Сервер решил иначе (товар уже был в списке с другой вкладки) — сверяем счётчик
-        if (confirmed !== on) void refreshWishlistCount();
-      } catch (error) {
-        bumpWishlistCount(on ? -1 : 1);
-        console.error('Failed to toggle favorite:', error);
-      }
+      syncs.wishlist.set(productId, on, !on);
     },
-    [data.wishlistProductIds, mutateWishlist, bumpWishlistCount, refreshWishlistCount],
+    [data.wishlistProductIds, syncs],
   );
 
   const toggleCompare = useCallback(
     async (productId: number) => {
       const on = !data.compareProductIds.includes(productId);
-      bumpCompareCount(on ? 1 : -1);
-      try {
-        await mutateCompare(
-          async (current) => {
-            if (on) await api.compare.add(productId);
-            else await api.compare.remove(productId);
-            return withCompare(current, productId, on);
-          },
-          {
-            optimisticData: (current) => withCompare(current, productId, on),
-            rollbackOnError: true,
-            revalidate: false,
-          },
-        );
-      } catch (error) {
-        bumpCompareCount(on ? -1 : 1);
-        const e = error as { status?: number; data?: { message?: string } };
-        if (e.status === 422) {
-          alert(e.data?.message || 'Не удалось добавить товар в сравнение.');
-        } else {
-          console.error('Failed to toggle compare:', error);
-        }
+      if (on && data.compareProductIds.length >= COMPARE_LIMIT) {
+        alert(COMPARE_LIMIT_MESSAGE);
+        return;
       }
+      syncs.compare.set(productId, on, !on);
     },
-    [data.compareProductIds, mutateCompare, bumpCompareCount],
+    [data.compareProductIds, syncs],
   );
 
   return {
