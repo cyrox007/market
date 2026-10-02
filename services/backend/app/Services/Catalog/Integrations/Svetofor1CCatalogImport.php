@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Vanilo\Category\Models\Taxonomy;
 
+/**
+ * Legacy full catalog import from 1C.
+ *
+ * Сохраняется для совместимости и восстановления. Обычное обновление остатков
+ * выполняется через OneCInventoryStockClient + inventory sync actions.
+ */
 class Svetofor1CCatalogImport extends AbstractCatalogImport
 {
     protected const DEFAULT_BASE_URL = 'http://api.svetofor-mebel.ru';
@@ -57,7 +63,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
     public static function getLabel(): string
     {
-        return 'Светофор 1C';
+        return 'Светофор 1C — полный импорт (legacy)';
     }
 
     public static function getConfigKey(): ?string
@@ -155,6 +161,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
         if ($hasPrice && array_key_exists('price', $row) && $row['price'] !== null) {
             $product->price = (float) $row['price'];
             $product->saveQuietly();
+            $this->syncParentPriceIfVariant($product);
 
             Log::info('Catalog import: minute sync updated existing product price', [
                 'product_id' => $product->id,
@@ -916,8 +923,24 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
         $product->price = $price;
         $product->saveQuietly();
+        $this->syncParentPriceIfVariant($product);
 
         return true;
+    }
+
+    /**
+     * Цена родителя вариативного товара — минимальная по вариациям.
+     */
+    protected function syncParentPriceIfVariant(Product $product): void
+    {
+        if (! $product->isVariant()) {
+            return;
+        }
+
+        $parent = $product->parentProduct;
+        if ($parent !== null) {
+            Product::syncParentPriceFromVariants($parent);
+        }
     }
 
     protected function syncProductWarehouseStocks(Product $product, string $externalId): void

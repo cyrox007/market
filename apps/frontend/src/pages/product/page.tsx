@@ -944,8 +944,9 @@ export default function Product() {
       ? (product.variants.find((variant) => variant.id === product.id) ?? null)
       : null);
 
-  const displayNearestStock =
-    selectedVariant?.nearest_stock ?? product?.nearest_stock ?? product?.stock ?? 0;
+  const displayNearestStock = selectedVariant
+    ? (selectedVariant.nearest_stock ?? selectedVariant.stock ?? 0)
+    : (product?.nearest_stock ?? product?.stock ?? 0);
   const displayNearestWarehouse =
     selectedVariant?.nearest_warehouse_name ?? product?.nearest_warehouse_name ?? null;
   const displayStocks = selectedVariant?.stocks ?? product?.stocks ?? [];

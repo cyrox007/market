@@ -19,7 +19,7 @@ export default function VariantColorSelector({
   selectedVariantId,
   onSelect,
 }: VariantColorSelectorProps) {
-  if (!variants || variants.length === 0) return null;
+  if (!variants?.some((v) => v.colors?.length)) return null;
 
   return (
     <div className="flex flex-col gap-2">

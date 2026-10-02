@@ -192,4 +192,159 @@ class Svetofor1CCatalogImportTest extends TestCase
         $this->assertSame(1, $result['updated']);
     }
 
+    public function test_minute_sync_price_update_of_variant_resyncs_parent_price(): void
+    {
+        [$parent, $variant] = $this->createMergedPair();
+
+        $importer = new class extends Svetofor1CCatalogImport
+        {
+            public function __construct()
+            {
+            }
+
+            protected function fetchProductsRaw(?string $updatedAfter = null): array
+            {
+                return [];
+            }
+
+            protected function mapProducts(array $raw): array
+            {
+                return [[
+                    'name' => 'Стол белый из 1С',
+                    'slug' => 'stol-belyi',
+                    'sku' => 'SKU-WHITE',
+                    'price' => 4200,
+                    'category_external_ids' => [],
+                    'external_id' => 'ext-white',
+                    '_payload_keys' => ['basePrice'],
+                ]];
+            }
+
+            protected function persistProducts(array $mapped): array
+            {
+                return [0, 0];
+            }
+        };
+
+        $importer->importChangedProducts('2026-09-30T10:00:00.000Z');
+
+        $this->assertSame(4200.0, (float) $variant->fresh()->price);
+        $this->assertSame(4200.0, (float) $parent->fresh()->price);
+    }
+
+    public function test_full_import_updates_merged_variant_without_duplicate_and_modifications(): void
+    {
+        [$parent, $variant] = $this->createMergedPair();
+
+        $importer = new class extends Svetofor1CCatalogImport
+        {
+            public int $modificationsCalls = 0;
+
+            public function __construct()
+            {
+                $this->stockPath = '';
+            }
+
+            public function persist(array $mapped): array
+            {
+                return $this->persistProducts($mapped);
+            }
+
+            protected function enrichRowFromProductDetail(array &$row): void
+            {
+            }
+
+            protected function ensureManufacturersLoaded(): void
+            {
+            }
+
+            protected function fetchModificationsRaw(string $productExternalId): array
+            {
+                $this->modificationsCalls++;
+
+                return [['id' => 'mod-1', 'name' => 'Модификация']];
+            }
+
+            protected function fetchProductCharacteristicsRaw(string $externalId): array
+            {
+                return [];
+            }
+
+            protected function fetchProductPriceRaw(string $externalId): ?float
+            {
+                return 3900.0;
+            }
+
+            protected function fetchProductStocksRaw(string $externalId): array
+            {
+                return [];
+            }
+        };
+
+        $importer->persist([[
+            'name' => 'Стол белый из 1С',
+            'slug' => 'stol-belyi',
+            'sku' => 'SKU-WHITE',
+            'price' => 3900,
+            'category_external_ids' => [],
+            'external_id' => 'ext-white',
+            '_payload_keys' => ['basePrice'],
+        ]]);
+
+        $variant->refresh();
+        $this->assertSame(1, Product::query()->where('external_id', 'ext-white')->count());
+        $this->assertSame($parent->id, $variant->parent_product_id);
+        $this->assertSame('Стол белый', $variant->name);
+        $this->assertSame(0, $importer->modificationsCalls);
+        $this->assertSame(0, Product::query()->where('parent_product_id', $variant->id)->count());
+        $this->assertSame(3900.0, (float) $parent->fresh()->price);
+    }
+
+    public function test_price_sync_by_external_id_updates_variant_and_parent_price(): void
+    {
+        [$parent, $variant] = $this->createMergedPair();
+
+        $importer = new class extends Svetofor1CCatalogImport
+        {
+            public function __construct()
+            {
+            }
+
+            protected function fetchProductPriceRaw(string $externalId): ?float
+            {
+                return $externalId === 'ext-white' ? 3100.0 : null;
+            }
+        };
+
+        $this->assertTrue($importer->syncPriceByExternalId('ext-white'));
+        $this->assertSame(3100.0, (float) $variant->fresh()->price);
+        $this->assertSame(3100.0, (float) $parent->fresh()->price);
+    }
+
+    /**
+     * @return array{0: Product, 1: Product}
+     */
+    protected function createMergedPair(): array
+    {
+        $parent = Product::factory()->create([
+            'name' => 'Стол',
+            'slug' => 'stol',
+            'sku' => 'VAR-1',
+            'external_id' => null,
+            'price' => 5000,
+            'is_variable' => true,
+            'parent_product_id' => null,
+        ]);
+        $variant = Product::factory()->create([
+            'name' => 'Стол белый',
+            'slug' => 'stol-belyi',
+            'sku' => 'SKU-WHITE',
+            'external_id' => 'ext-white',
+            'price' => 5000,
+            'is_variable' => false,
+            'parent_product_id' => $parent->id,
+        ]);
+
+        return [$parent, $variant];
+    }
 }

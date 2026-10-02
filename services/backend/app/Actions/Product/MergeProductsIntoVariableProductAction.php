@@ -2,6 +2,7 @@
 
 namespace App\Actions\Product;
 
+use App\Actions\Product\Data\MergedProductDraft;
 use App\Actions\Product\Data\MergeProductsIntoVariableProductData;
 use App\Models\Product\Attribute;
 use App\Models\Product\Product;
@@ -10,58 +11,54 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
+/**
+ * Объединяет простые товары в вариативный: создаёт общую карточку,
+ * а все выбранные товары становятся её торговыми предложениями.
+ */
 class MergeProductsIntoVariableProductAction
 {
     public const MAX_PRODUCTS = 20;
+
+    /** Префикс служебного артикула общей карточки — не пересекается с артикулами 1С. */
+    public const PARENT_SKU_PREFIX = 'VAR-';
 
     public function __construct(
         protected SyncVariantVariationAttributesAction $syncVariantVariationAttributesAction,
         protected GetVariationAttributesForProductAction $getVariationAttributesForProductAction,
         protected BuildMergeVariantFormDataAction $buildMergeVariantFormDataAction,
+        protected BuildMergedProductDraftAction $buildMergedProductDraftAction,
     ) {
     }
 
     public function execute(MergeProductsIntoVariableProductData $data): Product
     {
         Log::info('[MergeProductsIntoVariableProduct] start', [
-            'parent_id' => $data->parentId,
             'product_ids' => $data->productIds,
         ]);
 
         $products = $this->loadAndValidateProducts($data);
+        $draft = $this->buildMergedProductDraftAction->execute($products);
+        $labels = $this->resolveLabels($data, $products, $draft);
 
-        return DB::transaction(function () use ($data, $products) {
-            /** @var Product $parent */
-            $parent = $products->firstWhere('id', $data->parentId);
+        $parent = DB::transaction(function () use ($data, $products, $draft, $labels) {
+            $parent = $this->createParent($data, $products, $draft);
 
             $variationAttributeIds = $this->resolveVariationAttributeIdsForParent($parent);
+            $parent->variationAttributeSelection()->sync($variationAttributeIds);
 
-            Log::debug('[MergeProductsIntoVariableProduct] auto variation attributes', [
-                'parent_id' => $parent->id,
-                'attribute_ids' => $variationAttributeIds,
-            ]);
-
-            $this->syncParentVariationAttributeSelection($parent, $variationAttributeIds);
-
-            $parentUpdates = [
-                'is_variable' => true,
-                'parent_product_id' => null,
-            ];
-
-            $parentName = trim((string) ($data->parentName ?? ''));
-            if ($parentName !== '') {
-                $parentUpdates['name'] = $parentName;
-            }
-
-            $parent->updateQuietly($parentUpdates);
-
-            $variantProducts = $products->where('id', '!=', $parent->id);
-
-            foreach ($variantProducts as $variant) {
+            foreach ($products as $variant) {
                 $variant->updateQuietly([
                     'parent_product_id' => $parent->id,
                     'is_variable' => false,
                 ]);
+
+                $formData = $this->buildMergeVariantFormDataAction->execute($parent, $variant, $labels[$variant->id]);
+
+                $this->syncVariantVariationAttributesAction->execute(
+                    $variant->fresh(),
+                    $formData,
+                    $parent,
+                );
 
                 Log::debug('[MergeProductsIntoVariableProduct] linked variant', [
                     'variant_id' => $variant->id,
@@ -69,36 +66,87 @@ class MergeProductsIntoVariableProductAction
                     'external_id' => $variant->external_id,
                     'sku' => $variant->sku,
                 ]);
-
-                $labelOverride = $data->variantLabelOverrides[$variant->id] ?? null;
-                $formData = $this->buildMergeVariantFormDataAction->execute($parent, $variant, $labelOverride);
-
-                $this->syncVariantVariationAttributesAction->execute(
-                    $variant->fresh(),
-                    $formData,
-                    $parent,
-                );
-            }
-
-            if ($data->mergeCategories) {
-                $this->mergeTaxons($parent, $products);
             }
 
             Product::syncParentPriceFromVariants($parent->fresh());
             $parent->flushCache();
             Product::flushAllProductCaches();
 
-            foreach ($variantProducts as $variant) {
+            foreach ($products as $variant) {
                 $variant->fresh()->flushCache();
             }
 
             Log::info('[MergeProductsIntoVariableProduct] completed', [
                 'parent_id' => $parent->id,
-                'variants_count' => $variantProducts->count(),
+                'variants_count' => $products->count(),
+                'warnings' => $draft->warnings,
             ]);
 
-            return $parent->fresh(['variants']);
+            return $parent;
         });
+
+        // Файл копируется вне транзакции: при откате объединения на диске не останется лишней копии
+        $this->copyMainImage($parent, $products, $draft);
+
+        return $parent->fresh(['variants']);
+    }
+
+    /**
+     * @param  Collection<int, Product>  $products
+     */
+    protected function copyMainImage(Product $parent, Collection $products, MergedProductDraft $draft): void
+    {
+        if ($draft->imageSourceProductId === null) {
+            return;
+        }
+
+        $products->firstWhere('id', $draft->imageSourceProductId)
+            ?->getFirstMedia('images')
+            ?->copy($parent, 'images');
+    }
+
+    /**
+     * @param  Collection<int, Product>  $products
+     */
+    protected function createParent(
+        MergeProductsIntoVariableProductData $data,
+        Collection $products,
+        MergedProductDraft $draft,
+    ): Product {
+        $name = trim((string) ($data->name ?? ''));
+
+        $parent = new Product;
+        $parent->name = $name !== '' ? $name : $draft->name;
+        $parent->sku = self::PARENT_SKU_PREFIX . 'new';
+        $parent->description = $draft->description;
+        $parent->manufacturer_id = $draft->manufacturerId;
+        $parent->state = Product::ACTIVE;
+        $parent->is_variable = true;
+        $parent->price = (float) $products->min('price');
+        $parent->stock = 0;
+        $parent->backorder = false;
+        $parent->units_sold = 0;
+        // Не quietly: ЧПУ генерирует Sluggable в событии сохранения
+        $parent->save();
+
+        $parent->forceFill(['sku' => self::PARENT_SKU_PREFIX . $parent->id])->saveQuietly();
+
+        if ($draft->taxonIds !== []) {
+            $parent->taxons()->sync($draft->taxonIds);
+        }
+
+        foreach ($draft->commonAttributes as $attributeId => $value) {
+            $parent->attributes()->attach($attributeId, $value);
+        }
+
+        Log::info('[MergeProductsIntoVariableProduct] parent created', [
+            'parent_id' => $parent->id,
+            'taxon_ids' => $draft->taxonIds,
+            'common_attribute_ids' => array_keys($draft->commonAttributes),
+            'image_source_product_id' => $draft->imageSourceProductId,
+        ]);
+
+        return $parent;
     }
 
     /**
@@ -112,7 +160,7 @@ class MergeProductsIntoVariableProductAction
             return [(int) Attribute::ensureVariantAttribute()->id];
         }
 
-        return $attributes->pluck('id')->map(fn ($id) => (int) $id)->all();
+        return $attributes->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
     }
 
     /**
@@ -130,13 +178,9 @@ class MergeProductsIntoVariableProductAction
             throw new InvalidArgumentException('За один раз можно объединить не более ' . self::MAX_PRODUCTS . ' товаров.');
         }
 
-        if (! in_array($data->parentId, $ids, true)) {
-            throw new InvalidArgumentException('Родительский товар должен быть среди выбранных.');
-        }
-
         $products = Product::query()
             ->whereIn('id', $ids)
-            ->with(['taxons', 'variants', 'warehouseStocks', 'attributes'])
+            ->with(['taxons', 'variants', 'warehouseStocks', 'attributes', 'media'])
             ->get()
             ->keyBy('id');
 
@@ -167,77 +211,45 @@ class MergeProductsIntoVariableProductAction
             throw new InvalidArgumentException('Среди выбранных товаров есть дубликаты external_id 1С.');
         }
 
-        $this->validateUniqueOfferSignatures($data, $products);
-
-        return $products->values();
+        return collect($ids)->map(fn (int $id) => $products[$id])->values();
     }
 
     /**
      * @param  Collection<int, Product>  $products
+     * @return array<int, string>
      */
-    protected function validateUniqueOfferSignatures(
+    protected function resolveLabels(
         MergeProductsIntoVariableProductData $data,
         Collection $products,
-    ): void {
-        $parent = $products->firstWhere('id', $data->parentId);
-        if (! $parent) {
-            return;
-        }
-
+        MergedProductDraft $draft,
+    ): array {
         Attribute::ensureVariantAttribute();
 
         $labels = [];
+        $seen = [];
 
-        foreach ($products->where('id', '!=', $parent->id) as $variant) {
-            $label = $this->buildMergeVariantFormDataAction->resolveOfferLabel(
-                $variant,
-                $data->variantLabelOverrides[$variant->id] ?? null,
-            );
+        foreach ($products as $product) {
+            $override = trim((string) ($data->variantLabelOverrides[$product->id] ?? ''));
+            $label = $override !== '' ? $override : ($draft->variantLabels[$product->id] ?? '');
+            $label = $this->buildMergeVariantFormDataAction->resolveOfferLabel($product, $label);
             $normalized = mb_strtolower(trim($label));
 
             if ($normalized === '') {
                 throw new InvalidArgumentException(
-                    "Не удалось определить название вариации для товара «{$variant->name}».",
+                    "Не удалось определить название вариации для товара «{$product->name}».",
                 );
             }
 
-            if (isset($labels[$normalized])) {
+            if (isset($seen[$normalized])) {
                 throw new InvalidArgumentException(
                     'Названия вариаций (торговых предложений) должны быть уникальными. Дубликат: «' . $label . '».',
                 );
             }
 
-            $labels[$normalized] = $variant->id;
-        }
-    }
-
-    /**
-     * @param  list<int>  $variationAttributeIds
-     */
-    protected function syncParentVariationAttributeSelection(Product $parent, array $variationAttributeIds): void
-    {
-        if ($variationAttributeIds === []) {
-            return;
+            $seen[$normalized] = true;
+            $labels[$product->id] = $label;
         }
 
-        $parent->variationAttributeSelection()->sync(
-            array_values(array_unique(array_map('intval', $variationAttributeIds))),
-        );
-    }
-
-    /**
-     * @param  Collection<int, Product>  $products
-     */
-    protected function mergeTaxons(Product $parent, Collection $products): void
-    {
-        $taxonIds = $products
-            ->flatMap(fn (Product $p) => $p->taxons->pluck('id'))
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($taxonIds !== []) {
-            $parent->taxons()->syncWithoutDetaching($taxonIds);
-        }
+        return $labels;
     }
 }
