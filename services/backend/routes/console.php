@@ -16,9 +16,12 @@ Schedule::command('orders:cancel-expired-unpaid')
     ->everyMinute()
     ->withoutOverlapping(10);
 
-Schedule::command('inventory:sync-1c-minute')
-    ->everyMinute()
-    ->withoutOverlapping(1);
+// Старый минутный импорт каталога сохраняется как legacy.
+if (config('catalog_import.config.svetofor_1c.legacy_minute_sync_schedule_enabled', false)) {
+    Schedule::command('inventory:sync-1c-minute')
+        ->everyMinute()
+        ->withoutOverlapping(1);
+}
 
 // Обработка очередей (default, integration-1c) — короткий запуск раз в минуту через cron + schedule:run
 // connection — позиционный аргумент queue:work (не --connection, см. artisan queue:work --help)
