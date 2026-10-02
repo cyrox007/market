@@ -2,16 +2,20 @@
 
 namespace Tests\Feature\Actions;
 
+use App\Actions\Product\BuildMergedProductDraftAction;
 use App\Actions\Product\Data\MergeProductsIntoVariableProductData;
 use App\Actions\Product\MergeProductsIntoVariableProductAction;
 use App\Models\Inventory\ProductWarehouseStock;
 use App\Models\Inventory\Warehouse;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
+use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Services\Catalog\Integrations\Svetofor1CCatalogImport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -36,55 +40,36 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         );
     }
 
-    public function test_merge_three_simple_products_into_variable_parent(): void
+    public function test_merge_creates_new_parent_and_turns_every_product_into_variant(): void
     {
         $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
 
-        $parent = Product::factory()->create([
-            'name' => 'Диван родитель',
-            'price' => 5000,
-            'parent_product_id' => null,
-            'is_variable' => false,
-        ]);
-        $second = Product::factory()->create([
-            'name' => 'Диван синий',
-            'price' => 6000,
-            'parent_product_id' => null,
-            'is_variable' => false,
-        ]);
-        $third = Product::factory()->create([
-            'name' => 'Диван красный',
-            'price' => 7000,
-            'parent_product_id' => null,
-            'is_variable' => false,
-        ]);
+        $products = collect(['Диван белый', 'Диван синий', 'Диван красный'])
+            ->map(fn (string $name) => Product::factory()->create([
+                'name' => $name,
+                'parent_product_id' => null,
+                'is_variable' => false,
+            ]));
 
-        $result = app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $second->id, $third->id],
-                variantLabelOverrides: [
-                    $second->id => 'Синий',
-                    $third->id => 'Красный',
-                ],
-            ),
-        );
+        $parent = $this->merge($products->pluck('id')->all());
 
-        $this->assertTrue($result->isVariable());
-        $this->assertNull($result->parent_product_id);
-        $this->assertSame(2, $result->variants()->count());
+        $this->assertNotContains($parent->id, $products->pluck('id')->all());
+        $this->assertTrue($parent->isVariable());
+        $this->assertNull($parent->parent_product_id);
+        $this->assertNull($parent->external_id);
+        $this->assertSame(MergeProductsIntoVariableProductAction::PARENT_SKU_PREFIX . $parent->id, $parent->sku);
+        $this->assertSame(3, $parent->variants()->count());
 
-        $second->refresh();
-        $third->refresh();
-
-        $this->assertSame($parent->id, $second->parent_product_id);
-        $this->assertSame($parent->id, $third->parent_product_id);
-        $this->assertFalse((bool) $second->is_variable);
+        foreach ($products as $product) {
+            $product->refresh();
+            $this->assertSame($parent->id, $product->parent_product_id);
+            $this->assertFalse((bool) $product->is_variable);
+        }
 
         $this->assertDatabaseHas('product_variant_attributes', [
-            'product_id' => $second->id,
+            'product_id' => $products[0]->id,
             'attribute_id' => $variantAttr->id,
-            'custom_value' => 'Синий',
+            'custom_value' => 'Белый',
         ]);
 
         $this->assertDatabaseHas('product_variation_attribute_selection', [
@@ -93,60 +78,107 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         ]);
     }
 
+    public function test_merge_builds_name_and_labels_from_one_c_names(): void
+    {
+        $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
+
+        $white = Product::factory()->create(['name' => '001.007.003 Журнальный стол Консул-1 белый']);
+        $oak = Product::factory()->create(['name' => '001.007.002 Журнальный стол Консул-1 дуб сонома/ясень шимо']);
+
+        $parent = $this->merge([$white->id, $oak->id]);
+
+        $this->assertSame('Журнальный стол Консул-1', $parent->name);
+        $this->assertNotSame('', (string) $parent->slug);
+        $this->assertStringNotContainsString('dub', (string) $parent->slug);
+
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $white->id,
+            'attribute_id' => $variantAttr->id,
+            'custom_value' => 'Белый',
+        ]);
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $oak->id,
+            'attribute_id' => $variantAttr->id,
+            'custom_value' => 'Дуб сонома/ясень шимо',
+        ]);
+    }
+
+    public function test_merge_of_identically_named_products_requires_manual_labels(): void
+    {
+        $a = Product::factory()->create(['name' => '001.001.082 Кровать Сон-5']);
+        $b = Product::factory()->create(['name' => '001.001.083 Кровать Сон-5']);
+
+        try {
+            $this->merge([$a->id, $b->id]);
+            $this->fail('Одинаковые подписи должны остановить объединение');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('Кровать Сон-5', $e->getMessage());
+        }
+
+        $parent = $this->merge([$a->id, $b->id], [$a->id => '1,4 м', $b->id => '1,6 м']);
+        $this->assertSame('Кровать Сон-5', $parent->name);
+    }
+
+    public function test_merge_without_common_name_keeps_full_names_as_labels(): void
+    {
+        $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
+
+        $sofa = Product::factory()->create(['name' => '001.002.001 Диван Лион']);
+        $chair = Product::factory()->create(['name' => '001.002.002 Кресло Лион']);
+
+        $parent = $this->merge([$sofa->id, $chair->id]);
+
+        $this->assertSame('Диван Лион', $parent->name);
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $chair->id,
+            'attribute_id' => $variantAttr->id,
+            'custom_value' => 'Кресло Лион',
+        ]);
+    }
+
+    public function test_merge_uses_name_and_label_overrides(): void
+    {
+        $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
+
+        $a = Product::factory()->create(['name' => 'Шкаф А']);
+        $b = Product::factory()->create(['name' => 'Шкаф Б']);
+
+        $parent = $this->merge([$a->id, $b->id], [$a->id => 'Левый'], 'Шкаф «Комфорт»');
+
+        $this->assertSame('Шкаф «Комфорт»', $parent->name);
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $a->id,
+            'attribute_id' => $variantAttr->id,
+            'custom_value' => 'Левый',
+        ]);
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $b->id,
+            'attribute_id' => $variantAttr->id,
+            'custom_value' => 'Б',
+        ]);
+    }
+
     public function test_merge_creates_variant_attribute_when_missing_in_catalog(): void
     {
         Attribute::query()->where('slug', Attribute::SLUG_VARIANT)->delete();
 
-        $parent = Product::factory()->create(['is_variable' => false]);
-        $offer = Product::factory()->create([
-            'name' => 'Диван серый',
-            'is_variable' => false,
-        ]);
+        $a = Product::factory()->create(['name' => 'Диван серый']);
+        $b = Product::factory()->create(['name' => 'Диван бежевый']);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $offer->id],
-            ),
-        );
+        $this->merge([$a->id, $b->id]);
 
         $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->first();
         $this->assertNotNull($variantAttr);
 
         $this->assertDatabaseHas('product_variant_attributes', [
-            'product_id' => $offer->id,
+            'product_id' => $a->id,
             'attribute_id' => $variantAttr->id,
-            'custom_value' => 'Диван серый',
-        ]);
-    }
-
-    public function test_merge_auto_variant_label_from_product_name(): void
-    {
-        $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
-
-        $parent = Product::factory()->create(['is_variable' => false]);
-        $offer = Product::factory()->create([
-            'name' => 'Шкаф угловой белый',
-            'is_variable' => false,
-        ]);
-
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $offer->id],
-            ),
-        );
-
-        $this->assertDatabaseHas('product_variant_attributes', [
-            'product_id' => $offer->id,
-            'attribute_id' => $variantAttr->id,
-            'custom_value' => 'Шкаф угловой белый',
+            'custom_value' => 'Серый',
         ]);
     }
 
     public function test_merge_copies_variation_attributes_from_product_characteristics(): void
     {
-        $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
         $colorAttr = Attribute::firstOrCreate(
             ['slug' => 'color'],
             [
@@ -158,33 +190,113 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
                 'sort_order' => 2,
             ]
         );
-        $colorValue = AttributeValue::query()->create([
-            'attribute_id' => $colorAttr->id,
-            'value' => 'Серый',
-            'slug' => 'seryi',
-        ]);
+        $gray = AttributeValue::query()->create(['attribute_id' => $colorAttr->id, 'value' => 'Серый', 'slug' => 'seryi']);
+        $blue = AttributeValue::query()->create(['attribute_id' => $colorAttr->id, 'value' => 'Синий', 'slug' => 'sinii']);
 
-        $parent = Product::factory()->create(['is_variable' => false]);
-        $parent->variationAttributeSelection()->sync([$variantAttr->id, $colorAttr->id]);
+        $a = Product::factory()->create(['name' => 'Диван А']);
+        $a->attributes()->attach($colorAttr->id, ['attribute_value_id' => $gray->id, 'custom_value' => null]);
+        $b = Product::factory()->create(['name' => 'Диван Б']);
+        $b->attributes()->attach($colorAttr->id, ['attribute_value_id' => $blue->id, 'custom_value' => null]);
 
-        $offer = Product::factory()->create(['name' => 'Диван А', 'is_variable' => false]);
-        $offer->attributes()->attach($colorAttr->id, [
-            'attribute_value_id' => $colorValue->id,
-            'custom_value' => null,
-        ]);
-
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $offer->id],
-            ),
-        );
+        $this->merge([$a->id, $b->id]);
 
         $this->assertDatabaseHas('product_variant_attributes', [
-            'product_id' => $offer->id,
+            'product_id' => $a->id,
             'attribute_id' => $colorAttr->id,
-            'attribute_value_id' => $colorValue->id,
+            'attribute_value_id' => $gray->id,
         ]);
+        $this->assertDatabaseHas('product_variant_attributes', [
+            'product_id' => $b->id,
+            'attribute_id' => $colorAttr->id,
+            'attribute_value_id' => $blue->id,
+        ]);
+    }
+
+    public function test_merge_always_unions_categories_and_warns_when_they_differ(): void
+    {
+        $tables = Category::factory()->create(['name' => 'Столы', 'slug' => 'stoly']);
+        $wardrobes = Category::factory()->create(['name' => 'Шкафы', 'slug' => 'shkafy']);
+
+        $a = Product::factory()->create(['name' => 'Стол белый']);
+        $a->taxons()->attach($tables->id);
+        $b = Product::factory()->create(['name' => 'Стол чёрный']);
+        $b->taxons()->attach($wardrobes->id);
+
+        $draft = app(BuildMergedProductDraftAction::class)->execute(Product::query()->whereIn('id', [$a->id, $b->id])->get());
+        $this->assertTrue($draft->categoriesDiffer);
+        $this->assertNotEmpty($draft->warnings);
+
+        $parent = $this->merge([$a->id, $b->id]);
+
+        $this->assertEqualsCanonicalizing([$tables->id, $wardrobes->id], $parent->taxons()->pluck('id')->all());
+    }
+
+    public function test_draft_reports_same_categories_without_warning(): void
+    {
+        $tables = Category::factory()->create(['name' => 'Столы', 'slug' => 'stoly']);
+
+        $a = Product::factory()->create(['name' => 'Стол белый', 'description' => null]);
+        $a->taxons()->attach($tables->id);
+        $b = Product::factory()->create(['name' => 'Стол чёрный', 'description' => null]);
+        $b->taxons()->attach($tables->id);
+
+        $draft = app(BuildMergedProductDraftAction::class)->execute(Product::query()->whereIn('id', [$a->id, $b->id])->get());
+
+        $this->assertFalse($draft->categoriesDiffer);
+        $this->assertSame([], $draft->warnings);
+        $this->assertSame([$tables->id], $draft->taxonIds);
+    }
+
+    public function test_merge_copies_only_common_characteristics_to_parent(): void
+    {
+        $width = Attribute::create(['name' => 'Ширина (мм)', 'slug' => 'sirina-mm', 'type' => 'string', 'allow_custom_value' => true]);
+        $color = Attribute::create(['name' => 'Цвет столешницы', 'slug' => 'cvet-stolesnicy', 'type' => 'string', 'allow_custom_value' => true]);
+        $height = Attribute::create(['name' => 'Высота (мм)', 'slug' => 'vysota-mm', 'type' => 'string', 'allow_custom_value' => true]);
+
+        $a = Product::factory()->create(['name' => 'Стол белый']);
+        $a->attributes()->attach($width->id, ['custom_value' => '900']);
+        $a->attributes()->attach($color->id, ['custom_value' => 'Белый']);
+        $a->attributes()->attach($height->id, ['custom_value' => '560']);
+
+        // Высота не заполнена — это не расхождение
+        $b = Product::factory()->create(['name' => 'Стол бежевый']);
+        $b->attributes()->attach($width->id, ['custom_value' => '900']);
+        $b->attributes()->attach($color->id, ['custom_value' => 'Бежевый']);
+
+        $parent = $this->merge([$a->id, $b->id]);
+        $parentAttributes = $parent->attributes()->get()->keyBy('id');
+
+        $this->assertSame('900', $parentAttributes[$width->id]->pivot->custom_value);
+        $this->assertSame('560', $parentAttributes[$height->id]->pivot->custom_value);
+        $this->assertFalse($parentAttributes->has($color->id));
+        $this->assertSame(3, $a->fresh()->attributes()->count());
+    }
+
+    public function test_merge_takes_longest_description_and_warns_when_descriptions_differ(): void
+    {
+        $a = Product::factory()->create(['name' => 'Стол белый', 'description' => 'Коротко']);
+        $b = Product::factory()->create(['name' => 'Стол чёрный', 'description' => 'Подробное описание стола']);
+
+        $draft = app(BuildMergedProductDraftAction::class)->execute(Product::query()->whereIn('id', [$a->id, $b->id])->get());
+        $this->assertNotEmpty($draft->warnings);
+
+        $parent = $this->merge([$a->id, $b->id]);
+
+        $this->assertSame('Подробное описание стола', $parent->description);
+    }
+
+    public function test_merge_copies_main_image_from_first_product_with_image(): void
+    {
+        Storage::fake(config('media-library.disk_name', 'public'));
+
+        $a = Product::factory()->create(['name' => 'Стол белый']);
+        $b = Product::factory()->create(['name' => 'Стол чёрный']);
+        $b->addMedia(UploadedFile::fake()->image('table.jpg', 100, 100))->toMediaCollection('images');
+
+        $parent = $this->merge([$a->id, $b->id]);
+
+        $this->assertNotNull($parent->getFirstMedia('images'));
+        $this->assertNotNull($b->fresh()->getFirstMedia('images'));
     }
 
     public function test_merge_rejects_existing_variant(): void
@@ -198,15 +310,10 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $simple->id,
-                productIds: [$simple->id, $variant->id],
-            ),
-        );
+        $this->merge([$simple->id, $variant->id]);
     }
 
-    public function test_merge_rejects_parent_with_existing_variants(): void
+    public function test_merge_rejects_product_with_existing_variants(): void
     {
         $parent = Product::factory()->create(['parent_product_id' => null, 'is_variable' => true]);
         Product::factory()->create([
@@ -217,107 +324,73 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $other->id],
-            ),
-        );
+        $this->merge([$parent->id, $other->id]);
     }
 
     public function test_merge_rejects_duplicate_variant_labels(): void
     {
-        $parent = Product::factory()->create(['is_variable' => false]);
         $a = Product::factory()->create(['is_variable' => false]);
         $b = Product::factory()->create(['is_variable' => false]);
 
         $this->expectException(InvalidArgumentException::class);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $a->id, $b->id],
-                variantLabelOverrides: [
-                    $a->id => 'Одинаковый',
-                    $b->id => 'Одинаковый',
-                ],
-            ),
-        );
-    }
-
-    public function test_merge_updates_parent_name_when_provided(): void
-    {
-        $parent = Product::factory()->create([
-            'name' => 'Старое название',
-            'is_variable' => false,
+        $this->merge([$a->id, $b->id], [
+            $a->id => 'Одинаковый',
+            $b->id => 'Одинаковый',
         ]);
-        $offer = Product::factory()->create(['is_variable' => false]);
-
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $offer->id],
-                parentName: 'Диван «Комфорт»',
-            ),
-        );
-
-        $parent->refresh();
-        $this->assertSame('Диван «Комфорт»', $parent->name);
     }
 
-    public function test_merge_syncs_parent_price_from_variants(): void
+    public function test_merge_does_not_create_parent_when_validation_fails(): void
     {
-        $parent = Product::factory()->create(['price' => 9999, 'is_variable' => false]);
-        $cheap = Product::factory()->create(['price' => 3000, 'is_variable' => false]);
-        $dear = Product::factory()->create(['price' => 8000, 'is_variable' => false]);
+        $a = Product::factory()->create(['is_variable' => false]);
+        $b = Product::factory()->create(['is_variable' => false]);
+        $before = Product::query()->count();
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $cheap->id, $dear->id],
-                variantLabelOverrides: [
-                    $cheap->id => 'Дешёвый',
-                    $dear->id => 'Дорогой',
-                ],
-            ),
-        );
+        try {
+            $this->merge([$a->id, $b->id], [$a->id => 'Одинаковый', $b->id => 'Одинаковый']);
+        } catch (InvalidArgumentException) {
+        }
 
-        $parent->refresh();
-        $this->assertSame(3000.0, (float) $parent->price);
+        $this->assertSame($before, Product::query()->count());
+        $this->assertNull($a->fresh()->parent_product_id);
     }
 
-    public function test_merge_preserves_slug_sku_and_external_id(): void
+    public function test_merge_syncs_parent_price_from_all_variants(): void
     {
-        $parent = Product::factory()->create([
-            'slug' => 'parent-sofa',
+        $first = Product::factory()->create(['name' => 'Стол А', 'price' => 3000, 'is_variable' => false]);
+        $second = Product::factory()->create(['name' => 'Стол Б', 'price' => 8000, 'is_variable' => false]);
+
+        $parent = $this->merge([$second->id, $first->id]);
+
+        $this->assertSame(3000.0, (float) $parent->fresh()->price);
+    }
+
+    public function test_merge_preserves_slug_sku_and_external_id_of_every_product(): void
+    {
+        $a = Product::factory()->create([
+            'slug' => 'sofa-white',
             'sku' => 'P-001',
-            'external_id' => 'uuid-parent',
-            'is_variable' => false,
+            'external_id' => 'uuid-white',
         ]);
-        $variant = Product::factory()->create([
+        $b = Product::factory()->create([
             'slug' => 'sofa-blue',
             'sku' => 'V-002',
             'external_id' => 'uuid-blue',
-            'is_variable' => false,
         ]);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $variant->id],
-            ),
-        );
+        $this->merge([$a->id, $b->id]);
 
-        $variant->refresh();
-
-        $this->assertSame('sofa-blue', $variant->slug);
-        $this->assertSame('V-002', $variant->sku);
-        $this->assertSame('uuid-blue', $variant->external_id);
+        foreach ([[$a, 'sofa-white', 'P-001', 'uuid-white'], [$b, 'sofa-blue', 'V-002', 'uuid-blue']] as [$product, $slug, $sku, $externalId]) {
+            $product->refresh();
+            $this->assertSame($slug, $product->slug);
+            $this->assertSame($sku, $product->sku);
+            $this->assertSame($externalId, $product->external_id);
+        }
     }
 
     public function test_merge_preserves_warehouse_stocks(): void
     {
-        $parent = Product::factory()->create(['is_variable' => false]);
+        $a = Product::factory()->create(['is_variable' => false]);
         $variant = Product::factory()->create([
             'external_id' => 'wh-variant-1',
             'is_variable' => false,
@@ -335,45 +408,43 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
             'quantity' => 12,
         ]);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $variant->id],
-            ),
-        );
+        $this->merge([$a->id, $variant->id]);
 
         $stock->refresh();
         $this->assertSame($variant->id, $stock->product_id);
         $this->assertSame(12.0, (float) $stock->quantity);
     }
 
-    public function test_sync_warehouse_stocks_finds_merged_variants_by_external_id(): void
+    public function test_sync_warehouse_stocks_finds_all_merged_variants_by_external_id(): void
     {
-        $parent = Product::factory()->create([
-            'external_id' => 'parent-ext',
-            'is_variable' => false,
-        ]);
-        $variant = Product::factory()->create([
-            'external_id' => 'variant-ext-99',
-            'is_variable' => false,
-        ]);
+        $a = Product::factory()->create(['external_id' => 'variant-ext-1']);
+        $b = Product::factory()->create(['external_id' => 'variant-ext-2']);
 
-        app(MergeProductsIntoVariableProductAction::class)->execute(
-            new MergeProductsIntoVariableProductData(
-                parentId: $parent->id,
-                productIds: [$parent->id, $variant->id],
-            ),
-        );
+        $parent = $this->merge([$a->id, $b->id]);
 
         Http::fake([
             '*' => Http::response([]),
         ]);
 
-        $import = app(Svetofor1CCatalogImport::class);
-        $result = $import->syncWarehouseStocksForProduct($parent->fresh());
+        $result = app(Svetofor1CCatalogImport::class)->syncWarehouseStocksForProduct($parent->fresh());
 
         $syncedIds = collect($result['synced'])->pluck('id')->all();
-        $this->assertContains($variant->id, $syncedIds);
-        $this->assertNotContains($variant->id, collect($result['skipped'])->pluck('id')->all());
+        $this->assertContains($a->id, $syncedIds);
+        $this->assertContains($b->id, $syncedIds);
+    }
+
+    /**
+     * @param  list<int>  $productIds
+     * @param  array<int, string>  $labels
+     */
+    protected function merge(array $productIds, array $labels = [], ?string $name = null): Product
+    {
+        return app(MergeProductsIntoVariableProductAction::class)->execute(
+            new MergeProductsIntoVariableProductData(
+                productIds: $productIds,
+                variantLabelOverrides: $labels,
+                name: $name,
+            ),
+        );
     }
 }
