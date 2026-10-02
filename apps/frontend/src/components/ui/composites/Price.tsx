@@ -65,7 +65,7 @@ export default function Price({
     <span
       {...rest}
       className={cn(
-        'inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-bold',
+        'inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-semibold',
         tone,
         className,
       )}

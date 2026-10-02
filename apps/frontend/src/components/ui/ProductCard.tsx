@@ -1,12 +1,12 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, Heart, ImageIcon, ShoppingCart } from 'lucide-react';
+import { ArrowLeftRight, ChevronsRight, Heart, ImageIcon, ShoppingCart } from 'lucide-react';
 import ProductLink from './ProductLink';
 import { Badge, IconButton, Tooltip } from './primitives';
 import { ColorSwatches, Price, QuantityStepper } from './composites';
 import type { ColorSwatch } from './composites';
 import type { Product } from '../../lib/api';
-import { isVariableParent } from '../../utils/cartProduct';
+import { isVariableParent, needsVariantChoice } from '../../utils/cartProduct';
 import { cn } from '../../lib/cn';
 
 interface ProductCardProps {
@@ -16,7 +16,6 @@ interface ProductCardProps {
   onDecreaseCart?: (productId: number) => void | Promise<void>;
   onToggleFavorite?: (product: Product) => void;
   onToggleCompare?: (product: Product) => void;
-  addedToCart?: boolean;
   cartQuantity?: number;
   isFavorite?: boolean;
   isInCompare?: boolean;
@@ -29,6 +28,17 @@ interface ProductCardProps {
 
 /** Кнопки лежат поверх растянутой ссылки, иначе клик по ним уводил бы на товар */
 const OVERLAY = 'relative z-10';
+
+/**
+ * Кнопка «в корзине»: белая пилюля с корзиной и шевронами, ведёт в корзину.
+ * 72 × 40, отступы 16 / 12 — в Figma рамка отражена, поэтому слева больше. market-docs/30
+ */
+const IN_CART_BUTTON = cn(
+  'inline-flex h-10 w-[72px] shrink-0 items-center gap-1 rounded-full bg-surface pl-4 pr-3 text-ink shadow-btn outline-none',
+  'transition-colors motion-reduce:transition-none',
+  'focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
+  '[@media(hover:hover)]:hover:bg-brand-green [@media(hover:hover)]:hover:text-ink-inverse',
+);
 
 function toSwatches(product: Product): ColorSwatch[] {
   return (product.colors ?? [])
@@ -43,7 +53,6 @@ function ProductCard({
   onDecreaseCart,
   onToggleFavorite,
   onToggleCompare,
-  addedToCart = false,
   cartQuantity = 0,
   isFavorite = false,
   isInCompare = false,
@@ -74,6 +83,9 @@ function ProductCard({
   }, []);
 
   const variableParent = isVariableParent(product);
+  // Вариант без подсказки сервера выбирается на странице товара; иначе кладём первый доступный
+  const choiceRequired = needsVariantChoice(product);
+  const inCart = displayedCartQuantity > 0 && !choiceRequired;
   // image_hd в списке товаров API отдаёт null намеренно — в цепочке он лишний
   const image = product.thumbnail || product.image;
   const swatches = toSwatches(product);
@@ -83,9 +95,13 @@ function ProductCard({
     e.preventDefault();
     e.stopPropagation();
 
-    // У товара с вариациями цвет и размер выбираются на его странице
-    if (variableParent) {
+    if (choiceRequired) {
       navigate(`/product/${product.slug}`);
+      return;
+    }
+    // Уже в корзине — кнопка ведёт в неё, количество меняется счётчиком слева
+    if (inCart) {
+      navigate('/cart');
       return;
     }
     if (!onAddToCart || isAddingToCart || isAdjustingCart) return;
@@ -213,7 +229,7 @@ function ProductCard({
         </div>
 
         <div className={cn(OVERLAY, 'flex items-center justify-between gap-1')}>
-          {displayedCartQuantity > 0 && !variableParent ? (
+          {inCart ? (
             <QuantityStepper
               value={displayedCartQuantity}
               min={0}
@@ -224,17 +240,28 @@ function ProductCard({
             <span />
           )}
 
-          {(onAddToCart || variableParent) && (
-            <IconButton
-              label={variableParent ? 'Выбрать вариант' : 'В корзину'}
-              variant="yellow"
-              isActive={addedToCart}
-              elevated
-              disabled={unavailable || isAddingToCart}
+          {inCart ? (
+            <button
+              type="button"
+              aria-label="Перейти в корзину"
               onClick={handleCartClick}
+              className={IN_CART_BUTTON}
             >
-              <ShoppingCart className="size-5" />
-            </IconButton>
+              <ShoppingCart className="size-5" aria-hidden="true" />
+              <ChevronsRight className="size-5" aria-hidden="true" />
+            </button>
+          ) : (
+            (onAddToCart || choiceRequired) && (
+              <IconButton
+                label={choiceRequired ? 'Выбрать вариант' : 'В корзину'}
+                variant="yellow"
+                elevated
+                disabled={unavailable || isAddingToCart}
+                onClick={handleCartClick}
+              >
+                <ShoppingCart className="size-5" />
+              </IconButton>
+            )
           )}
         </div>
 
@@ -282,7 +309,6 @@ function areEqual(prev: ProductCardProps, next: ProductCardProps): boolean {
     prev.product.thumbnail === next.product.thumbnail &&
     prev.product.image === next.product.image &&
     prev.product.colors === next.product.colors &&
-    prev.addedToCart === next.addedToCart &&
     prev.cartQuantity === next.cartQuantity &&
     prev.isFavorite === next.isFavorite &&
     prev.isInCompare === next.isInCompare &&

@@ -36,7 +36,6 @@ export default function Cart() {
   const [removingItemId, setRemovingItemId] = useState<number | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
   const [isLoadingRecommended, setIsLoadingRecommended] = useState(false);
-  const [addingToCartId, setAddingToCartId] = useState<number | null>(null);
   /** Подборка «Рекомендуем» загружается один раз за визит страницы, не при каждом изменении корзины */
   const recommendedLoadedRef = useRef(false);
 
@@ -116,13 +115,10 @@ export default function Cart() {
   }, [isLoading, cart?.items.length]);
 
   const handleAddRecommendedToCart = async (productId: number) => {
-    setAddingToCartId(productId);
     try {
       await addToCart(productId, 1);
     } catch (err) {
       console.error('Failed to add product to cart:', err);
-    } finally {
-      setAddingToCartId(null);
     }
   };
 
@@ -435,7 +431,6 @@ export default function Cart() {
                     }
                     onToggleFavorite={toggleFavorite}
                     onToggleCompare={toggleCompare}
-                    addedToCart={addingToCartId === product.id}
                     cartQuantity={recommendedCartQuantityByProductId[product.id] ?? 0}
                     isFavorite={favorites.includes(getProductIdForWishlist(product))}
                     isInCompare={compareList.includes(getProductIdForCompare(product))}

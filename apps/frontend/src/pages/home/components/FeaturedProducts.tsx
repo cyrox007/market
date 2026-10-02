@@ -10,6 +10,8 @@ import {
   useWishlistAndCompare,
 } from '../../../hooks/useWishlistAndCompare';
 import { useRegion } from '../../../hooks/useRegion';
+import { useCartActions } from '../../../hooks/useCartActions';
+import { getCartQuantityForProduct } from '../../../utils/cartProduct';
 import { getHomeProductsKey } from '../../../utils/ssr-to-swr';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '../../../lib/cn';
@@ -54,12 +56,25 @@ export default function FeaturedProducts() {
     },
   ];
 
+  const { cart, addProductToCart, changeProductQuantity } = useCartActions();
+
+  // Ошибки и тосты обрабатывает useCartActions
+  const findProduct = (productId: number) => featuredProducts.find((p) => p.id === productId);
+  const addToCart = async (productId: number) => {
+    const product = findProduct(productId);
+    if (product) await addProductToCart(product, 1);
+  };
+  const changeQuantity = async (productId: number, delta: number) => {
+    const product = findProduct(productId);
+    if (product) await changeProductQuantity(product, delta);
+  };
+
   const toggleFavorite = (product: Product) => toggleWishlist(productIdForWishlist(product));
   const toggleCompareFor = (product: Product) => toggleCompare(productIdForCompare(product));
 
   if (isLoading) {
     return (
-      <section className="py-16">
+      <section className="py-8 md:py-16">
         <div className={cn(PAGE_CONTAINER, 'space-y-16')}>
           {[...Array(3)].map((_, i) => (
             <div key={i}>
@@ -83,22 +98,24 @@ export default function FeaturedProducts() {
   }
 
   return (
-    <section className="py-16">
+    <section className="py-8 md:py-16 ">
       <div className={cn(PAGE_CONTAINER, 'space-y-16')}>
         {sections.map((section, sectionIndex) => {
           if (section.products.length === 0) return null;
 
           return (
             <div key={sectionIndex}>
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="font-display text-24 font-bold text-ink">{section.title}</h2>
-                <Link
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display text-32 vsm:text-24 font-bold text-ink">
+                  {section.title}
+                </h2>
+                {/* <Link
                   to={section.link}
                   className="flex items-center gap-2 whitespace-nowrap text-14 font-medium text-brand-red outline-none transition-opacity hover:opacity-80 focus-visible:opacity-80"
                 >
                   <span>Смотреть все</span>
                   <ArrowRight className="size-[1em]" />
-                </Link>
+                </Link> */}
               </div>
 
               <div
@@ -109,6 +126,10 @@ export default function FeaturedProducts() {
                   <ProductCard
                     key={product.id}
                     product={product}
+                    onAddToCart={addToCart}
+                    onIncreaseCart={(productId) => changeQuantity(productId, 1)}
+                    onDecreaseCart={(productId) => changeQuantity(productId, -1)}
+                    cartQuantity={getCartQuantityForProduct(cart?.items, product)}
                     onToggleFavorite={toggleFavorite}
                     onToggleCompare={toggleCompareFor}
                     isFavorite={favorites.includes(productIdForWishlist(product))}
