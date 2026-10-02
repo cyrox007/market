@@ -2,7 +2,6 @@ import useSWR from 'swr';
 import { api } from '../../../lib/api';
 import { useSSR } from '../../../contexts/ssr-context';
 import type { Product } from '../../../lib/api';
-import { Link } from 'react-router-dom';
 import ProductCard from '../../../components/ui/ProductCard';
 import {
   productIdForCompare,
@@ -13,7 +12,6 @@ import { useRegion } from '../../../hooks/useRegion';
 import { useCartActions } from '../../../hooks/useCartActions';
 import { getCartQuantityForProduct } from '../../../utils/cartProduct';
 import { getHomeProductsKey } from '../../../utils/ssr-to-swr';
-import { ArrowRight } from 'lucide-react';
 import { cn } from '../../../lib/cn';
 import { PAGE_CONTAINER } from '../../../lib/layout';
 
