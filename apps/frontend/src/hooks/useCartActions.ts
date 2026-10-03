@@ -29,6 +29,10 @@ type CartProductInput = Pick<
   sku?: string;
 };
 
+/** Больше остатка не накликать; под заказ — без ограничения */
+const stockLimit = (product: CartProductInput) =>
+  product.backorder ? undefined : (product.stock ?? undefined);
+
 /**
  * Добавление в корзину с toast и единой обработкой ошибок.
  */
@@ -74,6 +78,13 @@ export function useCartActions() {
       const productId = resolveProductIdForCart(product);
       const preview = productPreviewFromProduct(product);
 
+      // Карточка: тот же путь, что и «+», — клики до ответа сервера складываются. market-docs/32
+      if (!variationAttributes?.length) {
+        cart.adjustCartQuantity(productId, quantity, { preview, max: stockLimit(product) });
+        scheduleSuccessToast('Товар добавлен в корзину');
+        return null;
+      }
+
       try {
         const result = await cart.addToCart(productId, quantity, variationAttributes, preview);
         scheduleSuccessToast(result.was_adjusted ? result.message : 'Товар добавлен в корзину');
@@ -114,7 +125,7 @@ export function useCartActions() {
       }
       cart.adjustCartQuantity(resolveProductIdForCart(product), delta, {
         preview: productPreviewFromProduct(product),
-        max: product.backorder ? undefined : (product.stock ?? undefined),
+        max: stockLimit(product),
       });
     },
     [cart, showCartToast],

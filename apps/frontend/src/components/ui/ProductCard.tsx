@@ -62,17 +62,8 @@ function ProductCard({
   priority = false,
 }: ProductCardProps) {
   const navigate = useNavigate();
-  const [isAdjustingCart, setIsAdjustingCart] = useState(false);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [showNavigationLoader, setShowNavigationLoader] = useState(false);
-  const [optimisticCartQuantity, setOptimisticCartQuantity] = useState<number | null>(null);
-  const displayedCartQuantity = optimisticCartQuantity ?? cartQuantity;
   const navigationLoaderTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    // Пришло актуальное значение из родителя — сбрасываем оптимистичное
-    setOptimisticCartQuantity(null);
-  }, [cartQuantity]);
 
   useEffect(() => {
     return () => {
@@ -85,13 +76,13 @@ function ProductCard({
   const variableParent = isVariableParent(product);
   // Вариант без подсказки сервера выбирается на странице товара; иначе кладём первый доступный
   const choiceRequired = needsVariantChoice(product);
-  const inCart = displayedCartQuantity > 0 && !choiceRequired;
+  const inCart = cartQuantity > 0 && !choiceRequired;
   // image_hd в списке товаров API отдаёт null намеренно — в цепочке он лишний
   const image = product.thumbnail || product.image;
   const swatches = toSwatches(product);
   const unavailable = !variableParent && !product.in_stock && !product.backorder;
 
-  const handleCartClick = async (e: React.MouseEvent) => {
+  const handleCartClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -104,39 +95,13 @@ function ProductCard({
       navigate('/cart');
       return;
     }
-    if (!onAddToCart || isAddingToCart || isAdjustingCart) return;
-
-    try {
-      setIsAddingToCart(true);
-      await onAddToCart(product.id);
-    } catch {
-      // toast в useCartActions
-    } finally {
-      setIsAddingToCart(false);
-    }
+    void onAddToCart?.(product.id);
   };
 
-  const handleQuantityChange = async (next: number) => {
-    if (isAdjustingCart) return;
-    const current = displayedCartQuantity;
-    if (next === current) return;
-
-    try {
-      setIsAdjustingCart(true);
-      setOptimisticCartQuantity(Math.max(0, next));
-
-      if (next > current) {
-        if (onIncreaseCart) await onIncreaseCart(product.id);
-        else if (onAddToCart) await onAddToCart(product.id);
-        return;
-      }
-      if (onDecreaseCart) await onDecreaseCart(product.id);
-    } catch {
-      setOptimisticCartQuantity(null);
-      // toast в useCartActions
-    } finally {
-      setIsAdjustingCart(false);
-    }
+  // Не блокируем и не ждём сервер: количество приходит из кэша, клики копятся в useCart. market-docs/32
+  const handleQuantityChange = (next: number) => {
+    if (next > cartQuantity) void (onIncreaseCart ?? onAddToCart)?.(product.id);
+    else if (next < cartQuantity) void onDecreaseCart?.(product.id);
   };
 
   // Тексты — из макета, они же подпись кнопки для читалки
@@ -231,7 +196,7 @@ function ProductCard({
         <div className={cn(OVERLAY, 'flex items-center justify-between gap-1')}>
           {inCart ? (
             <QuantityStepper
-              value={displayedCartQuantity}
+              value={cartQuantity}
               min={0}
               max={product.backorder ? undefined : (product.stock ?? undefined)}
               onChange={handleQuantityChange}
@@ -256,7 +221,7 @@ function ProductCard({
                 label={choiceRequired ? 'Выбрать вариант' : 'В корзину'}
                 variant="yellow"
                 elevated
-                disabled={unavailable || isAddingToCart}
+                disabled={unavailable}
                 onClick={handleCartClick}
               >
                 <ShoppingCart className="size-5" />
