@@ -8,6 +8,7 @@ import useSWR, { useSWRConfig } from 'swr';
 import type { Cache, ScopedMutator } from 'swr';
 import { api } from '../lib/api';
 import { createIntentSync } from '../lib/intent-sync';
+import { onIdle, runSessionRead } from '../lib/session-queue';
 import type { Product } from '../lib/api';
 import { useCounters } from './useCounters';
 
@@ -67,6 +68,8 @@ interface Syncs {
   wishlist: ListSync;
   compare: ListSync;
   counters: Counters;
+  /** Какие списки менялись — их сверить с сервером, когда очередь опустеет */
+  dirty: { wishlist: boolean; compare: boolean };
 }
 
 /**
@@ -108,8 +111,10 @@ function getSyncs(cache: Cache, mutate: ScopedMutator): Syncs {
 
   const syncs: Syncs = {
     counters: { bumpWishlistCount: () => {}, bumpCompareCount: () => {} },
+    dirty: { wishlist: false, compare: false },
     wishlist: createIntentSync<boolean>({
       send: async (id, on) => {
+        syncs.dirty.wishlist = true;
         if (on) await ensure(api.wishlist.add(id), 422);
         else await ensure(api.wishlist.remove(id), 404);
         return on;
@@ -125,6 +130,7 @@ function getSyncs(cache: Cache, mutate: ScopedMutator): Syncs {
     }),
     compare: createIntentSync<boolean>({
       send: async (id, on) => {
+        syncs.dirty.compare = true;
         if (on) await ensure(api.compare.add(id), 422, alreadyInCompare);
         else await ensure(api.compare.remove(id), 404);
         return on;
@@ -143,6 +149,45 @@ function getSyncs(cache: Cache, mutate: ScopedMutator): Syncs {
       },
     }),
   };
+  // Сверка: кэш и счётчик = сервер. Если за время запроса кликнули — дождёмся следующей
+  const reconcile = <T,>(
+    key: string,
+    sync: ListSync,
+    load: () => Promise<T>,
+    size: (data: T | undefined) => number,
+    bump: () => (delta: number) => void,
+  ) =>
+    runSessionRead(load)
+      .then((fresh) => {
+        if (sync.hasPending()) return;
+        const delta = size(fresh) - size(cache.get(key)?.data as T | undefined);
+        void mutate(key, fresh, { revalidate: false });
+        if (delta !== 0) bump()(delta);
+      })
+      .catch(() => {});
+
+  onIdle(() => {
+    if (syncs.dirty.wishlist) {
+      syncs.dirty.wishlist = false;
+      void reconcile<WishlistData>(
+        WISHLIST_KEY,
+        syncs.wishlist,
+        () => api.wishlist.list(),
+        (data) => data?.data.length ?? 0,
+        () => syncs.counters.bumpWishlistCount,
+      );
+    }
+    if (syncs.dirty.compare) {
+      syncs.dirty.compare = false;
+      void reconcile<CompareData>(
+        COMPARE_KEY,
+        syncs.compare,
+        () => api.compare.list(),
+        (data) => data?.products.length ?? 0,
+        () => syncs.counters.bumpCompareCount,
+      );
+    }
+  });
   syncsByCache.set(cache, syncs);
   return syncs;
 }
@@ -159,7 +204,7 @@ export function useWishlistAndCompare() {
 
   const { data: wishlistData, mutate: mutateWishlist } = useSWR<WishlistData>(
     WISHLIST_KEY,
-    () => api.wishlist.list().catch(() => ({ data: [] })),
+    () => runSessionRead(() => api.wishlist.list()).catch(() => ({ data: [] })),
     {
       revalidateOnFocus: false,
       revalidateIfStale: false,
@@ -169,7 +214,7 @@ export function useWishlistAndCompare() {
 
   const { data: compareData, mutate: mutateCompare } = useSWR<CompareData>(
     COMPARE_KEY,
-    () => api.compare.list().catch(() => ({ products: [] })),
+    () => runSessionRead(() => api.compare.list()).catch(() => ({ products: [] })),
     {
       revalidateOnFocus: false,
       revalidateIfStale: false,

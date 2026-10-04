@@ -131,4 +131,19 @@ describe('intent-sync', () => {
       [7, 1, 0],
     ]);
   });
+
+  it('reports whether anything at all is still waiting for the server', async () => {
+    const { sync, send } = setup();
+    const response = deferred<number>();
+    send.mockReturnValueOnce(response.promise);
+
+    expect(sync.hasPending()).toBe(false);
+    sync.set(7, 1, 0);
+    await flush();
+    expect(sync.hasPending()).toBe(true);
+
+    response.resolve(1);
+    await flush();
+    expect(sync.hasPending()).toBe(false);
+  });
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { isSessionBusy, onIdle, resetSessionQueue, runSessionTask } from './session-queue';
+import { isSessionBusy, onIdle, resetSessionQueue, runSessionRead, runSessionTask } from './session-queue';
 import { deferred, flush } from '../test/deferred';
 
 describe('session-queue', () => {
@@ -91,5 +91,49 @@ describe('session-queue', () => {
     await flush();
 
     expect(idleCalls).toBe(1);
+  });
+
+  it('runs reads side by side', async () => {
+    const first = deferred<void>();
+    const started: string[] = [];
+
+    void runSessionRead(() => {
+      started.push('a');
+      return first.promise;
+    });
+    void runSessionRead(async () => {
+      started.push('b');
+    });
+    await flush();
+
+    expect(started).toEqual(['a', 'b']);
+  });
+
+  it('never overlaps a read with a write', async () => {
+    const read1 = deferred<void>();
+    const write = deferred<void>();
+    const started: string[] = [];
+
+    void runSessionRead(() => {
+      started.push('read1');
+      return read1.promise;
+    });
+    void runSessionTask(() => {
+      started.push('write');
+      return write.promise;
+    });
+    void runSessionRead(async () => {
+      started.push('read2');
+    });
+    await flush();
+    expect(started).toEqual(['read1']);
+
+    read1.resolve();
+    await flush();
+    expect(started).toEqual(['read1', 'write']);
+
+    write.resolve();
+    await flush();
+    expect(started).toEqual(['read1', 'write', 'read2']);
   });
 });

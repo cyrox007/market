@@ -27,6 +27,19 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>
 );
 
+const favorites = (...ids: number[]) => ({ data: ids.map((product_id) => ({ product_id })) });
+const compared = (...ids: number[]) => ({ products: ids.map((id) => ({ id })) });
+
+/** Что отдаст сервер при загрузке и на сверке после изменений */
+function server(lists: { wishlist?: [number[], number[]]; compare?: [number[], number[]] }) {
+  if (lists.wishlist) {
+    api.wishlist.list.mockResolvedValueOnce(favorites(...lists.wishlist[0])).mockResolvedValue(favorites(...lists.wishlist[1]));
+  }
+  if (lists.compare) {
+    api.compare.list.mockResolvedValueOnce(compared(...lists.compare[0])).mockResolvedValue(compared(...lists.compare[1]));
+  }
+}
+
 async function renderLoaded() {
   const hook = renderHook(() => useWishlistAndCompare(), { wrapper });
   await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
@@ -43,8 +56,9 @@ beforeEach(() => {
 
 describe('useWishlistAndCompare', () => {
   it('marks a product as favorite before the server answers', async () => {
-    const server = deferred<unknown>();
-    api.wishlist.add.mockReturnValue(server.promise);
+    const response = deferred<unknown>();
+    api.wishlist.add.mockReturnValue(response.promise);
+    server({ wishlist: [[], [7]] });
     const { result } = await renderLoaded();
 
     act(() => {
@@ -53,16 +67,17 @@ describe('useWishlistAndCompare', () => {
 
     await waitFor(() => expect(result.current.wishlistProductIds).toEqual([7]));
     expect(bumpWishlistCount).toHaveBeenCalledWith(1);
-
-    await act(async () => server.resolve({}));
-    expect(result.current.wishlistProductIds).toEqual([7]);
-    // Список заново не скачивается — в этом и была задержка
+    // Список не скачивается на клик — только один раз для сверки, когда очередь опустела
     expect(api.wishlist.list).toHaveBeenCalledTimes(1);
+
+    await act(async () => response.resolve({}));
+    await waitFor(() => expect(api.wishlist.list).toHaveBeenCalledTimes(2));
+    expect(result.current.wishlistProductIds).toEqual([7]);
   });
 
   it('rolls the favorite back when the server fails', async () => {
-    const server = deferred<unknown>();
-    api.wishlist.add.mockReturnValue(server.promise);
+    const response = deferred<unknown>();
+    api.wishlist.add.mockReturnValue(response.promise);
     const { result } = await renderLoaded();
 
     act(() => {
@@ -70,15 +85,16 @@ describe('useWishlistAndCompare', () => {
     });
     await waitFor(() => expect(result.current.wishlistProductIds).toEqual([7]));
 
-    await act(async () => server.reject(new Error('500')));
+    await act(async () => response.reject(new Error('500')));
 
     await waitFor(() => expect(result.current.wishlistProductIds).toEqual([]));
     expect(bumpWishlistCount).toHaveBeenLastCalledWith(-1);
   });
 
   it('adds to compare before the server answers', async () => {
-    const server = deferred<unknown>();
-    api.compare.add.mockReturnValue(server.promise);
+    const response = deferred<unknown>();
+    api.compare.add.mockReturnValue(response.promise);
+    server({ compare: [[], [3]] });
     const { result } = await renderLoaded();
 
     act(() => {
@@ -88,15 +104,16 @@ describe('useWishlistAndCompare', () => {
     await waitFor(() => expect(result.current.compareProductIds).toEqual([3]));
     expect(bumpCompareCount).toHaveBeenCalledWith(1);
 
-    await act(async () => server.resolve({}));
+    await act(async () => response.resolve({}));
+    await waitFor(() => expect(api.compare.list).toHaveBeenCalledTimes(2));
     expect(result.current.compareProductIds).toEqual([3]);
-    expect(api.compare.list).toHaveBeenCalledTimes(1);
   });
 
   it('keeps both favorites when the second click lands while the first is saving', async () => {
     const first = deferred<unknown>();
     const second = deferred<unknown>();
     api.wishlist.add.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    server({ wishlist: [[], [7, 8]] });
     const { result } = await renderLoaded();
 
     act(() => {
@@ -116,7 +133,7 @@ describe('useWishlistAndCompare', () => {
   });
 
   it('treats "already in favorites" and "not in favorites" as done', async () => {
-    api.wishlist.list.mockResolvedValue({ data: [{ product_id: 5 }] });
+    server({ wishlist: [[5], [7]] });
     api.wishlist.add.mockRejectedValue({ status: 422 });
     api.wishlist.remove.mockRejectedValue({ status: 404 });
     const { result } = await renderLoaded();
@@ -133,7 +150,7 @@ describe('useWishlistAndCompare', () => {
 
   it('keeps compare items the server already had and rolls back on the limit error', async () => {
     const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
-    api.compare.list.mockResolvedValue({ products: [{ id: 5 }] });
+    server({ compare: [[5], [3]] });
     api.compare.add.mockImplementation(async (id: number) => {
       if (id === 3) throw { status: 422, data: { message: 'Товар уже в списке сравнения' } };
       throw { status: 422, data: { message: 'Максимум 5 товаров для сравнения' } };
@@ -165,5 +182,20 @@ describe('useWishlistAndCompare', () => {
     expect(result.current.compareProductIds).toEqual([1, 2, 3, 4, 5]);
     expect(api.compare.add).not.toHaveBeenCalled();
     expect(bumpCompareCount).not.toHaveBeenCalled();
+  });
+
+  it('reloads favorites once the queue is idle and fixes the counter', async () => {
+    api.wishlist.add.mockResolvedValue({});
+    const { result } = await renderLoaded();
+    // В другой вкладке тем временем добавили товар 9
+    api.wishlist.list.mockResolvedValue({ data: [{ product_id: 7 }, { product_id: 9 }] });
+
+    act(() => {
+      void result.current.toggleWishlist(7);
+    });
+
+    await waitFor(() => expect(result.current.wishlistProductIds).toEqual([7, 9]));
+    expect(api.compare.list).toHaveBeenCalledTimes(1);
+    expect(bumpWishlistCount.mock.calls).toEqual([[1], [1]]);
   });
 });

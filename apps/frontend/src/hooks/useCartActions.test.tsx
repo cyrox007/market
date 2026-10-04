@@ -46,6 +46,14 @@ describe('useCartActions', () => {
       was_adjusted: false,
       message: '',
     }));
+    api.cart.get
+      .mockResolvedValueOnce({ items: [], subtotal: 0, item_count: 0, is_empty: true })
+      .mockResolvedValue({
+        items: [{ id: 55, product_id: 7, name: 'Стол', slug: 'stol', price: 100, quantity: 3, total: 300, image: null, sku: null }],
+        subtotal: 300,
+        item_count: 3,
+        is_empty: false,
+      });
     const { result } = renderHook(() => useCartActions(), { wrapper });
     await waitFor(() => expect(result.current.cart).not.toBeNull());
 

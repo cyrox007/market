@@ -31,8 +31,9 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>
 );
 
-async function renderCart(initial: Cart) {
-  api.cart.get.mockResolvedValue(initial);
+/** `after` — что отдаст сервер на сверке после изменений */
+async function renderCart(initial: Cart, after: Cart = initial) {
+  api.cart.get.mockResolvedValueOnce(initial).mockResolvedValue(after);
   const hook = renderHook(() => useCart(), { wrapper });
   await waitFor(() => expect(hook.result.current.cart).not.toBeNull());
   return hook;
@@ -50,7 +51,7 @@ describe('useCart.setCartQuantity', () => {
   it('shows a new line at once and takes its id from the server', async () => {
     const server = deferred<unknown>();
     api.cart.add.mockReturnValue(server.promise);
-    const { result } = await renderCart(cartOf());
+    const { result } = await renderCart(cartOf(), cartOf(line(55, 7, 1)));
 
     act(() => {
       result.current.setCartQuantity(7, 1, { preview: { name: 'Стол', price: 100 } });
@@ -70,7 +71,7 @@ describe('useCart.setCartQuantity', () => {
     api.cart.update
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce({ item: line(12, 7, 6), was_adjusted: false, message: '' });
-    const { result } = await renderCart(cartOf(line(10, 7, 1)));
+    const { result } = await renderCart(cartOf(line(10, 7, 1)), cartOf(line(12, 7, 6)));
 
     await act(async () => {
       result.current.setCartQuantity(7, 2);
@@ -97,7 +98,7 @@ describe('useCart.setCartQuantity', () => {
 
   it('removes the line at zero, a line already gone counts as removed', async () => {
     api.cart.remove.mockRejectedValueOnce({ status: 404 }).mockResolvedValueOnce({});
-    const { result } = await renderCart(cartOf(line(10, 7, 2), line(20, 8, 1)));
+    const { result } = await renderCart(cartOf(line(10, 7, 2), line(20, 8, 1)), cartOf());
 
     act(() => {
       result.current.setCartQuantity(7, 0);
@@ -115,7 +116,7 @@ describe('useCart.setCartQuantity', () => {
   it('shows the quantity the server allowed and tells why', async () => {
     const message = 'Товар обновлен (запрошено 8, доступно только 5 шт. на складе)';
     api.cart.update.mockResolvedValue({ item: line(11, 7, 5), was_adjusted: true, message });
-    const { result } = await renderCart(cartOf(line(10, 7, 1)));
+    const { result } = await renderCart(cartOf(line(10, 7, 1)), cartOf(line(11, 7, 5)));
 
     act(() => {
       result.current.setCartQuantity(7, 8);
@@ -131,7 +132,7 @@ describe('useCart.setCartQuantity', () => {
       if (id === 10) throw { status: 422, data: { message: 'Товар недоступен для заказа' } };
       return { item: line(21, 8, 3), was_adjusted: false, message: '' };
     });
-    const { result } = await renderCart(cartOf(line(10, 7, 1), line(20, 8, 1)));
+    const { result } = await renderCart(cartOf(line(10, 7, 1), line(20, 8, 1)), cartOf(line(10, 7, 1), line(21, 8, 3)));
 
     act(() => {
       result.current.setCartQuantity(7, 2);
@@ -149,7 +150,7 @@ describe('useCart.setCartQuantity', () => {
       was_adjusted: false,
       message: '',
     }));
-    const { result } = await renderCart(cartOf(line(10, 7, 4)));
+    const { result } = await renderCart(cartOf(line(10, 7, 4)), cartOf(line(11, 7, 5)));
 
     act(() => {
       result.current.setCartQuantity(7, 5, { max: 5 });
@@ -167,7 +168,7 @@ describe('useCart.setCartQuantity', () => {
       was_adjusted: false,
       message: '',
     }));
-    const { result } = await renderCart(cartOf(line(10, 7, 1)));
+    const { result } = await renderCart(cartOf(line(10, 7, 1)), cartOf(line(11, 7, 3)));
 
     act(() => {
       void result.current.adjustCartQuantity(7, 1);
@@ -187,5 +188,20 @@ describe('useCart.setCartQuantity', () => {
     await act(async () => {});
     expect(api.cart.update.mock.calls.map(([, body]) => body.quantity)).toEqual([3]);
     expect(api.cart.add).not.toHaveBeenCalled();
+  });
+
+  it('reloads the cart once the queue is idle and shows what the server has', async () => {
+    api.cart.update.mockResolvedValue({ item: line(11, 7, 2), was_adjusted: false, message: '' });
+    const { result } = await renderCart(cartOf(line(10, 7, 1)));
+    // В другой вкладке тем временем положили ещё товар
+    api.cart.get.mockResolvedValue(cartOf(line(11, 7, 2), line(30, 8, 1)));
+
+    act(() => {
+      result.current.setCartQuantity(7, 2);
+    });
+
+    await waitFor(() => expect(quantityOf(result.current.cart, 8)).toBe(1));
+    expect(quantityOf(result.current.cart, 7)).toBe(2);
+    expect(api.cart.get).toHaveBeenCalledTimes(2);
   });
 });

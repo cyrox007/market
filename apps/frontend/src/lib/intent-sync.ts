@@ -71,6 +71,13 @@ export function createIntentSync<V>({ send, apply, onError }: IntentSyncOptions<
       apply(key, value);
       schedule(key);
     },
+    /** Есть клик, который сервер ещё не подтвердил, или запрос в полёте */
+    hasPending() {
+      for (const entry of entries.values()) {
+        if (entry.queued || entry.inFlight || !Object.is(entry.desired, entry.confirmed)) return true;
+      }
+      return false;
+    },
     isPending(key: number) {
       const entry = entries.get(key);
       return !!entry && !Object.is(entry.desired, entry.confirmed);

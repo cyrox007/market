@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { runSessionTask } from '../../lib/session-queue';
+import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct, isVariableParent } from '../../utils/cartProduct';
 import { useCounters } from '../../hooks/useCounters';
@@ -20,7 +20,7 @@ export default function Compare() {
     const loadCompareList = async () => {
       try {
         setIsLoading(true);
-        const response = await api.compare.list();
+        const response = await runSessionRead(() => api.compare.list());
         setProducts(response.products || []);
       } catch {
         // ignore

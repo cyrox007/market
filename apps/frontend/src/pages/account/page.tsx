@@ -11,7 +11,7 @@ import {
   type ShippingLocation,
   type NotificationSettings,
 } from '../../lib/api';
-import { runSessionTask } from '../../lib/session-queue';
+import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
@@ -218,7 +218,7 @@ export default function Account() {
   const loadFavorites = async () => {
     setIsLoadingFavorites(true);
     try {
-      const response = await api.wishlist.list();
+      const response = await runSessionRead(() => api.wishlist.list());
       setFavorites(response.data || []);
     } catch (error) {
       console.error('Failed to load favorites:', error);

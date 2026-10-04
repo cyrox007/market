@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import type { Cache, ScopedMutator } from 'swr';
 import { api } from '../lib/api';
-import { runSessionTask } from '../lib/session-queue';
+import { onIdle, runSessionRead, runSessionTask } from '../lib/session-queue';
 import { createIntentSync } from '../lib/intent-sync';
 import type { Cart, CartItem } from '../lib/api';
 import { useCounters } from './useCounters';
@@ -22,6 +22,8 @@ interface CartSync {
   previews: Map<number, Partial<CartItem>>;
   /** id строки на сервере: экран может уже не показывать строку, а удалить её надо */
   lineIds: Map<number, number>;
+  /** Были изменения — когда очередь опустеет, сверить корзину с сервером */
+  dirty: boolean;
   /** Значения последнего рендера хука: ключ кэша зависит от региона */
   context: {
     cartKey: string;
@@ -55,9 +57,11 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
   const sync: CartSync = {
     previews: new Map(),
     lineIds: new Map(),
+    dirty: false,
     context: { cartKey: '/api/cart', regionId: null, showCartToast: () => {} },
     quantities: createIntentSync<number>({
       send: async (productId, quantity, confirmed) => {
+        sync.dirty = true;
         const regionId = sync.context.regionId ?? undefined;
         // Сервер пересоздаёт строку на каждое изменение — id берём из последнего ответа
         const lineId = sync.lineIds.get(productId) ?? 0;
@@ -81,6 +85,19 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
       onError: (_productId, error) => sync.context.showCartToast(getCartErrorMessage(error), 'error'),
     }),
   };
+  onIdle(() => {
+    if (!sync.dirty) return;
+    sync.dirty = false;
+    const { cartKey, regionId } = sync.context;
+    runSessionRead(() => api.cart.get(regionId ? { region_id: regionId } : undefined))
+      .then((fresh) => {
+        // Пока шла сверка, успели кликнуть — после их отправки будет новая сверка
+        if (sync.quantities.hasPending()) return;
+        sync.lineIds = new Map(fresh.items.filter((i) => i.id > 0).map((i) => [i.product_id, i.id]));
+        void mutate(cartKey, fresh, { revalidate: false });
+      })
+      .catch(() => {});
+  });
   cartSyncs.set(cache, sync);
   return sync;
 }
@@ -104,7 +121,7 @@ export function useCart() {
     error,
     isLoading,
     mutate: mutateCart,
-  } = useSWR(cartKey, () => api.cart.get(regionId ? { region_id: regionId } : undefined), {
+  } = useSWR(cartKey, () => runSessionRead(() => api.cart.get(regionId ? { region_id: regionId } : undefined)), {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
     revalidateIfStale: false,
@@ -288,8 +305,9 @@ export function useCart() {
     [cache, cartKey, setCartQuantity],
   );
 
+  // Вне мутации — через очередь; внутри задач syncCartFromServer зовётся напрямую
   const loadCart = useCallback(async () => {
-    await syncCartFromServer();
+    await runSessionRead(syncCartFromServer);
   }, [syncCartFromServer]);
 
   return {
