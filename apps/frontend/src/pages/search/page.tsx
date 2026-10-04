@@ -1,13 +1,10 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import ProductCard from '../../components/ui/ProductCard';
+import ProductCardConnected from '../../components/ui/ProductCardConnected';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
-import { useCartActions } from '../../hooks/useCartActions';
-import { getCartQuantityForProduct } from '../../utils/cartProduct';
 import { useRegion } from '../../hooks/useRegion';
-import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { getSearchKey } from '../../utils/ssr-to-swr';
 import {
   getSortSelectValue,
@@ -25,7 +22,6 @@ export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const ssrData = useSSR();
-  const { cart, addProductToCart, changeProductQuantity } = useCartActions();
   const { region } = useRegion();
 
   // Используем SSR данные если они есть
@@ -38,13 +34,6 @@ export default function Search() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  // Используем централизованный хук для wishlist и compare
-  const {
-    wishlistProductIds: favorites,
-    compareProductIds: compareList,
-    toggleWishlist: toggleWishlistId,
-    toggleCompare: toggleCompareId,
-  } = useWishlistAndCompare();
 
   // Синхронизируем состояние с SSR данными
   useLayoutEffect(() => {
@@ -186,34 +175,6 @@ export default function Search() {
     setSearchParams(newParams);
   };
 
-  const handleAddToCart = async (productId: number) => {
-    const product = products.find((p) => p.id === productId);
-    if (product) await addProductToCart(product, 1);
-  };
-
-  const updateCartQuantityByProduct = async (productId: number, delta: number) => {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-    await changeProductQuantity(product, delta);
-  };
-
-  const getProductIdForWishlist = (product: Product): number => {
-    return product.id;
-  };
-
-  const getProductIdForCompare = (product: Product): number => {
-    if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
-      return product.first_available_variant_id;
-    }
-    return product.id;
-  };
-
-  const toggleFavorite = (product: Product) =>
-    toggleWishlistId(getProductIdForWishlist(product));
-
-  const toggleCompare = (product: Product) =>
-    toggleCompareId(getProductIdForCompare(product));
-
   const query = searchParams.get('q') || '';
 
   return (
@@ -326,18 +287,7 @@ export default function Search() {
               data-product-shop
             >
               {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onAddToCart={handleAddToCart}
-                  onIncreaseCart={(productId) => updateCartQuantityByProduct(productId, 1)}
-                  onDecreaseCart={(productId) => updateCartQuantityByProduct(productId, -1)}
-                  onToggleFavorite={toggleFavorite}
-                  onToggleCompare={toggleCompare}
-                  cartQuantity={getCartQuantityForProduct(cart?.items, product)}
-                  isFavorite={favorites.includes(getProductIdForWishlist(product))}
-                  isInCompare={compareList.includes(getProductIdForCompare(product))}
-                />
+                <ProductCardConnected key={product.id} product={product} />
               ))}
             </div>
 

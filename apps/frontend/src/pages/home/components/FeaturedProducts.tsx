@@ -1,16 +1,8 @@
 import useSWR from 'swr';
 import { api } from '../../../lib/api';
 import { useSSR } from '../../../contexts/ssr-context';
-import type { Product } from '../../../lib/api';
-import ProductCard from '../../../components/ui/ProductCard';
-import {
-  productIdForCompare,
-  productIdForWishlist,
-  useWishlistAndCompare,
-} from '../../../hooks/useWishlistAndCompare';
+import ProductCardConnected from '../../../components/ui/ProductCardConnected';
 import { useRegion } from '../../../hooks/useRegion';
-import { useCartActions } from '../../../hooks/useCartActions';
-import { getCartQuantityForProduct } from '../../../utils/cartProduct';
 import { getHomeProductsKey } from '../../../utils/ssr-to-swr';
 import { cn } from '../../../lib/cn';
 import { PAGE_CONTAINER } from '../../../lib/layout';
@@ -21,14 +13,6 @@ export default function FeaturedProducts() {
 
   const { getRegionId } = useRegion();
   const regionId = getRegionId();
-
-  // Используем централизованный хук для wishlist и compare
-  const {
-    wishlistProductIds: favorites,
-    compareProductIds: compareList,
-    toggleWishlist,
-    toggleCompare,
-  } = useWishlistAndCompare();
 
   // Используем SWR для загрузки данных с fallback из SSR
   const { data: featuredProductsData, isLoading: isLoadingFeatured } = useSWR(
@@ -53,22 +37,6 @@ export default function FeaturedProducts() {
       link: '/collections/featured',
     },
   ];
-
-  const { cart, addProductToCart, changeProductQuantity } = useCartActions();
-
-  // Ошибки и тосты обрабатывает useCartActions
-  const findProduct = (productId: number) => featuredProducts.find((p) => p.id === productId);
-  const addToCart = async (productId: number) => {
-    const product = findProduct(productId);
-    if (product) await addProductToCart(product, 1);
-  };
-  const changeQuantity = async (productId: number, delta: number) => {
-    const product = findProduct(productId);
-    if (product) await changeProductQuantity(product, delta);
-  };
-
-  const toggleFavorite = (product: Product) => toggleWishlist(productIdForWishlist(product));
-  const toggleCompareFor = (product: Product) => toggleCompare(productIdForCompare(product));
 
   if (isLoading) {
     return (
@@ -121,19 +89,7 @@ export default function FeaturedProducts() {
                 data-product-shop
               >
                 {section.products.slice(0, 8).map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={addToCart}
-                    onIncreaseCart={(productId) => changeQuantity(productId, 1)}
-                    onDecreaseCart={(productId) => changeQuantity(productId, -1)}
-                    cartQuantity={getCartQuantityForProduct(cart?.items, product)}
-                    onToggleFavorite={toggleFavorite}
-                    onToggleCompare={toggleCompareFor}
-                    isFavorite={favorites.includes(productIdForWishlist(product))}
-                    isInCompare={compareList.includes(productIdForCompare(product))}
-                    className="group"
-                  />
+                  <ProductCardConnected key={product.id} product={product} />
                 ))}
               </div>
             </div>

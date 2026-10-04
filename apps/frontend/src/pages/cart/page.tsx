@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ProductLink from '../../components/ui/ProductLink';
-import ProductCard from '../../components/ui/ProductCard';
+import ProductCardConnected from '../../components/ui/ProductCardConnected';
 import CartItemVariants from '../../components/cart/CartItemVariants';
 import { useCart } from '../../hooks/useCart';
-import { useCartActions } from '../../hooks/useCartActions';
 import { useRegion } from '../../hooks/useRegion';
-import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { api } from '../../lib/api';
 import type { Product } from '../../lib/api';
 import { ChevronRight, ImageIcon, Minus, Plus, ShoppingCart, X } from 'lucide-react';
@@ -20,14 +18,7 @@ export default function Cart() {
     updateVariant,
     reloadCart,
   } = useCart();
-  const { addProductToCart, changeProductQuantity } = useCartActions();
   const { region } = useRegion();
-  const {
-    wishlistProductIds: favorites,
-    compareProductIds: compareList,
-    toggleWishlist: toggleWishlistId,
-    toggleCompare: toggleCompareId,
-  } = useWishlistAndCompare();
 
   const promoApplied = false;
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
@@ -95,48 +86,6 @@ export default function Cart() {
 
     loadRecommendedProducts();
   }, [isLoading, cart?.items.length]);
-
-  const handleAddRecommendedToCart = async (productId: number) => {
-    const product = recommendedProducts.find((p) => p.id === productId);
-    if (product) await addProductToCart(product, 1);
-  };
-
-  const recommendedCartQuantityByProductId = useMemo(() => {
-    const quantities: Record<number, number> = {};
-    for (const item of cart?.items ?? []) {
-      quantities[item.product_id] = (quantities[item.product_id] ?? 0) + item.quantity;
-    }
-    return quantities;
-  }, [cart?.items]);
-
-  const updateRecommendedCartQuantityByProduct = async (productId: number, delta: number) => {
-    const item = recommendedProducts.find((p) => p.id === productId);
-    if (!item) return;
-    try {
-      await changeProductQuantity(item, delta);
-    } catch {
-      // toast в useCartActions
-    }
-  };
-
-  // Вспомогательная функция для определения ID товара для избранного
-  const getProductIdForWishlist = (product: Product): number => {
-    return product.id;
-  };
-
-  // Вспомогательная функция для определения ID товара для сравнения
-  const getProductIdForCompare = (product: Product): number => {
-    if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
-      return product.first_available_variant_id;
-    }
-    return product.id;
-  };
-
-  const toggleFavorite = (product: Product) =>
-    toggleWishlistId(getProductIdForWishlist(product));
-
-  const toggleCompare = (product: Product) =>
-    toggleCompareId(getProductIdForCompare(product));
 
   const subtotal = cart?.subtotal || 0;
   const discount = promoApplied ? subtotal * 0.1 : 0;
@@ -396,22 +345,7 @@ export default function Cart() {
                 data-product-shop
               >
                 {recommendedProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={handleAddRecommendedToCart}
-                    onIncreaseCart={(productId) =>
-                      updateRecommendedCartQuantityByProduct(productId, 1)
-                    }
-                    onDecreaseCart={(productId) =>
-                      updateRecommendedCartQuantityByProduct(productId, -1)
-                    }
-                    onToggleFavorite={toggleFavorite}
-                    onToggleCompare={toggleCompare}
-                    cartQuantity={recommendedCartQuantityByProductId[product.id] ?? 0}
-                    isFavorite={favorites.includes(getProductIdForWishlist(product))}
-                    isInCompare={compareList.includes(getProductIdForCompare(product))}
-                  />
+                  <ProductCardConnected key={product.id} product={product} />
                 ))}
               </div>
             ) : null}
