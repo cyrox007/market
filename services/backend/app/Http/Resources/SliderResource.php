@@ -32,7 +32,9 @@ class SliderResource extends JsonResource
             'placement' => $this->placement,
             'slot' => $this->slot,
             'title' => $this->title,
-            'description' => $this->description,
+            // Promo components expect plain text and preserve line breaks. Older
+            // records may still contain markup produced by Filament RichEditor.
+            'description' => $this->plainTextDescription($this->description),
             'link' => $this->link,
             'button_text' => $this->button_text,
             'badge_text' => $this->badge_text,
@@ -64,5 +66,18 @@ class SliderResource extends JsonResource
         }
 
         return $conversion ? $media->getUrl($conversion) : $media->getUrl();
+    }
+
+    private function plainTextDescription(?string $description): ?string
+    {
+        if ($description === null || trim($description) === '') {
+            return null;
+        }
+
+        $withLineBreaks = preg_replace('/<br\s*\/?>|<\/p\s*>/i', "\n", $description) ?? $description;
+        $plainText = html_entity_decode(strip_tags($withLineBreaks), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $plainText = preg_replace('/\n{3,}/', "\n\n", $plainText) ?? $plainText;
+
+        return trim($plainText) ?: null;
     }
 }
