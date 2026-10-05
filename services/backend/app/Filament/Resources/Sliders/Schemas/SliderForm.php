@@ -3,12 +3,16 @@
 namespace App\Filament\Resources\Sliders\Schemas;
 
 use App\Models\Page\Slider;
+use App\Models\Product\Category;
+use App\Models\Product\Room;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use RalphJSmit\Filament\SEO\SEO;
 
@@ -18,6 +22,11 @@ class SliderForm
     {
         return $schema
             ->components([
+                Tabs::make('slider_form')
+                    ->tabs([
+                        Tab::make('Слайд')
+                            ->icon('heroicon-m-photo')
+                            ->schema([
                 Section::make('Расположение на главной')
                     ->description('Сначала выберите, в какой части главной страницы должен появиться материал.')
                     ->schema([
@@ -97,13 +106,70 @@ class SliderForm
                             ->helperText('Обычный текст. Переносы строк будут сохранены; HTML не нужен.')
                             ->columnSpanFull(),
 
+                        Select::make('link_type')
+                            ->label('Тип ссылки')
+                            ->options([
+                                'category' => 'Категория каталога',
+                                'room' => 'Комната',
+                                'manual' => 'Ручной адрес',
+                            ])
+                            ->default('manual')
+                            ->live()
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function ($record, $set): void {
+                                $link = $record?->link;
+
+                                if ($link && str_starts_with($link, '/catalog/')) {
+                                    $set('link_type', 'category');
+                                    $set('category_link', $link);
+                                } elseif ($link && str_starts_with($link, '/rooms/')) {
+                                    $set('link_type', 'room');
+                                    $set('room_link', $link);
+                                }
+                            }),
+
+                        Select::make('category_link')
+                            ->label('Категория')
+                            ->options(fn (): array => Category::query()
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (Category $category): array => [
+                                    $category->full_path => $category->name,
+                                ])
+                                ->filter(fn ($label, $path): bool => filled($path))
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->required(fn ($get): bool => $get('link_type') === 'category')
+                            ->visible(fn ($get): bool => $get('link_type') === 'category')
+                            ->dehydrated(false)
+                            ->afterStateUpdated(fn ($state, $set) => $set('link', $state)),
+
+                        Select::make('room_link')
+                            ->label('Комната')
+                            ->options(fn (): array => Room::query()
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (Room $room): array => [
+                                    $room->full_path => $room->name,
+                                ])
+                                ->filter(fn ($label, $path): bool => filled($path))
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->required(fn ($get): bool => $get('link_type') === 'room')
+                            ->visible(fn ($get): bool => $get('link_type') === 'room')
+                            ->dehydrated(false)
+                            ->afterStateUpdated(fn ($state, $set) => $set('link', $state)),
+
                         TextInput::make('link')
-                            ->label('Куда вести по нажатию')
+                            ->label('Ручной адрес')
                             ->maxLength(2048)
                             ->required(fn ($get): bool =>
                                 $get('placement') === Slider::PLACEMENT_BOTTOM
                                 || in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true)
                             )
+                            ->visible(fn ($get): bool => $get('link_type') === 'manual')
                             ->helperText('Можно указать внутренний путь (/catalog/...) или полный URL.'),
 
                         TextInput::make('button_text')
@@ -155,7 +221,7 @@ class SliderForm
                             ->label('Основное изображение')
                             ->image()
                             ->imageEditor()
-                            ->conversion('thumb')
+                            ->imagePreviewHeight('260')
                             ->maxSize(10240)
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                             ->columnSpanFull(),
@@ -171,7 +237,7 @@ class SliderForm
                             ->label('Изображение для телефона')
                             ->image()
                             ->imageEditor()
-                            ->conversion('thumb')
+                            ->imagePreviewHeight('260')
                             ->maxSize(10240)
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                             ->columnSpanFull(),
@@ -183,13 +249,22 @@ class SliderForm
                             ->columnSpanFull(),
                     ])
                     ->collapsible(),
+                            ]),
 
-                Section::make('SEO настройки')
-                    ->description('Необязательные мета-данные конкретного промо-материала.')
-                    ->schema([
-                        SEO::make(),
+                        Tab::make('SEO')
+                            ->icon('heroicon-m-magnifying-glass')
+                            ->schema([
+                                Section::make('SEO настройки')
+                                    ->description('Необязательные мета-данные конкретного промо-материала.')
+                                    ->schema([
+                                        SEO::make(),
+                                    ]),
+                            ]),
                     ])
-                    ->collapsible(),
+                    ->contained(false)
+                    ->persistTab()
+                    ->id('slider-form-tabs')
+                    ->columnSpanFull(),
             ]);
     }
 }
