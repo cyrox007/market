@@ -29,6 +29,7 @@ class EditProduct extends EditRecord
             $this->getSaveFormAction(),
             Action::make('saveAndStay')
                 ->label('Сохранить и остаться')
+                ->extraAttributes(['data-save-overlay' => true])
                 ->action('saveAndStay'),
             $this->getCancelFormAction(),
         ];
@@ -37,7 +38,17 @@ class EditProduct extends EditRecord
     public function saveAndStay(): void
     {
         $this->stayAfterSave = true;
+        $wasVariable = (bool) $this->getRecord()->is_variable;
+
         $this->save();
+
+        // Схема вкладок закэширована по товару до сохранения — пересобираем её
+        if ($wasVariable !== (bool) $this->getRecord()->is_variable) {
+            unset($this->cachedSchemas['content']);
+            $this->activeRelationManager = $this->getRecord()->is_variable
+                ? (string) array_key_first($this->getRelationManagers())
+                : null;
+        }
     }
 
     protected function getHeaderActions(): array

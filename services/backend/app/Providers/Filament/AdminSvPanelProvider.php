@@ -2,6 +2,9 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Resources\Products\Pages\EditProduct;
+use App\Filament\Resources\Products\Pages\OperatorEditProduct;
+use Filament\View\PanelsRenderHook;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -38,6 +41,12 @@ class AdminSvPanelProvider extends PanelProvider
             ->brandName('Светофор-Мебель')
             ->brandLogo(fn () => new HtmlString('Основной экран'))
             ->sidebarCollapsibleOnDesktop()
+            // В конце body: у Livewire-компонента страницы допустим один корневой элемент
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.products.save-overlay')->render(),
+                scopes: [EditProduct::class, OperatorEditProduct::class],
+            )
             ->colors([
                 'primary' => Color::Red,
             ])

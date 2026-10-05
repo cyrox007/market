@@ -130,6 +130,33 @@ class ProductVariantGroupAdminActionsTest extends TestCase
             ->assertTableActionHidden('attachExisting');
     }
 
+    public function test_toggling_variable_only_changes_form_state(): void
+    {
+        $product = Product::factory()->create(['is_variable' => false, 'parent_product_id' => null]);
+
+        Livewire::test(EditProduct::class, ['record' => $product->getKey()])
+            ->set('data.is_variable', true)
+            ->assertNoRedirect()
+            ->assertDontSee('Добавить торговое предложение');
+
+        $this->assertFalse($product->fresh()->isVariable());
+    }
+
+    public function test_save_and_stay_shows_variants_tab_without_reload(): void
+    {
+        $product = Product::factory()->create(['name' => 'Стол', 'is_variable' => false, 'parent_product_id' => null]);
+
+        Livewire::test(EditProduct::class, ['record' => $product->getKey()])
+            ->set('data.is_variable', true)
+            ->call('saveAndStay')
+            ->assertHasNoFormErrors()
+            ->assertNoRedirect()
+            ->assertSet('activeRelationManager', '0')
+            ->assertSee('Атрибуты вариаций для этого товара');
+
+        $this->assertTrue($product->fresh()->isVariable());
+    }
+
     /**
      * @return array{0: Product, 1: Product, 2: Product}
      */
