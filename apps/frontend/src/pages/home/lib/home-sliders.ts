@@ -21,31 +21,11 @@ export function isPresent(slider: Slider | null | undefined): slider is Slider {
   return Boolean(slider && slider.id);
 }
 
-/** Legacy records may still contain HTML from the old Filament RichEditor. */
-export function sliderDescription(value: string | null | undefined): string | null {
-  if (!value) return null;
-
-  const withLineBreaks = value.replace(/<br\s*\/?\s*>|<\/p\s*>/gi, '\n');
-  const withoutTags = withLineBreaks.replace(/<[^>]*>/g, '');
-
-  return (
-    withoutTags
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
-      .replace(/&quot;/gi, '"')
-      .replace(/&#039;/gi, "'")
-      .replace(/\n{3,}/g, '\n\n')
-      .trim() || null
-  );
-}
-
 export function toPromoItem(slider: Slider): PromoItem {
   return {
     id: slider.id,
     title: slider.title,
-    description: sliderDescription(slider.description),
+    description: slider.description,
     badge: slider.badge_text,
     badgeTone: slider.badge_tone ?? undefined,
     image: slider.image_fullhd || slider.image_hd || slider.image,

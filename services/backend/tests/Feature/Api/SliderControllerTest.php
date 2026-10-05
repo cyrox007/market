@@ -48,6 +48,18 @@ class SliderControllerTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_slider_description_is_returned_as_plain_text_for_home_components(): void
+    {
+        Slider::factory()->create([
+            'description' => '<p>Первая строка<br>Вторая &amp; третья</p>',
+            'is_active' => true,
+        ]);
+
+        $this->getJson('/api/v1/sliders')
+            ->assertOk()
+            ->assertJsonPath('data.0.description', "Первая строка\nВторая & третья");
+    }
 }
 
 
