@@ -7,6 +7,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class ProductCollectionForm
 {
@@ -21,15 +22,21 @@ class ProductCollectionForm
                             ->label('Название подборки')
                             ->required()
                             ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                if (filled($state) && blank($get('slug'))) {
+                                    $set('slug', Str::slug($state));
+                                }
+                            })
                             ->helperText('Например: "Популярное", "Новинки", "Акции"')
                             ->columnSpanFull(),
 
                         TextInput::make('slug')
-                            ->label('Slug')
+                            ->label('Системный адрес (slug)')
                             ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true)
-                            ->helperText('Уникальный идентификатор для API (featured, new, sale)')
+                            ->helperText('Заполняется из названия автоматически. Для блока «Хит продаж» на главной укажите featured.')
                             ->columnSpanFull(),
 
                         Select::make('scope_type')
