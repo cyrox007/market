@@ -19,7 +19,7 @@ class MergeProductsIntoVariableProductAction
 {
     public const MAX_PRODUCTS = 20;
 
-    /** Префикс служебного артикула общей карточки — не пересекается с артикулами 1С. */
+    /** Префикс служебного артикула общей карточки, отличимый от артикулов 1С. */
     public const PARENT_SKU_PREFIX = 'VAR-';
 
     public function __construct(
@@ -85,7 +85,7 @@ class MergeProductsIntoVariableProductAction
             return $parent;
         });
 
-        // Файл копируется вне транзакции: при откате объединения на диске не останется лишней копии
+        // Копия файла — только после успешной фиксации объединения
         $this->copyMainImage($parent, $products, $draft);
 
         return $parent->fresh(['variants']);
@@ -126,7 +126,7 @@ class MergeProductsIntoVariableProductAction
         $parent->stock = 0;
         $parent->backorder = false;
         $parent->units_sold = 0;
-        // Не quietly: ЧПУ генерирует Sluggable в событии сохранения
+        // ЧПУ генерирует Sluggable в событии сохранения — нужны события модели
         $parent->save();
 
         $parent->forceFill(['sku' => self::PARENT_SKU_PREFIX . $parent->id])->saveQuietly();
