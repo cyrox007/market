@@ -73,6 +73,25 @@ class ProductResource extends Resource
         ];
     }
 
+    /**
+     * Подсвечиваем пункт «Товары» только на страницах самого ProductResource.
+     *
+     * AttributeResource расположен по вложенному маршруту products/attributes,
+     * поэтому стандартный wildcard Filament `products.*` ошибочно делал активными
+     * одновременно и «Товары», и «Характеристики».
+     *
+     * @return string|array<string>
+     */
+    public static function getNavigationItemActiveRoutePattern(): string|array
+    {
+        $routeBaseName = static::getRouteBaseName();
+
+        return array_map(
+            fn (string $page): string => $routeBaseName . '.' . $page,
+            array_keys(static::getPages())
+        );
+    }
+
     public static function getNavigationLabel(): string
     {
         return __('filament/admin_sv/product_resource.navigation_label');
