@@ -377,10 +377,11 @@ async function createServer() {
           }
         }
 
-        // Страница категории /catalog/:category
-        const categoryMatch = url.match(/^\/catalog\/([^/]+)/);
-        if (categoryMatch) {
-          const categorySlug = categoryMatch[1];
+        // Страница категории /catalog/:category, в т. ч. вложенная /catalog/a/b — slug из последнего
+        // сегмента, без query. market-docs/40
+        const categoryMatch = url.match(/^\/catalog\/([^?#]+)/);
+        const categorySlug = categoryMatch?.[1].split('/').filter(Boolean).pop();
+        if (categoryMatch && categorySlug) {
           try {
             const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
               parseProductQueryFromReq(req);
@@ -438,9 +439,9 @@ async function createServer() {
         }
 
         // Страница комнаты /rooms/:room — та же логика, что и категория, но через rooms API.
-        const roomMatch = url.match(/^\/rooms\/([^/]+)/);
-        if (roomMatch) {
-          const roomSlug = roomMatch[1];
+        const roomMatch = url.match(/^\/rooms\/([^?#]+)/);
+        const roomSlug = roomMatch?.[1].split('/').filter(Boolean).pop();
+        if (roomMatch && roomSlug) {
           try {
             const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
               parseProductQueryFromReq(req);

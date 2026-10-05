@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { SmartLink } from '../../../../../components/ui/primitives';
 import { SliderArrowIcon } from '../../../../../components/ui/icons/slider-arrow';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay } from 'swiper/modules';
@@ -137,9 +137,9 @@ function PromoSlide({ slide }: { slide: PromoItem }) {
     'relative isolate flex size-full flex-col items-start justify-center gap-12 px-5 py-[42px] pl-20 max-md:gap-6 max-md:py-6 max-vsm:px-4 max-vsm:pl-4';
 
   return to ? (
-    <Link to={to} className={cn(shell, 'outline-none')}>
+    <SmartLink to={to} className={cn(shell, 'outline-none')}>
       {content}
-    </Link>
+    </SmartLink>
   ) : (
     <div className={shell}>{content}</div>
   );
