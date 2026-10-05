@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
 import { api } from '../../lib/api';
-import { useSSR } from '../../contexts/SSRContext';
+import { useSSR } from '../../contexts/ssr-context';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
 import type { Category } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';

@@ -8,7 +8,7 @@ import { useRegion } from './useRegion';
 import { findCartLineForProduct, mergeCartItem, patchCartQuantity } from '../utils/cartProduct';
 
 export function useCart() {
-  const { refreshCartCount, setCartCount } = useCounters();
+  const { setCartCount } = useCounters();
   const { getRegionId } = useRegion();
   const regionIdRef = useRef<number | null>(null);
   regionIdRef.current = getRegionId();

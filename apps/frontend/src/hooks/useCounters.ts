@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { CountersContext } from '../contexts/CountersContext';
+import { CountersContext } from '../contexts/counters-context';
 
 // Значения по умолчанию для случая, когда контекст не инициализирован
 const defaultCountersValue = {
@@ -9,6 +9,8 @@ const defaultCountersValue = {
   isLoading: true,
   setCartCount: () => {},
   bumpCartCount: () => {},
+  bumpWishlistCount: () => {},
+  bumpCompareCount: () => {},
   refreshCartCount: async () => {
     throw new Error('CountersProvider not initialized');
   },

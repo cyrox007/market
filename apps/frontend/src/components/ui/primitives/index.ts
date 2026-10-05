@@ -3,7 +3,8 @@
  * Спецификации и принятые решения: market-docs/04-button-hover-motion.md.
  */
 export { default as Button } from './Button';
-export type { ButtonVariant, ButtonSize, ButtonShape, ButtonFill } from './Button';
+// ButtonFill наружу не отдаём: заливка — заготовка, а не публичный API
+export type { ButtonVariant, ButtonSize, ButtonShape } from './Button';
 
 export { default as IconButton } from './IconButton';
 export type { IconButtonVariant, IconButtonSize } from './IconButton';
@@ -15,3 +16,5 @@ export { default as Input } from './Input';
 export type { InputSize, InputShape } from './Input';
 
 export { default as SearchInput } from './SearchInput';
+
+export { default as Tooltip } from './Tooltip';

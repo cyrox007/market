@@ -27,8 +27,8 @@ export default function Cart() {
   const {
     wishlistProductIds: favorites,
     compareProductIds: compareList,
-    mutateWishlist,
-    mutateCompare,
+    toggleWishlist: toggleWishlistId,
+    toggleCompare: toggleCompareId,
   } = useWishlistAndCompare();
 
   const promoApplied = false;
@@ -36,7 +36,6 @@ export default function Cart() {
   const [removingItemId, setRemovingItemId] = useState<number | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
   const [isLoadingRecommended, setIsLoadingRecommended] = useState(false);
-  const [addingToCartId, setAddingToCartId] = useState<number | null>(null);
   /** Подборка «Рекомендуем» загружается один раз за визит страницы, не при каждом изменении корзины */
   const recommendedLoadedRef = useRef(false);
 
@@ -116,13 +115,10 @@ export default function Cart() {
   }, [isLoading, cart?.items.length]);
 
   const handleAddRecommendedToCart = async (productId: number) => {
-    setAddingToCartId(productId);
     try {
       await addToCart(productId, 1);
     } catch (err) {
       console.error('Failed to add product to cart:', err);
-    } finally {
-      setAddingToCartId(null);
     }
   };
 
@@ -157,37 +153,11 @@ export default function Cart() {
     return product.id;
   };
 
-  const toggleFavorite = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForWishlist(product);
-      if (!productIdToAdd || productIdToAdd === 0) {
-        console.error('Invalid product ID for wishlist:', product);
-        return;
-      }
-      await api.wishlist.toggle(productIdToAdd);
-      await mutateWishlist();
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    }
-  };
+  const toggleFavorite = (product: Product) =>
+    toggleWishlistId(getProductIdForWishlist(product));
 
-  const toggleCompare = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForCompare(product);
-      const isInCompare = compareList.includes(productIdToAdd);
-      if (isInCompare) {
-        await api.compare.remove(productIdToAdd);
-      } else {
-        await api.compare.add(productIdToAdd);
-      }
-      await mutateCompare();
-    } catch (error: any) {
-      console.error('Failed to toggle compare:', error);
-      if (error.status === 422) {
-        alert(error.data?.message || 'Не удалось добавить товар в сравнение.');
-      }
-    }
-  };
+  const toggleCompare = (product: Product) =>
+    toggleCompareId(getProductIdForCompare(product));
 
   const subtotal = cart?.subtotal || 0;
   const discount = promoApplied ? subtotal * 0.1 : 0;
@@ -461,7 +431,6 @@ export default function Cart() {
                     }
                     onToggleFavorite={toggleFavorite}
                     onToggleCompare={toggleCompare}
-                    addedToCart={addingToCartId === product.id}
                     cartQuantity={recommendedCartQuantityByProductId[product.id] ?? 0}
                     isFavorite={favorites.includes(getProductIdForWishlist(product))}
                     isInCompare={compareList.includes(getProductIdForCompare(product))}

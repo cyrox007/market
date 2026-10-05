@@ -1,7 +1,5 @@
 import type { SeoMeta } from '../lib/api';
-
-const META_NAMES = ['description', 'robots'] as const;
-const OG_PROPERTIES = ['og:title', 'og:description', 'og:image', 'og:url', 'og:type'] as const;
+import { SITE_NAME } from '../constants/seo';
 
 /**
  * Устанавливает в document заголовок и meta-теги из объекта SEO с бэкенда.
@@ -10,9 +8,8 @@ const OG_PROPERTIES = ['og:title', 'og:description', 'og:image', 'og:url', 'og:t
 export function applySeoMeta(seo: SeoMeta | null | undefined): void {
   if (!seo) return;
 
-  if (seo.title) {
-    document.title = seo.title || 'Светофор Мебели';
-  }
+  // Без запасного значения заголовок остался бы от предыдущего маршрута
+  document.title = seo.title || SITE_NAME;
 
   // description
   setMetaTag('name', 'description', seo.description);

@@ -1,9 +1,9 @@
 import { useCallback, useRef } from 'react';
 import { useCart } from './useCart';
-import { useCartToast } from '../contexts/CartToastContext';
+import { useCartToast } from '../contexts/cart-toast-context';
 import { getCartErrorMessage } from '../utils/cartErrors';
 import {
-  isVariableParent,
+  needsVariantChoice,
   productPreviewFromProduct,
   resolveProductIdForCart,
 } from '../utils/cartProduct';
@@ -60,7 +60,7 @@ export function useCartActions() {
       quantity: number = 1,
       variationAttributes?: { attribute_slug: string; value_slug: string }[],
     ) => {
-      if (isVariableParent(product) && !variationAttributes?.length) {
+      if (needsVariantChoice(product) && !variationAttributes?.length) {
         showCartToast('Выберите параметры на странице товара', 'error');
         return null;
       }
@@ -105,7 +105,7 @@ export function useCartActions() {
 
   const changeProductQuantity = useCallback(
     async (product: CartProductInput, delta: number) => {
-      if (isVariableParent(product) && delta > 0) {
+      if (needsVariantChoice(product) && delta > 0) {
         showCartToast('Выберите параметры на странице товара', 'error');
         return null;
       }

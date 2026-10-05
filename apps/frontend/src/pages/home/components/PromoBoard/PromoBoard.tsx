@@ -6,13 +6,22 @@ import type { PromoItem } from './lib/promo-types';
 
 interface PromoBoardProps {
   slides?: PromoItem[];
-  /** Две статичные карточки правой колонки: делят высоту большой карточки поровну */
-  cards?: PromoItem[];
+  /**
+   * Правые карточки — по именованным позициям, а не по порядку: бэкенд отдаёт их
+   * отдельными полями, и при пустой верхней нижняя не должна встать на её место.
+   */
+  rightTop?: PromoItem | null;
+  rightBottom?: PromoItem | null;
   className?: string;
 }
 
 /** Замеры и поведение — market-docs/17-promo-board.md */
-export default function PromoBoard({ slides = [], cards = [], className }: PromoBoardProps) {
+export default function PromoBoard({
+  slides = [],
+  rightTop,
+  rightBottom,
+  className,
+}: PromoBoardProps) {
   if (!slides.length) return null;
 
   return (
@@ -20,13 +29,13 @@ export default function PromoBoard({ slides = [], cards = [], className }: Promo
       <div className="grid grid-cols-[824fr_400fr] gap-4 max-md:grid-cols-1">
         <PromoSlider slides={slides} className="aspect-[824/461] max-vsm:aspect-[4/5]" />
 
-        {cards.length ? (
+        {rightTop || rightBottom ? (
           // Колонка вынута из потока: иначе её текст задаёт высоту строки сетки
           // и правая часть становится выше большой карточки
           <div className="relative max-md:hidden">
             <div className="absolute inset-0 flex flex-col gap-4">
-              <PromoCard item={cards[0]} className="min-h-0 flex-1" />
-              {cards[1] ? <PromoCard item={cards[1]} className="min-h-0 flex-1" /> : null}
+              {rightTop ? <PromoCard item={rightTop} className="min-h-0 flex-1" /> : null}
+              {rightBottom ? <PromoCard item={rightBottom} className="min-h-0 flex-1" /> : null}
             </div>
           </div>
         ) : null}

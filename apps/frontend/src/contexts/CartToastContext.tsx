@@ -1,13 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import Toast from '../components/ui/Toast';
-
-type ToastType = 'success' | 'error';
-
-interface CartToastContextType {
-  showCartToast: (message: string, type?: ToastType) => void;
-}
-
-const CartToastContext = createContext<CartToastContextType | undefined>(undefined);
+import { CartToastContext, type ToastType } from './cart-toast-context';
 
 export function CartToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
@@ -30,12 +23,4 @@ export function CartToastProvider({ children }: { children: ReactNode }) {
       />
     </CartToastContext.Provider>
   );
-}
-
-export function useCartToast() {
-  const ctx = useContext(CartToastContext);
-  if (!ctx) {
-    return { showCartToast: () => {} };
-  }
-  return ctx;
 }

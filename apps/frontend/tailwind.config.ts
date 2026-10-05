@@ -63,6 +63,7 @@ export default {
           grey: '#F5F3F1', // Surface/Grey
           border: '#E8E5E1', // Surface/Border
           stroke: '#141414', // Surface/Stroke, применяется с прозрачностью
+          footer: '#123A2D', // фон подвала, темнее brand-green — это разные цвета, не оттенки
         },
       },
 
@@ -93,7 +94,9 @@ export default {
         '18': ['18px', { lineHeight: 'normal' }],
         '20': ['20px', { lineHeight: 'normal' }], // замерено: цена на карточке товара
         '24': ['24px', { lineHeight: 'normal' }],
+        '28': ['28px', { lineHeight: 'normal' }], // заголовок баннера ниже 550
         '32': ['32px', { lineHeight: 'normal' }], // заголовок слайдера ниже 550
+        '36': ['36px', { lineHeight: 'normal' }], // заголовок баннера под «Хит продаж»
         '44': ['44px', { lineHeight: 'normal' }], // заголовок слайдера ниже 980
         '52': ['52px', { lineHeight: 'normal' }],
       },

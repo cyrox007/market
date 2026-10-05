@@ -16,15 +16,9 @@ type SearchInputProps = SearchInputOwnProps &
   Omit<InputHTMLAttributes<HTMLInputElement>, keyof SearchInputOwnProps | 'size' | 'type'>;
 
 /**
- * Поле поиска из шапки. Замерено с макета 07.09.2026:
- * высота 44, кегль 14, строка 17, круглая жёлтая кнопка 36 с иконкой 20,
- * в покое светлая рамка, в фокусе тёмная.
- *
- * Ширина адаптивная: максимум 475 на десктопе, дальше сжимается по экрану.
- * Здесь она НЕ задана — поле занимает ширину родителя, а ограничение ставится
- * в месте использования: className="w-full max-w-[475px]".
- *
- * Обёрнуто в <form>, чтобы Enter отправлял запрос без своего обработчика клавиш.
+ * Ширину не задаёт — поле занимает ширину родителя, ограничение ставится
+ * в месте использования. Обёрнуто в <form>, чтобы Enter работал сам.
+ * Замеры — market-docs/09-ui-primitives-stage-1.md.
  */
 const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
   { onSearch, submitLabel = 'Найти', className, wrapperClassName, ...rest },

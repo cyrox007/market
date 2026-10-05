@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import useSWR from 'swr';
-import { api, InteriorIdea, InteriorIdeaHotspot } from '@/lib/api';
-import { useSSR } from '@/contexts/SSRContext';
+import { api, InteriorIdeaHotspot } from '@/lib/api';
+import { useSSR } from '@/contexts/ssr-context';
 import { useCartActions } from '@/hooks/useCartActions';
 import { ArrowLeftRight, Heart, ImageIcon, Info, Minus, Plus } from 'lucide-react';
 
