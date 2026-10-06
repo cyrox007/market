@@ -80,7 +80,8 @@ export default defineConfig({
   base,
   build: {
     sourcemap: true,
-    outDir: 'dist/client',
+    outDir: resolve(__dirname, '../../services/backend/public'),
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
