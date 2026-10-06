@@ -29,7 +29,9 @@ import type { Category, Product, FiltersMeta } from '../../lib/api';
 import { ChevronRight, ListFilter, X } from 'lucide-react';
 
 export default function CatalogCategory() {
-  const { category: categorySlug } = useParams<{ category: string }>();
+  // Адрес может быть вложенным (/catalog/gostinaia/gotovye-stenki) — категория в последнем сегменте
+  const { category: firstSegment, '*': nestedPath } = useParams<{ category: string; '*': string }>();
+  const categorySlug = nestedPath?.split('/').filter(Boolean).pop() ?? firstSegment;
   // Одна страница на каталог и комнаты: источник данных выбираем по URL.
   const isRooms = useLocation().pathname.startsWith('/rooms');
   const source = isRooms ? api.rooms : api.categories;

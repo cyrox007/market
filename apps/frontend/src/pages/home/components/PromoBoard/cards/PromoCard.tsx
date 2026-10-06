@@ -1,6 +1,5 @@
-import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-import { Badge } from '../../../../../components/ui/primitives';
+import { Badge, SmartLink } from '../../../../../components/ui/primitives';
 import { cn } from '../../../../../lib/cn';
 import type { PromoItem } from '../lib/promo-types';
 
@@ -54,13 +53,13 @@ export default function PromoCard({ item, className }: PromoCardProps) {
       ) : null}
 
       {to && linkText ? (
-        <Link
+        <SmartLink
           to={to}
           className="mt-4 inline-flex items-center gap-1 text-14 text-ink-inverse outline-none hover:opacity-80 focus-visible:opacity-80"
         >
           {linkText}
           <ChevronRight className="size-4" />
-        </Link>
+        </SmartLink>
       ) : null}
     </article>
   );

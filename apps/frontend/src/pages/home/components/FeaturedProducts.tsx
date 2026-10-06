@@ -77,7 +77,7 @@ export default function FeaturedProducts() {
           {[...Array(3)].map((_, i) => (
             <div key={i}>
               <div className="mb-8 h-8 w-48 animate-pulse rounded-btn bg-surface-grey" />
-              <div className="grid grid-cols-4 max-md:grid-cols-3 max-sm:grid-cols-2 max-vsm:grid-cols-1 gap-4">
+              <div className="grid grid-cols-4 max-[1239.98px]:grid-cols-3 max-sm:grid-cols-2 max-vsm:grid-cols-1 gap-4">
                 {[...Array(8)].map((_, j) => (
                   <div key={j} className="flex flex-col gap-3">
                     <div className="aspect-square animate-pulse rounded-btn bg-surface-grey" />
@@ -117,7 +117,7 @@ export default function FeaturedProducts() {
               </div>
 
               <div
-                className="grid grid-cols-4 max-md:grid-cols-3 max-sm:grid-cols-2 max-vsm:grid-cols-1 gap-4"
+                className="grid grid-cols-4 max-[1239.98px]:grid-cols-3 max-sm:grid-cols-2 max-vsm:grid-cols-1 gap-4"
                 data-product-shop
               >
                 {section.products.slice(0, 8).map((product) => (
