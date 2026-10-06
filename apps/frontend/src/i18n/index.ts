@@ -10,6 +10,8 @@ i18n
     lng: 'en',
     fallbackLng: 'en',
     debug: false,
+    // Иначе i18next ≥ 25 печатает в консоль рекламу своего сервиса Locize
+    showSupportNotice: false,
     resources: messages,
     interpolation: {
       escapeValue: false,

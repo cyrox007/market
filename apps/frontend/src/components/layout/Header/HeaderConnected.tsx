@@ -18,21 +18,6 @@ import type { Category } from '../../../lib/api';
  * Что откуда берётся и что осталось нерешённым — market-docs/14-header-wiring.md.
  */
 
-/** Раздела распродажи в маршрутах нет, поэтому пункт неактивен */
-const SALE_CATEGORY: HeaderCategory = {
-  to: '#',
-  label: 'Распродажа',
-  accent: true,
-  badge: 'до −60%',
-  disabled: true,
-};
-
-/** «Сток» и «Акции» из макета: маршрутов под них тоже нет */
-const CATALOG_EXTRA: MenuSection[] = [
-  { id: 'stock', label: 'Сток', emphasized: true, disabled: true },
-  { id: 'sale', label: 'Акции', emphasized: true, disabled: true },
-];
-
 const toCategoryLink = (category: Category) => ({
   to: `/catalog/${category.slug}`,
   label: category.name,
@@ -57,14 +42,14 @@ export default function HeaderConnected() {
   const [isCityModalOpen, setCityModalOpen] = useState(false);
 
   const categoryBar = useMemo<HeaderCategory[]>(
-    () => [SALE_CATEGORY, ...categories.map(toCategoryLink)],
+    // Только категории из админки: «Акция» и «Сток» теперь там же — market-docs/39
+    () => categories.map(toCategoryLink),
     [categories],
   );
 
   const catalogSections = useMemo<MenuSection[]>(
-    () => [
-      ...CATALOG_EXTRA,
-      ...categories.map((category) => {
+    () =>
+      categories.map((category) => {
         const children = category.children ?? [];
         return children.length
           ? {
@@ -74,7 +59,6 @@ export default function HeaderConnected() {
             }
           : { id: category.slug, label: category.name, to: `/catalog/${category.slug}` };
       }),
-    ],
     [categories],
   );
 

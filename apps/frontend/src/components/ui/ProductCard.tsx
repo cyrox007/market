@@ -81,6 +81,8 @@ function ProductCard({
   const image = product.thumbnail || product.image;
   const swatches = toSwatches(product);
   const unavailable = !variableParent && !product.in_stock && !product.backorder;
+  // Как в Price: зачёркнутая цена видна, когда old_price задан
+  const onSale = product.old_price != null;
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -252,8 +254,12 @@ function ProductCard({
             value={product.price}
             oldValue={product.old_price ?? undefined}
             from={variableParent}
+            shrinkOnNarrowDesktop
           />
-          {swatches.length > 0 && <ColorSwatches colors={swatches} />}
+          {swatches.length > 0 && (
+            // По акции рядом две цены — цветам остаётся два кубика, иначе цена не влезает в строку
+            <ColorSwatches colors={swatches} limit={onSale ? 2 : 4} mobileLimit={onSale ? 2 : 3} />
+          )}
         </div>
       </div>
     </div>
