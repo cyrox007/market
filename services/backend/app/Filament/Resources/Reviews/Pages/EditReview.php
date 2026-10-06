@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Reviews\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Reviews\ReviewResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 
 class EditReview extends EditRecord
 {
@@ -16,6 +16,7 @@ class EditReview extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_review.title');
@@ -25,5 +26,4 @@ class EditReview extends EditRecord
     {
         return __('filament/admin_sv/edit_review.title');
     }
-
 }

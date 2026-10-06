@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\Users\UserResource;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateUser extends CreateRecord
 {
@@ -24,7 +24,7 @@ class CreateUser extends CreateRecord
     protected function afterCreate(): void
     {
         // Назначаем роли после создания пользователя
-        if (!empty($this->rolesToSync)) {
+        if (! empty($this->rolesToSync)) {
             // Получаем роли по ID
             $roles = \Spatie\Permission\Models\Role::whereIn('id', $this->rolesToSync)->pluck('name')->toArray();
             $this->record->syncRoles($roles);

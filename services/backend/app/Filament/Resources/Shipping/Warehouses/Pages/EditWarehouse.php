@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Shipping\Warehouses\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Shipping\Warehouses\WarehouseResource;
-use Filament\Resources\Pages\EditRecord;
 
 class EditWarehouse extends EditRecord
 {

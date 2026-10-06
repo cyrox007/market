@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Products\ProductRegionRules\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\ProductRegionRules\ProductRegionRuleResource;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditProductRegionRule extends EditRecord
 {

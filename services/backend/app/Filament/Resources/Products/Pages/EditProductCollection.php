@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Products\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\ProductCollectionResource;
 use Filament\Actions\Action;
-use Filament\Resources\Pages\EditRecord;
 use Filament\Notifications\Notification;
 
 class EditProductCollection extends EditRecord
@@ -19,7 +19,7 @@ class EditProductCollection extends EditRecord
     protected function afterSave(): void
     {
         $record = $this->record;
-        
+
         // Если подборка автоматическая, синхронизируем товары по скоупу
         if ($record->is_auto && $record->scope_type) {
             $beforeCount = $record->products()->count();
@@ -55,21 +55,22 @@ class EditProductCollection extends EditRecord
                 ->modalDescription('Это действие обновит список товаров в подборке на основе выбранного скоупа. Продолжить?')
                 ->action(function () {
                     $record = $this->record;
-                    
-                    if (!$record->is_auto || !$record->scope_type) {
+
+                    if (! $record->is_auto || ! $record->scope_type) {
                         Notification::make()
                             ->title('Ошибка')
                             ->body('Синхронизация доступна только для автоматических подборок с выбранным типом скоупа.')
                             ->danger()
                             ->send();
+
                         return;
                     }
-                    
+
                     $beforeCount = $record->products()->count();
                     $record->syncProductsByScope();
                     $record->flushHomeCaches();
                     $afterCount = $record->products()->count();
-                    
+
                     Notification::make()
                         ->title('Синхронизация завершена')
                         ->body("Товары обновлены. Было: {$beforeCount}, стало: {$afterCount}")

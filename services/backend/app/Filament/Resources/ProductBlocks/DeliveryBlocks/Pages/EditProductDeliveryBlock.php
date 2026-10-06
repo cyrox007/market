@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\ProductBlocks\DeliveryBlocks\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\ProductBlocks\DeliveryBlocks\ProductDeliveryBlockResource;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditProductDeliveryBlock extends EditRecord
 {

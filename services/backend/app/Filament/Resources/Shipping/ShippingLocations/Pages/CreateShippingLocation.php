@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Shipping\ShippingLocations\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\Shipping\ShippingLocations\ShippingLocationResource;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateShippingLocation extends CreateRecord
 {

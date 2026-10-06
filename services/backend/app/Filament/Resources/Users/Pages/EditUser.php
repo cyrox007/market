@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Users\UserResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 
 class EditUser extends EditRecord
 {
@@ -24,7 +24,7 @@ class EditUser extends EditRecord
         // Загружаем роли пользователя для отображения в форме
         $this->record->load('roles');
         $data['roles'] = $this->record->roles->pluck('id')->toArray();
-        
+
         return $data;
     }
 
@@ -41,7 +41,7 @@ class EditUser extends EditRecord
     protected function afterSave(): void
     {
         // Синхронизируем роли после сохранения пользователя
-        if (isset($this->rolesToSync) && !empty($this->rolesToSync)) {
+        if (isset($this->rolesToSync) && ! empty($this->rolesToSync)) {
             // Получаем роли по ID
             $roles = \Spatie\Permission\Models\Role::whereIn('id', $this->rolesToSync)->pluck('name')->toArray();
             $this->record->syncRoles($roles);
@@ -63,5 +63,4 @@ class EditUser extends EditRecord
     {
         return __('filament/admin_sv/edit_user.title');
     }
-
 }

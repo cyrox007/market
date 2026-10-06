@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Shipping\ShippingLocations\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Shipping\ShippingLocations\ShippingLocationResource;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditShippingLocation extends EditRecord
 {
@@ -16,6 +16,7 @@ class EditShippingLocation extends EditRecord
             DeleteAction::make(),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_shipping_location.title');
@@ -25,5 +26,4 @@ class EditShippingLocation extends EditRecord
     {
         return __('filament/admin_sv/edit_shipping_location.title');
     }
-
 }

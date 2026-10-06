@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\Newsletter\Pages;
 
 use App\Filament\Resources\Newsletter\NewsletterSubscriberResource;
+use App\Filament\Resources\Pages\EditRecord;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditNewsletterSubscriber extends EditRecord
 {
