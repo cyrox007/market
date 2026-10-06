@@ -74,7 +74,7 @@ export default function Catalog() {
 
         <section className="mt-8 max-md:mt-7 max-vsm:mt-6" aria-label="Категории каталога">
           {isLoadingCategories && !categories.length ? (
-            <div className="grid grid-cols-2 gap-x-5 gap-y-6 vsm:grid-cols-4 md:grid-cols-6 max-vsm:gap-x-3 max-vsm:gap-y-5">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-6 vsm:grid-cols-4 md:grid-cols-6 max-vsm:gap-x-3 max-vsm:gap-y-5">
               {Array.from({ length: 12 }).map((_, index) => (
                 <div key={index} className="animate-pulse">
                   <div className="aspect-[188/174] rounded-[18px] bg-surface-grey" />
