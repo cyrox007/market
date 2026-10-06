@@ -2,11 +2,11 @@
 
 namespace App\Filament\Resources\Payment\PaymentMethods\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Payment\PaymentMethods\PaymentMethodResource;
 use App\Models\Payment\PaymentMethod;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 
 class EditPaymentMethod extends EditRecord
 {

@@ -3,11 +3,19 @@ import { useParams, useLocation, Link, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import ProductCardConnected from '../../components/ui/ProductCardConnected';
+import CategoryLandingV2 from './components/CategoryLandingV2';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
+import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
+import { useCartActions } from '../../hooks/useCartActions';
+import {
+  productIdForCompare,
+  productIdForWishlist,
+  useWishlistAndCompare,
+} from '../../hooks/useWishlistAndCompare';
 import { getCategoryProductsKey, parseCategoryProductsKey } from '../../utils/ssr-to-swr';
 import {
   getSortSelectValue,
@@ -47,6 +55,12 @@ export default function CatalogCategory() {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const { region } = useRegion();
   const prefetchCategory = usePrefetchCategory();
+  // Обвязка только для лендинга V2 — у него своя карточка CatalogProductCardV2.
+  // Обычный список ниже — ProductCardConnected, ему это не нужно. market-docs/36
+  const prefetchProduct = usePrefetchProduct();
+  const { addProductToCart } = useCartActions();
+  const { wishlistProductIds, compareProductIds, toggleWishlist, toggleCompare } =
+    useWishlistAndCompare();
 
   const prevCategorySlugRef = useRef<string | undefined>(undefined);
 
@@ -103,6 +117,9 @@ export default function CatalogCategory() {
   const effectiveCategory = category ?? categoryData?.category ?? null;
   const displayName = fragment?.name ?? effectiveCategory?.name ?? 'Каталог';
   const displaySeo = fragment?.seo ?? effectiveCategory?.seo ?? null;
+  const isCategoryLandingV2 = !isRooms && Boolean(effectiveCategory?.children?.length);
+  const defaultProductsSort = isCategoryLandingV2 ? 'units_sold' : 'created_at';
+  const productsPerPage = isCategoryLandingV2 ? 4 : CATALOG_PRODUCTS_PER_PAGE;
   usePageSeo(displaySeo);
 
   // Стабильная строка поиска — избегаем новой ссылки searchParams на каждый рендер (Maximum update depth). — избегаем новой ссылки searchParams на каждый рендер (Maximum update depth).
@@ -118,7 +135,7 @@ export default function CatalogCategory() {
     const priceMax = searchParams.get('price_max')
       ? parseInt(searchParams.get('price_max')!, 10)
       : undefined;
-    const sortBy = searchParams.get('sort') || 'created_at';
+    const sortBy = searchParams.get('sort') || defaultProductsSort;
     const sortOrder = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
     const colorsParam = searchParams.get('colors')
       ? searchParams.get('colors')!.split(',').filter(Boolean)
@@ -142,13 +159,13 @@ export default function CatalogCategory() {
       price_max: priceMax,
       sort_by: sortBy,
       sort_order: sortOrder,
-      per_page: CATALOG_PRODUCTS_PER_PAGE,
+      per_page: productsPerPage,
       colors: colorsParam,
       sizes: sizesParam,
       attributes: attributesParam,
       region_id: region?.id,
     };
-  }, [categorySlug, isRooms, searchString, region?.id]);
+  }, [categorySlug, isRooms, searchString, region?.id, defaultProductsSort, productsPerPage]);
 
   // Базовые параметры запроса (без page) — каждая страница кэшируется отдельно (малый фрагмент); ключ включает регион и фильтры.
   const baseRequestOptions = useMemo(() => {
@@ -156,12 +173,12 @@ export default function CatalogCategory() {
     const { colors, sizes, attributes, ...rest } = productsParams;
     return {
       ...rest,
-      per_page: CATALOG_PRODUCTS_PER_PAGE,
+      per_page: productsPerPage,
       ...(colors.length > 0 && { colors }),
       ...(sizes.length > 0 && { sizes }),
       ...(Object.keys(attributes).length > 0 && { attributes }),
     };
-  }, [productsParams, categorySlug]);
+  }, [productsParams, categorySlug, productsPerPage]);
 
   const hasNonDefaultFilters = !!(
     productsParams &&
@@ -170,7 +187,7 @@ export default function CatalogCategory() {
       productsParams.colors.length > 0 ||
       productsParams.sizes.length > 0 ||
       Object.keys(productsParams.attributes).length > 0 ||
-      productsParams.sort_by !== 'created_at' ||
+      productsParams.sort_by !== defaultProductsSort ||
       productsParams.sort_order !== 'desc')
   );
 
@@ -179,6 +196,7 @@ export default function CatalogCategory() {
     initialProducts &&
     initialCategory?.slug === categorySlug &&
     productsParams &&
+    !isCategoryLandingV2 &&
     !hasNonDefaultFilters &&
     isSameRegionAsSSR,
   );
@@ -443,6 +461,29 @@ export default function CatalogCategory() {
           <h1 className="text-2xl font-bold">Категория не найдена</h1>
         </div>
       </div>
+    );
+  }
+
+  // Category V2: only parent categories with children use the new Figma layout.
+  // Leaf/product-list categories keep the existing implementation untouched.
+  if (isCategoryLandingV2 && category) {
+    return (
+      <CategoryLandingV2
+        category={category}
+        regionName={region?.name}
+        products={products}
+        isLoadingProducts={isLoadingProducts}
+        onPrefetchCategory={prefetchCategory}
+        onPrefetchProduct={prefetchProduct}
+        onAddToCart={async (productId) => {
+          const product = products.find((p) => p.id === productId);
+          if (product) await addProductToCart(product, 1);
+        }}
+        onToggleFavorite={(product) => toggleWishlist(productIdForWishlist(product))}
+        onToggleCompare={(product) => toggleCompare(productIdForCompare(product))}
+        isFavorite={(product) => wishlistProductIds.includes(productIdForWishlist(product))}
+        isInCompare={(product) => compareProductIds.includes(productIdForCompare(product))}
+      />
     );
   }
 

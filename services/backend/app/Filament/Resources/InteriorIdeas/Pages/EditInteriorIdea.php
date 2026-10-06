@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\InteriorIdeas\Pages;
 
 use App\Filament\Resources\InteriorIdeas\InteriorIdeaResource;
+use App\Filament\Resources\Pages\EditRecord;
 use App\Models\Page\InteriorIdea;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditInteriorIdea extends EditRecord
 {

@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Products\ProductRegionRules\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\Products\ProductRegionRules\ProductRegionRuleResource;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateProductRegionRule extends CreateRecord
 {

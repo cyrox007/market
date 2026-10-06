@@ -2,14 +2,17 @@
 
 namespace App\Filament\Resources\Sliders\Schemas;
 
-use App\Filament\Support\LucideIconSelect;
 use App\Models\Page\Slider;
-use Filament\Forms\Components\RichEditor;
+use App\Models\Product\Category;
+use App\Models\Product\Room;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use RalphJSmit\Filament\SEO\SEO;
 
@@ -19,6 +22,11 @@ class SliderForm
     {
         return $schema
             ->components([
+                Tabs::make('slider_form')
+                    ->tabs([
+                        Tab::make('Слайд')
+                            ->icon('heroicon-m-photo')
+                            ->schema([
                 Section::make('Расположение на главной')
                     ->description('Сначала выберите, в какой части главной страницы должен появиться материал.')
                     ->schema([
@@ -67,7 +75,11 @@ class SliderForm
                     ->columns(2),
 
                 Section::make('Содержимое')
-                    ->description('Заполните то, что посетитель увидит на баннере или карточке.')
+                    ->description(fn ($get): string => match (true) {
+                        $get('placement') === Slider::PLACEMENT_BOTTOM => 'Нижний широкий баннер: метка, заголовок, описание и жёлтая CTA-кнопка.',
+                        in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true) => 'Маленькая карточка справа: цветная метка, заголовок, короткое описание и текстовая ссылка.',
+                        default => 'Большой верхний слайд: промо-метка, крупный заголовок и описание. Весь слайд можно сделать ссылкой.',
+                    })
                     ->schema([
                         TextInput::make('title')
                             ->label('Заголовок')
@@ -87,20 +99,94 @@ class SliderForm
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
 
-                        RichEditor::make('description')
+                        Textarea::make('description')
                             ->label('Подзаголовок / описание')
                             ->maxLength(1000)
+                            ->rows(3)
+                            ->helperText('Обычный текст. Переносы строк будут сохранены; HTML не нужен.')
                             ->columnSpanFull(),
 
+                        Select::make('link_type')
+                            ->label('Тип ссылки')
+                            ->options([
+                                'category' => 'Категория каталога',
+                                'room' => 'Комната',
+                                'manual' => 'Ручной адрес',
+                            ])
+                            ->default('manual')
+                            ->live()
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function ($record, $set): void {
+                                $link = $record?->link;
+
+                                if ($link && str_starts_with($link, '/catalog/')) {
+                                    $set('link_type', 'category');
+                                    $set('category_link', $link);
+                                } elseif ($link && str_starts_with($link, '/rooms/')) {
+                                    $set('link_type', 'room');
+                                    $set('room_link', $link);
+                                }
+                            }),
+
+                        Select::make('category_link')
+                            ->label('Категория')
+                            ->options(fn (): array => Category::query()
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (Category $category): array => [
+                                    $category->full_path => $category->name,
+                                ])
+                                ->filter(fn ($label, $path): bool => filled($path))
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->required(fn ($get): bool => $get('link_type') === 'category')
+                            ->visible(fn ($get): bool => $get('link_type') === 'category')
+                            ->dehydrated(false)
+                            ->afterStateUpdated(fn ($state, $set) => $set('link', $state)),
+
+                        Select::make('room_link')
+                            ->label('Комната')
+                            ->options(fn (): array => Room::query()
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (Room $room): array => [
+                                    $room->full_path => $room->name,
+                                ])
+                                ->filter(fn ($label, $path): bool => filled($path))
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->required(fn ($get): bool => $get('link_type') === 'room')
+                            ->visible(fn ($get): bool => $get('link_type') === 'room')
+                            ->dehydrated(false)
+                            ->afterStateUpdated(fn ($state, $set) => $set('link', $state)),
+
                         TextInput::make('link')
-                            ->label('Куда вести по нажатию')
+                            ->label('Ручной адрес')
                             ->maxLength(2048)
+                            ->required(fn ($get): bool =>
+                                $get('placement') === Slider::PLACEMENT_BOTTOM
+                                || in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true)
+                            )
+                            ->visible(fn ($get): bool => $get('link_type') === 'manual')
                             ->helperText('Можно указать внутренний путь (/catalog/...) или полный URL.'),
 
                         TextInput::make('button_text')
                             ->label('Текст кнопки')
                             ->maxLength(255)
-                            ->helperText('Для нижнего баннера обычно «Подробнее». Для верхней основной карусели кнопка может отсутствовать.'),
+                            ->required(fn ($get): bool =>
+                                $get('placement') === Slider::PLACEMENT_BOTTOM
+                                || in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true)
+                            )
+                            ->visible(fn ($get): bool =>
+                                $get('placement') === Slider::PLACEMENT_BOTTOM
+                                || in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true)
+                            )
+                            ->default('Подробнее')
+                            ->helperText('На правых карточках это текстовая ссылка, на нижнем баннере — жёлтая кнопка.'),
                     ])
                     ->columns(2),
 
@@ -115,29 +201,29 @@ class SliderForm
                         Select::make('badge_tone')
                             ->label('Цвет метки')
                             ->options(Slider::badgeToneLabels())
-                            ->default('red'),
-
-                        TextInput::make('badge_link')
-                            ->label('Ссылка с метки')
-                            ->maxLength(2048),
-
-                        LucideIconSelect::make('badge_icon')
-                            ->label('Иконка метки')
-                            ->default('zap')
-                            ->helperText('Необязательно. Фронтенд может использовать иконку там, где это предусмотрено макетом.'),
+                            ->default('yellow')
+                            ->visible(fn ($get): bool =>
+                                $get('placement') === Slider::PLACEMENT_TOP
+                                && in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true)
+                            )
+                            ->helperText('Цветная капсула используется только в двух правых карточках.'),
                     ])
                     ->columns(2)
                     ->collapsible(),
 
                 Section::make('Изображения для компьютера и телефона')
-                    ->description('Можно загрузить отдельную картинку для телефона — это особенно полезно для узкого мобильного кадра. Если её не задать, будет использована основная.')
+                    ->description(fn ($get): string => match (true) {
+                        $get('placement') === Slider::PLACEMENT_BOTTOM => 'Основной кадр — широкий, ориентир 1440×260 px. Для телефона лучше загрузить отдельный вертикальный кадр.',
+                        in_array($get('slot'), [Slider::SLOT_RIGHT_TOP, Slider::SLOT_RIGHT_BOTTOM], true) => 'Правая карточка имеет ориентир 400×222 px и на мобильной версии не показывается.',
+                        default => 'Большой слайд имеет ориентир 824×461 px. Для mobile лучше загрузить отдельный кадр 4:5.',
+                    })
                     ->schema([
                         SpatieMediaLibraryFileUpload::make('image')
                             ->collection('image')
                             ->label('Основное изображение')
                             ->image()
                             ->imageEditor()
-                            ->conversion('thumb')
+                            ->imagePreviewHeight('260')
                             ->maxSize(10240)
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                             ->columnSpanFull(),
@@ -153,7 +239,7 @@ class SliderForm
                             ->label('Изображение для телефона')
                             ->image()
                             ->imageEditor()
-                            ->conversion('thumb')
+                            ->imagePreviewHeight('260')
                             ->maxSize(10240)
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                             ->columnSpanFull(),
@@ -165,13 +251,22 @@ class SliderForm
                             ->columnSpanFull(),
                     ])
                     ->collapsible(),
+                            ]),
 
-                Section::make('SEO настройки')
-                    ->description('Необязательные мета-данные конкретного промо-материала.')
-                    ->schema([
-                        SEO::make(),
+                        Tab::make('SEO')
+                            ->icon('heroicon-m-magnifying-glass')
+                            ->schema([
+                                Section::make('SEO настройки')
+                                    ->description('Необязательные мета-данные конкретного промо-материала.')
+                                    ->schema([
+                                        SEO::make(),
+                                    ]),
+                            ]),
                     ])
-                    ->collapsible(),
+                    ->contained(false)
+                    ->persistTab()
+                    ->id('slider-form-tabs')
+                    ->columnSpanFull(),
             ]);
     }
 }

@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\News\Pages;
 
 use App\Filament\Resources\News\ArticleResource;
+use App\Filament\Resources\Pages\EditRecord;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 
 class EditArticle extends EditRecord
 {
@@ -16,6 +16,7 @@ class EditArticle extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_article.title');
@@ -25,7 +26,4 @@ class EditArticle extends EditRecord
     {
         return __('filament/admin_sv/edit_article.title');
     }
-
 }
-
-

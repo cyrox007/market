@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\ProductBlocks\DeliveryBlocks\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\ProductBlocks\DeliveryBlocks\ProductDeliveryBlockResource;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateProductDeliveryBlock extends CreateRecord
 {

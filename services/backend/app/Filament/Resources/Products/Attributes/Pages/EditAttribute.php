@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Products\Attributes\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\Attributes\AttributeResource;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditAttribute extends EditRecord
 {
@@ -16,6 +16,7 @@ class EditAttribute extends EditRecord
             DeleteAction::make(),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_attribute.title');
@@ -25,6 +26,4 @@ class EditAttribute extends EditRecord
     {
         return __('filament/admin_sv/edit_attribute.title');
     }
-
 }
-

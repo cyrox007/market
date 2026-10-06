@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\InteriorIdeas\Pages;
 
 use App\Filament\Resources\InteriorIdeas\InteriorIdeaResource;
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Models\Page\InteriorIdea;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateInteriorIdea extends CreateRecord
 {

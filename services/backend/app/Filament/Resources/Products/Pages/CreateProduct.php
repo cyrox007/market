@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Products\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
@@ -9,40 +10,13 @@ use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Validation\ValidationException;
 
 class CreateProduct extends CreateRecord
 {
     protected static string $resource = ProductResource::class;
 
-    public static bool $formActionsAreSticky = true;
-
-    protected bool $exitAfterSave = false;
-
     protected array $productAttributesData = [];
-
-    protected function getFormActions(): array
-    {
-        return [
-            $this->getCreateFormAction()
-                ->label('Сохранить')
-                ->icon('heroicon-m-check'),
-            Action::make('saveAndExit')
-                ->label('Сохранить и выйти')
-                ->icon('heroicon-m-arrow-right-start-on-rectangle')
-                ->color('gray')
-                ->action('saveAndExit')
-                ->keyBindings(['mod+shift+s']),
-            $this->getCancelFormAction(),
-        ];
-    }
-
-    public function saveAndExit(): void
-    {
-        $this->exitAfterSave = true;
-        $this->create();
-    }
 
     /**
      * Перед созданием товара гарантируем, что поля,
@@ -53,7 +27,7 @@ class CreateProduct extends CreateRecord
         $this->productAttributesData = $data['product_attributes'] ?? [];
         unset($data['product_attributes']);
 
-        if (!array_key_exists('sku', $data) || $data['sku'] === null) {
+        if (! array_key_exists('sku', $data) || $data['sku'] === null) {
             $data['sku'] = '';
         }
 
@@ -86,15 +60,6 @@ class CreateProduct extends CreateRecord
         }
     }
 
-    protected function getRedirectUrl(): string
-    {
-        if ($this->exitAfterSave) {
-            return ProductResource::getUrl('index');
-        }
-
-        return ProductResource::getUrl('edit', ['record' => $this->getRecord()->getKey()]);
-    }
-
     protected function getHeaderActions(): array
     {
         return [
@@ -112,11 +77,12 @@ class CreateProduct extends CreateRecord
                     $externalId = $data['external_id'];
                     $service = app(OneCProductSyncService::class);
                     $product = $service->syncProductByExternalId($externalId);
-                    if (!$product) {
+                    if (! $product) {
                         Notification::make()
                             ->title('Товар не найден в 1С')
                             ->danger()
                             ->send();
+
                         return;
                     }
 
