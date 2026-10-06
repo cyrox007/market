@@ -9,13 +9,6 @@ import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
-import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
-import { useCartActions } from '../../hooks/useCartActions';
-import {
-  productIdForCompare,
-  productIdForWishlist,
-  useWishlistAndCompare,
-} from '../../hooks/useWishlistAndCompare';
 import { getCategoryProductsKey, parseCategoryProductsKey } from '../../utils/ssr-to-swr';
 import {
   getSortSelectValue,
@@ -55,12 +48,6 @@ export default function CatalogCategory() {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const { region } = useRegion();
   const prefetchCategory = usePrefetchCategory();
-  // Обвязка только для лендинга V2 — у него своя карточка CatalogProductCardV2.
-  // Обычный список ниже — ProductCardConnected, ему это не нужно. market-docs/36
-  const prefetchProduct = usePrefetchProduct();
-  const { addProductToCart } = useCartActions();
-  const { wishlistProductIds, compareProductIds, toggleWishlist, toggleCompare } =
-    useWishlistAndCompare();
 
   const prevCategorySlugRef = useRef<string | undefined>(undefined);
 
@@ -474,15 +461,6 @@ export default function CatalogCategory() {
         products={products}
         isLoadingProducts={isLoadingProducts}
         onPrefetchCategory={prefetchCategory}
-        onPrefetchProduct={prefetchProduct}
-        onAddToCart={async (productId) => {
-          const product = products.find((p) => p.id === productId);
-          if (product) await addProductToCart(product, 1);
-        }}
-        onToggleFavorite={(product) => toggleWishlist(productIdForWishlist(product))}
-        onToggleCompare={(product) => toggleCompare(productIdForCompare(product))}
-        isFavorite={(product) => wishlistProductIds.includes(productIdForWishlist(product))}
-        isInCompare={(product) => compareProductIds.includes(productIdForCompare(product))}
       />
     );
   }

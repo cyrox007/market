@@ -3,7 +3,7 @@ import { PAGE_CONTAINER } from '../../../lib/layout';
 import CategoryBreadcrumbs from './CategoryBreadcrumbs';
 import CategoryDescription from './CategoryDescription';
 import CategoryTiles from './CategoryTiles';
-import CatalogProductCardV2 from './CatalogProductCardV2';
+import ProductCardConnected from '../../../components/ui/ProductCardConnected';
 
 interface CategoryLandingV2Props {
   category: Category;
@@ -11,18 +11,12 @@ interface CategoryLandingV2Props {
   products: Product[];
   isLoadingProducts: boolean;
   onPrefetchCategory?: (slug: string) => void;
-  onPrefetchProduct?: (slug: string) => void;
-  onAddToCart?: (productId: number) => void | Promise<void>;
-  onToggleFavorite?: (product: Product) => void | Promise<void>;
-  onToggleCompare?: (product: Product) => void | Promise<void>;
-  isFavorite?: (product: Product) => boolean;
-  isInCompare?: (product: Product) => boolean;
 }
 
 function ProductSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="aspect-[292/270] rounded-[12px] bg-surface-grey" />
+      <div className="aspect-square rounded-btn bg-surface-grey" />
       <div className="mt-3 h-4 w-5/6 rounded bg-surface-grey" />
       <div className="mt-2 h-5 w-24 rounded bg-surface-grey" />
     </div>
@@ -35,12 +29,6 @@ export default function CategoryLandingV2({
   products,
   isLoadingProducts,
   onPrefetchCategory,
-  onPrefetchProduct,
-  onAddToCart,
-  onToggleFavorite,
-  onToggleCompare,
-  isFavorite,
-  isInCompare,
 }: CategoryLandingV2Props) {
   const children = category.children ?? [];
   const sectionName = category.name.toLocaleLowerCase('ru-RU');
@@ -81,17 +69,8 @@ export default function CategoryLandingV2({
           ) : products.length ? (
             <div className="grid grid-cols-2 gap-x-3 gap-y-6 md:grid-cols-4 md:gap-5">
               {products.slice(0, 4).map((product, index) => (
-                <CatalogProductCardV2
-                  key={product.id}
-                  product={product}
-                  onPrefetch={() => onPrefetchProduct?.(product.slug)}
-                  onAddToCart={onAddToCart}
-                  onToggleFavorite={onToggleFavorite}
-                  onToggleCompare={onToggleCompare}
-                  isFavorite={isFavorite?.(product)}
-                  isInCompare={isInCompare?.(product)}
-                  priority={index < 4}
-                />
+                // Общая карточка: корзина, избранное, сравнение, префетч — внутри. market-docs/36
+                <ProductCardConnected key={product.id} product={product} priority={index < 4} />
               ))}
             </div>
           ) : (
