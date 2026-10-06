@@ -37,7 +37,7 @@ class AdminSvPanelProvider extends PanelProvider
             // brandName попадает в заголовок вкладки, brandLogo — в подпись шапки.
             ->brandName('Светофор-Мебель')
             ->brandLogo(fn () => new HtmlString('Основной экран'))
-            ->favicon(asset('favicon.jpg'))
+            ->favicon(asset('favicon.ico').'?v=2')
             ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Red,
