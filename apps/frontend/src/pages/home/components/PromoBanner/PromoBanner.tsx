@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { SmartLink } from '../../../../components/ui/primitives';
 import { ChevronRight } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay } from 'swiper/modules';
@@ -108,7 +108,7 @@ function BannerSlide({ slide }: { slide: PromoItem }) {
             {title}
           </h2>
           {description ? (
-            <p className="text-18 font-medium leading-none max-vsm:text-14 max-vsm:font-normal">
+            <p className="whitespace-pre-line text-18 font-medium leading-none max-vsm:text-14 max-vsm:font-normal">
               {description}
             </p>
           ) : null}
@@ -116,13 +116,13 @@ function BannerSlide({ slide }: { slide: PromoItem }) {
       </div>
 
       {to && linkText ? (
-        <Link
+        <SmartLink
           to={to}
           className="inline-flex h-[52px] w-[302px] items-center justify-center gap-1 rounded-btn bg-brand-yellow px-7 text-16 font-medium text-ink shadow-card outline-none transition-colors hover:bg-brand-green hover:text-ink-inverse focus-visible:bg-brand-green focus-visible:text-ink-inverse motion-reduce:transition-none max-md:w-[224px] max-vsm:h-11 max-vsm:gap-0 max-vsm:text-14"
         >
           {linkText}
           <ChevronRight className="size-5" />
-        </Link>
+        </SmartLink>
       ) : null}
     </div>
   );

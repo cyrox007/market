@@ -5,6 +5,7 @@ import CategoryBar from './bars/CategoryBar';
 import HeaderMenu from './menu/HeaderMenu';
 import type { HeaderCategory } from './bars/CategoryBar';
 import type { MenuSection } from './lib/menu-types';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { cn } from '../../../lib/cn';
 
 type OpenMenu = 'catalog' | 'rooms' | null;
@@ -74,20 +75,48 @@ export default function Header({
     if (!openMenu) return;
 
     openerRef.current = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
+    // Без preventScroll браузер подкручивает страницу к панели
+    panelRef.current?.focus({ preventScroll: true });
 
     // Слушатель живёт только пока меню открыто, а не всё время жизни шапки
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close();
     };
+    // Касание мимо меню закрывает его. Кнопки «Каталог» / «Комнаты» переключают сами
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target || panelRef.current?.contains(target)) return;
+      if (target.closest(`[aria-controls="${MENU_ID}"]`)) return;
+      setOpenMenu(null);
+    };
+
     document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
   }, [openMenu]);
+
+  // На телефоне меню на весь экран — страница под ним не листается. На шире — листается
+  const isPhone = useMediaQuery('(max-width: 549.98px)');
+  useEffect(() => {
+    if (!openMenu || !isPhone) return;
+    // overflow на <html>, не position: fixed на body — тот увёл бы липкую шапку за экран
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, [openMenu, isPhone]);
 
   const sections = shownMenu === 'catalog' ? catalogSections : roomsSections;
 
   return (
-    <header className={cn('sticky top-0 z-40 w-full bg-surface', className)}>
+    // translateZ(0): своя композиционная плоскость. Без неё iOS Safari не перерисовывает
+    // иконки кнопок в липкой шапке, пока не прокрутишь страницу — market-docs/37
+    <header className={cn('sticky top-0 z-40 w-full bg-surface [transform:translateZ(0)]', className)}>
       <TopBar city={city} onCityClick={onCityClick} />
       <MainBar
         menuId={MENU_ID}
