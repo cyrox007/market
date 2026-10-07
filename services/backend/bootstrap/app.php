@@ -34,7 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Create a custom middleware group for API routes that need sessions
         // CORS должен применяться до session middleware
         $middleware->group('api-session', [
-            \Illuminate\Session\Middleware\StartSession::class,
+            \App\Http\Middleware\StartBlockingSession::class,
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
         ]);
