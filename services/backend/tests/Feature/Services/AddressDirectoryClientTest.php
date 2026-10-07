@@ -33,6 +33,10 @@ class AddressDirectoryClientTest extends TestCase
         $this->assertSame([
             ['kind' => 'building', 'externalId' => 'house-10', 'label' => 'Липецк, ул. Московская, д. 10'],
         ], $result);
+        $this->assertSame(
+            'Липецк, ул. Московская, д. 10',
+            app(AddressDirectoryClient::class)->cachedLabel('house-10')
+        );
     }
 
     public function test_it_resolves_the_saved_classifier_id_to_a_full_address(): void

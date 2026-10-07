@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Shipping\Warehouses\Schemas;
 
+use App\Models\Inventory\Warehouse;
 use App\Services\Address\AddressDirectoryClient;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -82,27 +83,24 @@ class WarehouseForm
                                     return [];
                                 }
                             })
-                            ->getOptionLabelUsing(function ($value): ?string {
+                            ->getOptionLabelUsing(function ($value, ?Warehouse $record): ?string {
                                 if (blank($value)) {
                                     return null;
                                 }
 
-                                try {
-                                    return app(AddressDirectoryClient::class)->hierarchy((string) $value)['label'] ?? (string) $value;
-                                } catch (\Throwable) {
-                                    return (string) $value;
-                                }
+                                return $record?->address
+                                    ?? app(AddressDirectoryClient::class)->cachedLabel((string) $value)
+                                    ?? (string) $value;
                             })
                             ->afterStateUpdated(function ($state, Set $set): void {
                                 if (blank($state)) {
                                     return;
                                 }
 
-                                try {
-                                    $address = app(AddressDirectoryClient::class)->hierarchy((string) $state);
-                                    $set('address', $address['label'] ?? null);
-                                } catch (\Throwable) {
-                                    // The editable address below remains available if the classifier is offline.
+                                $label = app(AddressDirectoryClient::class)->cachedLabel((string) $state);
+
+                                if ($label !== null) {
+                                    $set('address', $label);
                                 }
                             })
                             ->helperText('Начните вводить полный адрес и выберите конкретный дом. Сохраняется стабильный ID классификатора.')

@@ -17,7 +17,7 @@ class AddressDirectoryClient
             return [];
         }
 
-        return Cache::remember(
+        $buildings = Cache::remember(
             'address-directory:warehouse-search:'.sha1($query.':'.$limit),
             (int) config('address_directory.cache_ttl'),
             fn (): array => array_values(array_filter(
@@ -28,6 +28,25 @@ class AddressDirectoryClient
                 static fn (array $item): bool => ($item['kind'] ?? null) === 'building'
             ))
         );
+
+        foreach ($buildings as $building) {
+            if (filled($building['externalId'] ?? null) && filled($building['label'] ?? null)) {
+                Cache::put(
+                    'address-directory:label:'.sha1((string) $building['externalId']),
+                    (string) $building['label'],
+                    (int) config('address_directory.cache_ttl')
+                );
+            }
+        }
+
+        return $buildings;
+    }
+
+    public function cachedLabel(string $externalId): ?string
+    {
+        $label = Cache::get('address-directory:label:'.sha1($externalId));
+
+        return is_string($label) && $label !== '' ? $label : null;
     }
 
     public function hierarchy(string $externalId): array
