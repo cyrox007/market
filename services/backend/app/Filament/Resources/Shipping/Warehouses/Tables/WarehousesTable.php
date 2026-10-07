@@ -26,6 +26,20 @@ class WarehousesTable
                     ->copyable()
                     ->sortable(),
 
+                TextColumn::make('source_type')
+                    ->label('Тип')
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'manufacturer' => 'Фабрика',
+                        'supplier' => 'Поставщик',
+                        default => 'Склад',
+                    })
+                    ->badge(),
+
+                TextColumn::make('delivery_profiles_count')
+                    ->label('Профилей доставки')
+                    ->counts('deliveryProfiles')
+                    ->sortable(),
+
                 TextColumn::make('shipping_locations_count')
                     ->label('Локаций')
                     ->counts('shippingLocations')
