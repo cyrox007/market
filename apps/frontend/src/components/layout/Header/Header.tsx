@@ -114,9 +114,7 @@ export default function Header({
   const sections = shownMenu === 'catalog' ? catalogSections : roomsSections;
 
   return (
-    // translateZ(0): своя композиционная плоскость. Без неё iOS Safari не перерисовывает
-    // иконки кнопок в липкой шапке, пока не прокрутишь страницу — market-docs/37
-    <header className={cn('sticky top-0 z-40 w-full bg-surface [transform:translateZ(0)]', className)}>
+    <header className={cn('sticky top-0 z-40 w-full bg-surface', className)}>
       <TopBar city={city} onCityClick={onCityClick} />
       <MainBar
         menuId={MENU_ID}

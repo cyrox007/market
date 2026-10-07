@@ -24,9 +24,13 @@ interface MainBarProps {
 
 /** Основная полоса шапки. Замеры и адаптив — market-docs/13-header.md */
 
-/** Кнопки «Каталог» и «Комнаты»: текст, круг 40, голая иконка 24 */
+/**
+ * Кнопки «Каталог» и «Комнаты»: текст, круг 40, голая иконка 24.
+ * Ниже 550 фона нет — цвет иконки при наведении не меняем: на телефоне :hover залипает после
+ * касания, и белая иконка пропадала на белой шапке — market-docs/37
+ */
 const COLLAPSING_BUTTON =
-  'max-xl:size-10 max-xl:rounded-full max-xl:p-0 max-vsm:size-auto max-vsm:bg-transparent max-vsm:hover:bg-transparent';
+  'max-xl:size-10 max-xl:rounded-full max-xl:p-0 max-vsm:size-auto max-vsm:bg-transparent max-vsm:hover:bg-transparent max-vsm:hover:text-ink max-vsm:focus-visible:bg-transparent max-vsm:focus-visible:text-ink';
 
 const COLLAPSING_ICON = 'size-6 max-xl:size-5 max-vsm:size-6';
 
