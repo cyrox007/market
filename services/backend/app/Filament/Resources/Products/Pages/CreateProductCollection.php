@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Products\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\Products\ProductCollectionResource;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateProductCollection extends CreateRecord
 {
@@ -17,7 +17,7 @@ class CreateProductCollection extends CreateRecord
     protected function afterCreate(): void
     {
         $record = $this->record;
-        
+
         // Если подборка автоматическая, синхронизируем товары по скоупу
         if ($record->is_auto && $record->scope_type) {
             $record->syncProductsByScope();

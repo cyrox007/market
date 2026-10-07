@@ -62,10 +62,6 @@ export default function ProductGallery({
     lightboxTouchStartX.current = e.touches[0].clientX;
   };
 
-  const handleLightboxSwipeMove = () => {
-    // Только начало жеста храним; направление определим в end
-  };
-
   const handleLightboxSwipeEnd = (e: React.TouchEvent) => {
     const start = lightboxTouchStartX.current;
     if (start === null) return;

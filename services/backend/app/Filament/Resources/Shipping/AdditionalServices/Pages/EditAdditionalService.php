@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Shipping\AdditionalServices\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Shipping\AdditionalServices\AdditionalServiceResource;
-use Filament\Resources\Pages\EditRecord;
 
 class EditAdditionalService extends EditRecord
 {

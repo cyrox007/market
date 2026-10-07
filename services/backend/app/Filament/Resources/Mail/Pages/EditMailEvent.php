@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Mail\Pages;
 
 use App\Filament\Resources\Mail\MailEventResource;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Resources\Pages\EditRecord;
 
 class EditMailEvent extends EditRecord
 {

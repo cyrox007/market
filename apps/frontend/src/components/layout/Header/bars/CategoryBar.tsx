@@ -44,9 +44,13 @@ export default function CategoryBar({
         aria-label="Категории"
         className={cn(
           PAGE_CONTAINER,
-          'flex h-full items-center justify-between',
-          // Прячем стилем, а не срезом массива: срез даёт рассинхрон гидрации
-          'max-md:[&>*:nth-child(n+9)]:hidden',
+          // gap — чтобы пункты не слипались, overflow-hidden — страховка от горизонтального скролла
+          'flex h-full items-center justify-between gap-x-4 overflow-hidden',
+          // Корневых категорий в админке ~17 — показываем первые 8 / 7 / 6 (подобрано замером
+          // на прод-данных). Прячем стилем, а не срезом массива: срез даёт рассинхрон гидрации.
+          // market-docs/39
+          '[&>*:nth-child(n+9)]:hidden',
+          'max-[1099.98px]:[&>*:nth-child(n+8)]:hidden',
           'max-sm:[&>*:nth-child(n+7)]:hidden',
         )}
       >

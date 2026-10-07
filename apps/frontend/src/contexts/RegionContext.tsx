@@ -1,22 +1,12 @@
-import { createContext, useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { ShippingLocation } from '@/lib/api';
 import type { ReactNode } from 'react';
+import { RegionContext, type RegionContextType } from './region-context';
 
 const REGION_STORAGE_KEY = 'selected_region_id';
 const REGION_DATA_KEY = 'selected_region_data';
 const REGION_DETECTED_KEY = 'region_auto_detected';
-
-interface RegionContextType {
-  region: ShippingLocation | null;
-  regions: ShippingLocation[];
-  loading: boolean;
-  selectRegion: (selectedRegion: ShippingLocation | null) => void;
-  reloadRegions: () => Promise<void>;
-  getRegionId: () => number | null;
-}
-
-const RegionContext = createContext<RegionContextType | undefined>(undefined);
 
 interface RegionProviderProps {
   children: ReactNode;
@@ -213,12 +203,4 @@ export function RegionProvider({
   };
 
   return <RegionContext.Provider value={value}>{children}</RegionContext.Provider>;
-}
-
-export function useRegionContext(): RegionContextType {
-  const ctx = useContext(RegionContext);
-  if (ctx === undefined) {
-    throw new Error('useRegionContext must be used within RegionProvider');
-  }
-  return ctx;
 }

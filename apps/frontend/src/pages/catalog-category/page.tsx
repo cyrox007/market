@@ -3,9 +3,9 @@ import { useParams, useLocation, Link, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import ProductCard from '../../components/ui/ProductCard';
+import CategoryLandingV2 from './components/CategoryLandingV2';
 import { api } from '../../lib/api';
-import { useSSR } from '../../contexts/SSRContext';
-import { useCounters } from '../../hooks/useCounters';
+import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { useCartActions } from '../../hooks/useCartActions';
@@ -29,7 +29,9 @@ import type { Category, Product, FiltersMeta } from '../../lib/api';
 import { ChevronRight, ListFilter, X } from 'lucide-react';
 
 export default function CatalogCategory() {
-  const { category: categorySlug } = useParams<{ category: string }>();
+  // Адрес может быть вложенным (/catalog/gostinaia/gotovye-stenki) — категория в последнем сегменте
+  const { category: firstSegment, '*': nestedPath } = useParams<{ category: string; '*': string }>();
+  const categorySlug = nestedPath?.split('/').filter(Boolean).pop() ?? firstSegment;
   // Одна страница на каталог и комнаты: источник данных выбираем по URL.
   const isRooms = useLocation().pathname.startsWith('/rooms');
   const source = isRooms ? api.rooms : api.categories;
@@ -50,7 +52,6 @@ export default function CatalogCategory() {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { region } = useRegion();
   const {
     cart,
@@ -63,8 +64,8 @@ export default function CatalogCategory() {
   const {
     wishlistProductIds: favorites,
     compareProductIds: compareList,
-    mutateWishlist,
-    mutateCompare,
+    toggleWishlist: toggleWishlistId,
+    toggleCompare: toggleCompareId,
   } = useWishlistAndCompare();
   const prefetchCategory = usePrefetchCategory();
   const prefetchProduct = usePrefetchProduct();
@@ -124,6 +125,9 @@ export default function CatalogCategory() {
   const effectiveCategory = category ?? categoryData?.category ?? null;
   const displayName = fragment?.name ?? effectiveCategory?.name ?? 'Каталог';
   const displaySeo = fragment?.seo ?? effectiveCategory?.seo ?? null;
+  const isCategoryLandingV2 = !isRooms && Boolean(effectiveCategory?.children?.length);
+  const defaultProductsSort = isCategoryLandingV2 ? 'units_sold' : 'created_at';
+  const productsPerPage = isCategoryLandingV2 ? 4 : CATALOG_PRODUCTS_PER_PAGE;
   usePageSeo(displaySeo);
 
   // Стабильная строка поиска — избегаем новой ссылки searchParams на каждый рендер (Maximum update depth). — избегаем новой ссылки searchParams на каждый рендер (Maximum update depth).
@@ -139,7 +143,7 @@ export default function CatalogCategory() {
     const priceMax = searchParams.get('price_max')
       ? parseInt(searchParams.get('price_max')!, 10)
       : undefined;
-    const sortBy = searchParams.get('sort') || 'created_at';
+    const sortBy = searchParams.get('sort') || defaultProductsSort;
     const sortOrder = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
     const colorsParam = searchParams.get('colors')
       ? searchParams.get('colors')!.split(',').filter(Boolean)
@@ -163,13 +167,13 @@ export default function CatalogCategory() {
       price_max: priceMax,
       sort_by: sortBy,
       sort_order: sortOrder,
-      per_page: CATALOG_PRODUCTS_PER_PAGE,
+      per_page: productsPerPage,
       colors: colorsParam,
       sizes: sizesParam,
       attributes: attributesParam,
       region_id: region?.id,
     };
-  }, [categorySlug, isRooms, searchString, region?.id]);
+  }, [categorySlug, isRooms, searchString, region?.id, defaultProductsSort, productsPerPage]);
 
   // Базовые параметры запроса (без page) — каждая страница кэшируется отдельно (малый фрагмент); ключ включает регион и фильтры.
   const baseRequestOptions = useMemo(() => {
@@ -177,12 +181,12 @@ export default function CatalogCategory() {
     const { colors, sizes, attributes, ...rest } = productsParams;
     return {
       ...rest,
-      per_page: CATALOG_PRODUCTS_PER_PAGE,
+      per_page: productsPerPage,
       ...(colors.length > 0 && { colors }),
       ...(sizes.length > 0 && { sizes }),
       ...(Object.keys(attributes).length > 0 && { attributes }),
     };
-  }, [productsParams, categorySlug]);
+  }, [productsParams, categorySlug, productsPerPage]);
 
   const hasNonDefaultFilters = !!(
     productsParams &&
@@ -191,7 +195,7 @@ export default function CatalogCategory() {
       productsParams.colors.length > 0 ||
       productsParams.sizes.length > 0 ||
       Object.keys(productsParams.attributes).length > 0 ||
-      productsParams.sort_by !== 'created_at' ||
+      productsParams.sort_by !== defaultProductsSort ||
       productsParams.sort_order !== 'desc')
   );
 
@@ -200,6 +204,7 @@ export default function CatalogCategory() {
     initialProducts &&
     initialCategory?.slug === categorySlug &&
     productsParams &&
+    !isCategoryLandingV2 &&
     !hasNonDefaultFilters &&
     isSameRegionAsSSR,
   );
@@ -492,49 +497,11 @@ export default function CatalogCategory() {
     return product.id;
   };
 
-  const toggleFavorite = async (product: Product) => {
-    try {
-      // Для избранного всегда используем родительский товар
-      const productIdToAdd = getProductIdForWishlist(product);
+  const toggleFavorite = (product: Product) =>
+    toggleWishlistId(getProductIdForWishlist(product));
 
-      if (!productIdToAdd || productIdToAdd === 0) {
-        console.error('Invalid product ID for wishlist:', product);
-        return;
-      }
-
-      await api.wishlist.toggle(productIdToAdd);
-      // Обновляем кэш SWR через mutate
-      await mutateWishlist();
-      await refreshWishlistCount();
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      console.error('Product:', product);
-    }
-  };
-
-  const toggleCompare = async (product: Product) => {
-    try {
-      // Для сравнения используем первый доступный вариант для вариативных товаров
-      const productIdToAdd = getProductIdForCompare(product);
-
-      const isInCompare = compareList.includes(productIdToAdd);
-      if (isInCompare) {
-        await api.compare.remove(productIdToAdd);
-      } else {
-        await api.compare.add(productIdToAdd);
-      }
-      // Обновляем кэш SWR через mutate
-      await mutateCompare();
-      // Небольшая задержка, чтобы дать время API обновиться
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await refreshCompareCount();
-    } catch (error: any) {
-      console.error('Failed to toggle compare:', error);
-      if (error.status === 422) {
-        alert(error.data?.message || 'Не удалось добавить товар в сравнение.');
-      }
-    }
-  };
+  const toggleCompare = (product: Product) =>
+    toggleCompareId(getProductIdForCompare(product));
 
   // Показываем «Категория не найдена» только когда загрузка категории завершена и категория не найдена (404 или пустой ответ)
   const categoryNotFound =
@@ -550,6 +517,26 @@ export default function CatalogCategory() {
           <h1 className="text-2xl font-bold">Категория не найдена</h1>
         </div>
       </div>
+    );
+  }
+
+  // Category V2: only parent categories with children use the new Figma layout.
+  // Leaf/product-list categories keep the existing implementation untouched.
+  if (isCategoryLandingV2 && category) {
+    return (
+      <CategoryLandingV2
+        category={category}
+        regionName={region?.name}
+        products={products}
+        isLoadingProducts={isLoadingProducts}
+        onPrefetchCategory={prefetchCategory}
+        onPrefetchProduct={prefetchProduct}
+        onAddToCart={handleAddToCart}
+        onToggleFavorite={toggleFavorite}
+        onToggleCompare={toggleCompare}
+        isFavorite={(product) => favorites.includes(getProductIdForWishlist(product))}
+        isInCompare={(product) => compareList.includes(getProductIdForCompare(product))}
+      />
     );
   }
 

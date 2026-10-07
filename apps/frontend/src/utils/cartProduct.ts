@@ -37,6 +37,14 @@ export function isVariableParent(product: {
   return false;
 }
 
+/**
+ * Вариант нужно выбирать на странице товара, только если сервер не подсказал
+ * первый доступный. Иначе кнопка корзины кладёт его сразу — market-docs/30.
+ */
+export function needsVariantChoice(product: Parameters<typeof isVariableParent>[0]): boolean {
+  return isVariableParent(product) && !product.first_available_variant_id;
+}
+
 /** API иногда отдаёт is_variable:false у вариативного родителя — нормализуем для карточек */
 export function normalizeListProduct<
   T extends {

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import TopBar from './bars/TopBar';
 import MainBar from './bars/MainBar';
 import CategoryBar from './bars/CategoryBar';
 import HeaderMenu from './menu/HeaderMenu';
 import type { HeaderCategory } from './bars/CategoryBar';
 import type { MenuSection } from './lib/menu-types';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { cn } from '../../../lib/cn';
 
 type OpenMenu = 'catalog' | 'rooms' | null;
@@ -33,6 +34,9 @@ interface HeaderProps {
 /** Сумма высот полос над меню: 36 + 80, ниже 980 плюс строка категорий 35 */
 const MENU_TOP = 'top-[116px] max-md:top-[151px] max-vsm:top-[116px]';
 
+/** Связывает кнопки с панелью через aria-controls; панель одна на оба меню */
+const MENU_ID = 'header-menu';
+
 export default function Header({
   city,
   onCityClick,
@@ -55,10 +59,57 @@ export default function Header({
   // со старым содержимым, а useLayoutEffect ругается при серверном рендеринге
   if (openMenu && openMenu !== shownMenu) setShownMenu(openMenu);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Кто открыл меню — туда возвращаем фокус при закрытии
+  const openerRef = useRef<HTMLElement | null>(null);
+
   const toggle = (menu: Exclude<OpenMenu, null>) =>
     setOpenMenu((current) => (current === menu ? null : menu));
 
-  const close = () => setOpenMenu(null);
+  const close = () => {
+    setOpenMenu(null);
+    openerRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!openMenu) return;
+
+    openerRef.current = document.activeElement as HTMLElement | null;
+    // Без preventScroll браузер подкручивает страницу к панели
+    panelRef.current?.focus({ preventScroll: true });
+
+    // Слушатель живёт только пока меню открыто, а не всё время жизни шапки
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    // Касание мимо меню закрывает его. Кнопки «Каталог» / «Комнаты» переключают сами
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target || panelRef.current?.contains(target)) return;
+      if (target.closest(`[aria-controls="${MENU_ID}"]`)) return;
+      setOpenMenu(null);
+    };
+
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [openMenu]);
+
+  // На телефоне меню на весь экран — страница под ним не листается. На шире — листается
+  const isPhone = useMediaQuery('(max-width: 549.98px)');
+  useEffect(() => {
+    if (!openMenu || !isPhone) return;
+    // overflow на <html>, не position: fixed на body — тот увёл бы липкую шапку за экран
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, [openMenu, isPhone]);
 
   const sections = shownMenu === 'catalog' ? catalogSections : roomsSections;
 
@@ -66,6 +117,7 @@ export default function Header({
     <header className={cn('sticky top-0 z-40 w-full bg-surface', className)}>
       <TopBar city={city} onCityClick={onCityClick} />
       <MainBar
+        menuId={MENU_ID}
         catalogOpen={openMenu === 'catalog'}
         roomsOpen={openMenu === 'rooms'}
         onCatalogToggle={() => toggle('catalog')}
@@ -80,6 +132,7 @@ export default function Header({
 
       {sections?.length ? (
         <div
+          id={MENU_ID}
           // Закрытая панель выпадает из табуляции, кликов и дерева доступности.
           // Раньше это делал `invisible` по концу анимации — market-docs/16-код-ревью.md
           inert={!openMenu}
@@ -91,7 +144,8 @@ export default function Header({
             openMenu ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}
         >
-          <div className="overflow-hidden">
+          {/* tabIndex=-1: сюда уводится фокус при открытии, в табуляцию не встаёт */}
+          <div ref={panelRef} tabIndex={-1} className="overflow-hidden outline-none">
             <HeaderMenu
               // Без key выбранный раздел переживает смену меню и панель пустеет
               key={shownMenu}

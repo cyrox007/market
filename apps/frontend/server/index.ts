@@ -28,8 +28,7 @@ function parseProductQueryFromReq(req: Request) {
     : undefined;
   const sortBy = (Array.isArray(query.sort) ? query.sort[0] : query.sort) || 'created_at';
   const sortOrder = ((Array.isArray(query.order) ? query.order[0] : query.order) || 'desc') as
-    | 'asc'
-    | 'desc';
+    'asc' | 'desc';
   const colors = query.colors
     ? (Array.isArray(query.colors) ? query.colors : [query.colors]).flatMap((c) =>
         c.split(',').filter(Boolean),
@@ -300,8 +299,6 @@ async function createServer() {
             const [
               categoriesResponse,
               featuredResponse,
-              newResponse,
-              saleResponse,
               slidersResponse,
               interiorIdeasResponse,
             ] = await Promise.allSettled([
@@ -314,16 +311,6 @@ async function createServer() {
                 createCacheKey('/products/featured', undefined, undefined),
                 () => ssrApi.products.featured({ region_id: regionId }),
                 { ttl: 120 }, // 2 минуты для товаров
-              ),
-              withCacheSWR(
-                createCacheKey('/products/new', undefined, undefined),
-                () => ssrApi.products.new({ region_id: regionId }),
-                { ttl: 120 },
-              ),
-              withCacheSWR(
-                createCacheKey('/products/sale', undefined, undefined),
-                () => ssrApi.products.sale({ region_id: regionId }),
-                { ttl: 120 },
               ),
               withCacheSWR(
                 createCacheKey('/sliders', undefined, undefined),
@@ -343,12 +330,6 @@ async function createServer() {
             }
             if (featuredResponse.status === 'fulfilled') {
               ssrContext.home.featuredProducts = featuredResponse.value.data;
-            }
-            if (newResponse.status === 'fulfilled') {
-              ssrContext.home.newProducts = newResponse.value.data;
-            }
-            if (saleResponse.status === 'fulfilled') {
-              ssrContext.home.saleProducts = saleResponse.value.data;
             }
             if (slidersResponse.status === 'fulfilled') {
               ssrContext.home.sliders = slidersResponse.value.data;
@@ -396,10 +377,11 @@ async function createServer() {
           }
         }
 
-        // Страница категории /catalog/:category
-        const categoryMatch = url.match(/^\/catalog\/([^/]+)/);
-        if (categoryMatch) {
-          const categorySlug = categoryMatch[1];
+        // Страница категории /catalog/:category, в т. ч. вложенная /catalog/a/b — slug из последнего
+        // сегмента, без query. market-docs/40
+        const categoryMatch = url.match(/^\/catalog\/([^?#]+)/);
+        const categorySlug = categoryMatch?.[1].split('/').filter(Boolean).pop();
+        if (categoryMatch && categorySlug) {
           try {
             const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
               parseProductQueryFromReq(req);
@@ -457,9 +439,9 @@ async function createServer() {
         }
 
         // Страница комнаты /rooms/:room — та же логика, что и категория, но через rooms API.
-        const roomMatch = url.match(/^\/rooms\/([^/]+)/);
-        if (roomMatch) {
-          const roomSlug = roomMatch[1];
+        const roomMatch = url.match(/^\/rooms\/([^?#]+)/);
+        const roomSlug = roomMatch?.[1].split('/').filter(Boolean).pop();
+        if (roomMatch && roomSlug) {
           try {
             const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
               parseProductQueryFromReq(req);
@@ -727,7 +709,7 @@ async function createServer() {
   });
 
   // Обработка ошибок
-  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     console.error('SSR Error:', err);
     res.status(500).end(err.message);
   });

@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\About\Pages;
 
 use App\Filament\Resources\About\AboutPageResource;
+use App\Filament\Resources\Pages\EditRecord;
 use App\Models\Page\AboutPage;
-use Filament\Resources\Pages\EditRecord;
 
 class EditAboutPage extends EditRecord
 {
@@ -16,7 +16,7 @@ class EditAboutPage extends EditRecord
     {
         $aboutPage = AboutPage::getInstance();
 
-        if (!$aboutPage->exists) {
+        if (! $aboutPage->exists) {
             $aboutPage->save();
         }
 

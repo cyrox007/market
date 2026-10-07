@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\Shipping\Carriers\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Shipping\Carriers\CarrierResource;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 use Vanilo\Shipment\Models\ShippingMethod;
 
 class EditCarrier extends EditRecord
@@ -42,6 +42,7 @@ class EditCarrier extends EditRecord
                 }),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_carrier.title');
@@ -51,5 +52,4 @@ class EditCarrier extends EditRecord
     {
         return __('filament/admin_sv/edit_carrier.title');
     }
-
 }

@@ -3,10 +3,9 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import ProductCard from '../../components/ui/ProductCard';
 import { api } from '../../lib/api';
-import { useSSR } from '../../contexts/SSRContext';
+import { useSSR } from '../../contexts/ssr-context';
 import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct } from '../../utils/cartProduct';
-import { useCounters } from '../../hooks/useCounters';
 import { useRegion } from '../../hooks/useRegion';
 import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { getSearchKey } from '../../utils/ssr-to-swr';
@@ -27,7 +26,6 @@ export default function Search() {
   const navigate = useNavigate();
   const ssrData = useSSR();
   const { cart, addProductToCart, changeProductQuantity } = useCartActions();
-  const { refreshWishlistCount, refreshCompareCount } = useCounters();
   const { region } = useRegion();
 
   // Используем SSR данные если они есть
@@ -44,8 +42,8 @@ export default function Search() {
   const {
     wishlistProductIds: favorites,
     compareProductIds: compareList,
-    mutateWishlist,
-    mutateCompare,
+    toggleWishlist: toggleWishlistId,
+    toggleCompare: toggleCompareId,
   } = useWishlistAndCompare();
 
   // Синхронизируем состояние с SSR данными
@@ -210,66 +208,11 @@ export default function Search() {
     return product.id;
   };
 
-  const toggleFavorite = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForWishlist(product);
+  const toggleFavorite = (product: Product) =>
+    toggleWishlistId(getProductIdForWishlist(product));
 
-      if (!productIdToAdd || productIdToAdd === 0) {
-        console.error('Invalid product ID for wishlist:', product);
-        return;
-      }
-
-      const response = await api.wishlist.toggle(productIdToAdd);
-
-      // Оптимистично обновляем SWR кеш
-      await mutateWishlist(async (current: any) => {
-        const wishlistItems = current?.data || [];
-        if (response.in_wishlist) {
-          return { data: [...wishlistItems, { product_id: productIdToAdd }] };
-        } else {
-          return {
-            data: wishlistItems.filter(
-              (item: any) => (item.product_id || item.product?.id) !== productIdToAdd,
-            ),
-          };
-        }
-      }, false);
-
-      await refreshWishlistCount();
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      mutateWishlist();
-    }
-  };
-
-  const toggleCompare = async (product: Product) => {
-    try {
-      const productIdToAdd = getProductIdForCompare(product);
-
-      const isInCompare = compareList.includes(productIdToAdd);
-
-      if (isInCompare) {
-        await api.compare.remove(productIdToAdd);
-        await mutateCompare(async (current: any) => {
-          const products = current?.products || [];
-          return {
-            products: products.filter((p: Product) => p.id !== productIdToAdd),
-          };
-        }, false);
-      } else {
-        await api.compare.add(productIdToAdd);
-        await mutateCompare();
-      }
-
-      await refreshCompareCount();
-    } catch (error: any) {
-      console.error('Failed to toggle compare:', error);
-      mutateCompare();
-      if (error.status === 422) {
-        alert(error.data?.message || 'Не удалось добавить товар в сравнение.');
-      }
-    }
-  };
+  const toggleCompare = (product: Product) =>
+    toggleCompareId(getProductIdForCompare(product));
 
   const query = searchParams.get('q') || '';
 

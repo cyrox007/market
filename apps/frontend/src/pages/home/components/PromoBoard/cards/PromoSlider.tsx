@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { SmartLink } from '../../../../../components/ui/primitives';
 import { SliderArrowIcon } from '../../../../../components/ui/icons/slider-arrow';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay } from 'swiper/modules';
@@ -7,6 +7,7 @@ import type { Swiper as SwiperType } from 'swiper';
 import { Badge } from '../../../../../components/ui/primitives';
 import { cn } from '../../../../../lib/cn';
 import type { PromoItem } from '../lib/promo-types';
+import SlideImage from '../../SlideImage';
 
 import 'swiper/css';
 
@@ -101,13 +102,11 @@ export default function PromoSlider({ slides, className }: PromoSliderProps) {
 }
 
 function PromoSlide({ slide }: { slide: PromoItem }) {
-  const { title, description, badge, image, to } = slide;
+  const { title, description, badge, image, imageMobile, to } = slide;
 
   const content = (
     <>
-      {image ? (
-        <img src={image} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
-      ) : null}
+      <SlideImage image={image} imageMobile={imageMobile} />
 
       {/* Тень из макета: чёрный 60% слева, к правому краю сходит на нет */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/60 to-transparent" />
@@ -138,9 +137,9 @@ function PromoSlide({ slide }: { slide: PromoItem }) {
     'relative isolate flex size-full flex-col items-start justify-center gap-12 px-5 py-[42px] pl-20 max-md:gap-6 max-md:py-6 max-vsm:px-4 max-vsm:pl-4';
 
   return to ? (
-    <Link to={to} className={cn(shell, 'outline-none')}>
+    <SmartLink to={to} className={cn(shell, 'outline-none')}>
       {content}
-    </Link>
+    </SmartLink>
   ) : (
     <div className={shell}>{content}</div>
   );

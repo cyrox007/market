@@ -1,20 +1,6 @@
-import { createContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { api } from '../lib/api';
-
-interface CountersContextType {
-  cartCount: number;
-  wishlistCount: number;
-  compareCount: number;
-  isLoading: boolean;
-  setCartCount: (count: number) => void;
-  bumpCartCount: (delta: number) => void;
-  refreshCartCount: () => Promise<void>;
-  refreshWishlistCount: () => Promise<void>;
-  refreshCompareCount: () => Promise<void>;
-  refreshAllCounts: () => Promise<void>;
-}
-
-export const CountersContext = createContext<CountersContextType | undefined>(undefined);
+import { CountersContext, type CountersContextType } from './counters-context';
 
 interface CountersProviderProps {
   children: ReactNode;
@@ -40,6 +26,14 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
   const bumpCartCount = useCallback((delta: number) => {
     if (delta === 0) return;
     setCartCount((prev) => Math.max(0, prev + delta));
+  }, []);
+
+  const bumpWishlistCount = useCallback((delta: number) => {
+    setWishlistCount((prev) => Math.max(0, prev + delta));
+  }, []);
+
+  const bumpCompareCount = useCallback((delta: number) => {
+    setCompareCount((prev) => Math.max(0, prev + delta));
   }, []);
 
   const refreshCartCount = useCallback(async () => {
@@ -134,6 +128,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       isLoading,
       setCartCount: setCartCountValue,
       bumpCartCount,
+      bumpWishlistCount,
+      bumpCompareCount,
       refreshCartCount,
       refreshWishlistCount,
       refreshCompareCount,
@@ -146,6 +142,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       isLoading,
       setCartCountValue,
       bumpCartCount,
+      bumpWishlistCount,
+      bumpCompareCount,
       refreshCartCount,
       refreshWishlistCount,
       refreshCompareCount,

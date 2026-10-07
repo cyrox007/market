@@ -2,19 +2,19 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\CatalogSyncPage;
 use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\Pages\OperatorEditProduct;
-use Filament\View\PanelsRenderHook;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use App\Filament\Pages\CatalogSyncPage;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -40,6 +40,7 @@ class AdminSvPanelProvider extends PanelProvider
             // brandName попадает в заголовок вкладки, brandLogo — в подпись шапки.
             ->brandName('Светофор-Мебель')
             ->brandLogo(fn () => new HtmlString('Основной экран'))
+            ->favicon(asset('favicon.ico').'?v=2')
             ->sidebarCollapsibleOnDesktop()
             // В конце body: у Livewire-компонента страницы допустим один корневой элемент
             ->renderHook(

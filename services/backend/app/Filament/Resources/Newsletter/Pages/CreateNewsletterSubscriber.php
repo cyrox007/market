@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Newsletter\Pages;
 
 use App\Filament\Resources\Newsletter\NewsletterSubscriberResource;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Resources\Pages\CreateRecord;
 
 class CreateNewsletterSubscriber extends CreateRecord
 {

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Actions\Inventory\Sync\RefreshProductStocksFrom1CAction;
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
@@ -12,7 +13,6 @@ use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Str;
 
 class EditProduct extends EditRecord
@@ -21,16 +21,19 @@ class EditProduct extends EditRecord
 
     protected array $productAttributesData = [];
 
-    protected bool $stayAfterSave = false;
-
     protected function getFormActions(): array
     {
         return [
-            $this->getSaveFormAction(),
+            $this->getSaveFormAction()
+                ->label('Сохранить')
+                ->icon('heroicon-m-check'),
             Action::make('saveAndStay')
                 ->label('Сохранить и остаться')
+                ->icon('heroicon-m-pencil-square')
+                ->color('gray')
                 ->extraAttributes(['data-save-overlay' => true])
-                ->action('saveAndStay'),
+                ->action('saveAndStay')
+                ->keyBindings(['mod+shift+s']),
             $this->getCancelFormAction(),
         ];
     }
@@ -59,7 +62,7 @@ class EditProduct extends EditRecord
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('info')
                 ->tooltip(fn (): ?string => $this->record?->parentProduct
-                    ? 'Открыть: ' . (string) $this->record->parentProduct->name
+                    ? 'Открыть: '.(string) $this->record->parentProduct->name
                     : null)
                 ->url(fn (): ?string => $this->record?->parent_product_id
                     ? ProductResource::getUrl('edit', ['record' => $this->record->parent_product_id])
@@ -70,7 +73,7 @@ class EditProduct extends EditRecord
                 Action::make('viewOnSite')
                     ->label('Просмотр на сайте')
                     ->icon('heroicon-o-eye')
-                    ->url(fn () => url('/product/' . $this->record->slug))
+                    ->url(fn () => url('/product/'.$this->record->slug))
                     ->openUrlInNewTab(),
 
                 Action::make('refreshStocksFrom1C')
@@ -88,8 +91,8 @@ class EditProduct extends EditRecord
                                 ->title('Остатки обновлены частично')
                                 ->body(
                                     "Обновлено: {$result['synced']}; "
-                                    . "пропущено: {$result['skipped']}; "
-                                    . "ошибок: {$result['errors']}."
+                                    ."пропущено: {$result['skipped']}; "
+                                    ."ошибок: {$result['errors']}."
                                 )
                                 ->warning()
                                 ->send();
@@ -111,7 +114,7 @@ class EditProduct extends EditRecord
                             ->title('Остатки обновлены из 1С')
                             ->body(
                                 "Позиций: {$result['synced']}; "
-                                . "получено складских строк: {$result['warehouse_rows']}."
+                                ."получено складских строк: {$result['warehouse_rows']}."
                             )
                             ->success()
                             ->send();
@@ -245,19 +248,14 @@ class EditProduct extends EditRecord
     public function getTitle(): string
     {
         if ($this->record?->isVariant()) {
-            return 'ТП: ' . Str::limit((string) $this->record->name, 52);
+            return 'ТП: '.Str::limit((string) $this->record->name, 52);
         }
 
-        return 'Товар: ' . Str::limit((string) $this->record?->name, 58);
+        return 'Товар: '.Str::limit((string) $this->record?->name, 58);
     }
 
     public static function getNavigationLabel(): string
     {
         return __('filament/admin_sv/edit_product.title');
-    }
-
-    protected function getRedirectUrl(): ?string
-    {
-        return $this->stayAfterSave ? null : ProductResource::getUrl('index');
     }
 }

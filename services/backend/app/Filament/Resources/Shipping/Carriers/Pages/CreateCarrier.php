@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Shipping\Carriers\Pages;
 
+use App\Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\Shipping\Carriers\CarrierResource;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateCarrier extends CreateRecord
 {

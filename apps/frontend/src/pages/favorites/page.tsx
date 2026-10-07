@@ -136,7 +136,7 @@ export default function Favorites() {
                         onClick={() => removeFromFavorites(product.id)}
                         className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
                       >
-                        <Heart className="size-[1em] text-xl text-white" fill="currentColor" />
+                        <Heart className="size-[1em] text-xl text-white" />
                       </button>
                     </div>
                     {!isVariableParent(product) && (!product.in_stock || product.stock === 0) && (

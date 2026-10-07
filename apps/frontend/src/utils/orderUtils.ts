@@ -1,4 +1,3 @@
-import { Order } from '../lib/api';
 import type { LucideIcon } from 'lucide-react';
 import {
   CircleCheck,

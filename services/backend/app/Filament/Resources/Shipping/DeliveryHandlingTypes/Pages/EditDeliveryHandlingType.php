@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Shipping\DeliveryHandlingTypes\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Shipping\DeliveryHandlingTypes\DeliveryHandlingTypeResource;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditDeliveryHandlingType extends EditRecord
 {
@@ -16,6 +16,7 @@ class EditDeliveryHandlingType extends EditRecord
             DeleteAction::make(),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_delivery_handling_type.title');
@@ -25,5 +26,4 @@ class EditDeliveryHandlingType extends EditRecord
     {
         return __('filament/admin_sv/edit_delivery_handling_type.title');
     }
-
 }

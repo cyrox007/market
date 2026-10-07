@@ -57,7 +57,7 @@ export async function fetchWithCache<T>(
 /**
  * Invalidate cache by tag
  */
-export function invalidateCache(tag: string): void {
+export function invalidateCache(_tag: string): void {
   // For now, clear all cache. Can be enhanced with tag-based invalidation
   CACHE_STORAGE.clear();
 }

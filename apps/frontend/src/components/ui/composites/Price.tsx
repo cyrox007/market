@@ -19,8 +19,20 @@ interface PriceOwnProps {
    * Два разных написания в одном макете, поэтому вынесено в проп.
    */
   currency?: string;
+  /**
+   * На ширине 980–1319 карточки узкие, и акционная строка «от 19 990р. от 24 990р.» с цветами
+   * не помещается в одну строку — там кегли на ступень меньше (18 / 14 / 12). market-docs/38
+   */
+  shrinkOnNarrowDesktop?: boolean;
   className?: string;
 }
+
+/** Диапазон 980–1319; классы целиком — Tailwind не видит склеенные строки */
+const NARROW = {
+  from: 'min-[980px]:max-[1319.98px]:text-14',
+  value: 'min-[980px]:max-[1319.98px]:text-18',
+  old: 'min-[980px]:max-[1319.98px]:text-12',
+};
 
 type PriceProps = PriceOwnProps & Omit<HTMLAttributes<HTMLSpanElement>, keyof PriceOwnProps>;
 
@@ -55,6 +67,7 @@ export default function Price({
   from = false,
   accent,
   currency = 'р.',
+  shrinkOnNarrowDesktop = false,
   className,
   ...rest
 }: PriceProps) {
@@ -65,20 +78,27 @@ export default function Price({
     <span
       {...rest}
       className={cn(
-        'inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-bold',
+        'inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-semibold',
         tone,
         className,
       )}
     >
       <span className="inline-flex items-baseline gap-1">
-        {from && <span className="text-16">от</span>}
-        <span className="whitespace-nowrap text-20">{format(value, currency)}</span>
+        {from && <span className={cn('text-16', shrinkOnNarrowDesktop && NARROW.from)}>от</span>}
+        <span className={cn('whitespace-nowrap text-20', shrinkOnNarrowDesktop && NARROW.value)}>
+          {format(value, currency)}
+        </span>
       </span>
 
       {/* У <s> класс line-through стоит один: если рядом написать no-underline,
           они конфликтуют и зачёркивание гаснет — проверено замером */}
       {oldValue !== undefined && (
-        <s className="inline-flex items-baseline gap-1 whitespace-nowrap text-14 line-through">
+        <s
+          className={cn(
+            'inline-flex items-baseline gap-1 whitespace-nowrap text-14 line-through',
+            shrinkOnNarrowDesktop && NARROW.old,
+          )}
+        >
           {from && <span>от</span>}
           {format(oldValue, currency)}
         </s>

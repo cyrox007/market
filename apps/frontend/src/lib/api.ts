@@ -42,6 +42,11 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
   return response.json();
 }
 
+function productList(endpoint: string, params?: { region_id?: number }) {
+  const suffix = params?.region_id ? `?region_id=${params.region_id}` : '';
+  return fetchAPI<{ data: Product[] }>(`${endpoint}${suffix}`);
+}
+
 export const api = {
   shipping: {
     getLocations: (params?: { type?: string; parent_id?: number; search?: string }) => {
@@ -234,6 +239,8 @@ export const api = {
   sliders: {
     list: () => fetchAPI<{ data: Slider[] }>('/sliders'),
     get: (slug: string) => fetchAPI<{ slider: Slider }>(`/sliders/${slug}`),
+    /** Вся главная одним запросом: верхний блок по позициям и нижний баннер */
+    home: () => fetchAPI<{ data: HomeSliders }>('/sliders/home'),
   },
   categories: {
     list: () => fetchAPI<{ data: Category[] }>('/categories'),
@@ -295,9 +302,9 @@ export const api = {
       const suffix = query.toString() ? `?${query.toString()}` : '';
       return fetchAPI<ProductPagePayload>(`/products/${slug}${suffix}`);
     },
-    featured: () => fetchAPI<{ data: Product[] }>('/products/featured'),
-    new: () => fetchAPI<{ data: Product[] }>('/products/new'),
-    sale: () => fetchAPI<{ data: Product[] }>('/products/sale'),
+    featured: (params?: { region_id?: number }) => productList('/products/featured', params),
+    new: (params?: { region_id?: number }) => productList('/products/new', params),
+    sale: (params?: { region_id?: number }) => productList('/products/sale', params),
     collection: (slug: string, params?: { region_id?: number }) => {
       const query = new URLSearchParams();
       if (params?.region_id) query.append('region_id', params.region_id.toString());
@@ -428,8 +435,7 @@ export const api = {
   },
   // Счётчики шапки одним запросом (корзина + избранное + сравнение).
   counters: {
-    all: () =>
-      fetchAPI<{ cart: number; wishlist: number; compare: number }>('/counters'),
+    all: () => fetchAPI<{ cart: number; wishlist: number; compare: number }>('/counters'),
   },
   reviews: {
     list: (productId: number) => fetchAPI<{ data: Review[] }>(`/products/${productId}/reviews`),
@@ -555,6 +561,25 @@ export interface Slider {
   slug: string;
   full_path: string | null;
   seo: SeoMeta | null;
+  /** Поля ниже пришли с разделением главной на блоки — services/backend/docs/HOME_SLIDERS.md */
+  placement?: 'top' | 'bottom';
+  slot?: 'main' | 'right_top' | 'right_bottom' | null;
+  badge_tone?: 'red' | 'yellow' | 'green' | null;
+  image_mobile?: string | null;
+  image_mobile_thumb?: string | null;
+  image_mobile_hd?: string | null;
+  image_mobile_fullhd?: string | null;
+  priority?: number;
+}
+
+/** Ответ `/sliders/home`. Правые карточки — одиночные объекты, а не массивы, и могут отсутствовать */
+export interface HomeSliders {
+  top: {
+    main: Slider[];
+    right_top: Slider | null;
+    right_bottom: Slider | null;
+  };
+  bottom: Slider[];
 }
 
 export interface Category {

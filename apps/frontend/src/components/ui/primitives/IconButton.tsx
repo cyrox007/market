@@ -1,7 +1,11 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
-export type IconButtonVariant = 'white' | 'yellow' | 'grey' | 'danger';
+export type IconButtonVariant = 'white' | 'card' | 'yellow' | 'grey' | 'danger';
+
+/** Ховер только у мыши: после тапа на телефоне он залипает и перекрыл бы нажатое состояние */
+const CARD_HOVER =
+  '[@media(hover:hover)]:hover:bg-brand-green [@media(hover:hover)]:hover:text-ink-inverse';
 export type IconButtonSize = 'sm' | 'md' | 'lg';
 
 interface IconButtonOwnProps {
@@ -19,15 +23,7 @@ interface IconButtonOwnProps {
 type IconButtonProps = IconButtonOwnProps &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof IconButtonOwnProps>;
 
-/**
- * Замерено с макета 07.09.2026:
- *   sm 36 — жёлтая кнопка внутри поля поиска, иконка 20
- *   md 40 — свёрнутые «Каталог» и «Комнаты» ниже 980, иконка 20
- *   lg 48 — ⚠️ не замерен, оставлен как был
- *
- * Раньше шкала была 32 / 40 / 48 и целиком выведена. 32 убран: ни одного
- * подтверждения ему в макете не нашлось, а 36 подтверждён.
- */
+/** ⚠️ `lg` не замерен. Замеры и история шкалы — market-docs/09-ui-primitives-stage-1.md. */
 const SIZE: Record<IconButtonSize, string> = {
   sm: 'size-9',
   md: 'size-10',
@@ -36,6 +32,8 @@ const SIZE: Record<IconButtonSize, string> = {
 
 const VARIANT: Record<IconButtonVariant, string> = {
   white: 'bg-surface text-ink hover:bg-surface-grey',
+  // Кнопки поверх фото товара: сравнение и избранное
+  card: `bg-surface text-ink ${CARD_HOVER}`,
   yellow: 'bg-brand-yellow text-ink hover:bg-brand-green hover:text-ink-inverse',
   grey: 'bg-surface-grey text-ink hover:bg-surface-border',
   danger: 'bg-brand-red text-ink-inverse hover:opacity-90',
@@ -44,19 +42,12 @@ const VARIANT: Record<IconButtonVariant, string> = {
 /** Нажатое состояние: у белой кнопки становится красным, у остальных — зелёным */
 const ACTIVE: Record<IconButtonVariant, string> = {
   white: 'bg-brand-red text-ink-inverse hover:bg-brand-red',
+  card: `bg-brand-red text-ink-inverse ${CARD_HOVER}`,
   yellow: 'bg-brand-green text-ink-inverse',
   grey: 'bg-brand-green text-ink-inverse',
   danger: 'bg-brand-red text-ink-inverse',
 };
 
-/**
- * Круглая иконочная кнопка.
- *
- * Цвет меняется мгновенно, без перехода — дизайнер подтвердил 07.09.2026, что
- * движения в макете не предполагалось. Чтобы вернуть плавность, достаточно
- * передать className="transition-colors duration-fast", токены длительностей
- * в конфиге остались.
- */
 export default function IconButton({
   label,
   variant = 'white',
@@ -78,6 +69,7 @@ export default function IconButton({
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full',
         'outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
+        'transition-colors motion-reduce:transition-none',
         SIZE[size],
         disabled
           ? 'cursor-not-allowed bg-surface-grey text-ink-secondary'

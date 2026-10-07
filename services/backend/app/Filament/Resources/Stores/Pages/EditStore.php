@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Stores\Pages;
 
+use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Stores\StoreResource;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
 
 class EditStore extends EditRecord
 {
@@ -16,6 +16,7 @@ class EditStore extends EditRecord
             DeleteAction::make(),
         ];
     }
+
     public function getTitle(): string
     {
         return __('filament/admin_sv/edit_store.title');
@@ -25,5 +26,4 @@ class EditStore extends EditRecord
     {
         return __('filament/admin_sv/edit_store.title');
     }
-
 }

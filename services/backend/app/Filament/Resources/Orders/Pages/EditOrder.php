@@ -4,16 +4,16 @@ namespace App\Filament\Resources\Orders\Pages;
 
 use App\Contracts\Gateway\GatewayLoggerInterface;
 use App\Filament\Resources\Orders\OrderResource;
-use App\Support\Integration\OrderOneCSyncDispatcher;
 use App\Filament\Resources\Orders\Schemas\OrderInfolist;
+use App\Filament\Resources\Pages\EditRecord;
 use App\Models\Order\OrderStatus;
 use App\Services\Payment\RaiffeisenEcomRefundService;
+use App\Support\Integration\OrderOneCSyncDispatcher;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 use Filament\Schemas\Schema;
 use Vanilo\Payment\Models\PaymentStatusProxy;
 
@@ -31,7 +31,7 @@ class EditOrder extends EditRecord
             ->first();
 
         $hasPaymentActions = $this->canMarkOrderPaid($order, $latestPayment)
-            || ($latestPayment && !$latestPayment->getStatus()->equals(PaymentStatusProxy::PAID()) && !$latestPayment->getStatus()->equals(PaymentStatusProxy::CANCELLED()));
+            || ($latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID()) && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::CANCELLED()));
 
         $refundService = app(RaiffeisenEcomRefundService::class);
         $canRefund = $latestPayment && $refundService->canRefund($latestPayment);
@@ -54,10 +54,10 @@ class EditOrder extends EditRecord
                 ->label('Принудительно отменить')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn () => !$order->canBeCancelled() && $order->status !== OrderStatus::CANCELLED->value && auth()->user()?->hasRole('super_admin'))
+                ->visible(fn () => ! $order->canBeCancelled() && $order->status !== OrderStatus::CANCELLED->value && auth()->user()?->hasRole('super_admin'))
                 ->requiresConfirmation()
                 ->modalHeading('Принудительно отменить заказ')
-                ->modalDescription('Заказ в статусе «' . ($order->getStatusLabel() ?? $order->status) . '» будет отменён. Используйте только при необходимости.')
+                ->modalDescription('Заказ в статусе «'.($order->getStatusLabel() ?? $order->status).'» будет отменён. Используйте только при необходимости.')
                 ->action(function () use ($order): void {
                     $order->changeStatus(OrderStatus::CANCELLED, 'Заказ принудительно отменён суперадмином', auth()->id());
                     Notification::make()->title('Заказ отменён')->success()->send();
@@ -85,7 +85,7 @@ class EditOrder extends EditRecord
                     ->label('Отменить оплату')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn () => $latestPayment && !$latestPayment->getStatus()->equals(PaymentStatusProxy::PAID()) && !$latestPayment->getStatus()->equals(PaymentStatusProxy::CANCELLED()))
+                    ->visible(fn () => $latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID()) && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::CANCELLED()))
                     ->requiresConfirmation()
                     ->modalHeading('Отменить оплату')
                     ->modalDescription('Платёж по заказу будет отменён. Продолжить?')
@@ -106,13 +106,13 @@ class EditOrder extends EditRecord
                             ->numeric()
                             ->required()
                             ->minValue(0.01)
-                            ->helperText('Доступно: ' . number_format($refundService->getRefundableAmount($latestPayment), 2) . ' ₽'),
+                            ->helperText('Доступно: '.number_format($refundService->getRefundableAmount($latestPayment), 2).' ₽'),
                         TextInput::make('comment')
                             ->label('Комментарий')
                             ->placeholder('Причина возврата')
                             ->maxLength(255),
                     ])
-                    ->action(function (array $data) use ($order, $latestPayment, $refundService): void {
+                    ->action(function (array $data) use ($latestPayment, $refundService): void {
                         $refundService->refund(
                             $latestPayment,
                             (float) $data['amount'],
@@ -121,7 +121,7 @@ class EditOrder extends EditRecord
                         );
                         Notification::make()
                             ->title('Возврат оформлен')
-                            ->body('Сумма ' . number_format((float) $data['amount'], 2) . ' ₽ отправлена в банк.')
+                            ->body('Сумма '.number_format((float) $data['amount'], 2).' ₽ отправлена в банк.')
                             ->success()
                             ->send();
                         $this->record->refresh();
@@ -142,12 +142,13 @@ class EditOrder extends EditRecord
         if (in_array($order->status, [OrderStatus::AWAITING_PAYMENT->value, OrderStatus::NEW->value], true)) {
             return true;
         }
-        return $latestPayment && !$latestPayment->getStatus()->equals(PaymentStatusProxy::PAID());
+
+        return $latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID());
     }
 
     protected function markOrderAsPaid($order, $latestPayment): void
     {
-        if ($latestPayment && !$latestPayment->getStatus()->equals(PaymentStatusProxy::PAID())) {
+        if ($latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID())) {
             $latestPayment->status = PaymentStatusProxy::PAID();
             $latestPayment->amount_paid = (float) $latestPayment->getAmount();
             $latestPayment->status_message = 'Оплата отмечена вручную в админке';
@@ -162,7 +163,7 @@ class EditOrder extends EditRecord
         app(GatewayLoggerInterface::class)->log(
             'admin_manual',
             'mark_paid',
-            'Оплата отмечена вручную: заказ ' . $order->number . ', сумма ' . number_format((float) $order->total, 2, '.', ' ') . ' ₽',
+            'Оплата отмечена вручную: заказ '.$order->number.', сумма '.number_format((float) $order->total, 2, '.', ' ').' ₽',
             [
                 'order_id' => $order->id,
                 'order_number' => $order->number,
@@ -191,7 +192,7 @@ class EditOrder extends EditRecord
         app(GatewayLoggerInterface::class)->log(
             'admin_manual',
             'cancel_payment',
-            'Оплата отменена вручную: заказ ' . $order->number,
+            'Оплата отменена вручную: заказ '.$order->number,
             [
                 'order_id' => $order->id,
                 'order_number' => $order->number,
@@ -268,5 +269,4 @@ class EditOrder extends EditRecord
     {
         return __('filament/admin_sv/edit_order.title');
     }
-
 }

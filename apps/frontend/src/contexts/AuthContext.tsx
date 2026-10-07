@@ -1,24 +1,6 @@
-import { createContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { api, type User } from '../lib/api';
-
-interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: {
-    name: string;
-    email: string;
-    password: string;
-    password_confirmation: string;
-    phone?: string;
-  }) => Promise<void>;
-  logout: () => Promise<void>;
-  updateProfile: (data: { name?: string; phone?: string }) => Promise<void>;
-  refreshUser: () => Promise<void>;
-}
-
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext, type AuthContextType } from './auth-context';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -27,7 +9,11 @@ interface AuthProviderProps {
   authChecked?: boolean;
 }
 
-export function AuthProvider({ children, initialUser = null, authChecked = false }: AuthProviderProps) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+  authChecked = false,
+}: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(initialUser);
   const [isLoading, setIsLoading] = useState(!initialUser && !authChecked);
   const isRefreshingRef = useRef(false);
@@ -42,12 +28,10 @@ export function AuthProvider({ children, initialUser = null, authChecked = false
     try {
       const response = await api.auth.me();
       setUser(response.user);
-      return true;
     } catch (error: any) {
       if (error?.status === 401) {
         setUser(null);
       }
-      return false;
     } finally {
       isRefreshingRef.current = false;
     }
@@ -64,7 +48,7 @@ export function AuthProvider({ children, initialUser = null, authChecked = false
     let mounted = true;
 
     refreshUser()
-      .then((success) => {
+      .then(() => {
         if (mounted) {
           setIsLoading(false);
         }
