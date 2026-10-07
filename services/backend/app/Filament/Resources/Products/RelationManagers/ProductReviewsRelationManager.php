@@ -24,6 +24,9 @@ class ProductReviewsRelationManager extends RelationManager
 {
     protected static string $relationship = 'reviews';
 
+    // Активна после «Сохранить и остаться»: грузится в том же ответе, высота страницы стабильна
+    protected static bool $isLazy = false;
+
     protected static ?string $title = 'Отзывы';
 
     protected static ?string $recordTitleAttribute = 'name';

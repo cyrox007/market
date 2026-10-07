@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
  */
 class BuildMergedProductDraftAction
 {
-    /** Код номенклатуры 1С в начале названия: «001.007.003 », «001.005.203с ». */
+    /** Код номенклатуры 1С в начале названия. */
     protected const ONE_C_CODE_PREFIX = '/^\d{3}\.\d{3}\.\d{3}\S*\s+/u';
 
     /**
@@ -123,7 +123,7 @@ class BuildMergedProductDraftAction
         $words = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
         $parentWords = preg_split('/\s+/u', $this->stripOneCCode((string) $parent->name), -1, PREG_SPLIT_NO_EMPTY);
 
-        // Сравниваем по словам: «МАРТА-110» не продолжение «МАРТА-11»
+        // Название карточки должно совпасть с началом названия товара пословно
         $isPrefix = $parentWords !== []
             && mb_strtolower(implode(' ', array_slice($words, 0, count($parentWords)))) === mb_strtolower(implode(' ', $parentWords));
 
@@ -175,7 +175,7 @@ class BuildMergedProductDraftAction
     }
 
     /**
-     * Общие — характеристики без расхождений (незаполненное значение расхождением не считается).
+     * Общие — характеристики с одинаковым значением у всех товаров, где оно заполнено.
      *
      * @param  Collection<int, Product>  $products
      * @return array{0: array<int, array{attribute_value_id: int|null, custom_value: string|null}>, 1: list<array{name: string, values: array<int, string>}>}

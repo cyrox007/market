@@ -48,7 +48,7 @@ class DetachVariantFromParentAction
                 'is_variable' => false,
             ]);
 
-            // Пустую карточку не удаляем и вариативность не снимаем (можно снова привязать товары) — только снимаем с витрины
+            // Пустая карточка остаётся вариативной для повторной привязки и скрывается с витрины
             if (! $parent->variants()->exists()) {
                 $parent->updateQuietly(['state' => ProductState::INACTIVE]);
             } else {

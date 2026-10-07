@@ -258,7 +258,7 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         $a->attributes()->attach($color->id, ['custom_value' => 'Белый']);
         $a->attributes()->attach($height->id, ['custom_value' => '560']);
 
-        // Высота не заполнена — это не расхождение
+        // Высота заполнена только у одного товара — характеристика общая
         $b = Product::factory()->create(['name' => 'Стол бежевый']);
         $b->attributes()->attach($width->id, ['custom_value' => '900']);
         $b->attributes()->attach($color->id, ['custom_value' => 'Бежевый']);

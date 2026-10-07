@@ -21,6 +21,39 @@ class EditProduct extends EditRecord
 
     protected array $productAttributesData = [];
 
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getSaveFormAction()
+                ->label('Сохранить')
+                ->icon('heroicon-m-check'),
+            Action::make('saveAndStay')
+                ->label('Сохранить и остаться')
+                ->icon('heroicon-m-pencil-square')
+                ->color('gray')
+                ->extraAttributes(['data-save-overlay' => true])
+                ->action('saveAndStay')
+                ->keyBindings(['mod+shift+s']),
+            $this->getCancelFormAction(),
+        ];
+    }
+
+    public function saveAndStay(): void
+    {
+        $this->stayAfterSave = true;
+        $wasVariable = (bool) $this->getRecord()->is_variable;
+
+        $this->save();
+
+        // Схема вкладок закэширована по товару до сохранения — пересобираем её
+        if ($wasVariable !== (bool) $this->getRecord()->is_variable) {
+            unset($this->cachedSchemas['content']);
+            $this->activeRelationManager = $this->getRecord()->is_variable
+                ? (string) array_key_first($this->getRelationManagers())
+                : null;
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
