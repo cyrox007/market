@@ -13,6 +13,8 @@
  */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // hover: только на устройствах с мышью — на телефоне :hover залипает после касания (market-docs/42)
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       /**

@@ -56,7 +56,7 @@ export default function Footer() {
 
         <div className="h-px w-full bg-ink-inverse/[0.24]" />
 
-        <div className="flex items-end justify-between gap-6 text-14 font-semibold leading-none text-ink-inverse/[0.46] max-md:flex-col max-md:items-start max-md:gap-3">
+        <div className="text-14 font-semibold leading-none text-ink-inverse/[0.46]">
           <div className="flex flex-col gap-3">
             {requisiteLines().map((line) => (
               <p key={line}>{line}</p>
@@ -65,7 +65,6 @@ export default function Footer() {
               © {new Date().getFullYear()} {organizationRequisites.fullName}. Все права защищены.
             </p>
           </div>
-          <p className="uppercase">Разработано компанией «Название компании»</p>
         </div>
       </div>
     </footer>
