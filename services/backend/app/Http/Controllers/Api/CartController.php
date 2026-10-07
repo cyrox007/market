@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Cart\AddToCartAction;
+use App\Actions\Cart\Exceptions\CartItemNotFoundException;
+use App\Actions\Cart\Exceptions\CartProductUnavailableException;
+use App\Actions\Cart\UpdateCartItemQuantityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CartItemResource;
 use App\Models\Product\Product;
 use App\Models\Shipping\ShippingLocation;
-use App\Services\Inventory\StockAvailabilityService;
 use App\Services\Product\ProductRegionRuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,7 +27,8 @@ class CartController extends Controller
 {
     public function __construct(
         protected ProductRegionRuleService $regionRuleService,
-        protected StockAvailabilityService $stockAvailabilityService,
+        protected AddToCartAction $addToCart,
+        protected UpdateCartItemQuantityAction $updateCartItemQuantity,
     ) {
     }
 
@@ -216,108 +220,28 @@ class CartController extends Controller
             $product = $variant;
         }
 
-        $requestedQuantity = $validated['quantity'] ?? 1;
-
-        // Получаем текущее количество этого товара в корзине
-        $existingItem = Cart::getItems()->first(function ($item) use ($product) {
-            return ($item->product_id ?? $item->buyable->id) === $product->id;
-        });
-        $currentQuantityInCart = $existingItem ? $existingItem->quantity : 0;
-
-        // Вычисляем доступное количество
-        $shippingLocationId = $this->resolveShippingLocationId($request);
-        $resolvedStock = $this->stockAvailabilityService->resolveAvailableStock($product, $shippingLocationId);
-        $availableQuantity = $this->calculateAvailableQuantity(
-            $product,
-            $requestedQuantity,
-            $currentQuantityInCart,
-            $resolvedStock
-        );
-
-        // Если доступное количество = 0, возвращаем ошибку
-        if ($availableQuantity <= 0) {
-            return response()->json([
-                'message' => 'Товар недоступен для заказа',
-                'product_name' => $product->name,
-                'stock' => $resolvedStock,
-                'backorder' => $product->backorder ?? false,
-            ], 422);
+        try {
+            $result = $this->addToCart->execute(
+                $product,
+                $validated['quantity'] ?? 1,
+                $this->resolveShippingLocationId($request),
+            );
+        } catch (CartProductUnavailableException $e) {
+            return $this->unavailableResponse($product, $e);
         }
 
-        // Если запрошено больше доступного, корректируем
-        $finalQuantity = min($availableQuantity, $requestedQuantity);
-
-        // Если товар уже есть в корзине, удаляем его перед добавлением с новым количеством
-        if ($existingItem) {
-            Cart::removeItem($existingItem);
-            // Добавляем с общим количеством (текущее + новое)
-            $newQuantity = $currentQuantityInCart + $finalQuantity;
-            $cartItem = Cart::addItem($product, $newQuantity);
-            $message = "Количество обновлено. Добавлено {$finalQuantity} шт. (всего {$newQuantity} шт.)";
-        } else {
-            $cartItem = Cart::addItem($product, $finalQuantity);
-            $message = 'Товар добавлен в корзину';
-        }
-
-        // Если количество было скорректировано, сообщаем об этом
-        if ($finalQuantity < $requestedQuantity) {
-            $reason = $finalQuantity >= 100
-                ? 'максимальное количество в одном заказе - 100 шт.'
-                : ($resolvedStock !== null && $resolvedStock < $requestedQuantity
-                    ? "доступно только {$resolvedStock} шт. на складе"
-                    : '');
-
-            $message .= $reason ? " (запрошено {$requestedQuantity}, {$reason})" : '';
-        }
+        $message = $result->previous > 0
+            ? "Количество обновлено. Добавлено {$result->applied} шт. (всего {$result->item->quantity} шт.)"
+            : 'Товар добавлен в корзину';
 
         return response()->json([
-            'item' => new CartItemResource($cartItem),
-            'message' => $message,
-            'requested_quantity' => $requestedQuantity,
-            'added_quantity' => $finalQuantity,
-            'was_adjusted' => $finalQuantity < $requestedQuantity,
+            'item' => new CartItemResource($result->item),
+            'message' => $message . $result->reasonMessage(),
+            'requested_quantity' => $result->requested,
+            'added_quantity' => $result->applied,
+            'was_adjusted' => $result->wasAdjusted(),
+            'limit_reason' => $result->reason?->value,
         ], 201);
-    }
-
-    /**
-     * Вычислить доступное количество товара с учетом остатков и лимитов
-     */
-    protected function calculateAvailableQuantity(
-        Product $product,
-        int $requestedQuantity,
-        int $currentQuantityInCart = 0,
-        ?int $resolvedStock = null
-    ): int {
-        // Максимальное количество в одном заказе
-        $maxPerOrder = 100;
-
-        // Максимум, который можно добавить с учетом лимита
-        $maxCanAdd = $maxPerOrder - $currentQuantityInCart;
-
-        // Если уже достигнут лимит в корзине
-        if ($maxCanAdd <= 0) {
-            return 0;
-        }
-
-        // Если товар не имеет учета остатков (stock = null), ограничиваем только лимитом
-        if ($resolvedStock === null) {
-            return min($requestedQuantity, $maxCanAdd);
-        }
-
-        // Если товар позволяет backorder, ограничиваем только лимитом
-        if ($product->backorder) {
-            return min($requestedQuantity, $maxCanAdd);
-        }
-
-        // Если товар имеет учет остатков и не позволяет backorder
-        // учитываем уже добавленное в корзину количество
-        $availableStock = max(0, $resolvedStock - $currentQuantityInCart);
-
-        // Доступное количество = минимум из:
-        // - запрошенного количества
-        // - остатка на складе
-        // - лимита на заказ (100 - уже в корзине)
-        return min($requestedQuantity, $availableStock, $maxCanAdd);
     }
 
     /**
@@ -392,52 +316,37 @@ class CartController extends Controller
             $product = $variant;
         }
 
-        $requestedQuantity = $validated['quantity'];
-        $shippingLocationId = $this->resolveShippingLocationId($request);
-        $resolvedStock = $this->stockAvailabilityService->resolveAvailableStock($product, $shippingLocationId);
-
-        // Вычисляем доступное количество (текущее количество в корзине = 0, так как мы его удалим)
-        $availableQuantity = $this->calculateAvailableQuantity($product, $requestedQuantity, 0, $resolvedStock);
-
-        // Если доступное количество = 0, возвращаем ошибку
-        if ($availableQuantity <= 0) {
-            return response()->json([
-                'message' => 'Товар недоступен для заказа',
-                'product_name' => $product->name,
-                'stock' => $resolvedStock,
-                'backorder' => $product->backorder ?? false,
-            ], 422);
-        }
-
-        // Корректируем количество
-        $finalQuantity = min($availableQuantity, $requestedQuantity);
-
-        // Удаляем старый элемент
-        Cart::removeItem($item);
-
-        // Добавляем с новым количеством (и новой вариацией, если изменилась)
-        $updatedItem = Cart::addItem($product, $finalQuantity);
-
-        $message = 'Товар обновлен';
-
-        // Если количество было скорректировано, сообщаем об этом
-        if ($finalQuantity < $requestedQuantity) {
-            $reason = $finalQuantity >= 100
-                ? 'максимальное количество в одном заказе - 100 шт.'
-                : ($resolvedStock !== null && $resolvedStock < $requestedQuantity
-                    ? "доступно только {$resolvedStock} шт. на складе"
-                    : '');
-
-            $message .= $reason ? " (запрошено {$requestedQuantity}, {$reason})" : '';
+        try {
+            $result = $this->updateCartItemQuantity->execute(
+                $item,
+                $product,
+                $validated['quantity'],
+                $this->resolveShippingLocationId($request),
+            );
+        } catch (CartItemNotFoundException $e) {
+            return response()->json(['message' => $e->getMessage()], 404);
+        } catch (CartProductUnavailableException $e) {
+            return $this->unavailableResponse($product, $e);
         }
 
         return response()->json([
-            'item' => new CartItemResource($updatedItem),
-            'message' => $message,
-            'requested_quantity' => $requestedQuantity,
-            'updated_quantity' => $finalQuantity,
-            'was_adjusted' => $finalQuantity < $requestedQuantity,
+            'item' => new CartItemResource($result->item),
+            'message' => 'Товар обновлен' . $result->reasonMessage(),
+            'requested_quantity' => $result->requested,
+            'updated_quantity' => $result->applied,
+            'was_adjusted' => $result->wasAdjusted(),
+            'limit_reason' => $result->reason?->value,
         ]);
+    }
+
+    protected function unavailableResponse(Product $product, CartProductUnavailableException $e): JsonResponse
+    {
+        return response()->json([
+            'message' => $e->getMessage(),
+            'product_name' => $product->name,
+            'stock' => $e->stock,
+            'backorder' => $product->backorder ?? false,
+        ], 422);
     }
 
     /**
