@@ -45,6 +45,9 @@ class ProductVariantsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'name';
 
+    // Активна после «Сохранить и остаться»: грузится в том же ответе, высота страницы стабильна
+    protected static bool $isLazy = false;
+
     public static function canViewForRecord($ownerRecord, string $pageClass): bool
     {
         // Запрещаем просмотр торговых предложений для торговых предложений
@@ -517,6 +520,7 @@ class ProductVariantsRelationManager extends RelationManager
                     }),
                 CreateAction::make()
                     ->label('Добавить торговое предложение')
+                    ->modalHeading('Добавить торговое предложение')
                     ->icon('heroicon-o-plus')
                     ->mutateFormDataUsing(function (array $data): array {
                         $parentProduct = $this->getOwnerRecord();
@@ -627,7 +631,6 @@ class ProductVariantsRelationManager extends RelationManager
                 Action::make('detach')
                     ->label('Отвязать')
                     ->icon('heroicon-o-link-slash')
-                    // Заблокированная кнопка серая, активная — отличимого цвета
                     ->color(fn(Product $record): string => DetachVariantFromParentAction::blockReason($record) !== null ? 'gray' : 'warning')
                     ->disabled(fn(Product $record): bool => DetachVariantFromParentAction::blockReason($record) !== null)
                     ->tooltip(fn(Product $record): ?string => DetachVariantFromParentAction::blockReason($record))
@@ -655,7 +658,7 @@ class ProductVariantsRelationManager extends RelationManager
                             ->success()
                             ->send();
 
-                        // Форма карточки открыта со старыми статусом/ценой — перезагружаем, чтобы «Сохранить» их не вернул
+                        // Форма держит статус и цену до отвязки — перезагружаем, чтобы «Сохранить» записал актуальные
                         $this->redirect(ProductResource::getUrl('edit', ['record' => $owner]));
                     }),
                 DeleteAction::make()

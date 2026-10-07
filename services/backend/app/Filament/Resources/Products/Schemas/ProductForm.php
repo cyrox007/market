@@ -60,6 +60,8 @@ class ProductForm
                     ->extraAttributes(['class' => 'chpu-section'])
                     ->schema([
                         TextInput::make('slug')
+                            // Filament приводит подпись в ошибках к строчной первой букве
+                            ->validationAttribute('ЧПУ')
                             ->label(__('filament/admin_sv/product_resource.slug'))
                             ->maxLength(255)
                             ->unique(Product::class, 'slug', ignoreRecord: true)
@@ -229,7 +231,9 @@ class ProductForm
                     ->label(__('filament/admin_sv/product_resource.stock'))
                     ->numeric()
                     ->default(0)
-                    ->required()
+                    // У вариативного остаток — сумма вариантов; колонка NOT NULL, пустое пишем как 0
+                    ->required(fn ($get): bool => ! $get('is_variable'))
+                    ->dehydrateStateUsing(fn ($state) => filled($state) ? $state : 0)
                     ->helperText('Количество единиц товара на складе')
                     ->visible(fn($record) => !$record || !$record->is_variable)
                     ->disabled(fn($record) => $record && $record->is_variable),
@@ -241,7 +245,7 @@ class ProductForm
                             return '—';
                         }
 
-                        $totalStock = $record->variants()
+                        $totalStock = (int) $record->variants()
                             ->active()
                             ->sum('stock');
 
@@ -250,8 +254,8 @@ class ProductForm
                     ->visible(fn($record) => $record && $record->is_variable),
 
                 \Filament\Forms\Components\Placeholder::make('stock_helper')
-                    ->label('')
-                    ->content('Для вариативных товаров остаток рассчитывается автоматически как сумма остатков всех вариаций. Управление остатками вариаций доступно во вкладке "Вариации товара".')
+                    ->hiddenLabel()
+                    ->content('Остатки вариантов меняются во вкладке «Торговые предложения».')
                     ->visible(fn($record) => $record && $record->is_variable)
                     ->columnSpanFull(),
 

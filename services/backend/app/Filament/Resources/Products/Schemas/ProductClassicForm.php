@@ -73,7 +73,8 @@ class ProductClassicForm extends ProductForm
                     ->label(__('filament/admin_sv/product_resource.price'))
                     ->numeric()
                     ->prefix('₽')
-                    ->required()
+                    // У вариативного цена «от» считается по вариантам
+                    ->required(fn ($get): bool => ! $get('is_variable'))
                     ->helperText('Цена продажи. Показывается на карточке товара и в заказе.'),
 
                 TextInput::make('original_price')
@@ -119,11 +120,14 @@ class ProductClassicForm extends ProductForm
                         if ($variantsCount > 0) {
                             return "У товара {$variantsCount} вариаций. Удалите все, чтобы отключить.";
                         }
-                        return 'Вариации добавляются во вкладке «Торговые предложения».';
+                        return $record->is_variable
+                            ? 'Вариации добавляются во вкладке «Торговые предложения».'
+                            : 'Вкладка «Торговые предложения» появится после сохранения.';
                     })
                     ->default(false)
                     ->disabled(fn ($record) => $record && $record->variants()->count() > 0)
                     ->dehydrated()
+                    ->live()
                     ->columnSpanFull(),
 
                 Placeholder::make('variants_info')
