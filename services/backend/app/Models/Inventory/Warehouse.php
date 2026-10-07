@@ -23,6 +23,7 @@ class Warehouse extends Model
         'manufacturer_id',
         'stock_mode',
         'address',
+        'address_external_id',
         'latitude',
         'longitude',
         'processing_days_min',
