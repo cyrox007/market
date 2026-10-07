@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Shipping\Warehouses;
 use App\Filament\Resources\Shipping\Warehouses\Pages\CreateWarehouse;
 use App\Filament\Resources\Shipping\Warehouses\Pages\EditWarehouse;
 use App\Filament\Resources\Shipping\Warehouses\Pages\ListWarehouses;
+use App\Filament\Resources\Shipping\Warehouses\RelationManagers\DeliveryProfilesRelationManager;
 use App\Filament\Resources\Shipping\Warehouses\Schemas\WarehouseForm;
 use App\Filament\Resources\Shipping\Warehouses\Tables\WarehousesTable;
 use App\Models\Inventory\Warehouse;
@@ -43,7 +44,9 @@ class WarehouseResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            DeliveryProfilesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
