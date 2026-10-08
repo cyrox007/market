@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { Popover, Radio, RadioGroup, Sheet } from '../../../../components/ui/primitives';
 import { CATALOG_SORT_OPTIONS, type CatalogSort } from '../../../../lib/catalog-query';
 import FilterPill from './FilterPill';
@@ -40,7 +41,22 @@ export default function SortControl({ value, onChange, asSheet }: SortControlPro
         {current.label}
       </FilterPill>
       {asSheet ? (
-        <Sheet open={open} onClose={() => setOpen(false)} side="bottom" title="Сортировка">
+        <Sheet
+          open={open}
+          onClose={() => setOpen(false)}
+          side="bottom"
+          title="Сортировка"
+          headerAction={
+            <button
+              type="button"
+              aria-label="Закрыть"
+              onClick={() => setOpen(false)}
+              className="inline-flex size-6 items-center justify-center text-ink transition-colors hover:text-brand-green"
+            >
+              <X aria-hidden className="size-6" />
+            </button>
+          }
+        >
           {options}
         </Sheet>
       ) : (

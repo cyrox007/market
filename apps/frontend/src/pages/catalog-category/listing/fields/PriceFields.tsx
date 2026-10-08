@@ -26,6 +26,7 @@ export default function PriceFields({ value, bounds, onChange }: PriceFieldsProp
     <div className="flex flex-col gap-4">
       <RangeInputs
         label="Цена"
+        className="max-w-full md:w-[280px]"
         min={bounds.min}
         max={bounds.max}
         value={[value.min ?? null, value.max ?? null]}

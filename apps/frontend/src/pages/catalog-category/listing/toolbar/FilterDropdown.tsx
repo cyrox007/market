@@ -2,7 +2,7 @@ import { useId, useRef, type ReactNode } from 'react';
 import { Popover } from '../../../../components/ui/primitives';
 import type { FilterDraft } from '../useFilterDraft';
 import FilterPill from './FilterPill';
-import ShowResultsButton from './ShowResultsButton';
+import ShowResultsButton from '../fields/ShowResultsButton';
 
 interface FilterDropdownProps {
   label: string;

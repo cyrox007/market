@@ -27,7 +27,9 @@ export default function Checkbox({
   return (
     <label
       className={cn(
-        'inline-flex items-center gap-2.5 text-14',
+        // relative: иначе sr-only input встаёт к верху панели, и клик прокручивает к нему;
+        // align-top: без него высота строки зависела от галочки (базовая линия), market-docs/48
+        'relative inline-flex items-center gap-2.5 align-top text-14',
         disabled ? 'cursor-not-allowed text-ink-secondary' : 'cursor-pointer text-ink',
         className,
       )}

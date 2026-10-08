@@ -1,17 +1,18 @@
 import type { FiltersMeta } from '../../../../lib/api';
 import { activeFilterCount, type CatalogQuery } from '../../../../lib/catalog-query';
-import { useMediaQuery } from '../../../../hooks/useMediaQuery';
 import { useFilterDraft } from '../useFilterDraft';
 import AllFiltersButton from './AllFiltersButton';
-import { filterAvailability } from './availability';
-import DimensionFields from './DimensionFields';
+import { filterAvailability } from '../fields/availability';
+import DimensionFields from '../fields/DimensionFields';
 import FilterDropdown from './FilterDropdown';
-import ManufacturerList from './ManufacturerList';
+import ManufacturerList from '../fields/ManufacturerList';
 import OnSalePill from './OnSalePill';
-import PriceFields from './PriceFields';
+import PriceFields from '../fields/PriceFields';
 import SortControl from './SortControl';
 
 export interface CatalogToolbarProps {
+  /** Экран уже 980 — определяет страница один раз, чтобы первый кадр не был «десктопным» */
+  compact: boolean;
   /** Применённые фильтры — из адреса */
   query: CatalogQuery;
   onQueryChange: (next: CatalogQuery) => void;
@@ -27,6 +28,7 @@ export interface CatalogToolbarProps {
  * ниже — сортировка слева, «Фильтры (N)» справа.
  */
 export default function CatalogToolbar({
+  compact,
   query,
   onQueryChange,
   meta,
@@ -34,14 +36,13 @@ export default function CatalogToolbar({
   countProducts,
   onOpenAllFilters,
 }: CatalogToolbarProps) {
-  const compact = useMediaQuery('(max-width: 979.98px)');
   const draft = useFilterDraft({
     applied: query,
     appliedTotal: total,
     onApply: onQueryChange,
     countProducts,
   });
-  const available = filterAvailability(meta);
+  const available = filterAvailability(meta, query);
   const applyNow = (patch: Partial<CatalogQuery>) => onQueryChange({ ...query, ...patch, page: 1 });
 
   const sort = (

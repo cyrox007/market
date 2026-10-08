@@ -41,7 +41,7 @@ interface RadioProps {
   className?: string;
 }
 
-/** Пункт: подпись слева, кружок справа, выбранный — на сером фоне с жёлтой точкой */
+/** Пункт: подпись слева, кружок справа; выбранный — серый фон, жирный, жёлтый кружок с чёрной точкой (Figma 556:28466) */
 export function Radio({ value, label, disabled = false, className }: RadioProps) {
   const group = useContext(RadioGroupContext);
   if (!group) throw new Error('Radio должен стоять внутри RadioGroup');
@@ -51,11 +51,10 @@ export function Radio({ value, label, disabled = false, className }: RadioProps)
   return (
     <label
       className={cn(
-        'flex h-11 items-center justify-between gap-2.5 rounded-btn px-4 text-14',
-        disabled
-          ? 'cursor-not-allowed text-ink-secondary'
-          : cn('cursor-pointer text-ink', !checked && 'hover:bg-surface-grey'),
-        checked && 'bg-surface-grey',
+        'relative flex items-center justify-between gap-2.5 rounded-btn px-4 py-3.5 text-16',
+        disabled ? 'cursor-not-allowed text-ink-secondary' : 'cursor-pointer text-ink',
+        checked && 'bg-surface-grey font-semibold',
+        !disabled && (checked ? 'hover:opacity-[.64]' : 'hover:bg-surface-grey/[.54]'),
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-green',
         className,
       )}
@@ -73,12 +72,13 @@ export function Radio({ value, label, disabled = false, className }: RadioProps)
       <span
         aria-hidden="true"
         className={cn(
-          'inline-flex size-5 shrink-0 items-center justify-center rounded-full border',
-          checked ? 'border-brand-yellow' : 'border-surface-border',
-          disabled ? 'bg-surface-grey' : 'bg-surface',
+          'inline-flex size-5 shrink-0 items-center justify-center rounded-full',
+          checked
+            ? 'bg-brand-yellow'
+            : cn('border border-surface-border', disabled ? 'bg-surface-grey' : 'bg-surface'),
         )}
       >
-        {checked && <span className="size-2.5 rounded-full bg-brand-yellow" />}
+        {checked && <span className="size-2 rounded-full bg-ink" />}
       </span>
     </label>
   );

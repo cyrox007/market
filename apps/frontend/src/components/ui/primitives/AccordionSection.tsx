@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
-import type { ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import type { ReactNode, TransitionEvent } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '../../../lib/cn';
 
 interface AccordionSectionProps {
@@ -11,12 +11,16 @@ interface AccordionSectionProps {
   onOpenChange?: (open: boolean) => void;
   headingLevel?: 2 | 3 | 4;
   className?: string;
+  /** Ширина заголовка, если она уже раздела: в «Все фильтры» — 280 (Figma 730:53152) */
+  headerClassName?: string;
   children: ReactNode;
 }
 
 /**
  * Раздел панели фильтров: заголовок со стрелкой, под ним содержимое.
- * Свёрнутое содержимое остаётся в DOM (атрибут hidden) — введённое в поля не теряется.
+ * Свёрнутое содержимое остаётся в DOM — введённое в поля не теряется. Раскрытие плавное:
+ * высота через grid-template-rows, содержимое проявляется, стрелка поворачивается (market-docs/48).
+ * Свёрнутое — visibility: hidden (уходит в конце перехода) и inert: Tab в него не заходит.
  * Замеры — market-docs/45.
  */
 export default function AccordionSection({
@@ -26,6 +30,7 @@ export default function AccordionSection({
   onOpenChange,
   headingLevel = 3,
   className,
+  headerClassName,
   children,
 }: AccordionSectionProps) {
   const [innerOpen, setInnerOpen] = useState(defaultOpen);
@@ -38,11 +43,22 @@ export default function AccordionSection({
     onOpenChange?.(!isOpen);
   };
 
-  const Chevron = isOpen ? ChevronUp : ChevronDown;
+  // Пока раскрывается — обрезаем; раскрылось — снимаем, иначе режутся кольца фокуса у полей
+  const [settled, setSettled] = useState(isOpen);
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+  if (prevOpen !== isOpen) {
+    setPrevOpen(isOpen);
+    setSettled(false);
+  }
+  const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget && event.propertyName === 'grid-template-rows') {
+      setSettled(isOpen);
+    }
+  };
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <Heading className="m-0">
+      <Heading className={cn('m-0', headerClassName)}>
         <button
           type="button"
           aria-expanded={isOpen}
@@ -55,11 +71,30 @@ export default function AccordionSection({
           )}
         >
           <span className="min-w-0">{title}</span>
-          <Chevron aria-hidden="true" className="size-6 shrink-0" />
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              'size-6 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none',
+              isOpen && 'rotate-180',
+            )}
+          />
         </button>
       </Heading>
-      <div id={bodyId} hidden={!isOpen} className="pt-3">
-        {children}
+      <div
+        id={bodyId}
+        inert={!isOpen}
+        onTransitionEnd={handleTransitionEnd}
+        className={cn(
+          // grid-cols-1 — minmax(0, 1fr): иначе колонка растягивается по ширине полей
+          'grid grid-cols-1 transition-[grid-template-rows,opacity,visibility] duration-300 ease-out',
+          'motion-reduce:transition-none',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+        style={{ visibility: isOpen ? 'visible' : 'hidden' }}
+      >
+        <div className={cn('min-h-0', !(isOpen && settled) && 'overflow-hidden')}>
+          <div className="pt-3">{children}</div>
+        </div>
       </div>
     </div>
   );

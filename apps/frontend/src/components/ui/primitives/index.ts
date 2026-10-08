@@ -25,6 +25,7 @@ export { default as SmartLink } from './SmartLink';
 export { default as Checkbox } from './Checkbox';
 export { Radio, RadioGroup } from './Radio';
 export { default as Toggle } from './Toggle';
+export { default as SwitchTrack } from './SwitchTrack';
 export { default as AccordionSection } from './AccordionSection';
 export { default as RangeInputs } from './RangeInputs';
 export type { RangeValue } from './RangeInputs';

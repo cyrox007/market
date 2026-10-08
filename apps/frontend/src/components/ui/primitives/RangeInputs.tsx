@@ -100,6 +100,7 @@ export default function RangeInputs({
         }}
         tone="outline"
         shape="field"
+        inputSize="field"
         wrapperClassName="min-w-0 flex-1"
         inputMode="numeric"
         autoComplete="off"

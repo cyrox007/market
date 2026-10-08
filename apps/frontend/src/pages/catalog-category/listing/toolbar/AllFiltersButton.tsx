@@ -11,7 +11,7 @@ export default function AllFiltersButton({ count, onClick }: AllFiltersButtonPro
   return (
     <FilterPill
       chevron={false}
-      icon={<Filter aria-hidden className="size-5 shrink-0" />}
+      icon={<Filter aria-hidden className="size-4 shrink-0" />}
       aria-label={count ? `Фильтры, выбрано ${count}` : 'Фильтры'}
       onClick={onClick}
     >
@@ -19,7 +19,7 @@ export default function AllFiltersButton({ count, onClick }: AllFiltersButtonPro
       {count > 0 && (
         <span
           aria-hidden="true"
-          className="inline-flex size-5 items-center justify-center rounded-full bg-brand-yellow text-12 font-medium"
+          className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-brand-yellow px-1 text-12 font-semibold text-ink"
         >
           {count}
         </span>

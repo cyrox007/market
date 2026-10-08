@@ -4,14 +4,17 @@ import { cn } from '../../../../lib/cn';
 
 interface FilterPillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: Ref<HTMLButtonElement>;
-  /** Окно открыто — стрелка вверх */
+  /** Окно открыто — вид как при наведении, стрелка вверх */
   open?: boolean;
   /** Стрелка у кнопок с выпадающим окном */
   chevron?: boolean;
   icon?: ReactNode;
 }
 
-/** Кнопка строки фильтров: «Цена», «Габариты», сортировка, «Фильтры» */
+/**
+ * Кнопка строки фильтров (Figma 721:46062): рамка Surface/Border, 14 / 10, 16 Medium.
+ * Наведение и открытое окно — серый фон, жёлтый текст и иконка.
+ */
 export default function FilterPill({
   ref,
   open = false,
@@ -28,16 +31,22 @@ export default function FilterPill({
       aria-expanded={chevron ? open : undefined}
       {...rest}
       className={cn(
-        'inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border px-4 text-16 text-ink',
-        'outline-none transition-colors hover:border-ink-secondary focus-visible:ring-2 focus-visible:ring-brand-green',
-        open ? 'border-ink-secondary' : 'border-surface-border',
+        'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-surface-border px-3.5 py-2.5 text-16 font-medium',
+        'outline-none transition-colors hover:bg-surface-grey hover:text-brand-yellow focus-visible:ring-2 focus-visible:ring-brand-green',
+        open ? 'bg-surface-grey text-brand-yellow' : 'bg-surface text-ink',
         className,
       )}
     >
       {icon}
       {children}
       {chevron && (
-        <ChevronDown aria-hidden className={cn('size-5 shrink-0', open && 'rotate-180')} />
+        <ChevronDown
+          aria-hidden
+          className={cn(
+            'size-4 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none',
+            open && 'rotate-180',
+          )}
+        />
       )}
     </button>
   );

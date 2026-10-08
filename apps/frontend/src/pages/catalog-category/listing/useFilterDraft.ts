@@ -8,6 +8,8 @@ export interface FilterDraftOptions {
   onApply: (next: CatalogQuery) => void;
   countProducts: (query: CatalogQuery) => Promise<number>;
   delayMs?: number;
+  /** Окно открыто сразу — панель, которую монтируют только открытой */
+  initialSurface?: string;
 }
 
 /** Подпись выбора без страницы: одинаковые фильтры — одно число */
@@ -24,8 +26,9 @@ export function useFilterDraft({
   onApply,
   countProducts,
   delayMs = 400,
+  initialSurface,
 }: FilterDraftOptions) {
-  const [surface, setSurface] = useState<string | null>(null);
+  const [surface, setSurface] = useState<string | null>(initialSurface ?? null);
   const [draft, setDraft] = useState(applied);
   const [counted, setCounted] = useState<{ signature: string; value: number | null } | null>(null);
 

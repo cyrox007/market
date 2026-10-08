@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
+import SwitchTrack from './SwitchTrack';
 
 interface ToggleOwnProps {
   label: ReactNode;
@@ -14,7 +15,7 @@ type ToggleProps = ToggleOwnProps &
 
 /**
  * Переключатель «вкл / выкл»: подпись слева, тумблер справа.
- * В UI Kit его нет — размеры взяты по аналогии (market-docs/45, «Допущения»).
+ * Размеры — Figma 721:46077 (market-docs/45).
  */
 export default function Toggle({
   label,
@@ -46,20 +47,12 @@ export default function Toggle({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cn(
-          'relative inline-flex h-6 w-10 shrink-0 items-center rounded-pill p-0.5',
-          'outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
-          disabled
-            ? 'cursor-not-allowed bg-surface-grey'
-            : cn('cursor-pointer', checked ? 'bg-brand-yellow' : 'bg-surface-border'),
+          'shrink-0 rounded-pill outline-none',
+          'focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer',
         )}
       >
-        <span
-          aria-hidden="true"
-          className={cn(
-            'size-5 rounded-full bg-surface shadow-btn',
-            checked ? 'translate-x-4' : 'translate-x-0',
-          )}
-        />
+        <SwitchTrack checked={checked} disabled={disabled} />
       </button>
     </div>
   );

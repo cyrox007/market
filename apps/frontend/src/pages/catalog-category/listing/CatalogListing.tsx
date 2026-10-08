@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import type { Category } from '../../../lib/api';
 import type { CatalogScope } from '../../../lib/catalog-query';
 import { PAGE_CONTAINER } from '../../../lib/layout';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import CatalogHeader from './CatalogHeader';
 import { countProductsIn } from './countProducts';
-import LegacyFiltersSidebar from './legacy/LegacyFiltersSidebar';
+import AllFiltersPanel from './all-filters/AllFiltersPanel';
 import ProductGrid from './ProductGrid';
 import CatalogToolbar from './toolbar/CatalogToolbar';
 import { useCatalogListing, type CatalogListingOptions } from './useCatalogListing';
@@ -30,8 +31,19 @@ export default function CatalogListing({
   const [query, setQuery] = useUrlCatalogQuery();
   const listing = useCatalogListing({ scope, query, onQueryChange: setQuery, initial });
   const countProducts = useMemo(() => countProductsIn(scope), [scope]);
-  // До задачи 04 «Фильтры» открывают старую панель
+  // Один раз на странице: панель создаётся при каждом открытии, а хук в первом кадре даёт false
+  const compact = useMediaQuery('(max-width: 979.98px)');
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
+  // Новое открытие — новый экземпляр панели со свежим черновиком
+  const [allFiltersSession, setAllFiltersSession] = useState(0);
+  const openAllFilters = () => {
+    setAllFiltersSession((n) => n + 1);
+    setAllFiltersOpen(true);
+  };
+  const subcategories = useMemo(
+    () => (category?.children ?? []).map((c) => ({ slug: c.slug, name: c.name })),
+    [category],
+  );
 
   return (
     <main className="bg-surface">
@@ -62,21 +74,27 @@ export default function CatalogListing({
 
         <div className="mt-6 max-vsm:mt-5">
           <CatalogToolbar
+            compact={compact}
             query={query}
             onQueryChange={setQuery}
             meta={listing.filtersMeta}
             total={listing.total}
             countProducts={countProducts}
-            onOpenAllFilters={() => setAllFiltersOpen(true)}
+            onOpenAllFilters={openAllFilters}
           />
         </div>
 
-        <LegacyFiltersSidebar
-          meta={listing.filtersMeta}
+        <AllFiltersPanel
+          key={allFiltersSession}
+          open={allFiltersOpen}
+          compact={compact}
           query={query}
-          onChange={setQuery}
-          isMobileOpen={allFiltersOpen}
-          onMobileClose={() => setAllFiltersOpen(false)}
+          onQueryChange={setQuery}
+          onClose={() => setAllFiltersOpen(false)}
+          meta={listing.filtersMeta}
+          total={listing.total}
+          countProducts={countProducts}
+          subcategories={subcategories}
         />
 
         <div className="mt-6">

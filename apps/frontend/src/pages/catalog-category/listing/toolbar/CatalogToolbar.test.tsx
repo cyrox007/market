@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FiltersMeta } from '../../../../lib/api';
 import { parseCatalogQuery, type CatalogQuery } from '../../../../lib/catalog-query';
@@ -33,6 +33,7 @@ function renderToolbar(search = '', options: { meta?: FiltersMeta; count?: numbe
   const countProducts = vi.fn(() => Promise.resolve(options.count ?? 42));
   render(
     <CatalogToolbar
+      compact={compact}
       query={parseCatalogQuery(search)}
       onQueryChange={onQueryChange}
       meta={options.meta ?? meta}
@@ -45,13 +46,13 @@ function renderToolbar(search = '', options: { meta?: FiltersMeta; count?: numbe
 }
 
 describe('строка фильтров', () => {
-  it('сортировка применяется сразу и возвращает на первую страницу', () => {
+  it('сортировка применяется сразу и возвращает на первую страницу', async () => {
     const { onQueryChange } = renderToolbar('?page=3');
     fireEvent.click(screen.getByRole('button', { name: 'По популярности' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Сначала дешевле' }));
 
     expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?sort=cheap'));
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('radio')).not.toBeInTheDocument());
   });
 
   describe('окно «Цена»', () => {
@@ -74,6 +75,7 @@ describe('строка фильтров', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Показать 42 товара' }));
 
       expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?sort=cheap&price_min=10000'));
+      await act(() => vi.advanceTimersByTimeAsync(200));
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
@@ -113,6 +115,16 @@ describe('строка фильтров', () => {
       await act(() => vi.advanceTimersByTimeAsync(400));
       expect(screen.getByRole('button', { name: 'Ничего не найдено' })).toBeDisabled();
     });
+  });
+
+  it('выбранная цена — кнопка «Цена» видна, даже если диапазон в meta схлопнулся', () => {
+    renderToolbar('?price_min=30000', { meta: { ...meta, price: { min: 34990, max: 34990 } } });
+    expect(screen.getByRole('button', { name: 'Цена' })).toBeInTheDocument();
+  });
+
+  it('без выбранной цены и с одной ценой в категории — «Цена» не нужна', () => {
+    renderToolbar('', { meta: { ...meta, price: { min: 34990, max: 34990 } } });
+    expect(screen.queryByRole('button', { name: 'Цена' })).not.toBeInTheDocument();
   });
 
   describe('фильтры, зависящие от бэкенда', () => {
@@ -176,11 +188,17 @@ describe('строка фильтров', () => {
     expect(onOpenAllFilters).toHaveBeenCalled();
   });
 
-  it('ниже 980 — только сортировка и «Фильтры»', () => {
+  it('ниже 980 — только сортировка и «Фильтры»; сортировка — шторкой с крестиком', async () => {
     compact = true;
-    renderToolbar();
+    const { onQueryChange } = renderToolbar();
     expect(screen.getByRole('button', { name: 'По популярности' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Фильтры' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Цена' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'По популярности' }));
+    expect(screen.getByTestId('sheet-grip')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    await waitFor(() => expect(screen.queryByRole('radio')).not.toBeInTheDocument());
+    expect(onQueryChange).not.toHaveBeenCalled();
   });
 });

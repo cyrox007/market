@@ -14,8 +14,15 @@
    *
    * Теперь размеры из макета переносятся напрямую: макет 16px -> p-4.
    */
+  /*
+   * Место под полосу прокрутки занято всегда: иначе при открытии шторки (overflow: hidden)
+   * полоса пропадает и страница сдвигается вбок. Полоса тонкая — market-docs/48.
+   */
   html {
     font-size: 16px;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.surface.border') transparent;
   }
 
   body {
@@ -27,6 +34,13 @@
 }
 
 @layer utilities {
+  /* Прокрутка внутри панели или окна: тонкая полоса, место под неё занято — содержимое не прыгает */
+  .scroll-thin {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.surface.border') transparent;
+  }
+
   .animate-fadeIn {
     animation: fadeIn 0.3s ease-in-out;
   }

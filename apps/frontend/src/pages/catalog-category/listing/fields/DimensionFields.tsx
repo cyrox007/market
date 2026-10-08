@@ -24,6 +24,7 @@ export default function DimensionFields({ dimensions, value, onChange }: Dimensi
           </span>
           <RangeInputs
             label={title}
+            className="max-w-full md:w-[280px]"
             min={bounds.min}
             max={bounds.max}
             value={[value[key].min ?? null, value[key].max ?? null]}

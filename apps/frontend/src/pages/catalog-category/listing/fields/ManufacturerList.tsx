@@ -18,7 +18,7 @@ export default function ManufacturerList({ options, value, onChange }: Manufactu
   return (
     <ul className="flex flex-col gap-3">
       {options.map((o) => (
-        <li key={o.slug}>
+        <li key={o.slug} className="flex">
           <Checkbox
             label={o.name}
             checked={value.includes(o.slug)}

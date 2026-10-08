@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import Sheet from './Sheet';
 import type { SheetSide } from './Sheet';
@@ -63,14 +63,16 @@ describe('Sheet', () => {
     expect(dialog).toHaveFocus();
   });
 
-  it('closes on Escape and returns focus to the opener', () => {
+  it('closes on Escape and returns focus to the opener', async () => {
     const onClose = vi.fn();
     render(<Harness onClose={onClose} />);
     const trigger = openIt();
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Уезжает с анимацией — убирается после неё
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
@@ -100,14 +102,24 @@ describe('Sheet', () => {
     expect(last).toHaveFocus();
   });
 
-  it('locks page scroll while open and restores it after', () => {
+  it('locks page scroll while open and restores it after', async () => {
     document.documentElement.style.overflow = 'auto';
     render(<Harness />);
     openIt();
     expect(document.documentElement.style.overflow).toBe('hidden');
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(document.documentElement.style.overflow).toBe('auto');
+    await waitFor(() => expect(document.documentElement.style.overflow).toBe('auto'));
+  });
+
+  it('ignores Escape and backdrop clicks while it slides away', () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openIt();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByTestId('sheet-backdrop'));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('has a grab handle on the bottom side and closes when pulled down far enough', () => {

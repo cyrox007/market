@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Popover from './Popover';
 
@@ -52,15 +52,18 @@ describe('Popover', () => {
     expect(screen.getByRole('textbox', { name: 'Ширина от' })).toHaveFocus();
   });
 
-  it('closes on Escape and gives focus back to the trigger', () => {
+  it('closes on Escape and gives focus back to the trigger', async () => {
     const onClose = vi.fn();
     render(<Harness onClose={onClose} />);
     const trigger = openIt();
 
     fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+    // Гаснет с анимацией — снимается после неё
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('closes on a press outside, but not inside or on the trigger', () => {
