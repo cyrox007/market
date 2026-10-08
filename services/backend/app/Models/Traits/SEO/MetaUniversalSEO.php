@@ -121,6 +121,20 @@ trait MetaUniversalSEO
             return mb_substr($text, 0, 310);
         }
 
+        // Категории должны всегда иметь осмысленный meta description, даже если редактор
+        // ещё не заполнил SEO в админке. Шаблон вычисляется динамически, поэтому работает
+        // и для существующих, и для новых категорий и не устаревает при переименовании.
+        if ($this instanceof \App\Models\Product\Category && !empty($this->name)) {
+            $siteName = $this->getSiteName();
+            $categoryName = trim(strip_tags((string) $this->name));
+
+            return mb_substr(
+                "Категория «{$categoryName}» в интернет-магазине «{$siteName}». Актуальный ассортимент, цены, характеристики и условия доставки для вашего местоположения.",
+                0,
+                310
+            );
+        }
+
         return null;
     }
 
@@ -181,4 +195,3 @@ trait MetaUniversalSEO
         return null;
     }
 }
-
