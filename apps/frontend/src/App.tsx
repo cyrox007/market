@@ -1,7 +1,5 @@
 import { Suspense, useEffect, useMemo } from 'react';
 import { AppRoutes } from './router/index.tsx';
-import { I18nextProvider } from 'react-i18next';
-import i18n from './i18n';
 import { SWRConfig } from 'swr';
 import { AuthProvider } from './contexts/AuthContext';
 import { CountersProvider } from './contexts/CountersContext';
@@ -40,31 +38,29 @@ function App({ ssrContext, Router, routerProps = {} }: AppProps = {}) {
   const routerPropsWithBasename = { ...routerProps, basename: __BASE_PATH__ };
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <RouterComponent {...routerPropsWithBasename}>
-        <ErrorBoundary>
-          <SWRConfig value={swrValue}>
-            <SSRProvider data={ssrContext || {}}>
-              <AuthProvider initialUser={ssrContext?.user} authChecked={ssrContext?.authChecked}>
-                <CountersProvider initialCounters={ssrContext?.counters}>
-                  <RegionProvider
-                    initialRegion={ssrContext?.region}
-                    initialRegions={ssrContext?.regionsList}
-                  >
-                    <CartToastProvider>
-                      <Suspense fallback={<PageContentFallback />}>
-                        <AppRoutes />
-                      </Suspense>
-                      <FirstVisitRegionModal />
-                    </CartToastProvider>
-                  </RegionProvider>
-                </CountersProvider>
-              </AuthProvider>
-            </SSRProvider>
-          </SWRConfig>
-        </ErrorBoundary>
-      </RouterComponent>
-    </I18nextProvider>
+    <RouterComponent {...routerPropsWithBasename}>
+      <ErrorBoundary>
+        <SWRConfig value={swrValue}>
+          <SSRProvider data={ssrContext || {}}>
+            <AuthProvider initialUser={ssrContext?.user} authChecked={ssrContext?.authChecked}>
+              <CountersProvider initialCounters={ssrContext?.counters}>
+                <RegionProvider
+                  initialRegion={ssrContext?.region}
+                  initialRegions={ssrContext?.regionsList}
+                >
+                  <CartToastProvider>
+                    <Suspense fallback={<PageContentFallback />}>
+                      <AppRoutes />
+                    </Suspense>
+                    <FirstVisitRegionModal />
+                  </CartToastProvider>
+                </RegionProvider>
+              </CountersProvider>
+            </AuthProvider>
+          </SSRProvider>
+        </SWRConfig>
+      </ErrorBoundary>
+    </RouterComponent>
   );
 }
 

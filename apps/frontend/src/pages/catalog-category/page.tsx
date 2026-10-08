@@ -2,17 +2,13 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } fr
 import { useParams, useLocation, Link, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
-import ProductCard from '../../components/ui/ProductCard';
+import ProductCardConnected from '../../components/ui/ProductCardConnected';
 import CategoryLandingV2 from './components/CategoryLandingV2';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
-import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
-import { useCartActions } from '../../hooks/useCartActions';
-import { getCartQuantityForProduct } from '../../utils/cartProduct';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
-import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
 import { getCategoryProductsKey, parseCategoryProductsKey } from '../../utils/ssr-to-swr';
 import {
   getSortSelectValue,
@@ -53,22 +49,7 @@ export default function CatalogCategory() {
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const { region } = useRegion();
-  const {
-    cart,
-    addProductToCart,
-    changeProductQuantity,
-    isLoading: isCartLoading,
-  } = useCartActions();
-
-  // Используем централизованный хук для wishlist и compare
-  const {
-    wishlistProductIds: favorites,
-    compareProductIds: compareList,
-    toggleWishlist: toggleWishlistId,
-    toggleCompare: toggleCompareId,
-  } = useWishlistAndCompare();
   const prefetchCategory = usePrefetchCategory();
-  const prefetchProduct = usePrefetchProduct();
 
   const prevCategorySlugRef = useRef<string | undefined>(undefined);
 
@@ -376,7 +357,6 @@ export default function CatalogCategory() {
 
   // Слушаем изменения региона - SWR автоматически обновит данные при изменении ключа
   // Ключ SWR зависит от region?.id, поэтому при изменении региона данные перезагрузятся
-  // Wishlist и compare загружаются через централизованный хук useWishlistAndCompare
 
   const handleSortChange = (selectValue: string) => {
     const { sortBy, sortOrder } = parseSortSelectValue(selectValue);
@@ -456,53 +436,6 @@ export default function CatalogCategory() {
     setIsMobileFilterOpen(false);
   };
 
-  const findProductById = useCallback(
-    (productId: number) => products.find((p) => p.id === productId),
-    [products],
-  );
-
-  const handleAddToCart = async (productId: number) => {
-    const product = findProductById(productId);
-    if (product) await addProductToCart(product, 1);
-  };
-
-  const getCartQty = useCallback(
-    (product: Product) => {
-      if (isCartLoading && !cart?.items?.length) return 0;
-      return getCartQuantityForProduct(cart?.items, product);
-    },
-    [cart?.items, isCartLoading],
-  );
-
-  const updateCartQuantityByProduct = async (productId: number, delta: number) => {
-    const product = findProductById(productId);
-    if (!product) return;
-    await changeProductQuantity(product, delta);
-  };
-
-  // Вспомогательная функция для определения ID товара для избранного
-  // Для избранного всегда используем родительский товар для вариативных товаров
-  const getProductIdForWishlist = (product: Product): number => {
-    // Для избранного всегда используем родительский товар (не вариант)
-    return product.id;
-  };
-
-  // Вспомогательная функция для определения ID товара для сравнения
-  // Для сравнения используем первый доступный вариант для вариативных товаров
-  const getProductIdForCompare = (product: Product): number => {
-    // Для вариативных товаров используем первый доступный вариант
-    if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
-      return product.first_available_variant_id;
-    }
-    return product.id;
-  };
-
-  const toggleFavorite = (product: Product) =>
-    toggleWishlistId(getProductIdForWishlist(product));
-
-  const toggleCompare = (product: Product) =>
-    toggleCompareId(getProductIdForCompare(product));
-
   // Показываем «Категория не найдена» только когда загрузка категории завершена и категория не найдена (404 или пустой ответ)
   const categoryNotFound =
     categorySlug &&
@@ -530,12 +463,6 @@ export default function CatalogCategory() {
         products={products}
         isLoadingProducts={isLoadingProducts}
         onPrefetchCategory={prefetchCategory}
-        onPrefetchProduct={prefetchProduct}
-        onAddToCart={handleAddToCart}
-        onToggleFavorite={toggleFavorite}
-        onToggleCompare={toggleCompare}
-        isFavorite={(product) => favorites.includes(getProductIdForWishlist(product))}
-        isInCompare={(product) => compareList.includes(getProductIdForCompare(product))}
       />
     );
   }
@@ -818,20 +745,7 @@ export default function CatalogCategory() {
                   data-product-shop
                 >
                   {products.map((product, index) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onMouseEnter={() => prefetchProduct(product.slug)}
-                      onAddToCart={handleAddToCart}
-                      onIncreaseCart={(productId) => updateCartQuantityByProduct(productId, 1)}
-                      onDecreaseCart={(productId) => updateCartQuantityByProduct(productId, -1)}
-                      onToggleFavorite={toggleFavorite}
-                      onToggleCompare={toggleCompare}
-                      cartQuantity={getCartQty(product)}
-                      isFavorite={favorites.includes(getProductIdForWishlist(product))}
-                      isInCompare={compareList.includes(getProductIdForCompare(product))}
-                      priority={index < 8}
-                    />
+                    <ProductCardConnected key={product.id} product={product} priority={index < 8} />
                   ))}
                 </div>
                 {/* Подгрузка при прокрутке + кнопка «Загрузить ещё» */}

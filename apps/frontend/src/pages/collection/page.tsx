@@ -1,13 +1,9 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import useSWR from 'swr';
-import ProductCard from '../../components/ui/ProductCard';
+import ProductCardConnected from '../../components/ui/ProductCardConnected';
 import { api } from '../../lib/api';
-import { useCartActions } from '../../hooks/useCartActions';
-import { getCartQuantityForProduct } from '../../utils/cartProduct';
 import { useRegion } from '../../hooks/useRegion';
-import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
-import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
@@ -20,34 +16,10 @@ const COLLECTION_TITLE_FALLBACK: Record<string, string> = {
   recommended: 'Рекомендуем к покупке',
 };
 
-function getProductIdForWishlist(product: Product): number {
-  return product.id;
-}
-
-function getProductIdForCompare(product: Product): number {
-  if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
-    return product.first_available_variant_id;
-  }
-  return product.id;
-}
-
 export default function CollectionPage() {
   const { slug } = useParams<{ slug: string }>();
   const { region, getRegionId } = useRegion();
   const regionId = getRegionId();
-  const {
-    cart,
-    addProductToCart,
-    changeProductQuantity,
-    isLoading: isCartLoading,
-  } = useCartActions();
-  const {
-    wishlistProductIds: favorites,
-    compareProductIds: compareList,
-    toggleWishlist: toggleWishlistId,
-    toggleCompare: toggleCompareId,
-  } = useWishlistAndCompare();
-  const prefetchProduct = usePrefetchProduct();
 
   const swrKey = slug ? `/api/products/collections/${slug}?region=${regionId ?? ''}` : null;
 
@@ -77,27 +49,6 @@ export default function CollectionPage() {
   const notFound = Boolean(
     slug && !isLoading && (error as { status?: number } | undefined)?.status === 404,
   );
-
-  const handleAddToCart = async (productId: number) => {
-    const product = products.find((p) => p.id === productId);
-    if (product) await addProductToCart(product, 1);
-  };
-
-  const updateCartQuantityByProduct = async (productId: number, delta: number) => {
-    const product = products.find((p) => p.id === productId);
-    if (product) await changeProductQuantity(product, delta);
-  };
-
-  const getCartQty = (product: Product) => {
-    if (isCartLoading && !cart?.items?.length) return 0;
-    return getCartQuantityForProduct(cart?.items, product);
-  };
-
-  const toggleFavorite = (product: Product) =>
-    toggleWishlistId(getProductIdForWishlist(product));
-
-  const toggleCompare = (product: Product) =>
-    toggleCompareId(getProductIdForCompare(product));
 
   if (!slug) {
     return (
@@ -181,20 +132,7 @@ export default function CollectionPage() {
             data-product-shop
           >
             {products.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onMouseEnter={() => prefetchProduct(product.slug)}
-                onAddToCart={handleAddToCart}
-                onIncreaseCart={(productId) => updateCartQuantityByProduct(productId, 1)}
-                onDecreaseCart={(productId) => updateCartQuantityByProduct(productId, -1)}
-                onToggleFavorite={toggleFavorite}
-                onToggleCompare={toggleCompare}
-                cartQuantity={getCartQty(product)}
-                isFavorite={favorites.includes(getProductIdForWishlist(product))}
-                isInCompare={compareList.includes(getProductIdForCompare(product))}
-                priority={index < 8}
-              />
+              <ProductCardConnected key={product.id} product={product} priority={index < 8} />
             ))}
           </div>
         )}

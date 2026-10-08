@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { api } from '../lib/api';
+import { runSessionRead } from '../lib/session-queue';
 import { CountersContext, type CountersContextType } from './counters-context';
 
 interface CountersProviderProps {
@@ -38,7 +39,7 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
 
   const refreshCartCount = useCallback(async () => {
     try {
-      const data = await api.cart.count();
+      const data = await runSessionRead(() => api.cart.count());
       setCartCountValue(data.count || 0);
     } catch {
       setCartCountValue(0);
@@ -47,7 +48,7 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
 
   const refreshWishlistCount = useCallback(async () => {
     try {
-      const data = await api.wishlist.count();
+      const data = await runSessionRead(() => api.wishlist.count());
       const newCount = data.count || 0;
       setWishlistCount(newCount);
     } catch {
@@ -57,7 +58,7 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
 
   const refreshCompareCount = useCallback(async () => {
     try {
-      const data = await api.compare.count();
+      const data = await runSessionRead(() => api.compare.count());
       const newCount = data.count || 0;
       setCompareCount(newCount);
     } catch {
@@ -76,7 +77,7 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       lastRefreshAtRef.current = now;
       setIsLoading(true);
       // Один запрос вместо трёх: корзина + избранное + сравнение.
-      const data = await api.counters.all();
+      const data = await runSessionRead(() => api.counters.all());
       setCartCountValue(data.cart || 0);
       setWishlistCount(data.wishlist || 0);
       setCompareCount(data.compare || 0);

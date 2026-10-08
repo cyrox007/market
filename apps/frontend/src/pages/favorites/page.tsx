@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct, isVariableParent } from '../../utils/cartProduct';
 import { useCounters } from '../../hooks/useCounters';
@@ -19,7 +20,7 @@ export default function Favorites() {
     const loadWishlist = async () => {
       try {
         setIsLoading(true);
-        const response = await api.wishlist.list();
+        const response = await runSessionRead(() => api.wishlist.list());
         setItems(response.data || []);
       } catch {
         // ignore
@@ -42,7 +43,7 @@ export default function Favorites() {
 
   const removeFromFavorites = async (productId: number) => {
     try {
-      await api.wishlist.remove(productId);
+      await runSessionTask(() => api.wishlist.remove(productId));
       setItems((prev) => prev.filter((item) => item.product_id !== productId));
       // Небольшая задержка, чтобы дать время API обновиться
       await new Promise((resolve) => setTimeout(resolve, 100));
