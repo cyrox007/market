@@ -125,7 +125,11 @@ trait MetaUniversalSEO
         // ещё не заполнил SEO в админке. Шаблон вычисляется динамически, поэтому работает
         // и для существующих, и для новых категорий и не устаревает при переименовании.
         if ($this instanceof \App\Models\Product\Category && !empty($this->name)) {
-            $siteName = $this->getSiteName();
+            $siteName = trim((string) $this->getSiteName());
+            if ($siteName === '' || mb_strtolower($siteName) === 'laravel') {
+                $siteName = 'Светофор мебели';
+            }
+
             $categoryName = trim(strip_tags((string) $this->name));
 
             return mb_substr(
