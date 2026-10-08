@@ -1,4 +1,4 @@
-import type { Category } from '../lib/api';
+import type { Category, ProductListParams, ProductListResponse } from '../lib/api';
 
 /** SEO для текущей страницы (товар, категория и т.д.) — подставляется в <head> при SSR */
 export interface SeoMetaSSR {
@@ -47,10 +47,9 @@ export interface SSRContext {
   // Категория каталога
   category?: {
     category?: any;
-    products?: {
-      data: any[];
-      meta: any;
-    };
+    products?: ProductListResponse;
+    /** Запрос, которым получены products — клиент берёт их, только если его запрос тот же */
+    productsParams?: ProductListParams;
   };
   // Поиск
   search?: {

@@ -2,13 +2,13 @@ import { useCallback } from 'react';
 import { mutate } from 'swr';
 import { api } from '../lib/api';
 import { setCategoryFragmentFromCategory } from '../lib/category-fragment-cache';
+import { parseCatalogQuery, toApiParams, type CatalogScope } from '../lib/catalog-query';
+import { pageKey, sectionOf, type LoadedPage } from '../pages/catalog-category/listing/pageKey';
 import { useRegion } from './useRegion';
-import { getCategoryProductsKey } from '../utils/ssr-to-swr';
-import { CATALOG_PRODUCTS_PER_PAGE } from '../lib/catalog-sort';
 
 /**
- * Предзагрузка данных категории и товаров в кэш SWR при наведении на ссылку.
- * При переходе по ссылке useSWR на странице категории получит данные из кэша.
+ * Предзагрузка категории и первой страницы товаров в кэш SWR при наведении на ссылку.
+ * При переходе страница категории получит данные из кэша.
  */
 export function usePrefetchCategory() {
   const { region } = useRegion();
@@ -16,35 +16,22 @@ export function usePrefetchCategory() {
   return useCallback(
     (slug: string) => {
       if (!slug) return;
-
-      const categoryKey = `/api/categories/${slug}`;
-      const productsParams = {
-        category_slug: slug,
-        page: 1,
-        per_page: CATALOG_PRODUCTS_PER_PAGE,
-        sort_by: 'created_at' as const,
-        sort_order: 'desc' as const,
-        region_id: region?.id,
-      };
-      const productsKey = getCategoryProductsKey(slug, {
-        page: 1,
-        per_page: CATALOG_PRODUCTS_PER_PAGE,
-        sort_by: 'created_at',
-        sort_order: 'desc',
-        region_id: region?.id,
-      });
+      const scope: CatalogScope = { scope: 'category', slug, regionId: region?.id };
+      const params = toApiParams(parseCatalogQuery(''), scope);
 
       api.categories
         .get(slug)
         .then((data) => {
           if (data?.category) setCategoryFragmentFromCategory(data.category);
-          mutate(categoryKey, data);
+          mutate(`/api/categories/${slug}`, data);
         })
         .catch(() => {});
 
       api.products
-        .list(productsParams)
-        .then((data) => mutate(productsKey, data))
+        .list(params)
+        .then((response) =>
+          mutate(pageKey(scope, params), { section: sectionOf(scope), response } as LoadedPage),
+        )
         .catch(() => {});
     },
     [region?.id],

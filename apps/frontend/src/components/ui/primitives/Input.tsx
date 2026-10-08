@@ -3,13 +3,17 @@ import type { InputHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
 export type InputSize = 'sm' | 'md' | 'lg';
-export type InputShape = 'pill' | 'rounded';
+export type InputShape = 'pill' | 'rounded' | 'field';
+export type InputTone = 'grey' | 'white' | 'outline';
 
 interface InputOwnProps {
   inputSize?: InputSize;
   shape?: InputShape;
-  /** Тон подложки: серая как в шапке или белая с рамкой как в формах */
-  tone?: 'grey' | 'white';
+  /**
+   * Тон подложки: серая как в шапке, белая как в формах,
+   * `outline` — белая с заметной рамкой, как поля «от / до» в фильтрах (market-docs/45)
+   */
+  tone?: InputTone;
   leftIcon?: ReactNode;
   /** Слот справа внутри поля — кнопка отправки, счётчик, крестик очистки */
   rightSlot?: ReactNode;
@@ -41,6 +45,7 @@ const TEXT: Record<InputSize, string> = {
 const SHAPE: Record<InputShape, string> = {
   pill: 'rounded-pill',
   rounded: 'rounded-btn',
+  field: 'rounded-field',
 };
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
@@ -69,7 +74,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         // Обе рамки светлые: тёмной, которая мерещилась на скриншоте, в макете нет
         invalid
           ? 'border-brand-red'
-          : cn('border-surface-grey', !disabled && 'focus-within:border-surface-border'),
+          : tone === 'outline'
+            ? cn('border-surface-border', !disabled && 'focus-within:border-ink-secondary')
+            : cn('border-surface-grey', !disabled && 'focus-within:border-surface-border'),
         disabled && 'opacity-60',
         wrapperClassName,
       )}

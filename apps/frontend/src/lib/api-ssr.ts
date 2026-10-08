@@ -3,6 +3,8 @@
  * Передает cookies из Express request в Laravel API
  */
 
+import type { ProductListParams, ProductListResponse } from './api';
+import { toProductListSearch } from './product-list-search';
 import type { IncomingMessage } from 'http';
 
 /** Браузер использует относительный /api/v1; SSR ходит на upstream напрямую с cookies клиента */
@@ -129,48 +131,8 @@ export function createSSRApi(req: IncomingMessage) {
         const suffix = query.toString() ? `?${query.toString()}` : '';
         return fetchAPI<{ product: any; variant_info?: any }>(`/products/${slug}${suffix}`);
       },
-      list: (params?: {
-        category_id?: number;
-        category_slug?: string;
-        room_slug?: string;
-        price_min?: number;
-        price_max?: number;
-        search?: string;
-        sort_by?: string;
-        sort_order?: 'asc' | 'desc';
-        page?: number;
-        per_page?: number;
-        colors?: string[];
-        sizes?: string[];
-        attributes?: Record<string, string[]>;
-        region_id?: number;
-      }) => {
-        const query = new URLSearchParams();
-        if (params?.category_id) query.append('category_id', params.category_id.toString());
-        if (params?.category_slug) query.append('category_slug', params.category_slug);
-        if (params?.room_slug) query.append('room_slug', params.room_slug);
-        if (params?.price_min !== undefined) query.append('price_min', params.price_min.toString());
-        if (params?.price_max !== undefined) query.append('price_max', params.price_max.toString());
-        if (params?.search) query.append('search', params.search);
-        if (params?.sort_by) query.append('sort_by', params.sort_by);
-        if (params?.sort_order) query.append('sort_order', params.sort_order);
-        if (params?.page) query.append('page', params.page.toString());
-        if (params?.per_page) query.append('per_page', params.per_page.toString());
-        if (params?.colors && params.colors.length > 0)
-          query.append('colors', params.colors.join(','));
-        if (params?.sizes && params.sizes.length > 0) query.append('sizes', params.sizes.join(','));
-        if (params?.region_id) query.append('region_id', params.region_id.toString());
-        if (params?.attributes) {
-          Object.entries(params.attributes).forEach(([key, values]) => {
-            if (values.length > 0) {
-              values.forEach((value) => {
-                query.append(`attributes[${key}][]`, value);
-              });
-            }
-          });
-        }
-        return fetchAPI<{ data: any[]; meta: any }>(`/products?${query.toString()}`);
-      },
+      list: (params?: ProductListParams) =>
+        fetchAPI<ProductListResponse>(`/products?${toProductListSearch(params)}`),
       featured: (params?: { region_id?: number }) => {
         const query = new URLSearchParams();
         if (params?.region_id) query.append('region_id', params.region_id.toString());

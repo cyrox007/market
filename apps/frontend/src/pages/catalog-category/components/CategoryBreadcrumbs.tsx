@@ -1,11 +1,14 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 
 interface CategoryBreadcrumbsProps {
   name: string;
+  /** Родители от старшего к младшему — между «Каталогом» и текущей */
+  trail?: { name: string; to: string }[];
 }
 
-export default function CategoryBreadcrumbs({ name }: CategoryBreadcrumbsProps) {
+export default function CategoryBreadcrumbs({ name, trail = [] }: CategoryBreadcrumbsProps) {
   return (
     <nav
       aria-label="Хлебные крошки"
@@ -18,6 +21,14 @@ export default function CategoryBreadcrumbs({ name }: CategoryBreadcrumbsProps) 
       <Link to="/catalog" className="shrink-0 transition-colors hover:text-brand-green">
         Каталог
       </Link>
+      {trail.map((item) => (
+        <Fragment key={item.to}>
+          <ChevronRight className="size-4 shrink-0 max-vsm:size-3.5" aria-hidden />
+          <Link to={item.to} className="shrink-0 transition-colors hover:text-brand-green">
+            {item.name}
+          </Link>
+        </Fragment>
+      ))}
       <ChevronRight className="size-4 shrink-0 max-vsm:size-3.5" aria-hidden />
       <span className="truncate text-ink-secondary">{name}</span>
     </nav>

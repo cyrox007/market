@@ -15,6 +15,7 @@ import { Button, IconButton, Badge, Input, SearchInput } from '../../components/
 import { QuantityStepper, Price, ColorSwatches } from '../../components/ui/composites';
 import { Header, UserActions } from '../../components/layout/Header';
 import { CATALOG_SECTIONS, ROOMS_SECTIONS } from './header-demo-data';
+import FiltersDemo from './filters-demo';
 import { cn } from '../../lib/cn';
 
 /**
@@ -661,6 +662,8 @@ export default function UiSandbox() {
               </Spec>
             </div>
           </Section>
+
+          <FiltersDemo />
         </div>
       </div>
     </div>
