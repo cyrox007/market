@@ -1,635 +1,164 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Search, X } from 'lucide-react';
 import { useRegion } from '../hooks/useRegion';
-import { api } from '../lib/api';
-import type { ShippingLocationTree, ShippingLocation } from '../lib/api';
-import { Check, ChevronDown, Search, TriangleAlert, X } from 'lucide-react';
+import { api, type CustomerLocality } from '../lib/api';
 
-interface LocationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  isFirstVisit?: boolean;
-}
+interface LocationModalProps { isOpen: boolean; onClose: () => void; isFirstVisit?: boolean }
 
-export default function LocationModal({
-  isOpen,
-  onClose,
-  isFirstVisit = false,
-}: LocationModalProps) {
-  const { region, selectRegion } = useRegion();
-  const [tree, setTree] = useState<ShippingLocationTree[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isGeoDetecting, setIsGeoDetecting] = useState(false);
-  const [expandedDistricts, setExpandedDistricts] = useState<Set<number>>(new Set());
-  const [expandedRegions, setExpandedRegions] = useState<Set<number>>(new Set());
-  // До первой попытки загрузки список пуст просто потому, что запрос ещё не ушёл.
-  // Без этого флага окно на один кадр считалось бы тупиковым.
-  const [loadAttempted, setLoadAttempted] = useState(false);
-
-  /**
-   * Выбирать нечего: список либо не загрузился, либо пришёл пустым.
-   *
-   * Второй случай тупиковый не меньше первого — API ответил успешно, ошибки
-   * нет, а городов всё равно нет. Считаем по `tree`, а не по отфильтрованному
-   * `displayTree`: пустой результат поиска выходом из окна быть не должен.
-   */
-  const nothingToPick = error !== null || (loadAttempted && !loading && tree.length === 0);
-
-  /**
-   * Можно ли закрыть окно.
-   *
-   * При первом визите выбор города обязателен — это осознанное требование.
-   * Но когда выбирать не из чего, запрет превращается в тупик: посетитель
-   * видит затемнённый экран и не может ни закрыть окно, ни посмотреть каталог.
-   * Под это попадает каждый, у кого пустой localStorage — первый заход,
-   * приватное окно, очищенный кэш.
-   *
-   * Поэтому в тупиковом состоянии окно закрывается, а при живом API
-   * поведение прежнее.
-   */
-  const canDismiss = !isFirstVisit || nothingToPick;
-
-  // Загружаем дерево локаций только при открытии модалки
+export default function LocationModal({ isOpen, onClose, isFirstVisit = false }: LocationModalProps) {
+  const { locality, selectLocality } = useRegion();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<CustomerLocality[]>([]);
+  const [candidates, setCandidates] = useState<CustomerLocality[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [geoMessage, setGeoMessage] = useState('');
+  const [geoWait, setGeoWait] = useState(0);
+  const [searchWait, setSearchWait] = useState(0);
+  const searchPaused = searchWait > 0;
   useEffect(() => {
-    if (isOpen && tree.length === 0 && !loading) {
-      loadTree();
+    if (!geoWait && !searchWait) return;
+    const timer = setInterval(() => {
+      setGeoWait((value) => Math.max(0, value - 1));
+      setSearchWait((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [geoWait, searchWait]);
+  const geoRequest = useRef<AbortController | null>(null);
+  const autoAttempted = useRef(false);
+  const active = useRef(false);
+  const closeHandler = useRef(onClose);
+  useEffect(() => { closeHandler.current = onClose; }, [onClose]);
+
+  async function detect() {
+    if (geoWait || detecting) return;
+    if (!navigator.geolocation) {
+      setGeoMessage('Браузер не поддерживает геолокацию. Используйте поиск.');
+      return;
     }
+    geoRequest.current?.abort();
+    const controller = new AbortController();
+    geoRequest.current = controller;
+    setDetecting(true);
+    setCandidates([]);
+    setGeoMessage('Получаем координаты браузера…');
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      if (controller.signal.aborted) return;
+      setGeoMessage('Координаты получены. Ищем ближайшие населённые пункты…');
+      try {
+        const response = await api.localities.detect(coords.latitude, coords.longitude, controller.signal);
+        if (controller.signal.aborted) return;
+        setCandidates(response.data);
+        setGeoMessage(response.data.length ? 'Ближайшие населённые пункты. Подтвердите ваш:' : 'Координаты получены, но населённый пункт не найден. Используйте поиск.');
+      } catch (failure) {
+        if (controller.signal.aborted) return;
+        const problem = failure as { status?: number; retryAfter?: number };
+        if (problem.status === 429) {
+          setGeoWait(problem.retryAfter || 60);
+          setGeoMessage('Координаты получены. Слишком частые попытки определения — подождите или используйте поиск.');
+        } else setGeoMessage('Координаты получены, но справочник недоступен. Попробуйте позже или используйте поиск.');
+      } finally {
+        if (!controller.signal.aborted) setDetecting(false);
+      }
+    }, (failure) => {
+      if (controller.signal.aborted) return;
+      setDetecting(false);
+      setGeoMessage(failure.code === 1 ? 'Доступ к геолокации запрещён. Разрешите его в браузере или используйте поиск.' : 'Не удалось получить координаты. Попробуйте ещё раз или используйте поиск.');
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }
+
+  useEffect(() => {
+    active.current = isOpen;
+    if (!isOpen) return;
+    setDetecting(false);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') closeHandler.current(); };
+    window.addEventListener('keydown', escape);
+    return () => {
+      active.current = false;
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', escape);
+      geoRequest.current?.abort();
+    };
   }, [isOpen]);
 
-  const loadTree = async () => {
+  useEffect(() => {
+    if (!isOpen || !isFirstVisit || locality || autoAttempted.current) return;
+    const timer = setTimeout(() => { autoAttempted.current = true; void detect(); }, 0);
+    return () => clearTimeout(timer);
+    // One automatic attempt; explicit button allows retries.
+  }, [isOpen, isFirstVisit, locality]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setResults([]);
+    setError('');
+    if (query.trim().length < 2 || searchPaused) { setSearching(false); return; }
+    const controller = new AbortController();
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const response = await api.localities.search(query.trim(), controller.signal);
+        if (!controller.signal.aborted) setResults(response.data.filter((item) => /^(?:\d{13}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i.test(item.externalId)));
+      } catch (failure) {
+        if (controller.signal.aborted) return;
+        const problem = failure as { status?: number; retryAfter?: number };
+        if (problem.status === 429) setSearchWait(problem.retryAfter || 60);
+        else setError('Не удалось загрузить населённые пункты. Измените запрос или попробуйте позже.');
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 400);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [isOpen, query, searchPaused]);
+
+  async function choose(item: CustomerLocality) {
+    if (saving || searchPaused) return;
+    setSaving(true);
+    setError('');
     try {
-      setLoading(true);
-      setError(null);
-      const response = await api.regions.tree();
-
-      if (!response || !response.data) {
-        throw new Error('Неверный формат ответа от сервера');
-      }
-
-      const locations = Array.isArray(response.data) ? response.data : [];
-      setTree(locations);
-
-      // Автоматически раскрываем выбранный регион
-      if (region) {
-        locations.forEach((district) => {
-          district.children?.forEach((reg) => {
-            if (reg.id === region.id || reg.children?.some((c) => c.id === region.id)) {
-              setExpandedDistricts((prev) => new Set(prev).add(district.id));
-              setExpandedRegions((prev) => new Set(prev).add(reg.id));
-            }
-          });
-        });
-      }
-    } catch (err: any) {
-      console.error('Failed to load locations tree:', err);
-
-      // Покупателю показываем человеческий текст, а не сырую ошибку браузера.
-      // При недоступной сети fetch бросает TypeError с сообщением вида
-      // «Failed to fetch» — оно ничего не объясняет и выглядит поломкой.
-      // Технические подробности остаются в консоли выше.
-      let errorMessage =
-        'Не удалось загрузить список городов. Проверьте соединение и попробуйте снова.';
-      if (err?.status === 404) {
-        errorMessage = 'Маршрут API не найден. Проверьте настройки сервера.';
-      } else if (err?.message && !(err instanceof TypeError)) {
-        errorMessage = err.message;
-      }
-      setError(errorMessage);
-      setTree([]);
-    } finally {
-      setLoading(false);
-      setLoadAttempted(true);
-    }
-  };
-
-  // Определение города пользователя по координатам браузера
-  const reverseGeocodeCity = useCallback(
-    async (lat: number, lon: number): Promise<string | null> => {
-      try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ru`;
-        const response = await fetch(url, {
-          headers: {
-            // Помогаем сервису понять источник запросов
-            Accept: 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          return null;
-        }
-
-        const data: any = await response.json();
-        if (!data?.address) return null;
-
-        const address = data.address;
-        // Пытаемся взять наиболее релевантное поле
-        return (
-          address.city ||
-          address.town ||
-          address.village ||
-          address.hamlet ||
-          address.municipality ||
-          address.county ||
-          null
-        );
-      } catch {
-        return null;
-      }
-    },
-    [],
-  );
-
-  // Преобразуем ShippingLocationTree в ShippingLocation для сохранения
-  const convertToShippingLocation = (treeItem: ShippingLocationTree): ShippingLocation => {
-    return {
-      id: treeItem.id,
-      name: treeItem.name,
-      slug: treeItem.slug || '',
-      type: treeItem.type,
-      parent_id: treeItem.parent_id || null,
-      is_active: true,
-    } as ShippingLocation;
-  };
-
-  const handleSelectLocation = useCallback(
-    (location: ShippingLocationTree) => {
-      try {
-        const shippingLocation = convertToShippingLocation(location);
-        // Выбираем регион
-        selectRegion(shippingLocation);
-
-        // Закрываем модалку, данные обновятся через region-changed и SWR-ключи.
-        onClose();
-        setSearchQuery('');
-      } catch {
-        alert('Ошибка при выборе локации. Пожалуйста, попробуйте снова.');
-      }
-    },
-    [selectRegion, onClose],
-  );
-
-  const toggleDistrict = useCallback((districtId: number) => {
-    setExpandedDistricts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(districtId)) {
-        newSet.delete(districtId);
-      } else {
-        newSet.add(districtId);
-      }
-      return newSet;
-    });
-  }, []);
-
-  const toggleRegion = useCallback((regionId: number) => {
-    setExpandedRegions((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(regionId)) {
-        newSet.delete(regionId);
-      } else {
-        newSet.add(regionId);
-      }
-      return newSet;
-    });
-  }, []);
-
-  // Фильтрация по поисковому запросу
-  const filteredTree = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return tree;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered: ShippingLocationTree[] = [];
-
-    tree.forEach((district) => {
-      const matchingRegions: ShippingLocationTree[] = [];
-
-      district.children?.forEach((reg) => {
-        const matchingLocalities: ShippingLocationTree[] = [];
-        let regionMatches = reg.name.toLowerCase().includes(query);
-
-        reg.children?.forEach((locality) => {
-          if (locality.name.toLowerCase().includes(query)) {
-            matchingLocalities.push(locality);
-            regionMatches = true;
-          }
-        });
-
-        if (regionMatches || matchingLocalities.length > 0) {
-          matchingRegions.push({
-            ...reg,
-            children: matchingLocalities.length > 0 ? matchingLocalities : reg.children,
-          });
-        }
-      });
-
-      if (district.name.toLowerCase().includes(query) || matchingRegions.length > 0) {
-        filtered.push({
-          ...district,
-          children: matchingRegions,
-        });
-      }
-    });
-
-    return filtered;
-  }, [tree, searchQuery]);
-
-  // Автоопределение региона при первом визите по геолокации браузера
-  useEffect(() => {
-    // Работает только при первом визите и открытой модалке,
-    // если регион еще не выбран пользователем
-    if (!isOpen || !isFirstVisit || region || isGeoDetecting) {
-      return;
-    }
-
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-      return;
-    }
-
-    setIsGeoDetecting(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const city = await reverseGeocodeCity(latitude, longitude);
-
-          if (!city) {
-            return;
-          }
-
-          // Заполняем поиск автоматически, чтобы пользователь сразу видел свой город/регион
-          setSearchQuery((prev) => prev || city);
-
-          // Дополнительно пробуем автоматически подобрать регион через бэкенд,
-          // используя название города. Это улучшает точность по сравнению с IP.
-          try {
-            const detected = await api.regions.detect({ city });
-            if (detected?.region) {
-              selectRegion(detected.region as ShippingLocation);
-              // Помечаем регион как автоматически определенный
-              try {
-                localStorage.setItem('region_auto_detected', 'true');
-              } catch {
-                // Игнорируем проблемы с localStorage
-              }
-            }
-          } catch {
-            // ignore
-          }
-        } finally {
-          setIsGeoDetecting(false);
-        }
-      },
-      () => {
-        setIsGeoDetecting(false);
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: 8000,
-        maximumAge: 5 * 60 * 1000,
-      },
-    );
-  }, [isOpen, isFirstVisit, region, reverseGeocodeCity, selectRegion, isGeoDetecting]);
-
-  // Автоматически раскрываем аккордеон при поиске
-  useEffect(() => {
-    if (!searchQuery.trim() || filteredTree.length === 0) {
-      return;
-    }
-
-    const districtsToExpand = new Set<number>();
-    const regionsToExpand = new Set<number>();
-
-    // Находим все округа и регионы, которые содержат найденные элементы
-    filteredTree.forEach((district) => {
-      if (district.children && district.children.length > 0) {
-        districtsToExpand.add(district.id);
-
-        district.children.forEach((reg) => {
-          // Если регион сам соответствует поиску или содержит найденные населенные пункты
-          if (reg.children && reg.children.length > 0) {
-            regionsToExpand.add(reg.id);
-          }
-        });
-      }
-    });
-
-    // Раскрываем найденные элементы
-    setExpandedDistricts((prev) => {
-      const newSet = new Set(prev);
-      districtsToExpand.forEach((id) => newSet.add(id));
-      return newSet;
-    });
-
-    setExpandedRegions((prev) => {
-      const newSet = new Set(prev);
-      regionsToExpand.forEach((id) => newSet.add(id));
-      return newSet;
-    });
-
-    // Прокручиваем до первого найденного элемента после небольшой задержки
-    // (чтобы дать время аккордеону раскрыться)
-    const scrollTimer = setTimeout(() => {
-      const modalContent = document.querySelector('[role="dialog"] .bg-white.rounded-2xl');
-      if (modalContent) {
-        // Находим первый найденный элемент (подсвеченный желтым или красным)
-        const firstMatch = modalContent.querySelector(
-          '[data-location-id].bg-yellow-50, [data-location-id].bg-red-50',
-        ) as HTMLElement;
-        if (firstMatch) {
-          firstMatch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }
-    }, 150);
-
-    return () => clearTimeout(scrollTimer);
-  }, [searchQuery, filteredTree]);
-
-  // Обработка закрытия по Escape
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && canDismiss) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose, canDismiss]);
+      const response = await api.localities.get(item.externalId);
+      if (!active.current) return;
+      selectLocality(response.data, response.shippingLocation);
+      onClose();
+    } catch (failure) {
+      if (!active.current) return;
+      const problem = failure as { status?: number; retryAfter?: number };
+      if (problem.status === 429) {
+        setSearchWait(problem.retryAfter || 60);
+        setError('Слишком частые запросы. Дождитесь окончания паузы и подтвердите выбор ещё раз.');
+      } else setError('Не удалось подтвердить населённый пункт в справочнике. Выбор не изменён.');
+    } finally { setSaving(false); }
+  }
 
   if (!isOpen) return null;
-
-  const displayTree = searchQuery.trim() ? filteredTree : tree;
-  const isFederalDistricts = displayTree.length > 0 && displayTree[0]?.type === 'federal_district';
-
+  const rows = query.trim().length >= 2 ? results : candidates;
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto"
-      aria-labelledby="modal-title"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && canDismiss) {
-          onClose();
-        }
-      }}
-    >
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 transition-opacity"></div>
-
-      {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-2xl font-bold">Выберите город доставки</h3>
-              {isFirstVisit && (
-                <p className="text-sm text-gray-600 mt-1">
-                  Выберите ваш город для корректного отображения цен и сроков доставки
-                </p>
-              )}
-            </div>
-            {canDismiss && (
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Закрыть"
-              >
-                <X className="size-[1em] text-2xl" />
-              </button>
-            )}
-          </div>
-
-          {/* Search */}
-          <div className="mb-6">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Поиск по городу или региону..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                autoFocus
-              />
-              <Search className="size-[1em] absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="mb-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-2 border-gray-300 border-t-red-600 rounded-full animate-spin"></div>
-                <span className="ml-3 text-gray-600">Загрузка локаций...</span>
-              </div>
-            ) : error ? (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-red-600 text-sm mb-4">{error}</p>
-                  {/* Выход из тупика: без городов выбрать нечего, но сайтом
-                      пользоваться можно — предложение указать город останется
-                      в баннере сверху. */}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={loadTree}
-                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      Попробовать снова
-                    </button>
-                    <button
-                      onClick={onClose}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Выбрать позже
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : displayTree.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-gray-500 mb-4">
-                  {searchQuery.trim()
-                    ? `По запросу "${searchQuery}" ничего не найдено`
-                    : 'Список городов сейчас недоступен. Попробуйте позже.'}
-                </div>
-                {searchQuery.trim() ? (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Очистить поиск
-                  </button>
-                ) : (
-                  <div className="flex flex-wrap justify-center gap-2">
-                    <button
-                      onClick={loadTree}
-                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      Попробовать снова
-                    </button>
-                    <button
-                      onClick={onClose}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Выбрать позже
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {displayTree.map((district) => {
-                  const isDistrictExpanded = expandedDistricts.has(district.id);
-                  const hasRegions = district.children && district.children.length > 0;
-
-                  return (
-                    <div
-                      key={district.id}
-                      className="border border-gray-200 rounded-lg overflow-hidden"
-                    >
-                      {/* Федеральный округ */}
-                      {isFederalDistricts ? (
-                        <button
-                          onClick={() => toggleDistrict(district.id)}
-                          className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
-                        >
-                          <span className="font-semibold text-gray-900">{district.name}</span>
-                          <ChevronDown
-                            className={`size-[1em] text-gray-500 text-lg transition-transform ${isDistrictExpanded ? 'transform rotate-180' : ''}`}
-                          />
-                        </button>
-                      ) : null}
-
-                      {/* Регионы */}
-                      {(isDistrictExpanded || !isFederalDistricts) && hasRegions && (
-                        <div className="bg-white">
-                          {district.children!.map((reg) => {
-                            const isRegionExpanded = expandedRegions.has(reg.id);
-                            const hasLocalities = reg.children && reg.children.length > 0;
-                            const isRegionSelected = region?.id === reg.id;
-                            const matchesSearch =
-                              searchQuery.trim() &&
-                              reg.name.toLowerCase().includes(searchQuery.toLowerCase());
-
-                            return (
-                              <div
-                                key={reg.id}
-                                className="border-t border-gray-200 first:border-t-0"
-                              >
-                                {/* Регион */}
-                                <div className="flex items-center">
-                                  {hasLocalities ? (
-                                    <button
-                                      onClick={() => toggleRegion(reg.id)}
-                                      className={`flex-1 text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                                        matchesSearch ? 'bg-yellow-50' : ''
-                                      }`}
-                                      data-location-id={reg.id}
-                                    >
-                                      <span
-                                        className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
-                                      >
-                                        {reg.name}
-                                      </span>
-                                      <ChevronDown
-                                        className={`size-[1em] text-gray-400 text-base transition-transform ${isRegionExpanded ? 'transform rotate-180' : ''}`}
-                                      />
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleSelectLocation(reg)}
-                                      className={`flex-1 text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                                        isRegionSelected
-                                          ? 'bg-red-50'
-                                          : matchesSearch
-                                            ? 'bg-yellow-50'
-                                            : ''
-                                      }`}
-                                      data-location-id={reg.id}
-                                    >
-                                      <span
-                                        className={`text-sm ${isRegionSelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
-                                      >
-                                        {reg.name}
-                                      </span>
-                                      {isRegionSelected && (
-                                        <Check className="size-[1em] text-red-600 text-lg" />
-                                      )}
-                                    </button>
-                                  )}
-                                </div>
-
-                                {/* Города */}
-                                {isRegionExpanded && hasLocalities && (
-                                  <div className="bg-gray-50 pl-8">
-                                    {reg.children!.map((locality) => {
-                                      const isLocalitySelected = region?.id === locality.id;
-                                      const matchesSearch =
-                                        searchQuery.trim() &&
-                                        locality.name
-                                          .toLowerCase()
-                                          .includes(searchQuery.toLowerCase());
-                                      return (
-                                        <button
-                                          key={locality.id}
-                                          onClick={() => handleSelectLocation(locality)}
-                                          className={`w-full text-left px-4 py-2.5 hover:bg-gray-100 transition-colors flex items-center justify-between ${
-                                            isLocalitySelected
-                                              ? 'bg-red-50'
-                                              : matchesSearch
-                                                ? 'bg-yellow-50'
-                                                : ''
-                                          }`}
-                                          data-location-id={locality.id}
-                                        >
-                                          <span
-                                            className={`text-sm ${isLocalitySelected ? 'font-medium text-red-600' : matchesSearch ? 'font-medium text-gray-900' : 'text-gray-700'}`}
-                                          >
-                                            {locality.name}
-                                          </span>
-                                          {isLocalitySelected && (
-                                            <Check className="size-[1em] text-red-600 text-lg" />
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          {region && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="text-sm text-gray-600">
-                Текущий выбор: <span className="font-medium text-gray-900">{region.name}</span>
-              </div>
-            </div>
-          )}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="locality-title" className="relative w-full max-w-2xl rounded-2xl bg-white p-8 max-h-[85vh] overflow-y-auto" onClick={(event) => event.stopPropagation()}>
+        <button aria-label="Закрыть" onClick={onClose} className="absolute right-6 top-6 text-gray-400"><X /></button>
+        <h2 id="locality-title" className="mb-2 pr-8 text-2xl font-bold">Выберите город доставки</h2>
+        <p className="mb-5 text-sm text-gray-600">Найдите ваш город, посёлок или село в адресном справочнике.</p>
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+          <input aria-label="Населённый пункт" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Введите минимум 2 буквы…" className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 text-sm" autoFocus />
         </div>
+        <button disabled={detecting || saving || geoWait > 0} onClick={() => void detect()} className="mb-3 rounded-lg border border-gray-300 px-4 py-2 text-sm disabled:opacity-50">{geoWait ? `Повторить через ${geoWait} с` : detecting ? 'Определяем…' : locality ? 'Определить заново' : 'Определить моё местоположение'}</button>
+        {searchWait > 0 && <p role="status" className="mb-3 text-sm text-gray-600">Поиск можно повторить через {searchWait} с. Запрос сохранён.</p>}
+        <p role="status" className="mb-3 text-sm text-gray-600">{geoMessage}</p>
+        {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
+        {searching ? <p role="status">Ищем населённые пункты…</p> : (
+          <div className="space-y-2">
+            {rows.map((item) => <button key={item.externalId} disabled={saving} onClick={() => void choose(item)} className="w-full rounded-lg border border-gray-200 px-4 py-3 text-left hover:bg-gray-50 disabled:opacity-50"><span className="block font-medium">{item.name}</span><span className="text-sm text-gray-500">{item.label}</span></button>)}
+            {query.trim().length >= 2 && !rows.length && !error && !searchWait && <p className="text-sm text-gray-500">Ничего не найдено. Уточните название.</p>}
+          </div>
+        )}
+        {saving && <p role="status" className="mt-3 text-sm">Сохраняем выбор…</p>}
+        {locality && <p className="mt-5 border-t pt-4 text-sm text-gray-600">Текущий выбор: {locality.label || locality.name}</p>}
+        <button onClick={onClose} className="mt-5 text-sm text-gray-500">Выбрать позже</button>
       </div>
     </div>
   );

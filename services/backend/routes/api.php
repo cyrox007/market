@@ -1,30 +1,30 @@
 <?php
 
+use App\Http\Controllers\Api\AboutController;
 use App\Http\Controllers\Api\AddressController;
-use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ArticleController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
-use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\CompareController;
-use App\Http\Controllers\Api\CountersController;
-use App\Http\Controllers\Api\AboutController;
 use App\Http\Controllers\Api\ContactController;
-use App\Http\Controllers\Api\StockSettingsController;
+use App\Http\Controllers\Api\CountersController;
 use App\Http\Controllers\Api\InteriorIdeaController;
-use App\Http\Controllers\Api\OrderController;
-use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\RegionController;
-use App\Http\Controllers\Api\ReviewController;
-use App\Http\Controllers\Api\ShippingController;
-use App\Http\Controllers\Api\SliderController;
-use App\Http\Controllers\Api\StoreController;
-use App\Http\Controllers\Api\WishlistController;
-use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\NewsletterController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PaymentMethodController;
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RaiffeisenCallbackController;
 use App\Http\Controllers\Api\RaiffeisenEcomCallbackController;
+use App\Http\Controllers\Api\RegionController;
+use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\SberbankCallbackController;
+use App\Http\Controllers\Api\ShippingController;
+use App\Http\Controllers\Api\SliderController;
+use App\Http\Controllers\Api\StockSettingsController;
+use App\Http\Controllers\Api\StoreController;
+use App\Http\Controllers\Api\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,6 +40,9 @@ use Illuminate\Support\Facades\Route;
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
+    Route::get('/address-directory/hierarchy/{externalId}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'hierarchy'])->middleware('throttle:address-read');
+    Route::get('/address-directory/{level}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'index'])
+        ->where('level', 'regions|localities|streets|buildings')->middleware('throttle:address-read');
     // Public routes - auth endpoints require session middleware for cookie-based auth
     Route::middleware(['api-session'])->prefix('auth')->group(function () {
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
@@ -98,6 +101,13 @@ Route::prefix('v1')->group(function () {
     });
 
     // Regions (public)
+    Route::prefix('localities')->group(function () {
+        Route::get('/regions', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'regions'])->middleware('throttle:address-read');
+        Route::post('/detect', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'detect'])->middleware('throttle:address-geo');
+        Route::get('/', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'index'])->middleware('throttle:address-read');
+        Route::get('/{id}', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'show'])->middleware('throttle:address-read');
+    });
+
     Route::prefix('regions')->group(function () {
         Route::get('/', [RegionController::class, 'list']);
         Route::get('/tree', [RegionController::class, 'tree']);
@@ -245,6 +255,7 @@ Route::prefix('v1')->group(function () {
             if ((string) $url === '') {
                 $url = env('RAIFFEISEN_PAYMENT_URL', 'https://pay-test.raif.ru/pay');
             }
+
             return response()->json([
                 'gateway_client_config' => ['publicId' => (string) $fromConfig, 'url' => (string) $url],
                 'publicId_set' => (string) $fromConfig !== '',
