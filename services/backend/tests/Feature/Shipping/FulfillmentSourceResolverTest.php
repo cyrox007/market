@@ -62,4 +62,22 @@ class FulfillmentSourceResolverTest extends TestCase
 
         $this->assertEmpty(app(FulfillmentSourceResolver::class)->resolve($product, $location));
     }
+
+    public function test_distance_ranks_only_eligible_sources_and_unknown_points_last(): void
+    {
+        $location = ShippingLocation::factory()->create();
+        $product = Product::factory()->create();
+        foreach ([['Unknown', null], ['Far', 54], ['Near', 52]] as [$name, $latitude]) {
+            $warehouse = Warehouse::create(['name' => $name, 'latitude' => $latitude, 'longitude' => $latitude !== null ? 39 : null]);
+            $warehouse->productStocks()->create(['product_id' => $product->id, 'quantity' => 1]);
+            $profile = $warehouse->deliveryProfiles()->create([
+                'name' => 'Доставка', 'base_price' => 1000, 'delivery_days_min' => 1, 'delivery_days_max' => 2,
+            ]);
+            $profile->locations()->attach($location);
+        }
+        $sources = app(FulfillmentSourceResolver::class)->resolve($product, $location, ['latitude' => 51, 'longitude' => 39]);
+        $this->assertSame(['Near', 'Far', 'Unknown'], $sources->pluck('source_name')->all());
+        $this->assertGreaterThan(100, $sources->first()['distance_km']);
+        $this->assertNull($sources->last()['distance_km']);
+    }
 }
