@@ -27,8 +27,10 @@ class WarehousesTable
                     ->sortable(),
 
                 TextColumn::make('address')->label('Адрес')->wrap()->limit(100),
+                TextColumn::make('physicalSite.name')->label('Площадка')->placeholder('Отдельный адрес'),
+                TextColumn::make('stores.name')->label('Магазины с этими остатками')->listWithLineBreaks()->placeholder('Только склад / источник'),
                 IconColumn::make('has_coordinates')->label('Точка склада')
-                    ->state(fn ($record): bool => $record->latitude !== null && $record->longitude !== null)
+                    ->state(fn ($record): bool => $record->dispatchCoordinates() !== null)
                     ->boolean()->tooltip('Обе координаты заданы — можно рассчитывать расстояние'),
 
                 TextColumn::make('source_type')
