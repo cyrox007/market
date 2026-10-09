@@ -67,8 +67,15 @@ class WarehouseForm
                     ->columns(2),
 
                 Section::make('Адрес и подготовка заказа')
+                    ->description('Физический склад: выберите общую площадку или задайте адрес ниже. Фабрика/поставщик: адрес необязателен, если точка отгрузки неизвестна.')
                     ->schema([
+                        \App\Filament\Forms\PhysicalSiteSelect::make()->columnSpanFull()
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('latitude', null);
+                                $set('longitude', null);
+                            }),
                         Select::make('directory_locality')
+                            ->visible(fn (Get $get): bool => blank($get('physical_site_id')))
                             ->label('1. Населённый пункт')->searchable()->live()->dehydrated(false)
                             ->searchPrompt('Введите минимум две буквы города, посёлка или села')
                             ->getSearchResultsUsing(fn (string $search): array => app(WarehouseAddressOptions::class)->search('localities', null, $search))
@@ -80,6 +87,7 @@ class WarehouseForm
                             })->helperText('В результатах указан регион — выберите нужный одноимённый населённый пункт.')
                             ->columnSpanFull(),
                         Select::make('directory_street')
+                            ->visible(fn (Get $get): bool => blank($get('physical_site_id')))
                             ->label('2. Улица')->searchable()->live()->dehydrated(false)
                             ->disabled(fn (Get $get): bool => blank($get('directory_locality')))
                             ->getSearchResultsUsing(fn (string $search, Get $get): array => app(WarehouseAddressOptions::class)->search('streets', $get('directory_locality'), $search))
@@ -91,8 +99,9 @@ class WarehouseForm
                             })->helperText('Если у здания нет улицы, оставьте пустым и ищите дом прямо в населённом пункте.')
                             ->columnSpanFull(),
                         Select::make('address_external_id')
+                            ->visible(fn (Get $get): bool => blank($get('physical_site_id')))
                             ->label('3. Дом / корпус / строение')
-                            ->required(fn ($get) => $get('source_type') === 'physical')
+                            ->required(fn ($get) => $get('source_type') === 'physical' && blank($get('physical_site_id')))
                             ->searchable()
                             ->live()
                             ->searchPrompt('Введите номер дома')
@@ -141,8 +150,8 @@ class WarehouseForm
                         TextInput::make('gar_guid')->label('GUID здания ГАР')->readOnly()->dehydrated(false),
                         TextInput::make('kladr_code')->label('Код КЛАДР')->readOnly()->dehydrated(false)
                             ->helperText('Код совместимости. У отдельных зданий может отсутствовать.'),
-                        TextInput::make('latitude')->label('Широта склада')->numeric()->minValue(-90)->maxValue(90)
-                            ->requiredWith('longitude')->helperText('Точная точка склада. Центр города автоматически не подставляется.'),
+                        TextInput::make('latitude')->label('Широта отдельного въезда склада')->numeric()->minValue(-90)->maxValue(90)
+                            ->requiredWith('longitude')->helperText('Оставьте обе пустыми для использования координат площадки. Укажите, если въезд/отгрузка в другой точке.'),
                         TextInput::make('longitude')->label('Долгота склада')->numeric()->minValue(-180)->maxValue(180)
                             ->requiredWith('latitude'),
                         TextInput::make('processing_days_min')->label('Подготовка от')->numeric()->minValue(0)->default(0)->suffix('дн.'),

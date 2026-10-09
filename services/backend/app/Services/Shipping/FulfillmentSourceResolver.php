@@ -29,6 +29,7 @@ class FulfillmentSourceResolver
         return Warehouse::query()
             ->where('is_active', true)
             ->with([
+                'physicalSite',
                 'deliveryProfiles' => fn ($query) => $query->active()->with('locations'),
                 'productStocks' => fn ($query) => $query->where('product_id', $product->id),
                 'productAvailabilities' => fn ($query) => $query->where('product_id', $product->id),
@@ -62,7 +63,7 @@ class FulfillmentSourceResolver
                         ? app(WarehouseDistance::class)->kilometres($warehouse, $coordinates['latitude'], $coordinates['longitude'])
                         : null,
                     'distance_type' => 'straight_line',
-                    'distance_available' => $coordinates !== null && $warehouse->latitude !== null && $warehouse->longitude !== null,
+                    'distance_available' => $coordinates !== null && $warehouse->dispatchCoordinates() !== null,
                     'source_type' => $warehouse->source_type,
                     'stock_mode' => $warehouse->stock_mode,
                     'quantity' => $stock?->quantity,

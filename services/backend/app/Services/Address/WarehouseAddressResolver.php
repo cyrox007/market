@@ -53,13 +53,29 @@ class WarehouseAddressResolver
 
     public function prepare(array $data, ?Warehouse $record = null): array
     {
+        $siteId = array_key_exists('physical_site_id', $data) ? $data['physical_site_id'] : $record?->physical_site_id;
+        $site = $siteId ? \App\Models\Inventory\PhysicalSite::find($siteId) : null;
+        if ($siteId && ! $site) {
+            throw ValidationException::withMessages(['physical_site_id' => 'Площадка не найдена.']);
+        }
+        if ($record?->exists && $record->stores()->exists()
+            && ((string) $siteId !== (string) $record->physical_site_id
+                || ($data['source_type'] ?? $record->source_type) !== 'physical'
+                || ($data['stock_mode'] ?? $record->stock_mode) !== 'quantity')) {
+            throw ValidationException::withMessages(['physical_site_id' => 'Этот склад хранит остатки магазина. Сначала измените связь в магазине; нельзя незаметно перенести склад или превратить его в виртуальную фабрику.']);
+        }
         $previous = $record?->address_snapshot['selectionId'] ?? $record?->address_external_id;
         $id = array_key_exists('address_external_id', $data) ? $data['address_external_id'] : $previous;
-        $changed = $id !== $previous;
+        if ($site) {
+            $id = $site->address_snapshot['selectionId'] ?? $site->address_external_id;
+        }
+        $changed = $id !== $previous || (string) $siteId !== (string) $record?->physical_site_id;
         unset($data['directory_locality'], $data['directory_street']);
         // Derived values must never be accepted from a submitted form.
         unset($data['address'], $data['gar_guid'], $data['kladr_code'], $data['address_snapshot'], $data['coordinate_source'], $data['coordinate_precision']);
-        if ($id && ($changed || ! $record?->address_snapshot)) {
+        if ($site) {
+            $data = array_merge($data, $site->only(['address_external_id', 'gar_guid', 'kladr_code', 'address', 'address_snapshot']));
+        } elseif ($id && ($changed || ! $record?->address_snapshot)) {
             $data = array_merge($data, $this->resolve($id));
         } elseif ($id && $record) {
             $data['address_external_id'] = $record->address_external_id;

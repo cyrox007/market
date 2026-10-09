@@ -15,18 +15,29 @@ class StoreResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $site = $this->physicalSite;
+        $latitude = $site ? $site->latitude : $this->latitude;
+        $longitude = $site ? $site->longitude : $this->longitude;
+        $warehouse = $this->warehouse;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
             'slug' => $this->slug,
-            'address' => $this->address,
-            'city' => $this->city,
+            'address' => $site?->address ?? $this->address,
+            'city' => $site?->city ?? $this->city,
+            'physical_site_id' => $this->physical_site_id,
+            'warehouse_id' => $this->warehouse_id,
+            'has_own_stock' => $warehouse && $warehouse->is_active && $warehouse->source_type === 'physical' && $warehouse->stock_mode === 'quantity'
+                && $site && (int) $warehouse->physical_site_id === (int) $site->id,
+            'gar_guid' => $site?->gar_guid,
+            'kladr_code' => $site?->kladr_code,
             'phone' => $this->phone,
             'hours' => $this->hours,
-            'coordinates' => $this->coordinates,
-            'latitude' => $this->latitude ? (float) $this->latitude : null,
-            'longitude' => $this->longitude ? (float) $this->longitude : null,
-            'coordinates_array' => $this->coordinates_array,
+            'coordinates' => $site ? ($latitude !== null && $longitude !== null ? $latitude.','.$longitude : null) : $this->coordinates,
+            'latitude' => $latitude !== null ? (float) $latitude : null,
+            'longitude' => $longitude !== null ? (float) $longitude : null,
+            'coordinates_array' => $site ? ($latitude !== null && $longitude !== null ? ['lat' => (float) $latitude, 'lng' => (float) $longitude] : null) : $this->coordinates_array,
             'yandex_map' => $this->yandex_map,
             'description' => $this->description,
             'image' => $this->getFirstMediaUrl('image'),

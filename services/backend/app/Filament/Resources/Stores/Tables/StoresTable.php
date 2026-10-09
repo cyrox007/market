@@ -26,6 +26,8 @@ class StoresTable
                     ->label(__('filament/admin_sv/store_resource.city'))
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('warehouse.name')->label('Склад остатков')->placeholder('Без собственных остатков'),
+                TextColumn::make('physicalSite.name')->label('Общая площадка')->placeholder('Старый адрес — назначьте площадку'),
                 TextColumn::make('address')
                     ->label(__('filament/admin_sv/store_resource.address'))
                     ->searchable()
