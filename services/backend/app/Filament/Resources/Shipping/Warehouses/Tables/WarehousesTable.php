@@ -26,6 +26,11 @@ class WarehousesTable
                     ->copyable()
                     ->sortable(),
 
+                TextColumn::make('address')->label('Адрес')->wrap()->limit(100),
+                IconColumn::make('has_coordinates')->label('Точка склада')
+                    ->state(fn ($record): bool => $record->latitude !== null && $record->longitude !== null)
+                    ->boolean()->tooltip('Обе координаты заданы — можно рассчитывать расстояние'),
+
                 TextColumn::make('source_type')
                     ->label('Тип')
                     ->formatStateUsing(fn (string $state): string => match ($state) {

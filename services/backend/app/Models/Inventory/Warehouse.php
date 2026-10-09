@@ -24,6 +24,11 @@ class Warehouse extends Model
         'stock_mode',
         'address',
         'address_external_id',
+        'gar_guid',
+        'kladr_code',
+        'address_snapshot',
+        'coordinate_source',
+        'coordinate_precision',
         'latitude',
         'longitude',
         'processing_days_min',
@@ -39,6 +44,7 @@ class Warehouse extends Model
         'processing_days_min' => 'integer',
         'processing_days_max' => 'integer',
         'meta' => 'array',
+        'address_snapshot' => 'array',
     ];
 
     protected static function booted(): void

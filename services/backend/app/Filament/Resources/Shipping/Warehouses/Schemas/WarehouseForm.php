@@ -4,11 +4,13 @@ namespace App\Filament\Resources\Shipping\Warehouses\Schemas;
 
 use App\Models\Inventory\Warehouse;
 use App\Services\Address\AddressDirectoryClient;
+use App\Services\Address\WarehouseAddressOptions;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
@@ -66,34 +68,58 @@ class WarehouseForm
 
                 Section::make('Адрес и подготовка заказа')
                     ->schema([
+                        Select::make('directory_locality')
+                            ->label('1. Населённый пункт')->searchable()->live()->dehydrated(false)
+                            ->searchPrompt('Введите минимум две буквы города, посёлка или села')
+                            ->getSearchResultsUsing(fn (string $search): array => app(WarehouseAddressOptions::class)->search('localities', null, $search))
+                            ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
+                            ->afterStateUpdated(function (Set $set): void {
+                                foreach (['directory_street', 'address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude'] as $field) {
+                                    $set($field, null);
+                                }
+                            })->helperText('В результатах указан регион — выберите нужный одноимённый населённый пункт.')
+                            ->columnSpanFull(),
+                        Select::make('directory_street')
+                            ->label('2. Улица')->searchable()->live()->dehydrated(false)
+                            ->disabled(fn (Get $get): bool => blank($get('directory_locality')))
+                            ->getSearchResultsUsing(fn (string $search, Get $get): array => app(WarehouseAddressOptions::class)->search('streets', $get('directory_locality'), $search))
+                            ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
+                            ->afterStateUpdated(function (Set $set): void {
+                                foreach (['address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude'] as $field) {
+                                    $set($field, null);
+                                }
+                            })->helperText('Если у здания нет улицы, оставьте пустым и ищите дом прямо в населённом пункте.')
+                            ->columnSpanFull(),
                         Select::make('address_external_id')
-                            ->label('Адрес по КЛАДР/ФИАС')
+                            ->label('3. Дом / корпус / строение')
+                            ->required(fn ($get) => $get('source_type') === 'physical')
                             ->searchable()
                             ->live()
-                            ->searchPrompt('Введите город, улицу и номер дома')
+                            ->searchPrompt('Введите номер дома')
+                            ->disabled(fn (Get $get): bool => blank($get('directory_locality')))
                             ->searchingMessage('Ищем адрес…')
-                            ->noSearchResultsMessage('Дом не найден или адресный сервис недоступен')
-                            ->getSearchResultsUsing(function (string $search): array {
-                                try {
-                                    return collect(app(AddressDirectoryClient::class)->searchBuildings($search))
-                                        ->filter(fn (array $item): bool => filled($item['externalId'] ?? null) && filled($item['label'] ?? null))
-                                        ->mapWithKeys(fn (array $item): array => [$item['externalId'] => $item['label']])
-                                        ->all();
-                                } catch (\Throwable) {
-                                    return [];
-                                }
-                            })
+                            ->noSearchResultsMessage('Здания не найдены. Проверьте населённый пункт, улицу и номер.')
+                            ->getSearchResultsUsing(fn (string $search, Get $get): array => app(WarehouseAddressOptions::class)->search(
+                                'buildings', $get('directory_street') ?: $get('directory_locality'), $search))
                             ->getOptionLabelUsing(function ($value, ?Warehouse $record): ?string {
                                 if (blank($value)) {
                                     return null;
                                 }
 
-                                return $record?->address
+                                return (($record?->address_snapshot['selectionId'] ?? $record?->address_external_id) === (string) $value ? $record?->address : null)
                                     ?? app(AddressDirectoryClient::class)->cachedLabel((string) $value)
                                     ?? (string) $value;
                             })
                             ->afterStateUpdated(function ($state, Set $set): void {
+                                $set('latitude', null);
+                                $set('longitude', null);
+                                $set('gar_guid', $state && preg_match('/^[0-9a-f-]{36}$/i', $state) ? $state : null);
+                                $set('kladr_code', null);
                                 if (blank($state)) {
+                                    $set('address', null);
+                                    $set('gar_guid', null);
+                                    $set('kladr_code', null);
+
                                     return;
                                 }
 
@@ -103,16 +129,22 @@ class WarehouseForm
                                     $set('address', $label);
                                 }
                             })
-                            ->helperText('Начните вводить полный адрес и выберите конкретный дом. Сохраняется стабильный ID классификатора.')
+                            ->helperText('При сохранении сервер проверит здание по справочнику. ГАР GUID и КЛАДР-код сохраняются отдельно, если доступны.')
                             ->columnSpanFull(),
 
                         TextInput::make('address')
                             ->label('Полный адрес')
-                            ->maxLength(255)
-                            ->helperText('Заполняется после выбора из КЛАДР. Пока адресный API недоступен, адрес можно указать вручную.')
+                            ->readOnly()
+                            ->dehydrated(false)
+                            ->helperText('Заполняется из справочника. Произвольный текст вместо здания не сохраняется.')
                             ->columnSpanFull(),
-                        TextInput::make('latitude')->label('Широта')->numeric(),
-                        TextInput::make('longitude')->label('Долгота')->numeric(),
+                        TextInput::make('gar_guid')->label('GUID здания ГАР')->readOnly()->dehydrated(false),
+                        TextInput::make('kladr_code')->label('Код КЛАДР')->readOnly()->dehydrated(false)
+                            ->helperText('Код совместимости. У отдельных зданий может отсутствовать.'),
+                        TextInput::make('latitude')->label('Широта склада')->numeric()->minValue(-90)->maxValue(90)
+                            ->requiredWith('longitude')->helperText('Точная точка склада. Центр города автоматически не подставляется.'),
+                        TextInput::make('longitude')->label('Долгота склада')->numeric()->minValue(-180)->maxValue(180)
+                            ->requiredWith('latitude'),
                         TextInput::make('processing_days_min')->label('Подготовка от')->numeric()->minValue(0)->default(0)->suffix('дн.'),
                         TextInput::make('processing_days_max')->label('Подготовка до')->numeric()->minValue(0)->gte('processing_days_min')->default(0)->suffix('дн.'),
                     ])->columns(2),
