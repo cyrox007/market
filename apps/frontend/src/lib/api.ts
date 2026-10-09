@@ -35,6 +35,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
     const error = new Error(`API Error: ${response.status} ${errorMessage}`) as any;
     error.status = response.status;
+    error.retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || Number(errorData?.retry_after) || 60);
     error.data = errorData;
     throw error;
   }
@@ -47,7 +48,14 @@ function productList(endpoint: string, params?: { region_id?: number }) {
   return fetchAPI<{ data: Product[] }>(`${endpoint}${suffix}`);
 }
 
+export interface CustomerLocality { externalId: string; name: string; label: string; source: string; kladrCode?: string | null }
+
 export const api = {
+  localities: {
+    search: (q: string, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>(`/localities?q=${encodeURIComponent(q)}`, { signal }),
+    detect: (latitude: number, longitude: number, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>('/localities/detect', { method: 'POST', body: JSON.stringify({ latitude, longitude }), signal }),
+    get: (id: string) => fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(`/localities/${encodeURIComponent(id)}`),
+  },
   shipping: {
     getLocations: (params?: { type?: string; parent_id?: number; search?: string }) => {
       const query = new URLSearchParams();

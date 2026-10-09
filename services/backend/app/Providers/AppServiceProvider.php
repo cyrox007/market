@@ -108,6 +108,16 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('orders', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
         RateLimiter::for('writes', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
 
+        foreach (['address-read' => 'read_requests_per_minute', 'address-geo' => 'geo_requests_per_minute'] as $name => $setting) {
+            RateLimiter::for($name, fn (Request $request) => Limit::perMinute(
+                max(1, (int) config('address_directory.'.$setting))
+            )->by($request->user() ? 'user:'.$request->user()->getAuthIdentifier() : 'ip:'.$request->ip())
+                ->response(fn (Request $request, array $headers) => response()->json([
+                    'message' => 'Слишком много запросов. Повторите после указанного времени ожидания.',
+                    'retry_after' => (int) ($headers['Retry-After'] ?? 60),
+                ], 429, $headers)));
+        }
+
         // Morph map для Vanilo Payment (payable_type = 'order' → Order::class)
         Relation::morphMap([
             'order' => Order::class,

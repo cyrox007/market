@@ -9,6 +9,27 @@ use RuntimeException;
 
 class AddressDirectoryClient
 {
+    public function nearby(float $latitude, float $longitude): array
+    {
+        // Precise user coordinates are not persisted in the cache.
+        return $this->get(rtrim(config('address_directory.directory_path'), '/').'/nearby', [
+            'latitude' => $latitude, 'longitude' => $longitude,
+        ], unwrap: false);
+    }
+
+    public function options(string $level, array $query = []): array
+    {
+        if (! in_array($level, ['regions', 'localities', 'streets', 'buildings'], true)) {
+            throw new RuntimeException('Unsupported directory level');
+        }
+
+        return Cache::remember(
+            'address-directory:options:'.sha1($level.':'.json_encode($query)),
+            min(300, (int) config('address_directory.cache_ttl')),
+            fn (): array => $this->get(rtrim(config('address_directory.directory_path'), '/').'/'.$level, $query)
+        );
+    }
+
     public function searchBuildings(string $query, int $limit = 20): array
     {
         $query = trim($query);
@@ -71,9 +92,13 @@ class AddressDirectoryClient
             ->retry(1, 150, throw: false);
     }
 
-    private function get(string $path, array $query = []): array
+    private function get(string $path, array $query = [], bool $unwrap = true): array
     {
-        $response = $this->request()->get($path, $query);
+        try {
+            $response = $this->request()->get($path, $query);
+        } catch (\Illuminate\Http\Client\ConnectionException $error) {
+            throw new RuntimeException('Address directory connection failed', previous: $error);
+        }
 
         if (! $response->successful()) {
             throw new RuntimeException("Address directory unavailable: HTTP {$response->status()}");
@@ -83,6 +108,10 @@ class AddressDirectoryClient
 
         if (! is_array($payload)) {
             throw new RuntimeException('Address directory returned invalid JSON');
+        }
+
+        if (! $unwrap) {
+            return $payload;
         }
 
         foreach (['data', 'items', 'results'] as $key) {
