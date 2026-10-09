@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ProductLink from '../../components/ui/ProductLink';
-import ProductCard from '../../components/ui/ProductCard';
+import ProductCardConnected from '../../components/ui/ProductCardConnected';
 import CartItemVariants from '../../components/cart/CartItemVariants';
 import { useCart } from '../../hooks/useCart';
-import { useCartActions } from '../../hooks/useCartActions';
 import { useRegion } from '../../hooks/useRegion';
-import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
 import { api } from '../../lib/api';
 import type { Product } from '../../lib/api';
 import { ChevronRight, ImageIcon, Minus, Plus, ShoppingCart, X } from 'lucide-react';
@@ -16,39 +14,23 @@ export default function Cart() {
     cart,
     isLoading,
     error,
-    updateQuantity,
+    setCartQuantity,
     updateVariant,
-    removeFromCart,
     reloadCart,
-    addToCart,
   } = useCart();
-  const { changeProductQuantity } = useCartActions();
   const { region } = useRegion();
-  const {
-    wishlistProductIds: favorites,
-    compareProductIds: compareList,
-    toggleWishlist: toggleWishlistId,
-    toggleCompare: toggleCompareId,
-  } = useWishlistAndCompare();
 
   const promoApplied = false;
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
-  const [removingItemId, setRemovingItemId] = useState<number | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
   const [isLoadingRecommended, setIsLoadingRecommended] = useState(false);
   /** Подборка «Рекомендуем» загружается один раз за визит страницы, не при каждом изменении корзины */
   const recommendedLoadedRef = useRef(false);
 
-  const handleUpdateQuantity = async (itemId: number, newQuantity: number) => {
+  // Кнопки не блокируются: клики копятся, на сервер уходит итог — market-docs/32
+  const handleUpdateQuantity = (productId: number, newQuantity: number) => {
     if (newQuantity < 1) return;
-    setUpdatingItemId(itemId);
-    try {
-      await updateQuantity(itemId, newQuantity);
-    } catch (err) {
-      console.error('Failed to update quantity:', err);
-    } finally {
-      setUpdatingItemId(null);
-    }
+    setCartQuantity(productId, newQuantity);
   };
 
   const handleVariantChange = async (
@@ -77,16 +59,7 @@ export default function Cart() {
     }
   };
 
-  const handleRemoveItem = async (itemId: number) => {
-    setRemovingItemId(itemId);
-    try {
-      await removeFromCart(itemId);
-    } catch (err) {
-      console.error('Failed to remove item:', err);
-    } finally {
-      setRemovingItemId(null);
-    }
-  };
+  const handleRemoveItem = (productId: number) => setCartQuantity(productId, 0);
 
   // Подборка из админки (slug: recommended) — один запрос при первом появлении товаров в корзине
   useEffect(() => {
@@ -113,51 +86,6 @@ export default function Cart() {
 
     loadRecommendedProducts();
   }, [isLoading, cart?.items.length]);
-
-  const handleAddRecommendedToCart = async (productId: number) => {
-    try {
-      await addToCart(productId, 1);
-    } catch (err) {
-      console.error('Failed to add product to cart:', err);
-    }
-  };
-
-  const recommendedCartQuantityByProductId = useMemo(() => {
-    const quantities: Record<number, number> = {};
-    for (const item of cart?.items ?? []) {
-      quantities[item.product_id] = (quantities[item.product_id] ?? 0) + item.quantity;
-    }
-    return quantities;
-  }, [cart?.items]);
-
-  const updateRecommendedCartQuantityByProduct = async (productId: number, delta: number) => {
-    const item = recommendedProducts.find((p) => p.id === productId);
-    if (!item) return;
-    try {
-      await changeProductQuantity(item, delta);
-    } catch {
-      // toast в useCartActions
-    }
-  };
-
-  // Вспомогательная функция для определения ID товара для избранного
-  const getProductIdForWishlist = (product: Product): number => {
-    return product.id;
-  };
-
-  // Вспомогательная функция для определения ID товара для сравнения
-  const getProductIdForCompare = (product: Product): number => {
-    if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
-      return product.first_available_variant_id;
-    }
-    return product.id;
-  };
-
-  const toggleFavorite = (product: Product) =>
-    toggleWishlistId(getProductIdForWishlist(product));
-
-  const toggleCompare = (product: Product) =>
-    toggleCompareId(getProductIdForCompare(product));
 
   const subtotal = cart?.subtotal || 0;
   const discount = promoApplied ? subtotal * 0.1 : 0;
@@ -222,7 +150,8 @@ export default function Cart() {
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
               {cartItems.map((item) => (
-                <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-6">
+                // Сервер меняет id строки на каждое изменение — ключ по товару, чтобы строка не пересоздавалась
+                <div key={item.product_id} className="bg-white border border-gray-200 rounded-2xl p-6">
                   <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
                     {item.slug ? (
                       <ProductLink
@@ -269,8 +198,7 @@ export default function Cart() {
                           <h3 className="font-bold text-lg flex-1">{item.name}</h3>
                         )}
                         <button
-                          onClick={() => handleRemoveItem(item.id)}
-                          disabled={removingItemId === item.id}
+                          onClick={() => handleRemoveItem(item.product_id)}
                           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
                         >
                           <X className="size-[1em] text-2xl" />
@@ -292,16 +220,14 @@ export default function Cart() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-3">
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                           <button
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                            disabled={updatingItemId === item.id}
+                            onClick={() => handleUpdateQuantity(item.product_id, item.quantity - 1)}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
                             <Minus className="size-[1em]" />
                           </button>
                           <span className="w-12 text-center font-medium">{item.quantity}</span>
                           <button
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                            disabled={updatingItemId === item.id}
+                            onClick={() => handleUpdateQuantity(item.product_id, item.quantity + 1)}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
                             <Plus className="size-[1em]" />
@@ -419,22 +345,7 @@ export default function Cart() {
                 data-product-shop
               >
                 {recommendedProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={handleAddRecommendedToCart}
-                    onIncreaseCart={(productId) =>
-                      updateRecommendedCartQuantityByProduct(productId, 1)
-                    }
-                    onDecreaseCart={(productId) =>
-                      updateRecommendedCartQuantityByProduct(productId, -1)
-                    }
-                    onToggleFavorite={toggleFavorite}
-                    onToggleCompare={toggleCompare}
-                    cartQuantity={recommendedCartQuantityByProductId[product.id] ?? 0}
-                    isFavorite={favorites.includes(getProductIdForWishlist(product))}
-                    isInCompare={compareList.includes(getProductIdForCompare(product))}
-                  />
+                  <ProductCardConnected key={product.id} product={product} />
                 ))}
               </div>
             ) : null}

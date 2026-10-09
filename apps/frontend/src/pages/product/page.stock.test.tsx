@@ -47,7 +47,8 @@ vi.mock('../../hooks/useRegion', () => ({
   }),
 }));
 
-vi.mock('../../hooks/useWishlistAndCompare', () => ({
+vi.mock('../../hooks/useWishlistAndCompare', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../hooks/useWishlistAndCompare')>()),
   useWishlistAndCompare: () => ({
     wishlistProductIds: [],
     compareProductIds: [],

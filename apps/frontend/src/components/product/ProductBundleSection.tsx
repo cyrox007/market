@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState, useTransition, useCallback } from 'react';
-import ProductCard from '../ui/ProductCard';
+import ProductCardConnected from '../ui/ProductCardConnected';
 import type { Product } from '../../lib/api';
 import {
   collectBundleCategoryChips,
@@ -9,29 +9,9 @@ import {
 
 type ProductBundleSectionProps = {
   products: Product[];
-  cartQuantityByProductId: Record<number, number>;
-  onAddToCart: (productId: number) => void | Promise<void>;
-  onIncreaseCart: (productId: number) => void | Promise<void>;
-  onDecreaseCart: (productId: number) => void | Promise<void>;
-  onToggleFavorite: (product: Product) => void | Promise<void>;
-  onToggleCompare: (product: Product) => void | Promise<void>;
-  isFavorite: (product: Product) => boolean;
-  isInCompare: (product: Product) => boolean;
-  onPrefetch?: (slug: string) => void;
 };
 
-function ProductBundleSection({
-  products,
-  cartQuantityByProductId,
-  onAddToCart,
-  onIncreaseCart,
-  onDecreaseCart,
-  onToggleFavorite,
-  onToggleCompare,
-  isFavorite,
-  isInCompare,
-  onPrefetch,
-}: ProductBundleSectionProps) {
+function ProductBundleSection({ products }: ProductBundleSectionProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
 
@@ -103,20 +83,7 @@ function ProductBundleSection({
           data-product-shop
         >
           {filteredProducts.map((item, index) => (
-            <ProductCard
-              key={item.id}
-              product={item}
-              onMouseEnter={onPrefetch ? () => onPrefetch(item.slug) : undefined}
-              onAddToCart={onAddToCart}
-              onIncreaseCart={onIncreaseCart}
-              onDecreaseCart={onDecreaseCart}
-              onToggleFavorite={onToggleFavorite}
-              onToggleCompare={onToggleCompare}
-              cartQuantity={cartQuantityByProductId[item.id] ?? 0}
-              isFavorite={isFavorite(item)}
-              isInCompare={isInCompare(item)}
-              priority={index < 8}
-            />
+            <ProductCardConnected key={item.id} product={item} priority={index < 8} />
           ))}
         </div>
       )}

@@ -121,7 +121,7 @@ export const api = {
       if (params?.region_id) query.append('region_id', params.region_id.toString());
       return fetchAPI<Cart>(`/cart?${query.toString()}`);
     },
-    add: (data: { product_id: number; quantity?: number; color?: string; size?: string }) =>
+    add: (data: { product_id: number; quantity?: number; region_id?: number; color?: string; size?: string }) =>
       fetchAPI<{
         item: CartItem;
         message: string;
@@ -132,7 +132,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (itemId: number, data: { quantity: number; color?: string; size?: string }) =>
+    update: (itemId: number, data: { quantity: number; region_id?: number; color?: string; size?: string }) =>
       fetchAPI<{
         item: CartItem;
         message: string;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 import { useCartActions } from '../../hooks/useCartActions';
 import { getCartQuantityForProduct, isVariableParent } from '../../utils/cartProduct';
 import { useCounters } from '../../hooks/useCounters';
@@ -19,7 +20,7 @@ export default function Compare() {
     const loadCompareList = async () => {
       try {
         setIsLoading(true);
-        const response = await api.compare.list();
+        const response = await runSessionRead(() => api.compare.list());
         setProducts(response.products || []);
       } catch {
         // ignore
@@ -42,7 +43,7 @@ export default function Compare() {
 
   const removeProduct = async (id: number) => {
     try {
-      await api.compare.remove(id);
+      await runSessionTask(() => api.compare.remove(id));
       setProducts((prev) => prev.filter((p) => p.id !== id));
       // Небольшая задержка, чтобы дать время API обновиться
       await new Promise((resolve) => setTimeout(resolve, 100));

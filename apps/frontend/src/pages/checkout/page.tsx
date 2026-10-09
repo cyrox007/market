@@ -28,6 +28,7 @@ import {
 
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { runSessionTask } from '../../lib/session-queue';
 import Icon from '../../components/ui/icons/Icon';
 import { ChevronRight, Store, Truck } from 'lucide-react';
 
@@ -761,7 +762,7 @@ export default function Checkout() {
         );
       }
 
-      const response = (await api.orders.create(orderData)) as {
+      const response = (await runSessionTask(() => api.orders.create(orderData))) as {
         order?: Order;
         message?: string;
         user_registered?: boolean;

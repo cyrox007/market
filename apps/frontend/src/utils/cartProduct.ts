@@ -203,3 +203,58 @@ export function patchCartQuantity(
     is_empty: items.length === 0,
   };
 }
+
+function withTotals(items: CartItem[]): Cart {
+  const subtotal = items.reduce((s, i) => s + (i.total ?? i.price * i.quantity), 0);
+  const item_count = items.reduce((s, i) => s + i.quantity, 0);
+  return { items, subtotal, item_count, is_empty: items.length === 0 };
+}
+
+/**
+ * Поставить количество строки товара. Нет строки — создаётся из `template`
+ * (превью карточки или строка с сервера), без него не создаётся. 0 — строка убирается.
+ */
+export function setLineQuantity(
+  cart: Cart | null | undefined,
+  productId: number,
+  quantity: number,
+  template?: Partial<CartItem>,
+): Cart | null | undefined {
+  const items = [...(cart?.items ?? [])];
+  const idx = items.findIndex((i) => i.product_id === productId);
+  if (quantity <= 0) {
+    if (idx < 0) return cart;
+    items.splice(idx, 1);
+    return withTotals(items);
+  }
+  const base = idx >= 0 ? items[idx] : template;
+  if (!base) return cart;
+  const price = base.price ?? 0;
+  const next: CartItem = {
+    id: -productId,
+    name: '',
+    slug: null,
+    image: null,
+    sku: null,
+    ...base,
+    product_id: productId,
+    price,
+    quantity,
+    total: price * quantity,
+  };
+  if (idx >= 0) items[idx] = next;
+  else items.unshift(next);
+  return withTotals(items);
+}
+
+/** Данные строки с сервера (id, цена), количество — как сейчас на экране */
+export function mergeServerLine(cart: Cart | null | undefined, item: CartItem): Cart | null | undefined {
+  const shown = cart?.items.find((i) => i.product_id === item.product_id);
+  if (!shown) return cart;
+  return setLineQuantity(
+    setLineQuantity(cart, item.product_id, 0),
+    item.product_id,
+    shown.quantity,
+    item,
+  );
+}

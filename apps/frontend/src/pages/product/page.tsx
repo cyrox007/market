@@ -3,16 +3,18 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import ReviewModal from '../../components/feature/ReviewModal';
 //import ProductLink from '../../components/ui/ProductLink';
-import ProductCard from '../../components/ui/ProductCard';
+import ProductCardConnected from '../../components/ui/ProductCardConnected';
 import ProductGallery from '../../components/product/ProductGallery';
 import ProductBundleSection from '../../components/product/ProductBundleSection';
 import VariantAttributeSelector from '../../components/product/VariantAttributeSelector';
 import { api } from '../../lib/api';
 import { useCart } from '../../hooks/useCart';
-import { useCartActions } from '../../hooks/useCartActions';
 import { useRegion } from '../../hooks/useRegion';
-import { useWishlistAndCompare } from '../../hooks/useWishlistAndCompare';
-import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
+import {
+  productIdForCompare,
+  productIdForWishlist,
+  useWishlistAndCompare,
+} from '../../hooks/useWishlistAndCompare';
 import { useSSR } from '../../contexts/ssr-context';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { getProductKey } from '../../utils/ssr-to-swr';
@@ -290,10 +292,8 @@ export default function Product() {
   const [isLoadingVariant, setIsLoadingVariant] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
-  const { changeProductQuantity } = useCartActions();
   const { getRegionId } = useRegion();
   const regionId = getRegionId();
-  const prefetchProduct = usePrefetchProduct();
 
   const [showAllStocks, setShowAllStocks] = useState(false);
 
@@ -640,53 +640,6 @@ export default function Product() {
     return new Intl.NumberFormat('ru-RU').format(price) + ' ₽';
   };
 
-  // Вспомогательная функция для определения ID товара для избранного
-  const getProductIdForWishlist = (product: Product): number => {
-    return product.id;
-  };
-
-  // Вспомогательная функция для определения ID товара для сравнения
-  const getProductIdForCompare = (product: Product): number => {
-    if (product.is_variable && !product.is_variant && product.first_available_variant_id) {
-      return product.first_available_variant_id;
-    }
-    return product.id;
-  };
-
-  const toggleFavorite = (product: Product) =>
-    toggleWishlistId(getProductIdForWishlist(product));
-
-  const toggleCompare = (product: Product) =>
-    toggleCompareId(getProductIdForCompare(product));
-
-  const handleAddRelatedToCart = async (productId: number) => {
-    try {
-      await addToCart(productId, 1);
-    } catch (error) {
-      console.error('Failed to add to cart:', error);
-    }
-  };
-
-  const relatedCartQuantityByProductId = useMemo(() => {
-    const quantities: Record<number, number> = {};
-    for (const item of cart?.items ?? []) {
-      quantities[item.product_id] = (quantities[item.product_id] ?? 0) + item.quantity;
-    }
-    return quantities;
-  }, [cart?.items]);
-
-  const updateRelatedCartQuantityByProduct = async (productId: number, delta: number) => {
-    const item =
-      relatedProducts.find((p) => p.id === productId) ??
-      bundleProducts.find((p) => p.id === productId);
-    if (!item) return;
-    try {
-      await changeProductQuantity(item, delta);
-    } catch {
-      // toast в useCartActions
-    }
-  };
-
   /** Выбор значения одного атрибута вариации. При клике по недоступному (opacity) — переключаем на первую доступную вариацию с этим значением. */
   const handleSelectVariationAttribute = (
     attributeSlug: string,
@@ -997,8 +950,8 @@ export default function Product() {
   const cartProductId = selectedVariant?.id ?? product?.id;
   const currentCartItem = (cart?.items ?? []).find((item) => item.product_id === cartProductId);
   const currentCartQuantity = currentCartItem?.quantity ?? 0;
-  const currentWishlistProductId = product ? getProductIdForWishlist(product) : 0;
-  const currentCompareProductId = product ? getProductIdForCompare(product) : 0;
+  const currentWishlistProductId = product ? productIdForWishlist(product) : 0;
+  const currentCompareProductId = product ? productIdForCompare(product) : 0;
   const isInWishlist = favorites.includes(currentWishlistProductId);
   const isInCompare = compareList.includes(currentCompareProductId);
 
@@ -1823,18 +1776,7 @@ export default function Product() {
           {/* Набор / комплект (/bundle) — выше сопутствующих */}
           {bundleProducts.length > 0 && (
             <div id="product-bundle" className="scroll-mt-20">
-              <ProductBundleSection
-                products={bundleProducts}
-                cartQuantityByProductId={relatedCartQuantityByProductId}
-                onAddToCart={handleAddRelatedToCart}
-                onIncreaseCart={(productId) => updateRelatedCartQuantityByProduct(productId, 1)}
-                onDecreaseCart={(productId) => updateRelatedCartQuantityByProduct(productId, -1)}
-                onToggleFavorite={toggleFavorite}
-                onToggleCompare={toggleCompare}
-                isFavorite={(p) => favorites.includes(getProductIdForWishlist(p))}
-                isInCompare={(p) => compareList.includes(getProductIdForCompare(p))}
-                onPrefetch={prefetchProduct}
-              />
+              <ProductBundleSection products={bundleProducts} />
             </div>
           )}
 
@@ -1846,22 +1788,7 @@ export default function Product() {
                 data-product-shop
               >
                 {relatedProducts.map((item, index) => (
-                  <ProductCard
-                    key={item.id}
-                    product={item}
-                    onMouseEnter={() => prefetchProduct(item.slug)}
-                    onAddToCart={handleAddRelatedToCart}
-                    onIncreaseCart={(productId) => updateRelatedCartQuantityByProduct(productId, 1)}
-                    onDecreaseCart={(productId) =>
-                      updateRelatedCartQuantityByProduct(productId, -1)
-                    }
-                    onToggleFavorite={toggleFavorite}
-                    onToggleCompare={toggleCompare}
-                    cartQuantity={relatedCartQuantityByProductId[item.id] ?? 0}
-                    isFavorite={favorites.includes(getProductIdForWishlist(item))}
-                    isInCompare={compareList.includes(getProductIdForCompare(item))}
-                    priority={index < 4}
-                  />
+                  <ProductCardConnected key={item.id} product={item} priority={index < 4} />
                 ))}
               </div>
             </div>
