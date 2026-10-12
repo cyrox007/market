@@ -35,6 +35,7 @@ export default function SortControl({ value, onChange, asSheet }: SortControlPro
       <FilterPill
         ref={anchorRef}
         open={open}
+        textBelowMd
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((v) => !v)}
       >
@@ -51,7 +52,7 @@ export default function SortControl({ value, onChange, asSheet }: SortControlPro
               type="button"
               aria-label="Закрыть"
               onClick={() => setOpen(false)}
-              className="inline-flex size-6 items-center justify-center text-ink transition-colors hover:text-brand-green"
+              className="inline-flex size-6 items-center justify-center text-ink transition-colors hover:text-ink-secondary"
             >
               <X aria-hidden className="size-6" />
             </button>

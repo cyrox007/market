@@ -71,7 +71,7 @@ export default function AllFiltersPanel({
           <button
             type="button"
             onClick={draft.reset}
-            className="text-14 text-ink-secondary transition-colors hover:text-brand-green"
+            className="text-14 text-ink-secondary transition-colors hover:text-ink-secondary/60"
           >
             Сбросить
           </button>

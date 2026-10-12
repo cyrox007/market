@@ -67,7 +67,7 @@ const VARIANT_HOVER: Record<ButtonVariant, string> = {
   secondary: 'hover:bg-brand-green hover:text-ink-inverse',
   outline: 'hover:border-brand-green hover:bg-brand-green hover:text-ink-inverse',
   muted: 'hover:border-brand-green hover:bg-brand-green hover:text-ink-inverse',
-  ghost: 'hover:text-brand-green',
+  ghost: 'hover:text-ink-secondary',
 };
 
 /** То же для клавиатуры: иначе пользователь Tab не видит отклика. */

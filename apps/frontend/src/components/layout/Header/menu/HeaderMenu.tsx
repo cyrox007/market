@@ -152,7 +152,7 @@ function MenuPanelGroups({
         <Link
           to={to}
           onClick={onNavigate}
-          className="block py-1.5 text-14 text-ink-secondary outline-none hover:text-ink focus-visible:text-ink"
+          className="block py-1.5 text-14 text-ink-secondary outline-none transition-colors hover:text-ink-secondary/60 focus-visible:text-ink-secondary/60"
         >
           {label}
         </Link>
@@ -164,7 +164,7 @@ function MenuPanelGroups({
               key={`${child.to}:${child.label}`}
               to={child.to}
               onClick={onNavigate}
-              className="block py-1 text-12 text-ink-secondary/80 outline-none hover:text-ink focus-visible:text-ink"
+              className="block py-1 text-12 text-ink-secondary/80 outline-none transition-colors hover:text-ink-secondary/50 focus-visible:text-ink-secondary/50"
             >
               {child.label}
             </Link>

@@ -25,16 +25,24 @@ export default function CatalogHeader({ category, title, total }: CatalogHeaderP
   return (
     <header>
       <CategoryBreadcrumbs name={title} trail={parentTrail(category)} />
-      <div className="mt-7 flex flex-wrap items-baseline gap-x-4 gap-y-2 max-md:mt-6 max-vsm:mt-5">
-        <h1 className="font-display text-32 font-bold leading-none text-ink max-vsm:text-24">
+      {/* Ниже 980 заголовка на макетах нет — остаётся для поисковиков и экранного диктора */}
+      <div className="mt-7 flex flex-wrap items-baseline gap-x-4 gap-y-2 max-md:mt-0">
+        <h1 className="font-display text-32 font-bold leading-none text-ink max-md:sr-only">
           {title}
         </h1>
-        {total !== null && (
-          <span className="text-16 text-ink-secondary max-vsm:text-14">
-            {formatNumber(total)} {plural(total, PRODUCTS)}
-          </span>
-        )}
+        {/* Ниже 980 число стоит под плашками — ProductCount в CatalogListing */}
+        <ProductCount total={total} className="max-md:hidden" />
       </div>
     </header>
+  );
+}
+
+/** «226 товаров»; null — ещё не загружено */
+export function ProductCount({ total, className }: { total: number | null; className?: string }) {
+  if (total === null) return null;
+  return (
+    <span className={`text-16 text-ink-secondary max-vsm:text-14 ${className ?? ''}`}>
+      {formatNumber(total)} {plural(total, PRODUCTS)}
+    </span>
   );
 }

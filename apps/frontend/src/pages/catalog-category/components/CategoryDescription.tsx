@@ -5,10 +5,7 @@ interface CategoryDescriptionProps {
   description: string;
 }
 
-export default function CategoryDescription({
-  title,
-  description,
-}: CategoryDescriptionProps) {
+export default function CategoryDescription({ title, description }: CategoryDescriptionProps) {
   const [expanded, setExpanded] = useState(false);
   const contentId = useId();
 
@@ -31,7 +28,7 @@ export default function CategoryDescription({
         aria-expanded={expanded}
         aria-controls={contentId}
         onClick={() => setExpanded((value) => !value)}
-        className="mt-3 text-14 font-semibold text-ink transition-colors hover:text-brand-green"
+        className="mt-3 text-14 font-semibold text-ink transition-colors hover:text-ink-secondary"
       >
         {expanded ? 'Скрыть' : 'Показать полностью'}
       </button>

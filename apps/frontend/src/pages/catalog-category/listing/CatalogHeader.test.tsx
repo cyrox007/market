@@ -22,6 +22,18 @@ describe('верх списка', () => {
     expect(screen.getByText('226 товаров')).toBeInTheDocument();
   });
 
+  it('ниже 550 середина пути свёрнута в «…» — ссылку на ближайшего родителя', () => {
+    render(
+      <MemoryRouter>
+        <CatalogHeader category={category} title="Диваны прямые" total={226} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: 'Назад: Мягкая мебель' })).toHaveAttribute(
+      'href',
+      '/catalog/myagkaya',
+    );
+  });
+
   it('пока число неизвестно — без него', () => {
     render(
       <MemoryRouter>

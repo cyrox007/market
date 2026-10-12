@@ -4,7 +4,8 @@ import type { Category } from '../../../lib/api';
 import type { CatalogScope } from '../../../lib/catalog-query';
 import { PAGE_CONTAINER } from '../../../lib/layout';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import CatalogHeader from './CatalogHeader';
+import CatalogHeader, { ProductCount } from './CatalogHeader';
+import FilterChips from './chips/FilterChips';
 import { countProductsIn } from './countProducts';
 import AllFiltersPanel from './all-filters/AllFiltersPanel';
 import ProductGrid from './ProductGrid';
@@ -30,6 +31,7 @@ export default function CatalogListing({
 }: CatalogListingProps) {
   const [query, setQuery] = useUrlCatalogQuery();
   const listing = useCatalogListing({ scope, query, onQueryChange: setQuery, initial });
+  const shownTotal = listing.isLoading ? null : listing.total;
   const countProducts = useMemo(() => countProductsIn(scope), [scope]);
   // Один раз на странице: панель создаётся при каждом открытии, а хук в первом кадре даёт false
   const compact = useMediaQuery('(max-width: 979.98px)');
@@ -50,11 +52,7 @@ export default function CatalogListing({
       <div
         className={`${PAGE_CONTAINER} pb-16 pt-6 max-md:pb-12 max-md:pt-5 max-vsm:pb-10 max-vsm:pt-4`}
       >
-        <CatalogHeader
-          category={category}
-          title={displayName}
-          total={listing.isLoading ? null : listing.total}
-        />
+        <CatalogHeader category={category} title={displayName} total={shownTotal} />
 
         {category?.children && category.children.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2 md:gap-3">
@@ -62,7 +60,7 @@ export default function CatalogListing({
               <Link
                 key={subcat.id}
                 to={`/catalog/${subcat.slug}`}
-                className="whitespace-nowrap rounded-pill bg-surface-grey px-4 py-2 text-14 text-ink transition-colors hover:bg-brand-green hover:text-ink-inverse"
+                className="whitespace-nowrap rounded-pill bg-surface-grey px-4 py-2 text-14 text-ink outline-none transition-colors hover:bg-surface-border focus-visible:ring-2 focus-visible:ring-brand-green"
                 onMouseEnter={() => onPrefetchCategory(subcat.slug)}
                 onFocus={() => onPrefetchCategory(subcat.slug)}
               >
@@ -83,6 +81,19 @@ export default function CatalogListing({
             onOpenAllFilters={openAllFilters}
           />
         </div>
+
+        <div className="mt-4 empty:hidden">
+          <FilterChips
+            query={query}
+            meta={listing.filtersMeta}
+            subcategories={subcategories}
+            onQueryChange={setQuery}
+          />
+        </div>
+
+        <p className="mt-4 empty:hidden md:hidden">
+          <ProductCount total={shownTotal} />
+        </p>
 
         <AllFiltersPanel
           key={allFiltersSession}

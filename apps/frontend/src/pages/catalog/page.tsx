@@ -61,7 +61,7 @@ export default function Catalog() {
           aria-label="Хлебные крошки"
           className="flex items-center gap-2 text-14 text-ink-secondary max-vsm:gap-1.5 max-vsm:text-12"
         >
-          <Link to="/" className="transition-colors hover:text-brand-green">
+          <Link to="/" className="text-ink transition-colors hover:text-ink-secondary">
             Главная
           </Link>
           <ChevronRight className="size-4 max-vsm:size-3.5" aria-hidden />

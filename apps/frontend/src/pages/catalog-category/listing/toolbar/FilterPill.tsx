@@ -9,6 +9,8 @@ interface FilterPillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Стрелка у кнопок с выпадающим окном */
   chevron?: boolean;
   icon?: ReactNode;
+  /** Ниже 980 — текстом без рамки и фона (макеты 768 / 375), наведение — серый текст */
+  textBelowMd?: boolean;
 }
 
 /**
@@ -20,6 +22,7 @@ export default function FilterPill({
   open = false,
   chevron = true,
   icon,
+  textBelowMd = false,
   className,
   children,
   ...rest
@@ -34,6 +37,8 @@ export default function FilterPill({
         'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-surface-border px-3.5 py-2.5 text-16 font-medium',
         'outline-none transition-colors hover:bg-surface-grey hover:text-brand-yellow focus-visible:ring-2 focus-visible:ring-brand-green',
         open ? 'bg-surface-grey text-brand-yellow' : 'bg-surface text-ink',
+        textBelowMd &&
+          'max-md:border-transparent max-md:bg-transparent max-md:px-0 max-md:text-ink max-md:hover:bg-transparent max-md:hover:text-ink-secondary',
         className,
       )}
     >

@@ -48,7 +48,7 @@ export default function UserActions({
           // Ниже 980 подпись скрыта display:none, а иконка и счётчик aria-hidden —
           // без своего имени ссылка осталась бы для читалки безымянной
           aria-label={count && count > 0 ? `${label}, ${count}` : label}
-          className="group inline-flex flex-col items-center gap-0.5 text-14 text-ink outline-none hover:text-brand-green focus-visible:text-brand-green"
+          className="group inline-flex flex-col items-center gap-0.5 text-14 text-ink outline-none transition-colors hover:text-ink-secondary focus-visible:text-ink-secondary"
         >
           <span className="relative inline-flex">
             <Icon className="size-6" aria-hidden="true" />
