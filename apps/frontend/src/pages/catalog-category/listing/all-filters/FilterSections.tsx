@@ -158,8 +158,9 @@ export default function FilterSections({ draft, set, meta, subcategories }: Filt
     });
   }
 
+  // Планшет: две колонки без разделителей, между рядами 28 (макет Tablet 768)
   return (
-    <div className="grid grid-cols-1 gap-x-8 vsm:max-md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-8 vsm:max-md:grid-cols-2 vsm:max-md:gap-y-7">
       {sections.map((section, index) => (
         <Fragment key={section.key}>
           {index > 0 && <hr className="my-6 border-surface-border vsm:max-md:hidden" />}
