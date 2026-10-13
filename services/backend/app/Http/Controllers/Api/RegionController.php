@@ -54,205 +54,52 @@ class RegionController extends Controller
         return $location;
     }
 
-    /**
-     * Получить рекомендуемый регион для пользователя
-     * 
-     * Логика определения:
-     * 1. Если пользователь авторизован и у него есть адрес по умолчанию - используем его регион
-     * 2. Если передан city в запросе - ищем магазин по городу и берем его регион
-     * 3. Определяем по IP адресу пользователя (геолокация)
-     * 4. Возвращаем первый активный регион по умолчанию
-     */
+    /** Bridge for the existing client; never infer the customer's city from warehouses or IP. */
     public function detect(Request $request): JsonResponse
     {
-        $locationFromRequest = $this->resolveLocationFromRequest($request);
-        if ($locationFromRequest) {
-            return response()->json([
-                'region' => [
-                    'id' => $locationFromRequest->id,
-                    'name' => $locationFromRequest->name,
-                    'type' => $locationFromRequest->type,
-                ],
-                'source' => 'request_location',
-            ]);
-        }
-
-        $user = $request->user();
-        $city = $request->get('city');
-        $ip = $request->ip();
-        
-        // 1. Проверяем адрес пользователя
-        if ($user) {
-            $defaultAddress = $user->defaultAddress();
-            if ($defaultAddress && $defaultAddress->shipping_location_id) {
-                $region = ShippingLocation::where('id', $defaultAddress->shipping_location_id)
-                    ->where('is_active', true)
-                    ->first();
-                
-                if ($region) {
-                    return response()->json([
-                        'region' => [
-                            'id' => $region->id,
-                            'name' => $region->name,
-                            'type' => $region->type,
-                        ],
-                        'source' => 'user_address',
-                    ]);
-                }
-                
-                // Если у адреса есть город, но нет shipping_location_id, ищем магазин по городу
-                if ($defaultAddress->city && !$city) {
-                    $city = $defaultAddress->city;
-                }
-            }
-        }
-
-        // 2. Проверяем город из запроса
-        if ($city) {
-            $cityClean = trim($city);
-            
-            // Сначала ищем точное совпадение по названию локации
-            $exactMatch = ShippingLocation::where('is_active', true)
-                ->where(function($query) use ($cityClean) {
-                    $query->where('name', $cityClean)
-                          ->orWhere('name', 'like', "г. {$cityClean}")
-                          ->orWhere('name', 'like', "г.{$cityClean}")
-                          ->orWhere('name', 'like', "{$cityClean}%");
-                })
-                ->whereIn('type', ['locality', 'region'])
-                ->orderByRaw("CASE WHEN type = 'locality' THEN 1 ELSE 2 END")
-                ->orderBy('sort_order')
-                ->first();
-            
-            if ($exactMatch) {
-                // Если нашли locality, возвращаем его родительский регион или сам locality
-                $region = $exactMatch;
-                if ($exactMatch->type === 'locality' && $exactMatch->parent_id) {
-                    $parentRegion = ShippingLocation::where('id', $exactMatch->parent_id)
-                        ->where('is_active', true)
-                        ->where('type', 'region')
-                        ->first();
-                    if ($parentRegion) {
-                        $region = $parentRegion;
-                    }
-                }
-                
+        $input = $request->validate([
+            'locality_external_id' => 'nullable|string|max:128',
+            'latitude' => 'nullable|required_with:longitude|numeric|between:-90,90',
+            'longitude' => 'nullable|required_with:latitude|numeric|between:-180,180',
+            'city' => 'nullable|string|max:100',
+        ]);
+        $directory = app(\App\Services\Address\LocalityGeoDirectory::class);
+        $resolver = app(\App\Services\Shipping\CustomerDestinationResolver::class);
+        try {
+            if (! empty($input['locality_external_id'])) {
+                $locality = $directory->find($input['locality_external_id']);
+                abort_unless($locality, 422, 'Выберите населённый пункт из справочника.');
                 return response()->json([
-                    'region' => [
-                        'id' => $region->id,
-                        'name' => $region->name,
-                        'type' => $region->type,
-                    ],
-                    'source' => 'city_name_match',
+                    'locality' => $locality, 'region' => $resolver->resolve($locality),
+                    'source' => 'address_directory',
                 ]);
             }
-            
-            // Если точного совпадения нет, ищем по магазинам
-            $store = Store::where('city', 'like', "%{$cityClean}%")
-                ->where('is_active', true)
-                ->whereNotNull('shipping_location_id')
-                ->first();
-            
-            if ($store && $store->shipping_location_id) {
-                $region = ShippingLocation::where('id', $store->shipping_location_id)
-                    ->where('is_active', true)
-                    ->first();
-                
-                if ($region) {
-                    return response()->json([
-                        'region' => [
-                            'id' => $region->id,
-                            'name' => $region->name,
-                            'type' => $region->type,
-                        ],
-                        'source' => 'store_city',
-                    ]);
-                }
+            if (isset($input['latitude'], $input['longitude'])) {
+                return response()->json(array_merge(
+                    $directory->nearby((float) $input['latitude'], (float) $input['longitude']),
+                    ['region' => null, 'source' => 'coordinates']
+                ));
             }
-        }
-
-        // 3. Определяем регион по IP адресу
-        // Получаем реальный IP клиента (учитываем прокси в Docker)
-        $clientIp = $request->header('X-Forwarded-For');
-        if ($clientIp) {
-            $clientIp = explode(',', $clientIp)[0];
-            $clientIp = trim($clientIp);
-        }
-        if (!$clientIp || $clientIp === '127.0.0.1' || $clientIp === '::1') {
-            $clientIp = $ip;
-        }
-        
-        if ($clientIp && $clientIp !== '127.0.0.1' && $clientIp !== '::1' && !str_starts_with($clientIp, '172.') && !str_starts_with($clientIp, '192.168.')) {
-            try {
-                // Используем бесплатный API для определения города по IP
-                // ip-api.com - бесплатный, до 45 запросов в минуту
-                $ipApiUrl = "http://ip-api.com/json/{$clientIp}?fields=status,message,city,regionName,country";
-                $context = stream_context_create([
-                    'http' => [
-                        'timeout' => 2, // Таймаут 2 секунды
-                        'ignore_errors' => true,
-                    ]
-                ]);
-                
-                $response = @file_get_contents($ipApiUrl, false, $context);
-                if ($response) {
-                    $ipData = json_decode($response, true);
-                    
-                    if (isset($ipData['status']) && $ipData['status'] === 'success' && !empty($ipData['city'])) {
-                        $detectedCity = $ipData['city'];
-                        
-                        // Ищем магазин по городу из IP геолокации
-                        $store = Store::where('city', 'like', "%{$detectedCity}%")
-                            ->where('is_active', true)
-                            ->whereNotNull('shipping_location_id')
-                            ->first();
-                        
-                        if ($store && $store->shipping_location_id) {
-                            $region = ShippingLocation::where('id', $store->shipping_location_id)
-                                ->where('type', 'region')
-                                ->where('is_active', true)
-                                ->first();
-                            
-                            if ($region) {
-                                return response()->json([
-                                    'region' => [
-                                        'id' => $region->id,
-                                        'name' => $region->name,
-                                        'type' => $region->type,
-                                    ],
-                                    'source' => 'ip_geolocation',
-                                ]);
-                            }
-                        }
+            if (! empty($input['city'])) {
+                $matches = collect($directory->search(null, $input['city']))
+                    ->filter(fn (array $row): bool => mb_strtolower($row['name']) === mb_strtolower(trim($input['city'])));
+                if ($matches->count() === 1) {
+                    $locality = $directory->find($matches->first()['externalId']);
+                    if ($locality) {
+                        return response()->json(['locality' => $locality, 'region' => $resolver->resolve($locality),
+                            'source' => 'address_directory']);
                     }
                 }
-            } catch (\Exception $e) {
-                // Игнорируем ошибки определения по IP, продолжаем дальше
             }
+        } catch (\RuntimeException $error) {
+            report($error);
+            return response()->json(['message' => 'Адресный справочник временно недоступен.'], 503);
         }
-
-        // 4. Возвращаем первую активную локацию по умолчанию (приоритет городам, потом регионам)
-        $defaultRegion = ShippingLocation::where('is_active', true)
-            ->whereIn('type', ['locality', 'region'])
-            ->orderByRaw("CASE WHEN type = 'locality' THEN 1 ELSE 2 END")
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->first();
-
-        if ($defaultRegion) {
-            return response()->json([
-                'region' => [
-                    'id' => $defaultRegion->id,
-                    'name' => $defaultRegion->name,
-                    'type' => $defaultRegion->type,
-                ],
-                'source' => 'default',
-            ]);
-        }
-
+        // An explicit existing shipping choice remains valid; it is not a detected settlement.
+        $location = $this->resolveLocationFromRequest($request);
         return response()->json([
-            'region' => null,
-            'source' => 'none',
+            'region' => $location?->only(['id', 'name', 'type']),
+            'source' => $location ? 'request_location' : 'none',
         ]);
     }
 

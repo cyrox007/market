@@ -43,6 +43,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Единый JSON-формат ошибок API; CORS-заголовки навешивает HandleCors (config/cors.php).
         $exceptions->render(function (\Throwable $e, $request) {
             if ($request->is('api/*') && $request->expectsJson()) {
+                if ($e instanceof \Illuminate\Http\Exceptions\HttpResponseException) {
+                    return $e->getResponse();
+                }
                 $status = 500;
                 $payload = [
                     'message' => $e->getMessage() ?: 'Server Error',
@@ -60,7 +63,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     $status = $e->getStatusCode();
                 }
 
-                return response()->json($payload, $status);
+                return response()->json($payload, $status, $e instanceof HttpExceptionInterface ? $e->getHeaders() : []);
             }
         });
     })->create();

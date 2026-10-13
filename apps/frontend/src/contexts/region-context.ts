@@ -1,7 +1,9 @@
 import { createContext, useContext } from 'react';
-import type { ShippingLocation } from '../lib/api';
+import type { ShippingLocation, CustomerLocality } from '../lib/api';
 
 export interface RegionContextType {
+  locality: CustomerLocality | null;
+  selectLocality: (locality: CustomerLocality, shippingLocation: ShippingLocation | null) => void;
   region: ShippingLocation | null;
   regions: ShippingLocation[];
   loading: boolean;

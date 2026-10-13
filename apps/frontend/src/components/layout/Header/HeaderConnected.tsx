@@ -38,7 +38,7 @@ export default function HeaderConnected() {
   const { rooms } = useRoomTree();
   const { cartCount, wishlistCount, compareCount } = useCounters();
   const { isAuthenticated } = useAuth();
-  const { region } = useRegion();
+  const { region, locality } = useRegion();
   const [isCityModalOpen, setCityModalOpen] = useState(false);
 
   const categoryBar = useMemo<HeaderCategory[]>(
@@ -89,7 +89,7 @@ export default function HeaderConnected() {
   return (
     <>
       <Header
-        city={region?.name}
+        city={locality?.name ?? region?.name}
         onCityClick={() => setCityModalOpen(true)}
         categories={categoryBar}
         catalogSections={catalogSections}

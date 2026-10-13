@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import type { ShippingLocation } from '@/lib/api';
+import type { ShippingLocation, CustomerLocality } from '@/lib/api';
 import type { ReactNode } from 'react';
 import { RegionContext, type RegionContextType } from './region-context';
 
@@ -35,6 +35,21 @@ export function RegionProvider({
 }: RegionProviderProps) {
   // Первый рендер = initialRegion с SSR, без localStorage (иначе hydration mismatch и белый экран).
   const [region, setRegion] = useState<ShippingLocation | null>(initialRegion ?? null);
+  const [locality, setLocality] = useState<CustomerLocality | null>(null);
+  const [localityRestored, setLocalityRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('customer_locality');
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved.locality?.externalId && saved.locality?.name) {
+          setLocality(saved.locality);
+          setRegion(saved.shippingLocation ?? null);
+        }
+      }
+    } catch { /* Storage can be unavailable. */ }
+    setLocalityRestored(true);
+  }, []);
   const [regions, setRegions] = useState<ShippingLocation[]>(initialRegions ?? []);
   const [loading, setLoading] = useState<boolean>(() => !initialRegion && !initialRegions?.length);
 
@@ -74,46 +89,6 @@ export function RegionProvider({
       // ignore
     }
   }, []);
-
-  const detectRegion = useCallback(
-    async (city?: string): Promise<ShippingLocation | null> => {
-      try {
-        if (city && regions.length > 0) {
-          const cityLower = city.toLowerCase().trim();
-          const foundRegion = regions.find((r) => {
-            const nameLower = r.name.toLowerCase();
-            const cleanName = nameLower.replace(/^(г\.|г\.\s|с\.|пос\.|пгт\.|ст\.)\s*/i, '');
-            const cleanCity = cityLower.replace(/^(г\.|г\.\s|с\.|пос\.|пгт\.|ст\.)\s*/i, '');
-            return (
-              cleanName === cleanCity ||
-              cleanName.includes(cleanCity) ||
-              cleanCity.includes(cleanName) ||
-              nameLower.includes(cityLower) ||
-              cityLower.includes(nameLower)
-            );
-          });
-          if (foundRegion) {
-            localStorage.setItem(REGION_DETECTED_KEY, 'true');
-            return foundRegion;
-          }
-        }
-        const detected = await api.regions.detect({ city });
-        if (detected.region) {
-          const foundInList = regions.find((r) => r.id === detected.region!.id);
-          if (foundInList) {
-            localStorage.setItem(REGION_DETECTED_KEY, 'true');
-            return foundInList;
-          }
-          localStorage.setItem(REGION_DETECTED_KEY, 'true');
-          return detected.region;
-        }
-      } catch {
-        // ignore
-      }
-      return null;
-    },
-    [regions],
-  );
 
   const loadSavedRegion = useCallback((): boolean => {
     try {
@@ -162,6 +137,7 @@ export function RegionProvider({
 
   useEffect(() => {
     const storedRegion = getStoredRegionData();
+    if (!localityRestored || locality) return;
     if (storedRegion?.id && region?.id !== storedRegion.id) {
       setRegion(storedRegion);
       try {
@@ -174,33 +150,31 @@ export function RegionProvider({
 
     if (regions.length > 0) {
       // Явно выбранный пользователем регион из localStorage имеет приоритет над SSR initialRegion.
-      const hasSavedRegion = loadSavedRegion();
-      if (!hasSavedRegion && !region) {
-        detectRegion().then((detectedRegion) => {
-          if (detectedRegion) {
-            const foundRegion = regions.find((r) => r.id === detectedRegion.id);
-            setRegion(foundRegion || detectedRegion);
-            try {
-              localStorage.setItem(REGION_DETECTED_KEY, 'true');
-            } catch {
-              // ignore
-            }
-          }
-        });
-      }
+      loadSavedRegion();
     }
-  }, [regions, loadSavedRegion, detectRegion, region]);
+  }, [regions, loadSavedRegion, region, locality, localityRestored]);
 
   const getRegionId = useCallback((): number | null => region?.id ?? null, [region]);
+  const selectLocality = useCallback((selected: CustomerLocality, shippingLocation: ShippingLocation | null) => {
+    setLocality(selected);
+    setRegion(shippingLocation);
+    saveRegion(shippingLocation);
+    try {
+      localStorage.setItem('customer_locality', JSON.stringify({ locality: selected, shippingLocation }));
+      sessionStorage.removeItem('current_region_id');
+      sessionStorage.removeItem('current_region_data');
+      if (shippingLocation) {
+        sessionStorage.setItem('current_region_id', String(shippingLocation.id));
+        sessionStorage.setItem('current_region_data', JSON.stringify(shippingLocation));
+      }
+    } catch { /* Keep in-memory choice. */ }
+    window.dispatchEvent(new CustomEvent('locality-changed', { detail: selected }));
+    window.dispatchEvent(new CustomEvent('region-changed', { detail: shippingLocation }));
+  }, [saveRegion]);
 
   const value: RegionContextType = {
-    region,
-    regions,
-    loading,
-    selectRegion,
-    reloadRegions: loadRegions,
-    getRegionId,
+    locality, selectLocality, region, regions, loading, selectRegion,
+    reloadRegions: loadRegions, getRegionId,
   };
-
   return <RegionContext.Provider value={value}>{children}</RegionContext.Provider>;
 }
