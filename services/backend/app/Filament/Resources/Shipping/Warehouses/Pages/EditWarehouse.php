@@ -7,6 +7,13 @@ use App\Filament\Resources\Shipping\Warehouses\WarehouseResource;
 
 class EditWarehouse extends EditRecord
 {
+    public static bool $formActionsAreSticky = false;
+
+    public function getRelationManagers(): array
+    {
+        return []; // Delivery settings are rendered inside the Delivery tab.
+    }
+
     protected static string $resource = WarehouseResource::class;
 
     protected function mutateFormDataBeforeFill(array $data): array
@@ -16,7 +23,7 @@ class EditWarehouse extends EditRecord
             $snapshot = json_decode($snapshot, true);
         }
         $data['address_external_id'] = $snapshot['selectionId'] ?? $data['address_external_id'] ?? null;
-        foreach (['locality' => 'directory_locality', 'street' => 'directory_street'] as $kind => $field) {
+        foreach (['region' => 'directory_region', 'locality' => 'directory_locality', 'street' => 'directory_street'] as $kind => $field) {
             $item = collect($snapshot['path'] ?? [])->last(fn (array $item): bool => ($item['kind'] ?? null) === $kind);
             $data[$field] = $item['externalId'] ?? null;
             if (isset($item['externalId'], $item['label'])) {

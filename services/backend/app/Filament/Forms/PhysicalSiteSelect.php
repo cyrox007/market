@@ -17,7 +17,8 @@ class PhysicalSiteSelect
     {
         $fields = [
             TextInput::make('name')->label('Как назвать это место')->placeholder('Например: Головной офис, Чаплыгин')->required()->maxLength(255),
-            Select::make('directory_locality')->label('1. Город / посёлок / село')->searchable()->live()->required()
+            DirectorySelectLoading::apply(Select::make('directory_locality'), 'населённые пункты')->label('1. Город / посёлок / село')->searchable()->live()->required()
+                ->options(fn (): array => app(WarehouseAddressOptions::class)->initial('localities', null))
                 ->getSearchResultsUsing(fn (string $search): array => app(WarehouseAddressOptions::class)->search('localities', null, $search))
                 ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
                 ->afterStateUpdated(function (Set $set): void {
@@ -25,7 +26,8 @@ class PhysicalSiteSelect
                         $set($field, null);
                     }
                 }),
-            Select::make('directory_street')->label('2. Улица (если есть)')->searchable()->live()
+            DirectorySelectLoading::apply(Select::make('directory_street'), 'улицы', ['directory_locality'])->label('2. Улица (если есть)')->searchable()->live()
+                ->options(fn (Get $get): array => app(WarehouseAddressOptions::class)->initial('streets', $get('directory_locality')))
                 ->disabled(fn (Get $get): bool => blank($get('directory_locality')))
                 ->getSearchResultsUsing(fn (string $search, Get $get): array => app(WarehouseAddressOptions::class)->search('streets', $get('directory_locality'), $search))
                 ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
@@ -34,7 +36,8 @@ class PhysicalSiteSelect
                         $set($field, null);
                     }
                 }),
-            Select::make('address_external_id')->label('3. Дом / корпус / строение')->searchable()->required()
+            DirectorySelectLoading::apply(Select::make('address_external_id'), 'здания', ['directory_locality', 'directory_street'])->label('3. Дом / корпус / строение')->searchable()->required()
+                ->options(fn (Get $get): array => app(WarehouseAddressOptions::class)->initial('buildings', $get('directory_street') ?: $get('directory_locality')))
                 ->disabled(fn (Get $get): bool => blank($get('directory_locality')))
                 ->getSearchResultsUsing(fn (string $search, Get $get): array => app(WarehouseAddressOptions::class)->search('buildings', $get('directory_street') ?: $get('directory_locality'), $search))
                 ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null),

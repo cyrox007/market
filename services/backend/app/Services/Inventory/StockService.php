@@ -33,6 +33,10 @@ class StockService
      */
     public function decreaseStockForOrder(Order $order): array
     {
+        if ($order->fulfillment_snapshot) {
+            // New address-based orders reserve the exact warehouse transactionally.
+            return [];
+        }
         // Защита от повторной обработки - используем кеш
         static $processedOrders = [];
 
@@ -188,6 +192,9 @@ class StockService
      */
     public function increaseStockForOrder(Order $order): array
     {
+        if ($order->fulfillment_snapshot) {
+            return app(\App\Services\Shipping\WarehouseOrderStock::class)->release($order);
+        }
         // Защита от повторной обработки - используем кеш
         static $processedCancelledOrders = [];
 

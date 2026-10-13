@@ -13,7 +13,7 @@ class WarehouseDeliveryProfile extends Model
     protected $fillable = [
         'warehouse_id', 'name', 'coverage_type', 'radius_km', 'base_price', 'price_per_km',
         'free_delivery_threshold', 'delivery_days_min', 'delivery_days_max', 'priority',
-        'is_active', 'constraints',
+        'is_active', 'constraints', 'directory_territories',
     ];
 
     protected function casts(): array
@@ -28,7 +28,23 @@ class WarehouseDeliveryProfile extends Model
             'priority' => 'integer',
             'is_active' => 'boolean',
             'constraints' => 'array',
+            'directory_territories' => 'array',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $profile): void {
+            if ($profile->isDirty('directory_territories') && $profile->directory_territories) {
+                $profile->directory_territories = app(\App\Services\Shipping\DirectoryCoverage::class)->verify($profile->directory_territories);
+            }
+            if ((float) $profile->base_price < 0 || (float) $profile->price_per_km < 0
+                || $profile->delivery_days_min < 0 || $profile->delivery_days_max < $profile->delivery_days_min
+                || ! in_array($profile->coverage_type ?? 'locations', ['locations', 'radius', 'hybrid'], true)
+                || (in_array($profile->coverage_type, ['radius', 'hybrid'], true) && (float) $profile->radius_km <= 0)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['coverage_type' => 'Проверьте радиус, стоимость и диапазон сроков доставки.']);
+            }
+        });
     }
 
     public function warehouse(): BelongsTo

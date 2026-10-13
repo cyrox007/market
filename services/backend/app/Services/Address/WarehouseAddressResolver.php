@@ -70,7 +70,7 @@ class WarehouseAddressResolver
             $id = $site->address_snapshot['selectionId'] ?? $site->address_external_id;
         }
         $changed = $id !== $previous || (string) $siteId !== (string) $record?->physical_site_id;
-        unset($data['directory_locality'], $data['directory_street']);
+        unset($data['directory_region'], $data['directory_locality'], $data['directory_street']);
         // Derived values must never be accepted from a submitted form.
         unset($data['address'], $data['gar_guid'], $data['kladr_code'], $data['address_snapshot'], $data['coordinate_source'], $data['coordinate_precision']);
         if ($site) {
@@ -93,12 +93,21 @@ class WarehouseAddressResolver
         }
         $lat = array_key_exists('latitude', $data) ? $data['latitude'] : ($changed ? null : $record?->latitude);
         $lon = array_key_exists('longitude', $data) ? $data['longitude'] : ($changed ? null : $record?->longitude);
+        $automatic = $id ? app(BuildingCoordinates::class)->find($data['address_snapshot'] ?? $record?->address_snapshot ?? []) : null;
+        if (blank($lat) && blank($lon) && $automatic && ! $site) {
+            $lat = $data['latitude'] = $automatic['latitude'];
+            $lon = $data['longitude'] = $automatic['longitude'];
+        }
         if (($lat !== null && $lat !== '') || ($lon !== null && $lon !== '')) {
             if (! is_numeric($lat) || ! is_numeric($lon) || $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
                 throw ValidationException::withMessages(['latitude' => 'Укажите обе координаты склада в допустимом диапазоне.']);
             }
             $data['coordinate_source'] = 'operator';
             $data['coordinate_precision'] = 'warehouse_point';
+            if ($automatic && abs((float) $lat - $automatic['latitude']) < .0000001 && abs((float) $lon - $automatic['longitude']) < .0000001) {
+                $data['coordinate_source'] = $automatic['source'];
+                $data['coordinate_precision'] = 'building';
+            }
         } else {
             $data['latitude'] = null;
             $data['longitude'] = null;

@@ -46,7 +46,30 @@ class FulfillmentSourceResolverTest extends TestCase
 
         $this->assertCount(2, $sources);
         $this->assertSame('Склад Воронеж', $sources->first()['source_name']);
+        $this->assertSame(4500.0, $sources->first()['base_price']);
+        $this->assertSame(2, $sources->first()['delivery_days_min']);
+        $this->assertSame(4, $sources->first()['delivery_days_max']);
         $this->assertSame(12, $sources->last()['processing_days_min']);
+    }
+
+    public function test_it_excludes_uncovered_destinations_and_disabled_profiles_and_warehouses(): void
+    {
+        $region = ShippingLocation::factory()->create();
+        $city = ShippingLocation::factory()->create(['parent_id' => $region->id]);
+        $outside = ShippingLocation::factory()->create();
+        $product = Product::factory()->create();
+        foreach (['active', 'disabled-profile', 'disabled-warehouse'] as $name) {
+            $warehouse = Warehouse::create(['name' => $name, 'is_active' => $name !== 'disabled-warehouse']);
+            $warehouse->productStocks()->create(['product_id' => $product->id, 'quantity' => 2]);
+            $profile = $warehouse->deliveryProfiles()->create([
+                'name' => $name, 'base_price' => 1500, 'delivery_days_min' => 3, 'delivery_days_max' => 5,
+                'is_active' => $name !== 'disabled-profile',
+            ]);
+            $profile->locations()->attach($region);
+        }
+        $resolver = app(FulfillmentSourceResolver::class);
+        $this->assertSame(['active'], $resolver->resolve($product, $city)->pluck('source_name')->all());
+        $this->assertEmpty($resolver->resolve($product, $outside));
     }
 
     public function test_it_excludes_source_without_stock_or_availability(): void

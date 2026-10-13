@@ -9,6 +9,17 @@ use Tests\TestCase;
 
 class AddressDirectoryClientTest extends TestCase
 {
+    public function test_it_removes_only_confirmed_padded_kladr_aliases(): void
+    {
+        Cache::flush();
+        $city = ['source' => 'kladr', 'externalId' => '4800000100000', 'parentExternalId' => '4800000000000', 'name' => 'Липецк', 'type' => 'г'];
+        $alias = array_replace($city, ['externalId' => '480000010000000', 'type' => 'город']);
+        $otherRegion = array_replace($alias, ['externalId' => '530000010000000', 'parentExternalId' => '5300000000000']);
+        Http::fake(['*' => Http::response([$alias, $city, $otherRegion])]);
+
+        $this->assertSame([$city, $otherRegion], app(AddressDirectoryClient::class)->options('localities', ['q' => 'Липецк']));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

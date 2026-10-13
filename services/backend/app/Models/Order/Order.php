@@ -51,6 +51,7 @@ class Order extends Model implements Payable
         'contact_email',
         'address_id',
         'address_snapshot',
+        'fulfillment_snapshot',
         'shipping_location_id',
         'region_id',
         'shipping_method_id',
@@ -67,6 +68,7 @@ class Order extends Model implements Payable
     protected function casts(): array
     {
         return [
+            'fulfillment_snapshot' => 'array',
             'total' => 'decimal:2',
             'subtotal' => 'decimal:2',
             'delivery_cost' => 'decimal:2',

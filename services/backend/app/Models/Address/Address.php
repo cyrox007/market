@@ -23,12 +23,15 @@ class Address extends Model
         'entrance',
         'is_default',
         'shipping_location_id',
+        'directory_external_id', 'gar_guid', 'kladr_code', 'address_snapshot',
+        'room', 'floor', 'intercom', 'comment',
     ];
 
     protected function casts(): array
     {
         return [
             'is_default' => 'boolean',
+            'address_snapshot' => 'array',
         ];
     }
 
@@ -61,11 +64,9 @@ class Address extends Model
      */
     public function getFullAddressAttribute(): string
     {
-        $parts = [
-            "г. {$this->city}",
-            "ул. {$this->street}",
-            "д. {$this->house}",
-        ];
+        $parts = ! empty($this->address_snapshot['label'])
+            ? [$this->address_snapshot['label']]
+            : array_values(array_filter([$this->city, $this->street ? "ул. {$this->street}" : null, "д. {$this->house}"]));
 
         if ($this->apartment) {
             $parts[] = "кв. {$this->apartment}";
@@ -73,6 +74,10 @@ class Address extends Model
 
         if ($this->entrance) {
             $parts[] = "подъезд {$this->entrance}";
+        }
+
+        if ($this->room) {
+            $parts[] = "комн. {$this->room}";
         }
 
         return implode(', ', $parts);

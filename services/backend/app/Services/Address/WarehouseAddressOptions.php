@@ -8,15 +8,20 @@ class WarehouseAddressOptions
 {
     public function __construct(private readonly AddressDirectoryClient $directory) {}
 
-    public function search(string $level, ?string $parent, string $search): array
+    public function initial(string $level, ?string $parent, bool $compact = false): array
     {
-        if (($level === 'localities' && mb_strlen(trim($search)) < 2)
-            || ($level !== 'localities' && ! $parent)) {
+        return $this->search($level, $parent, '', initial: true, compact: $compact);
+    }
+
+    public function search(string $level, ?string $parent, string $search, bool $initial = false, bool $compact = false): array
+    {
+        if (($level === 'localities' && mb_strlen(trim($search)) < 2 && ! ($parent && trim($search) === '') && ! $initial)
+            || (! in_array($level, ['regions', 'localities'], true) && ! $parent)) {
             return [];
         }
         try {
             $items = $this->directory->options($level, array_filter([
-                'parentExternalId' => $parent, 'q' => trim($search), 'limit' => 50,
+                'parentExternalId' => $parent, 'q' => trim($search), 'limit' => $level === 'regions' ? 100 : 50,
             ], fn ($value) => $value !== null && $value !== ''));
             $options = [];
             foreach ($items as $item) {
@@ -39,7 +44,13 @@ class WarehouseAddressOptions
                     $label = $number !== null
                         ? preg_replace('/'.preg_quote((string) $item['name'], '/').'$/u', $number, $item['label'])
                         : $item['label'];
-                    $options[$id] = $label;
+                    $short = $level === 'buildings' ? 'д. '.($number ?? $item['name'] ?? $label) : ($item['name'] ?? $label);
+                    if ($level === 'streets' && ! empty($item['name'])) {
+                        $short = trim(($item['type'] ?? 'ул.').' '.$item['name']);
+                    }
+                    $options[$id] = $compact ? $short : $label;
+                    \Illuminate\Support\Facades\Cache::put('address-directory:short-label:'.sha1($id), $short,
+                        (int) config('address_directory.cache_ttl'));
                     \Illuminate\Support\Facades\Cache::put('address-directory:label:'.sha1($id), $label,
                         (int) config('address_directory.cache_ttl'));
                 }

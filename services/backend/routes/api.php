@@ -135,6 +135,7 @@ Route::prefix('v1')->group(function () {
 
     // Shipping (public)
     Route::prefix('shipping')->group(function () {
+        Route::post('/quote', \App\Http\Controllers\Api\WarehouseDeliveryQuoteController::class)->middleware('api-session');
         Route::get('/locations', [ShippingController::class, 'getLocations']);
         Route::get('/locations/tree', [ShippingController::class, 'getLocationTree']);
         Route::get('/locations/{locationId}', [ShippingController::class, 'getLocationInfo']);

@@ -31,6 +31,10 @@ class AdminSvPanelProvider extends PanelProvider
     {
         return $panel
             ->default()
+            ->assets([
+                \Filament\Support\Assets\Css::make('warehouse-leaflet', resource_path('vendor/leaflet/leaflet.css')),
+                \Filament\Support\Assets\Js::make('warehouse-leaflet', resource_path('vendor/leaflet/leaflet.js')),
+            ])
             ->id('admin_sv')
             ->path('admin_sv')
             ->login()
