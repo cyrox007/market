@@ -29,6 +29,7 @@ class Review extends Model
 
         // Сбрасываем кэш товара при изменении отзыва
         static::saved(function ($review) {
+            \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid());
             if ($review->product_id) {
                 $product = \App\Models\Product\Product::find($review->product_id);
                 if ($product) {
@@ -38,6 +39,7 @@ class Review extends Model
         });
 
         static::deleted(function ($review) {
+            \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid());
             if ($review->product_id) {
                 $product = \App\Models\Product\Product::find($review->product_id);
                 if ($product) {

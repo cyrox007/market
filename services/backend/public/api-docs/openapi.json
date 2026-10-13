@@ -2396,11 +2396,11 @@
               }
             }
           },
-          "422": {
-            "description": "Ошибка валидации или неверный текущий пароль"
-          },
           "401": {
             "description": "Не авторизован"
+          },
+          "422": {
+            "description": "Ошибка валидации или неверный текущий пароль"
           }
         }
       }
@@ -2545,7 +2545,7 @@
       "get": {
         "operationId": "getProducts",
         "summary": "Получить список товаров",
-        "description": "Возвращает список товаров с пагинацией, фильтрацией и сортировкой",
+        "description": "Каталог с фильтрацией и пагинацией. Равные значения сортируются дополнительно по ID asc (не снимок данных). rating — средний рейтинг одобренных отзывов, округлённый до 1 знака; без отзывов 0. meta.filters доступен для категории, нескольких категорий и комнаты, иначе null. Для категорий фасеты до фильтров характеристик, для комнат — после обязательных ограничений комнаты и характеристик. has_on_sale вычисляется до on_sale. Региональные скидки не участвуют в on_sale.",
         "tags": [
           "Products"
         ],
@@ -2630,11 +2630,18 @@
           {
             "name": "sort_by",
             "in": "query",
-            "description": "Поле для сортировки (created_at, price, name, units_sold)",
+            "description": "created_at — дата; price — цена; name — название; units_sold — популярность; rating — среднее одобренных отзывов (1 знак, без отзывов 0). Дополнительный порядок ID asc.",
             "required": false,
             "schema": {
               "type": "string",
-              "example": "created_at"
+              "enum": [
+                "created_at",
+                "price",
+                "name",
+                "units_sold",
+                "rating"
+              ],
+              "default": "created_at"
             }
           },
           {
@@ -2644,7 +2651,11 @@
             "required": false,
             "schema": {
               "type": "string",
-              "example": "desc"
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
             }
           },
           {
@@ -2686,7 +2697,8 @@
             "required": false,
             "schema": {
               "type": "integer"
-            }
+            },
+            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
           },
           {
             "name": "manufacturer_slug",
@@ -2694,7 +2706,8 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
           },
           {
             "name": "shipping_location_id",
@@ -2704,6 +2717,58 @@
               "type": "integer"
             },
             "description": "Приоритетный параметр локации (региональные цены/видимость)"
+          },
+          {
+            "name": "category_slugs",
+            "in": "query",
+            "required": false,
+            "description": "До 100 slug через запятую или category_slugs[]. Объединение категорий с потомками; другие фильтры применяются через AND. Неизвестный slug: 422.",
+            "schema": {
+              "type": "string",
+              "example": "divany,krovati"
+            }
+          },
+          {
+            "name": "on_sale",
+            "in": "query",
+            "required": false,
+            "description": "1 — только товары со скидкой original_price > price; для вариативного товара нужен активный вариант со скидкой. 0 — без ограничения. Характеристики и акция могут совпасть на разных вариантах.",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ],
+              "default": 0
+            }
+          },
+          {
+            "name": "room_slug",
+            "in": "query",
+            "required": false,
+            "description": "Slug комнаты: фильтры и meta.filters учитывают её ограничения.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "room_id",
+            "in": "query",
+            "required": false,
+            "description": "ID комнаты (альтернатива room_slug).",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "attr_proizvoditel",
+            "in": "query",
+            "required": false,
+            "description": "Slug производителей через запятую (OR). Значения и count — в meta.filters.attributes с slug=proizvoditel; count считает уникальные родительские товары. Неизвестное значение даёт пустую выдачу. Другие характеристики: attr_{slug}.",
+            "schema": {
+              "type": "string",
+              "example": "manufacturer-a,manufacturer-b"
+            }
           }
         ],
         "responses": {
@@ -2757,8 +2822,13 @@
                               "items": {
                                 "type": "object"
                               }
+                            },
+                            "has_on_sale": {
+                              "type": "boolean",
+                              "description": "Есть акционные товары в контексте фильтров до применения on_sale."
                             }
-                          }
+                          },
+                          "nullable": true
                         }
                       }
                     }
@@ -2766,6 +2836,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Некорректные параметры; Laravel JSON message и errors."
           }
         }
       }
@@ -3030,11 +3103,18 @@
           {
             "name": "sort_by",
             "in": "query",
-            "description": "Поле для сортировки (created_at, price, name, units_sold)",
+            "description": "created_at — дата; price — цена; name — название; units_sold — популярность; rating — среднее одобренных отзывов (1 знак, без отзывов 0). Дополнительный порядок ID asc.",
             "required": false,
             "schema": {
               "type": "string",
-              "example": "created_at"
+              "enum": [
+                "created_at",
+                "price",
+                "name",
+                "units_sold",
+                "rating"
+              ],
+              "default": "created_at"
             }
           },
           {
@@ -3044,7 +3124,11 @@
             "required": false,
             "schema": {
               "type": "string",
-              "example": "desc"
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
             }
           },
           {
@@ -3091,7 +3175,7 @@
             }
           },
           "422": {
-            "description": "Ошибка валидации (запрос слишком короткий)"
+            "description": "Некорректные параметры; Laravel JSON message и errors."
           }
         }
       }
@@ -3346,11 +3430,11 @@
               }
             }
           },
-          "422": {
-            "description": "Ошибка валидации или недостаточно товара на складе"
-          },
           "404": {
             "description": "Вариация товара не найдена"
+          },
+          "422": {
+            "description": "Ошибка валидации или недостаточно товара на складе"
           }
         }
       },
@@ -6946,6 +7030,214 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/products/count": {
+      "get": {
+        "operationId": "countProducts",
+        "summary": "Количество товаров по фильтрам",
+        "description": "Те же фильтры и региональная видимость, что GET /api/v1/products. Только total, без карточек, пагинации и meta.filters. Параметры page/per_page/sort не нужны.",
+        "tags": [
+          "Products"
+        ],
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "query",
+            "description": "ID категории",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "category_slug",
+            "in": "query",
+            "description": "Slug категории",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "price_min",
+            "in": "query",
+            "description": "Минимальная цена",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          {
+            "name": "price_max",
+            "in": "query",
+            "description": "Максимальная цена",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Поисковый запрос",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region_id",
+            "in": "query",
+            "description": "ID региона доставки",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 558
+          },
+          {
+            "name": "colors",
+            "in": "query",
+            "description": "Фильтр по цветам (массив или строка через запятую)",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "sizes",
+            "in": "query",
+            "description": "Фильтр по размерам (массив или строка через запятую, формат: 180x90)",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "attributes",
+            "in": "query",
+            "description": "Фильтр по характеристикам",
+            "required": false,
+            "schema": {
+              "type": "object"
+            }
+          },
+          {
+            "name": "manufacturer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
+          },
+          {
+            "name": "manufacturer_slug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
+          },
+          {
+            "name": "shipping_location_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Приоритетный параметр локации (региональные цены/видимость)"
+          },
+          {
+            "name": "category_slugs",
+            "in": "query",
+            "required": false,
+            "description": "До 100 slug через запятую или category_slugs[]. Объединение категорий с потомками; другие фильтры применяются через AND. Неизвестный slug: 422.",
+            "schema": {
+              "type": "string",
+              "example": "divany,krovati"
+            }
+          },
+          {
+            "name": "on_sale",
+            "in": "query",
+            "required": false,
+            "description": "1 — только товары со скидкой original_price > price; для вариативного товара нужен активный вариант со скидкой. 0 — без ограничения. Характеристики и акция могут совпасть на разных вариантах.",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ],
+              "default": 0
+            }
+          },
+          {
+            "name": "room_slug",
+            "in": "query",
+            "required": false,
+            "description": "Slug комнаты: фильтры и meta.filters учитывают её ограничения.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "room_id",
+            "in": "query",
+            "required": false,
+            "description": "ID комнаты (альтернатива room_slug).",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "attr_proizvoditel",
+            "in": "query",
+            "required": false,
+            "description": "Slug производителей через запятую (OR). Значения и count — в meta.filters.attributes с slug=proizvoditel; count считает уникальные родительские товары. Неизвестное значение даёт пустую выдачу. Другие характеристики: attr_{slug}.",
+            "schema": {
+              "type": "string",
+              "example": "manufacturer-a,manufacturer-b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Количество уникальных товаров",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "total"
+                  ],
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "example": {
+                  "total": 42
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Некорректные параметры, включая неизвестный category_slugs. JSON message и errors."
           }
         }
       }

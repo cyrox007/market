@@ -68,6 +68,7 @@ Route::prefix('v1')->group(function () {
     // Products (public)
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
+        Route::get('/count', [ProductController::class, 'count']);
         Route::get('/featured', [ProductController::class, 'featured']);
         Route::get('/new', [ProductController::class, 'new']);
         Route::get('/sale', [ProductController::class, 'sale']);
