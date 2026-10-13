@@ -68,6 +68,9 @@ class ProductAttributeSyncService
                 DB::table('product_product_attributes')->insert($insert);
             }
         });
+
+        // Pivots are saved after the product event; invalidate the final persisted attribute state.
+        Product::flushAllProductCaches();
     }
 
     /**

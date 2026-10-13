@@ -63,7 +63,7 @@ class AttributeResource extends Resource
                             ->unique(ignoreRecord: true)
                             ->maxLength(255)
                             ->placeholder('color, size, material')
-                            ->helperText('Только латиница, цифры и дефис. Оставьте пустым для автоматической генерации.'),
+                            ->helperText('Системные коды: color — цвет, size — торговый размер, proizvoditel — производитель. Габариты в мм: sirina-mm, glubina-mm, vysota-mm. Эти коды не переименовывайте.'),
                     ])
                     ->columns(2),
 
@@ -99,7 +99,7 @@ class AttributeResource extends Resource
                         Toggle::make('is_use_in_variations')
                             ->label('Участвует в торговых предложениях')
                             ->default(false)
-                            ->helperText('Параметр вариации: цвет, размер, комплект и т.д.')
+                            ->helperText('Параметр вариации: цвет, размер, комплект. Для него API проверяет значение именно у конкретного активного предложения. Общие характеристики наследуются от товара, если у предложения нет своего значения.')
                             ->live(),
 
                         Toggle::make('is_filterable')

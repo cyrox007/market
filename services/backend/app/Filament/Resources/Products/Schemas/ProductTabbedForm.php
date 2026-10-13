@@ -237,7 +237,7 @@ class ProductTabbedForm extends ProductForm
     protected static function operatorAttributesSection(): Section
     {
         return Section::make('Характеристики товара')
-            ->description('Цвет, коммерческий размер, материал и другие свойства. Для вариативного товара цвет/размер задаются в его вариациях.')
+            ->description('Габариты для фильтров: «Ширина (мм)», «Глубина (мм)», «Высота (мм)» — числа без единиц. Цвет/торговый размер задавайте у предложений; общие свойства наследуются, если у предложения нет своего значения.')
             ->schema([
                 Repeater::make('product_attributes')
                     ->label('Характеристики')

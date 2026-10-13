@@ -2545,7 +2545,7 @@
       "get": {
         "operationId": "getProducts",
         "summary": "Получить список товаров",
-        "description": "Каталог с фильтрацией и пагинацией. Равные значения сортируются дополнительно по ID asc (не снимок данных). rating — средний рейтинг одобренных отзывов, округлённый до 1 знака; без отзывов 0. meta.filters доступен для категории, нескольких категорий и комнаты, иначе null. Для категорий фасеты до фильтров характеристик, для комнат — после обязательных ограничений комнаты и характеристик. has_on_sale вычисляется до on_sale. Региональные скидки не участвуют в on_sale.",
+        "description": "Каталог с фильтрацией по одному активному SKU: цвет, размер, цена, акция, характеристики и габариты не могут совпасть на разных вариантах. Общие характеристики наследуются от родителя, если SKU не переопределил значение; параметры вариаций не наследуют родительский список опций. Стабильный дополнительный порядок ID asc. meta.filters для категории/набора категорий/комнаты, иначе null. facet_mode=excluding_self: каждый фасет учитывает остальные пользовательские фильтры, исключая собственный выбор; обязательные ограничения комнаты сохраняются. count — уникальные карточки, не SKU; нулевые значения опущены. Цены базовые, персональные/региональные скидки не пересчитываются.",
         "tags": [
           "Products"
         ],
@@ -2732,7 +2732,7 @@
             "name": "on_sale",
             "in": "query",
             "required": false,
-            "description": "1 — только товары со скидкой original_price > price; для вариативного товара нужен активный вариант со скидкой. 0 — без ограничения. Характеристики и акция могут совпасть на разных вариантах.",
+            "description": "1 — только акционные предложения (original_price > price), совпадающие с остальными фильтрами на одном активном SKU. 0 — без ограничения. Базовые цены, без пересчёта региональных скидок.",
             "schema": {
               "type": "integer",
               "enum": [
@@ -2769,6 +2769,78 @@
               "type": "string",
               "example": "manufacturer-a,manufacturer-b"
             }
+          },
+          {
+            "name": "width_min",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из sirina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 1000
+          },
+          {
+            "name": "width_max",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из sirina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 2500
+          },
+          {
+            "name": "depth_min",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из glubina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 1000
+          },
+          {
+            "name": "depth_max",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из glubina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 2500
+          },
+          {
+            "name": "height_min",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из vysota-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 1000
+          },
+          {
+            "name": "height_max",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из vysota-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 2500
           }
         ],
         "responses": {
@@ -2825,7 +2897,76 @@
                             },
                             "has_on_sale": {
                               "type": "boolean",
-                              "description": "Есть акционные товары в контексте фильтров до применения on_sale."
+                              "description": "Есть акционный SKU при всех остальных фильтрах, без on_sale."
+                            },
+                            "facet_mode": {
+                              "type": "string",
+                              "enum": [
+                                "excluding_self"
+                              ],
+                              "description": "Счётчики по остальным фильтрам, без собственного выбора. Обязательные ограничения комнаты остаются."
+                            },
+                            "dimensions": {
+                              "type": "object",
+                              "properties": {
+                                "width": {
+                                  "type": "object",
+                                  "properties": {
+                                    "min": {
+                                      "type": "number",
+                                      "nullable": true
+                                    },
+                                    "max": {
+                                      "type": "number",
+                                      "nullable": true
+                                    },
+                                    "unit": {
+                                      "type": "string",
+                                      "enum": [
+                                        "mm"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "depth": {
+                                  "type": "object",
+                                  "properties": {
+                                    "min": {
+                                      "type": "number",
+                                      "nullable": true
+                                    },
+                                    "max": {
+                                      "type": "number",
+                                      "nullable": true
+                                    },
+                                    "unit": {
+                                      "type": "string",
+                                      "enum": [
+                                        "mm"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "height": {
+                                  "type": "object",
+                                  "properties": {
+                                    "min": {
+                                      "type": "number",
+                                      "nullable": true
+                                    },
+                                    "max": {
+                                      "type": "number",
+                                      "nullable": true
+                                    },
+                                    "unit": {
+                                      "type": "string",
+                                      "enum": [
+                                        "mm"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
                             }
                           },
                           "nullable": true
@@ -7174,7 +7315,7 @@
             "name": "on_sale",
             "in": "query",
             "required": false,
-            "description": "1 — только товары со скидкой original_price > price; для вариативного товара нужен активный вариант со скидкой. 0 — без ограничения. Характеристики и акция могут совпасть на разных вариантах.",
+            "description": "1 — только акционные предложения (original_price > price), совпадающие с остальными фильтрами на одном активном SKU. 0 — без ограничения. Базовые цены, без пересчёта региональных скидок.",
             "schema": {
               "type": "integer",
               "enum": [
@@ -7211,6 +7352,78 @@
               "type": "string",
               "example": "manufacturer-a,manufacturer-b"
             }
+          },
+          {
+            "name": "width_min",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из sirina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 1000
+          },
+          {
+            "name": "width_max",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из sirina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 2500
+          },
+          {
+            "name": "depth_min",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из glubina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 1000
+          },
+          {
+            "name": "depth_max",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из glubina-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 2500
+          },
+          {
+            "name": "height_min",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из vysota-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 1000
+          },
+          {
+            "name": "height_max",
+            "in": "query",
+            "required": false,
+            "description": "Габарит в мм из vysota-mm. Включительная граница; max >= min. Совпадение на одном активном SKU с прочими фильтрами.",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "example": 2500
           }
         ],
         "responses": {
