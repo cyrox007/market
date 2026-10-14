@@ -96,14 +96,13 @@ export default function CatalogListing({
           />
         </div>
 
-        <div className="mt-4 empty:hidden md:mt-6">
-          <FilterChips
-            query={query}
-            meta={listing.filtersMeta}
-            subcategories={subcategories}
-            onQueryChange={setQuery}
-          />
-        </div>
+        <FilterChips
+          query={query}
+          meta={listing.filtersMeta}
+          subcategories={subcategories}
+          onQueryChange={setQuery}
+          offsetClassName="pt-4 md:pt-6"
+        />
 
         <p className="mt-4 empty:hidden md:hidden">
           <ProductCount total={shownTotal} />

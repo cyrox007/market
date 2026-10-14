@@ -43,9 +43,21 @@ describe('плашки выбранных фильтров', () => {
   });
 
   it('без выбранных фильтров ничего не показывается — сортировка не плашка', () => {
-    const { container } = renderChips('?sort=cheap&page=2');
+    renderChips('?sort=cheap&page=2');
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('снят последний фильтр — строка сворачивается плавно: плашка ещё на месте, но скрыта', () => {
+    const { rerender } = renderChips('?on_sale=1');
+    expect(screen.getByRole('button', { name: 'Сбросить всё' })).toBeVisible();
+
+    rerender(
+      <FilterChips query={parseCatalogQuery('')} meta={meta} onQueryChange={vi.fn()} />,
+    );
+
+    expect(screen.getByText('По акции')).not.toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Сбросить всё' })).not.toBeInTheDocument();
   });
 
   it('подкатегория подписана названием', () => {

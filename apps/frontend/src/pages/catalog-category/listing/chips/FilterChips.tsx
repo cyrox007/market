@@ -1,5 +1,7 @@
 import { X } from 'lucide-react';
+import { useState, type TransitionEvent } from 'react';
 import type { FiltersMeta } from '../../../../lib/api';
+import { cn } from '../../../../lib/cn';
 import {
   filterChips,
   removeChip,
@@ -14,22 +16,82 @@ interface FilterChipsProps {
   /** Подкатегории — их названий нет в meta.filters */
   subcategories?: { slug: string; name: string }[];
   onQueryChange: (next: CatalogQuery) => void;
+  /** Отступ сверху — внутри сворачиваемой части, чтобы уезжал вместе со строкой */
+  offsetClassName?: string;
 }
 
 /**
  * Плашки выбранных фильтров и «Сбросить всё» (market-docs/49): снимаются сразу, без черновика.
  * От 550 — с переносом, «Сбросить всё» в конце; ниже — плашки одной строкой со свайпом,
- * «Сбросить всё» рядом ниже.
+ * «Сбросить всё» рядом ниже. Строка раскрывается и сворачивается по высоте (0fr → 1fr), сетка
+ * под ней съезжает плавно; при сворачивании видны последние плашки.
  */
 export default function FilterChips({
   query,
   meta,
   subcategories,
   onQueryChange,
+  offsetClassName,
 }: FilterChipsProps) {
   const chips = filterChips(query, { meta, categories: subcategories });
-  if (chips.length === 0) return null;
+  const open = chips.length > 0;
 
+  // Последние плашки — чтобы строка сворачивалась с ними, а не пустой
+  const key = chips.map((c) => `${c.id}:${c.label}`).join('|');
+  const [kept, setKept] = useState({ key, chips });
+  if (open && kept.key !== key) setKept({ key, chips });
+  const shown = open ? chips : kept.chips;
+
+  // Пока едет — обрезаем; раскрылось — нет: строка ниже 550 выходит за поля, у плашек кольцо фокуса
+  const [settled, setSettled] = useState(open);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    setSettled(false);
+  }
+  const onTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget && event.propertyName === 'grid-template-rows') {
+      setSettled(open);
+    }
+  };
+
+  return (
+    <div
+      inert={!open}
+      onTransitionEnd={onTransitionEnd}
+      className={cn(
+        'grid grid-cols-1 transition-[grid-template-rows,opacity,visibility] duration-slow ease-out',
+        'motion-reduce:transition-none',
+        open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+      )}
+      style={{ visibility: open ? 'visible' : 'hidden' }}
+    >
+      {/* Без анимации transitionend не приходит — обрезать незачем: свёрнутое скрыто visibility */}
+      <div
+        className={cn(
+          'min-h-0 motion-reduce:overflow-visible',
+          !(open && settled) && 'overflow-hidden',
+        )}
+      >
+        {shown.length > 0 && (
+          <div className={offsetClassName}>
+            <ChipRow chips={shown} query={query} onQueryChange={onQueryChange} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChipRow({
+  chips,
+  query,
+  onQueryChange,
+}: {
+  chips: ReturnType<typeof filterChips>;
+  query: CatalogQuery;
+  onQueryChange: (next: CatalogQuery) => void;
+}) {
   return (
     <div className="flex flex-wrap items-center gap-2 max-vsm:flex-col max-vsm:flex-nowrap max-vsm:items-start max-vsm:gap-1">
       {/* role — у `display: contents` Safari теряет список */}

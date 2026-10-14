@@ -266,6 +266,9 @@ export const api = {
   products: {
     list: (params?: ProductListParams) =>
       fetchAPI<ProductListResponse>(`/products?${toProductListSearch(params)}`),
+    /** Только число карточек — те же фильтры, без товаров и meta.filters */
+    count: (params?: ProductListParams) =>
+      fetchAPI<{ total: number }>(`/products/count?${toProductListSearch(params)}`),
     get: (slug: string, params?: { color?: string; size?: string; region_id?: number }) => {
       const query = new URLSearchParams();
       if (params?.color) query.append('color', params.color);
