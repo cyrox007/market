@@ -51,6 +51,8 @@ class ProductController extends Controller
         $locationId = $shippingLocationId ?? $legacyRegionId;
 
         if (!$locationId) {
+            $request->attributes->set('warehouse_destination', app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, null));
+            $request->merge(['_region' => null, '_region_id' => null]);
             return null;
         }
 
@@ -81,9 +83,10 @@ class ProductController extends Controller
                 'region_id' => $legacyRegionId,
                 'path' => $request->path(),
             ]);
-            return null;
+            throw \Illuminate\Validation\ValidationException::withMessages(['shipping_location_id' => 'Локация не найдена или отключена.']);
         }
 
+        $request->attributes->set('warehouse_destination', app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location));
         return $location;
     }
 
@@ -232,7 +235,9 @@ class ProductController extends Controller
     {
         $request->validate([
             'on_sale' => 'sometimes|boolean',
-            'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating',
+            'price_min' => 'sometimes|numeric|min:0|max:100000000000',
+            'price_max' => 'sometimes|numeric|min:0|max:100000000000',
+            'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating,distance',
             'sort_order' => 'sometimes|in:asc,desc',
         ]);
         $dimensionRules = [];
@@ -344,6 +349,9 @@ class ProductController extends Controller
         // ВАЖНО: Получаем регион из запроса ДО построения запроса
         // Передаём объект в request, чтобы ProductResource не вызывал find() на каждый товар (N+1)
         $location = $this->getRegionFromRequest($request);
+        $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location);
+        $request->attributes->set('warehouse_destination', $destination);
+        $cacheKey = 'idx:v4:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0'));
         if ($location) {
             $request->merge(['_region_id' => $location->id, '_region' => $location]);
             if (! $countOnly) {
@@ -404,14 +412,28 @@ class ProductController extends Controller
         }
 
         $baseQueryForFilters = (clone $query)->whereNull('parent_product_id');
-        $catalogFilters = app(\App\Services\Product\CatalogFilterService::class);
+        $catalogFilters = app(\App\Services\Product\CatalogFilterService::class)->forLocation($location);
         $query->whereNull('parent_product_id');
         $catalogFilters->apply($query, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []));
         if ($countOnly) {
             return response()->json(['total' => (clone $query)->reorder()->count('products.id')]);
         }
 
-        $this->applyCatalogSort($query, $sortBy, $sortOrder);
+        if ($sortBy === 'distance') {
+            if (! $destination['specified']) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['directory_external_id' => 'Для сортировки по расстоянию выберите местоположение.']);
+            }
+            app(\App\Services\Inventory\CatalogWarehouseDistance::class)->order($query,
+                $catalogFilters->skus($baseQueryForFilters, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? [])), $destination);
+        } elseif ($sortBy === 'price') {
+            $prices = $catalogFilters->skus($baseQueryForFilters, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))
+                ->selectRaw('COALESCE(products.parent_product_id, products.id) AS root_id, MIN(catalog_prices.effective_price) AS effective_price')
+                ->groupByRaw('COALESCE(products.parent_product_id, products.id)');
+            $query->leftJoinSub($prices, 'root_prices', 'root_prices.root_id', '=', 'products.id')
+                ->select('products.*')->orderByRaw('root_prices.effective_price IS NULL')->orderBy('root_prices.effective_price', $sortOrder)->orderBy('products.id');
+        } else {
+            $this->applyCatalogSort($query, $sortBy, $sortOrder);
+        }
 
         $categoryId = $categoryResolved?->id ?? $categoryId;
         $indexTtl = $this->isHotIndexRequest($request) ? (int) config('cache_segments.hot_ttl', 86400) : (int) config('cache_segments.cold_ttl', 36000);
@@ -430,6 +452,7 @@ class ProductController extends Controller
                 'attributes' => [],
                 'manufacturers' => [],
                 'has_on_sale' => false,
+                'has_sale' => false,
                 'facet_mode' => 'excluding_self',
                 'dimensions' => array_fill_keys(['width', 'depth', 'height'], ['min' => null, 'max' => null, 'unit' => 'mm']),
             ];
@@ -482,8 +505,8 @@ class ProductController extends Controller
         $filtersMeta = null;
         if ($categoryId || $categorySlugs || $roomSlug) {
             $filtersMetaCacheKey = 'product_filters_meta:v3:'.sha1($baseQueryForFilters->toSql()
-                .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters])
-                .Cache::get('catalog_filters_revision', '0'));
+                .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters, $location?->id])
+                .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0'));
             $filtersMeta = Cache::remember($filtersMetaCacheKey, 300,
                 fn () => $catalogFilters->meta($baseQueryForFilters, $catalogInput, $roomEffectiveFilters ?? []));
         }
@@ -494,6 +517,8 @@ class ProductController extends Controller
 
         // Облегчённый ответ для списка: без specifications и seo — меньше payload и быстрее сериализация
         $request->merge(['_list_view' => true]);
+        $request->attributes->set('matching_sku_ids', $catalogFilters->skus((clone $baseQueryForFilters)->whereIn('products.id', $products->pluck('id')),
+            $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))->pluck('products.id')->all());
 
         return ProductResource::collection($products)->additional([
             'meta' => [

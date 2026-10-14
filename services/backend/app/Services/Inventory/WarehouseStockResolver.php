@@ -5,135 +5,68 @@ namespace App\Services\Inventory;
 use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
 use App\Models\Shipping\ShippingLocation;
-use Illuminate\Support\Facades\Log;
+use App\Services\Shipping\WarehouseCoverage;
 
 class WarehouseStockResolver
 {
-    /** @var array<string, float> */
-    private static array $resolvedStockCache = [];
-
-    public function resolveForProduct(Product $product, ?ShippingLocation $location): ?float
+    public function resolveForProduct(Product $product, ?ShippingLocation $location, ?array $destination = null): ?float
     {
-        $cacheKey = $this->buildCacheKey($product->id, $location?->id);
-        if (array_key_exists($cacheKey, self::$resolvedStockCache)) {
-            Log::debug('Warehouse stock resolver cache hit', [
-                'cache_key' => $cacheKey,
-                'product_id' => $product->id,
-                'location_id' => $location?->id,
-            ]);
-
-            return self::$resolvedStockCache[$cacheKey];
-        }
-
-        if ($product->isVariable() && ! $product->isVariant()) {
-            $resolved = $this->resolveVariableParentStock($product, $location);
-            self::$resolvedStockCache[$cacheKey] = $resolved;
-
-            return $resolved;
-        }
-
-        $resolved = $this->resolveSingleProductStock($product, $location);
-        self::$resolvedStockCache[$cacheKey] = $resolved;
-
-        return $resolved;
-    }
-
-    /**
-     * Остаток вариативного родителя = сумма остатков активных вариаций (по складам или products.stock).
-     */
-    private function resolveVariableParentStock(Product $product, ?ShippingLocation $location): float
-    {
-        $variants = $product->variants()->active()->get();
-
-        if ($variants->isEmpty()) {
-            return $this->resolveSingleProductStock($product, $location);
-        }
-
-        $total = 0.0;
-        foreach ($variants as $variant) {
-            $total += $this->resolveSingleProductStock($variant, $location);
-        }
-
-        Log::debug('Warehouse stock resolver variable parent aggregated', [
-            'product_id' => $product->id,
-            'location_id' => $location?->id,
-            'variants_count' => $variants->count(),
-            'resolved_stock' => $total,
-        ]);
-
-        return $total;
-    }
-
-    /**
-     * Остаток одной SKU (родитель без вариаций, вариация или «сольной» вариативный товар).
-     */
-    private function resolveSingleProductStock(Product $product, ?ShippingLocation $location): float
-    {
+        $destination ??= request()->attributes->get('warehouse_destination')
+            ?? app(WarehouseCoverage::class)->destination($location);
         $settings = ProductStockSettings::getInstance();
-
         if (! $settings->warehouse_accounting_enabled) {
-            return (float) ($product->getAttributes()['stock'] ?? 0);
+            // A global legacy number is not proof of stock in the selected city.
+            return $destination['specified'] ? null : (float) $product->stock;
         }
-
-        $query = $product->warehouseStocks()->with('warehouse');
-
-        if ($location !== null) {
-            $locationIds = array_unique(array_merge([$location->id], $location->getAncestorsIds()));
-            $query->whereHas('warehouse.shippingLocations', function ($q) use ($locationIds) {
-                $q->whereIn('shipping_locations.id', $locationIds);
-            });
-        }
-
-        $stocks = $query->get();
-
-        if ($stocks->isNotEmpty()) {
-            return (float) $stocks->sum('quantity');
-        }
-
-        if ($settings->fallback_to_first_warehouse) {
-            $fallback = $product->warehouseStocks()
-                ->select('product_warehouse_stocks.quantity')
-                ->join('warehouses', 'warehouses.id', '=', 'product_warehouse_stocks.warehouse_id')
-                ->where('warehouses.is_active', true)
-                ->orderBy('product_warehouse_stocks.warehouse_id')
-                ->value('product_warehouse_stocks.quantity');
-
-            if ($fallback === null) {
-                $fallback = $product->warehouseStocks()
-                    ->orderBy('warehouse_id')
-                    ->value('quantity');
-            }
-
-            if ($fallback !== null) {
-                Log::debug('Warehouse stock resolver fallback used', [
-                    'product_id' => $product->id,
-                    'location_id' => $location?->id,
-                    'resolved_stock' => (float) $fallback,
-                ]);
-
-                return (float) $fallback;
+        if ($product->isVariable() && ! $product->isVariant()) {
+            $variants = $product->variants()->active()->get();
+            if ($variants->isNotEmpty()) {
+                return (float) $variants->sum(fn ($sku) => $this->resolveForProduct($sku, $location, $destination) ?? 0);
             }
         }
 
-        // Вариации после переключения на «вариативный» часто имеют остаток только в products.stock
-        $attributeStock = (float) ($product->getAttributes()['stock'] ?? 0);
-
-        Log::debug('Warehouse stock resolver using products.stock column', [
-            'product_id' => $product->id,
-            'location_id' => $location?->id,
-            'resolved_stock' => $attributeStock,
-        ]);
-
-        return $attributeStock;
+        return (float) $this->eligibleStocks($product, $location, $destination)->sum(fn ($stock) => max(0, (float) $stock->quantity));
     }
 
-    private function buildCacheKey(int $productId, ?int $locationId): string
+    public function eligibleStocks(Product $product, ?ShippingLocation $location, ?array $destination = null): \Illuminate\Support\Collection
     {
-        return $productId . ':' . ($locationId ?? 'none');
+        $destination ??= request()->attributes->get('warehouse_destination') ?? app(WarehouseCoverage::class)->destination($location);
+        return $product->warehouseStocks()
+            ->whereHas('warehouse', fn ($q) => $q->where('is_active', true)->where('stock_mode', 'quantity'))
+            ->with(['warehouse.physicalSite', 'warehouse.shippingLocations', 'warehouse.deliveryProfiles.locations'])
+            ->get()->filter(function ($stock) use ($destination): bool {
+                if (! $destination['specified']) {
+                    return true;
+                }
+                $warehouse = $stock->warehouse;
+                if ($warehouse->deliveryProfiles->isNotEmpty()) {
+                    return app(WarehouseCoverage::class)->firstProfile($warehouse, $destination) !== null;
+                }
+
+                // Explicit legacy location bindings remain valid only without any new profiles.
+                return $warehouse->shippingLocations->pluck('id')->intersect($destination['location_ids'])->isNotEmpty();
+            })->values();
     }
 
     public static function clearCache(): void
     {
-        self::$resolvedStockCache = [];
+        // No process-global SKU cache: request geography and live inventory must not leak.
+    }
+
+    public function availableToOrder(Product $product, ?ShippingLocation $location): bool
+    {
+        $destination = request()->attributes->get('warehouse_destination') ?? app(WarehouseCoverage::class)->destination($location);
+        if (! ProductStockSettings::getInstance()->warehouse_accounting_enabled) {
+            return ! $destination['specified'] && (bool) $product->backorder;
+        }
+        if ($product->isVariable() && ! $product->isVariant()) {
+            return $product->variants()->active()->get()->contains(fn ($sku) => $this->availableToOrder($sku, $location));
+        }
+        return \App\Models\Inventory\SourceProductAvailability::where('product_id', $product->id)->where('available_to_order', true)
+            ->whereHas('warehouse', fn ($q) => $q->where('is_active', true)->where('stock_mode', 'availability'))
+            ->with(['warehouse.physicalSite', 'warehouse.deliveryProfiles.locations', 'warehouse.shippingLocations'])->get()
+            ->contains(function ($row) use ($destination): bool {
+                return ! $destination['specified'] || app(WarehouseCoverage::class)->firstProfile($row->warehouse, $destination) !== null;
+            });
     }
 }

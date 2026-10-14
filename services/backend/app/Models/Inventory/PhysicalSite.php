@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PhysicalSite extends Model
 {
+    use \App\Models\Traits\InvalidatesFulfillment;
     protected $fillable = ['name', 'address', 'city', 'address_external_id', 'gar_guid', 'kladr_code',
         'address_snapshot', 'latitude', 'longitude', 'coordinate_source', 'coordinate_precision'];
 

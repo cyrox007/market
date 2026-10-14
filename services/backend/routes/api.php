@@ -186,6 +186,7 @@ Route::prefix('v1')->group(function () {
 
     // Orders: создание и payment-config без auth
     Route::middleware(['api-session'])->prefix('orders')->group(function () {
+        Route::post('/one-click', \App\Http\Controllers\Api\OneClickLeadController::class)->middleware('throttle:orders');
         Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });

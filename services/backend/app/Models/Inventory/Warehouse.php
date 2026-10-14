@@ -15,6 +15,7 @@ use Illuminate\Support\Str;
 class Warehouse extends Model
 {
     use HasFactory;
+    use \App\Models\Traits\InvalidatesFulfillment;
 
     protected $fillable = [
         'external_id',
@@ -35,11 +36,13 @@ class Warehouse extends Model
         'processing_days_min',
         'processing_days_max',
         'is_active',
+        'pickup_enabled',
         'meta',
     ];
 
     protected $casts = [
         'is_active' => 'bool',
+        'pickup_enabled' => 'boolean',
         'latitude' => 'decimal:7',
         'longitude' => 'decimal:7',
         'processing_days_min' => 'integer',

@@ -66,9 +66,9 @@ class WarehouseAddressFormTest extends TestCase
 
     public function test_operator_can_create_a_directory_delivery_profile(): void
     {
-        Http::fake(['*/directory/regions*' => Http::response([
+        Http::fake(['*/address/regions*' => Http::response([
             ['externalId' => 'region48', 'name' => 'Липецкая область', 'label' => 'Липецкая область'],
-        ]), '*/directory/localities*' => Http::response([
+        ]), '*/address/localities*' => Http::response([
             ['externalId' => 'city48', 'name' => 'Липецк', 'label' => 'Липецкая область, г. Липецк'],
         ]), '*' => Http::response([
             'target' => ['kind' => 'region', 'externalId' => 'region48', 'name' => 'Липецкая область'],
@@ -86,7 +86,7 @@ class WarehouseAddressFormTest extends TestCase
         $profile = $warehouse->deliveryProfiles()->firstOrFail();
         $this->assertSame('region48', $profile->directory_territories[0]['externalId']);
         $this->assertSame('1500.00', $profile->base_price);
-        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/directory/localities')
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/address/localities')
             && $request['parentExternalId'] === 'region48');
     }
 }

@@ -26,6 +26,10 @@ class DeliveryProfilesRelationManager extends RelationManager
         return $schema->columns(1)->components([
             Section::make('Основные условия')->description('Один профиль описывает, куда склад доставляет и на каких условиях.')->schema([
                 TextInput::make('name')->label('Название направления')->placeholder('Например, Липецкое направление')->required()->maxLength(255)->columnSpanFull(),
+                Select::make('services_location_id')->label('Тарифы подъёма, сборки и дополнительных услуг')
+                    ->relationship('servicesLocation', 'name', modifyQueryUsing: fn ($query) => $query->where('is_active', true))
+                    ->searchable()->preload()->nullable()->columnSpanFull()
+                    ->helperText('Выберите локацию, где настроены цены услуг. Без неё доставка работает, но выбрать услуги нельзя. Покрытие доставки задаётся ниже независимо.'),
                 Select::make('coverage_type')->label('Как определить зону')->options([
                     'locations' => 'Выбранные регионы и населённые пункты',
                     'radius' => 'Радиус от склада',

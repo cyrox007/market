@@ -6,6 +6,21 @@ use PHPUnit\Framework\TestCase;
 
 class CatalogOpenApiTest extends TestCase
 {
+    public function test_fulfillment_contract_documents_the_canonical_quote_and_checkout_selection(): void
+    {
+        $spec = json_decode(file_get_contents(__DIR__.'/../../../public/api-docs/openapi.json'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertArrayHasKey('/api/v1/shipping/quote', $spec['paths']);
+        $this->assertArrayNotHasKey('/api/v1/shipping/quotes', $spec['paths']);
+        $this->assertArrayHasKey('/api/v1/orders/one-click', $spec['paths']);
+        $order = $spec['paths']['/api/v1/orders']['post']['requestBody']['content']['application/json']['schema']['properties'];
+        foreach (['directory_external_id', 'warehouse_id', 'store_id'] as $field) {
+            $this->assertNotEmpty($order[$field]['description']);
+        }
+        foreach (['FulfillmentDates', 'WarehouseQuote', 'PickupOption', 'StoreOpeningDay'] as $schema) {
+            $this->assertArrayHasKey($schema, $spec['components']['schemas']);
+        }
+    }
+
     public function test_catalog_and_count_document_shared_filters_and_facet_semantics(): void
     {
         $spec = json_decode(file_get_contents(__DIR__.'/../../../public/api-docs/openapi.json'), true, 512, JSON_THROW_ON_ERROR);

@@ -42,6 +42,9 @@ class Store extends Model implements HasMedia, PageableContract
         'shipping_location_id',
         'physical_site_id',
         'warehouse_id',
+        'pickup_enabled',
+        'opening_hours',
+        'timezone',
     ];
 
     protected $casts = [
@@ -49,6 +52,8 @@ class Store extends Model implements HasMedia, PageableContract
         'priority' => 'integer',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
+        'pickup_enabled' => 'boolean',
+        'opening_hours' => 'array',
     ];
 
     /**
@@ -62,6 +67,9 @@ class Store extends Model implements HasMedia, PageableContract
 
         // Автоматически парсим coordinates в latitude и longitude
         static::saving(function ($store) {
+            if ($store->isDirty('opening_hours') || $store->isDirty('timezone')) {
+                app(\App\Services\Shipping\StoreOpeningHours::class)->validate($store->opening_hours, $store->timezone ?? 'Europe/Moscow');
+            }
             if ($store->coordinates && ! $store->latitude && ! $store->longitude) {
                 $coords = explode(',', trim($store->coordinates));
                 if (count($coords) === 2) {

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SourceProductAvailability extends Model
 {
+    use \App\Models\Traits\InvalidatesFulfillment;
     protected $fillable = [
         'warehouse_id', 'product_id', 'available_to_order', 'processing_days_min',
         'processing_days_max', 'source', 'external_reference',

@@ -228,6 +228,30 @@
             "items": {
               "type": "string"
             }
+          },
+          "regional": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "Региональный текст отдельного шаблона; null, если контекст неполон",
+                "nullable": true
+              },
+              "city": {
+                "type": "string",
+                "description": "Проверенный населённый пункт, без автоматического склонения",
+                "nullable": true
+              },
+              "delivery_cities_count": {
+                "type": "integer",
+                "description": "Число явных населённых пунктов покрытия активных источников товаров категории; для регионов/радиуса неизвестно и равно null",
+                "nullable": true
+              },
+              "count_source": {
+                "type": "string",
+                "description": "Источник и полнота подсчёта"
+              }
+            }
           }
         }
       },
@@ -341,10 +365,13 @@
             "description": "В списках = null, заполнен в detail"
           },
           "in_stock": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Положительный фактический остаток; backorder не превращает его в наличие"
           },
           "stock": {
-            "type": "integer"
+            "type": "number",
+            "nullable": true,
+            "description": "При выбранном местоположении только остатки активных покрывающих складов. null — достоверного складского учёта нет; 0 — доступного остатка нет. Под заказ не включается."
           },
           "backorder": {
             "type": "boolean",
@@ -443,6 +470,39 @@
               }
             ],
             "nullable": true
+          },
+          "stock_known": {
+            "type": "boolean",
+            "description": "Известен ли достоверный остаток для данного контекста"
+          },
+          "available_to_order": {
+            "type": "boolean",
+            "description": "Доступность под заказ отдельно от фактического наличия"
+          },
+          "stock_scope": {
+            "type": "string",
+            "description": "Область остатка",
+            "enum": [
+              "global",
+              "destination"
+            ]
+          },
+          "nearest_distance_km": {
+            "type": "number",
+            "description": "Расстояние до ближайшего подходящего склада, км по прямой; null — неизвестно",
+            "nullable": true
+          },
+          "delivery_days_source": {
+            "type": "string",
+            "description": "delivery_days — старое региональное правило, не новый расчёт склада",
+            "enum": [
+              "legacy_region_rule"
+            ]
+          },
+          "delivery_quote_endpoint": {
+            "type": "string",
+            "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
+            "example": "/api/v1/shipping/quote"
           }
         },
         "description": "Карточка товара. Поля сверены с кодом ProductResource (ветка main) и локальным API. ВНИМАНИЕ: код main опережает демо-стенд demo1.site.zone — на стенде ещё есть excerpt (удалён в main) и нет backorder/stocks. category/categories появляются только в detail (when taxons загружены). В списках sku/image_hd/image_fullhd = null (isListView)."
@@ -464,20 +524,56 @@
             "nullable": true
           },
           "stock": {
-            "type": "integer"
+            "type": "number",
+            "nullable": true,
+            "description": "При выбранном местоположении только остатки активных покрывающих складов. null — достоверного складского учёта нет; 0 — доступного остатка нет. Под заказ не включается."
           },
           "stock_label": {
             "type": "string",
             "nullable": true
           },
           "in_stock": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Положительный фактический остаток; backorder не превращает его в наличие"
           },
           "images": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "stock_known": {
+            "type": "boolean",
+            "description": "Известен ли достоверный остаток для данного контекста"
+          },
+          "available_to_order": {
+            "type": "boolean",
+            "description": "Доступность под заказ отдельно от фактического наличия"
+          },
+          "stock_scope": {
+            "type": "string",
+            "description": "Область остатка",
+            "enum": [
+              "global",
+              "destination"
+            ]
+          },
+          "nearest_distance_km": {
+            "type": "number",
+            "description": "Расстояние до ближайшего подходящего склада, км по прямой; null — неизвестно",
+            "nullable": true
+          },
+          "delivery_days_source": {
+            "type": "string",
+            "description": "delivery_days — старое региональное правило, не новый расчёт склада",
+            "enum": [
+              "legacy_region_rule"
+            ]
+          },
+          "delivery_quote_endpoint": {
+            "type": "string",
+            "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
+            "example": "/api/v1/shipping/quote"
           }
         }
       },
@@ -535,10 +631,13 @@
             "nullable": true
           },
           "in_stock": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Положительный фактический остаток; backorder не превращает его в наличие"
           },
           "stock": {
-            "type": "integer"
+            "type": "number",
+            "nullable": true,
+            "description": "При выбранном местоположении только остатки активных покрывающих складов. null — достоверного складского учёта нет; 0 — доступного остатка нет. Под заказ не включается."
           },
           "nearest_stock": {
             "type": "integer",
@@ -652,6 +751,39 @@
               }
             ],
             "nullable": true
+          },
+          "stock_known": {
+            "type": "boolean",
+            "description": "Известен ли достоверный остаток для данного контекста"
+          },
+          "available_to_order": {
+            "type": "boolean",
+            "description": "Доступность под заказ отдельно от фактического наличия"
+          },
+          "stock_scope": {
+            "type": "string",
+            "description": "Область остатка",
+            "enum": [
+              "global",
+              "destination"
+            ]
+          },
+          "nearest_distance_km": {
+            "type": "number",
+            "description": "Расстояние до ближайшего подходящего склада, км по прямой; null — неизвестно",
+            "nullable": true
+          },
+          "delivery_days_source": {
+            "type": "string",
+            "description": "delivery_days — старое региональное правило, не новый расчёт склада",
+            "enum": [
+              "legacy_region_rule"
+            ]
+          },
+          "delivery_quote_endpoint": {
+            "type": "string",
+            "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
+            "example": "/api/v1/shipping/quote"
           }
         },
         "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, feature_blocks, delivery_blocks, nearest_stock."
@@ -886,6 +1018,23 @@
               }
             ],
             "nullable": true
+          },
+          "opening_hours": {
+            "type": "array",
+            "nullable": true,
+            "description": "Структурированный график. null — ещё не заполнен; отсутствующий день не считается выходным.",
+            "items": {
+              "$ref": "#/components/schemas/StoreOpeningDay"
+            }
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Часовой пояс графика",
+            "example": "Europe/Moscow"
+          },
+          "pickup_enabled": {
+            "type": "boolean",
+            "description": "Выдача разрешена настройками магазина; фактическая доступность SKU — в shipping/quote.pickup"
           }
         }
       },
@@ -1889,6 +2038,340 @@
           }
         },
         "description": "OrderResource (main). Поля can_pay/payform_url/payment_seconds_left — для сценария онлайн-оплаты и таймера. Часть связей (shipping_method, region…) — условные (whenLoaded)."
+      },
+      "FulfillmentDates": {
+        "type": "object",
+        "description": "Готовность или доставка в календарных днях. Это не график работы точки.",
+        "properties": {
+          "days_min": {
+            "type": "integer",
+            "description": "Минимум календарных дней от даты расчёта"
+          },
+          "days_max": {
+            "type": "integer",
+            "description": "Максимум календарных дней от даты расчёта"
+          },
+          "date_min": {
+            "type": "string",
+            "description": "Ранняя календарная дата",
+            "format": "date"
+          },
+          "date_max": {
+            "type": "string",
+            "description": "Поздняя календарная дата",
+            "format": "date"
+          },
+          "day_type": {
+            "type": "string",
+            "description": "Единица срока",
+            "enum": [
+              "calendar"
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Часовой пояс расчёта",
+            "example": "Europe/Moscow"
+          },
+          "label": {
+            "type": "string",
+            "description": "Сегодня/Завтра только для точного срока 0/1 день; иначе null",
+            "nullable": true
+          }
+        }
+      },
+      "StoreOpeningDay": {
+        "type": "object",
+        "required": [
+          "day",
+          "is_closed",
+          "intervals"
+        ],
+        "properties": {
+          "day": {
+            "type": "integer",
+            "description": "День недели: 1 — понедельник, 7 — воскресенье",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "is_closed": {
+            "type": "boolean",
+            "description": "Явно установленный выходной"
+          },
+          "intervals": {
+            "type": "array",
+            "description": "Интервалы одного дня с учётом перерывов; для выходного пустой массив.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "opens": {
+                  "type": "string",
+                  "description": "Открытие в местном времени",
+                  "example": "09:00"
+                },
+                "closes": {
+                  "type": "string",
+                  "description": "Закрытие в местном времени",
+                  "example": "18:00"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PickupOption": {
+        "type": "object",
+        "properties": {
+          "warehouse_id": {
+            "type": "integer",
+            "description": "Физический склад, где хранятся остатки"
+          },
+          "store_id": {
+            "type": "integer",
+            "description": "Магазин на этой же площадке, либо null для выдачи со склада",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Название точки выдачи"
+          },
+          "address": {
+            "type": "string",
+            "description": "Адрес точки"
+          },
+          "hours": {
+            "type": "string",
+            "description": "Прежняя текстовая строка графика",
+            "nullable": true
+          },
+          "opening_hours": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/StoreOpeningDay"
+            }
+          },
+          "distance_km": {
+            "type": "number",
+            "description": "Расстояние по прямой до точки, км; неизвестное — null",
+            "nullable": true
+          },
+          "pickup_cost": {
+            "type": "number",
+            "description": "Стоимость самовывоза, рубли",
+            "example": 0
+          },
+          "ready": {
+            "$ref": "#/components/schemas/FulfillmentDates"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product_id": {
+                  "type": "integer",
+                  "description": "ID конкретного SKU"
+                },
+                "requested_quantity": {
+                  "type": "integer",
+                  "description": "Запрошенное количество"
+                },
+                "available_quantity": {
+                  "type": "number",
+                  "description": "Фактический остаток в точке выдачи"
+                }
+              }
+            }
+          }
+        }
+      },
+      "WarehouseQuoteOption": {
+        "type": "object",
+        "properties": {
+          "warehouse_id": {
+            "type": "integer",
+            "description": "Подходящий действующий склад"
+          },
+          "warehouse_name": {
+            "type": "string",
+            "description": "Название склада"
+          },
+          "profile_id": {
+            "type": "integer",
+            "description": "Применённый профиль покрытия и тарифа"
+          },
+          "stock_mode": {
+            "type": "string",
+            "description": "quantity — фактический остаток, availability — под заказ",
+            "enum": [
+              "quantity",
+              "availability"
+            ]
+          },
+          "transport_cost": {
+            "type": "number",
+            "description": "Транспортная составляющая, рубли"
+          },
+          "handling_cost": {
+            "type": "number",
+            "description": "Подъём/разгрузка, рубли"
+          },
+          "delivery_cost": {
+            "type": "number",
+            "description": "Транспорт плюс обработка доставки, рубли"
+          },
+          "assembly_cost": {
+            "type": "number",
+            "description": "Сборка, рубли"
+          },
+          "assembly_days": {
+            "type": "integer",
+            "description": "Срок сборки отдельно от доставки",
+            "nullable": true
+          },
+          "additional_services_cost": {
+            "type": "number",
+            "description": "Сумма прочих фиксированных услуг, рубли"
+          },
+          "additional_services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "description": "ID услуги"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Название услуги"
+                },
+                "price": {
+                  "type": "number",
+                  "description": "Серверная стоимость, рубли"
+                },
+                "price_type": {
+                  "type": "string",
+                  "description": "Тип рассчитанного тарифа",
+                  "enum": [
+                    "fixed"
+                  ]
+                }
+              }
+            }
+          },
+          "total_fulfillment_cost": {
+            "type": "number",
+            "description": "Доставка, обработка, сборка и услуги вместе, без стоимости товаров"
+          },
+          "processing_days_min": {
+            "type": "integer",
+            "description": "Подготовка: минимум календарных дней"
+          },
+          "processing_days_max": {
+            "type": "integer",
+            "description": "Подготовка: максимум календарных дней"
+          },
+          "transit_days_min": {
+            "type": "integer",
+            "description": "Перевозка: минимум календарных дней"
+          },
+          "transit_days_max": {
+            "type": "integer",
+            "description": "Перевозка: максимум календарных дней"
+          },
+          "delivery_days_min": {
+            "type": "integer",
+            "description": "Подготовка плюс перевозка, минимум"
+          },
+          "delivery_days_max": {
+            "type": "integer",
+            "description": "Подготовка плюс перевозка, максимум"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/FulfillmentDates"
+          },
+          "distance_km": {
+            "type": "number",
+            "description": "Расстояние по прямой в километрах, не дорожный маршрут",
+            "nullable": true
+          },
+          "distance_type": {
+            "type": "string",
+            "description": "Метод расстояния",
+            "enum": [
+              "straight_line"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product_id": {
+                  "type": "integer",
+                  "description": "ID выбранного SKU"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "description": "Количество"
+                }
+              }
+            }
+          }
+        }
+      },
+      "WarehouseQuote": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Есть склад, который обеспечивает весь набор и доставку"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Валюта",
+            "enum": [
+              "RUB"
+            ]
+          },
+          "subtotal": {
+            "type": "number",
+            "description": "Стоимость выбранных товаров по региональным правилам, рубли"
+          },
+          "estimate": {
+            "type": "boolean",
+            "description": "true — расчёт до региона/населённого пункта, требуется пересчёт по зданию при заказе"
+          },
+          "address": {
+            "type": "object",
+            "description": "Проверенный адрес и снимок справочника"
+          },
+          "selected": {
+            "$ref": "#/components/schemas/WarehouseQuoteOption",
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "description": "Подходящие склады по цене и сроку. Автоматического разделения набора между складами нет.",
+            "items": {
+              "$ref": "#/components/schemas/WarehouseQuoteOption"
+            }
+          },
+          "pickup": {
+            "type": "array",
+            "description": "Отдельные варианты самовывоза; available относится только к доставке.",
+            "items": {
+              "$ref": "#/components/schemas/PickupOption"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "Причина отсутствия доставки",
+            "nullable": true
+          }
+        }
       }
     }
   },
@@ -2630,7 +3113,7 @@
           {
             "name": "sort_by",
             "in": "query",
-            "description": "created_at — дата; price — цена; name — название; units_sold — популярность; rating — среднее одобренных отзывов (1 знак, без отзывов 0). Дополнительный порядок ID asc.",
+            "description": "distance — ближайший активный склад с подходящим SKU и покрытием, до пагинации; неизвестные расстояния в конце. Всегда от ближнего к дальнему.",
             "required": false,
             "schema": {
               "type": "string",
@@ -2639,7 +3122,8 @@
                 "price",
                 "name",
                 "units_sold",
-                "rating"
+                "rating",
+                "distance"
               ],
               "default": "created_at"
             }
@@ -2698,7 +3182,8 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
+            "description": "Совместимость: прежняя сущность производителя. Для характеристики используйте attr_proizvoditel.",
+            "deprecated": true
           },
           {
             "name": "manufacturer_slug",
@@ -2707,7 +3192,8 @@
             "schema": {
               "type": "string"
             },
-            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
+            "description": "Совместимость: прежняя сущность производителя. Для характеристики используйте attr_proizvoditel.",
+            "deprecated": true
           },
           {
             "name": "shipping_location_id",
@@ -2841,6 +3327,34 @@
               "maximum": 1000000
             },
             "example": 2500
+          },
+          {
+            "name": "directory_external_id",
+            "in": "query",
+            "description": "GUID объекта справочника: регион, населённый пункт или здание. Определяет покрытие складов; не равен бизнес region_id.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "latitude",
+            "in": "query",
+            "description": "Широта для расстояния; передаётся парой с longitude.",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "description": "Долгота для расстояния; передаётся парой с latitude.",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
           }
         ],
         "responses": {
@@ -2875,7 +3389,8 @@
                                 "max": {
                                   "type": "number"
                                 }
-                              }
+                              },
+                              "description": "Диапазон текущей цены активных подходящих SKU, с региональными правилами и скидкой, в рублях. Собственный ценовой фильтр исключён, остальные фильтры действуют."
                             },
                             "colors": {
                               "type": "array",
@@ -2897,7 +3412,8 @@
                             },
                             "has_on_sale": {
                               "type": "boolean",
-                              "description": "Есть акционный SKU при всех остальных фильтрах, без on_sale."
+                              "description": "Совместимый алиас has_sale. Сохраняется для прежних клиентов.",
+                              "deprecated": true
                             },
                             "facet_mode": {
                               "type": "string",
@@ -2967,6 +3483,18 @@
                                   }
                                 }
                               }
+                            },
+                            "has_sale": {
+                              "type": "boolean",
+                              "description": "Есть акционный подходящий SKU при остальных фильтрах, исключая собственный on_sale."
+                            },
+                            "manufacturers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              },
+                              "deprecated": true,
+                              "description": "Прежняя отдельная сущность производителя. Сохраняется; рекомендуемый фильтр — attr_proizvoditel, фасет attributes[slug=proizvoditel]."
                             }
                           },
                           "nullable": true
@@ -4888,7 +5416,7 @@
       "post": {
         "operationId": "createOrder",
         "summary": "Создать заказ",
-        "description": "Доступен БЕЗ аутентификации (только сессия). Позиции и subtotal берутся из серверной корзины, не из тела запроса. Проверяет остатки. Возможна авторегистрация нового пользователя или login существующего по contact_email (без пароля). Статус: AWAITING_PAYMENT для онлайн-оплаты, иначе ACCEPTED.",
+        "description": "Доступен БЕЗ аутентификации (только сессия). Позиции и subtotal берутся из серверной корзины, не из тела запроса. Проверяет остатки. Возможна авторегистрация нового пользователя или login существующего по contact_email (без пароля). Статус: AWAITING_PAYMENT для онлайн-оплаты, иначе ACCEPTED.\nДля нового самовывоза передайте delivery_type=pickup, warehouse_id и store_id (если точка магазина) из shipping/quote.pickup. Сервер повторно проверяет точку/остатки и резервирует выбранный склад. При складской доставке передайте directory_external_id здания, warehouse_id при явном выборе и услуги; цены пересчитывает сервер.",
         "tags": [
           "Orders"
         ],
@@ -4933,7 +5461,21 @@
                   "shipping_location_id": {
                     "type": "integer",
                     "nullable": true,
-                    "description": "Обязателен при delivery_type=delivery"
+                    "description": "Локация прежнего расчёта. Для нового расчёта передайте directory_external_id здания."
+                  },
+                  "directory_external_id": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "ID здания из адресного справочника для складского расчёта. Не ID бизнес-локации."
+                  },
+                  "warehouse_id": {
+                    "type": "integer",
+                    "description": "Выбранный склад из selected/options либо pickup ответа shipping/quote. При новом самовывозе обязателен."
+                  },
+                  "store_id": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "ID магазина из выбранной точки pickup; передайте вместе с warehouse_id."
                   },
                   "region_id": {
                     "type": "integer",
@@ -5011,13 +5553,13 @@
                     "type": "number",
                     "minimum": 0,
                     "nullable": true,
-                    "description": "ВНИМАНИЕ: при delivery берётся как есть (доверяется клиенту); pickup → 0"
+                    "description": "В новом складском расчёте игнорируется: стоимость повторно рассчитывает сервер. Для прежнего расчёта сохранена совместимость. Самовывоз — 0."
                   },
                   "assembly_cost": {
                     "type": "number",
                     "minimum": 0,
                     "nullable": true,
-                    "description": "Берётся как есть, если передано"
+                    "description": "В новом складском расчёте игнорируется: тариф сборки определяет сервер. Для прежнего расчёта сохранена совместимость."
                   },
                   "comment": {
                     "type": "string",
@@ -7281,7 +7823,8 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
+            "description": "Совместимость: прежняя сущность производителя. Для характеристики используйте attr_proizvoditel.",
+            "deprecated": true
           },
           {
             "name": "manufacturer_slug",
@@ -7290,7 +7833,8 @@
             "schema": {
               "type": "string"
             },
-            "description": "Legacy отдельной модели Manufacturer; для нескольких производителей используйте attr_proizvoditel."
+            "description": "Совместимость: прежняя сущность производителя. Для характеристики используйте attr_proizvoditel.",
+            "deprecated": true
           },
           {
             "name": "shipping_location_id",
@@ -7424,6 +7968,34 @@
               "maximum": 1000000
             },
             "example": 2500
+          },
+          {
+            "name": "directory_external_id",
+            "in": "query",
+            "description": "GUID объекта справочника: регион, населённый пункт или здание. Определяет покрытие складов; не равен бизнес region_id.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "latitude",
+            "in": "query",
+            "description": "Широта для расстояния; передаётся парой с longitude.",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "description": "Долгота для расстояния; передаётся парой с latitude.",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
           }
         ],
         "responses": {
@@ -7451,6 +8023,285 @@
           },
           "422": {
             "description": "Некорректные параметры, включая неизвестный category_slugs. JSON message и errors."
+          }
+        }
+      }
+    },
+    "/api/v1/shipping/quote": {
+      "post": {
+        "tags": [
+          "Shipping"
+        ],
+        "operationId": "warehouseDeliveryQuote",
+        "summary": "Доставка выбранных SKU и самовывоз без изменения корзины",
+        "description": "Передайте items для карточки или общего набора товаров. Без items рассчитывается текущая корзина. Все позиции должны обеспечиваться одним складом; это общий расчёт набора, не независимые ответы на каждый товар. С items разрешён предварительный расчёт по региону/населённому пункту; заказ требует конкретное здание. Цена услуг определяется сервером, для услуг «от»/по согласованию окончательную стоимость уточняет менеджер. Даты в календарных днях, готовность не заменяет часы работы. Канонический путь в единственном числе — /shipping/quote.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "directory_external_id": {
+                    "type": "string",
+                    "description": "Объект ГАР/КЛАДР из нашего справочника, обязателен без address_id"
+                  },
+                  "address_id": {
+                    "type": "integer",
+                    "description": "ID собственного сохранённого адреса; требуется авторизация"
+                  },
+                  "region_id": {
+                    "type": "integer",
+                    "description": "Бизнес-локация цен, не идентификатор ГАР и не произвольная замена адреса"
+                  },
+                  "warehouse_id": {
+                    "type": "integer",
+                    "description": "Необязательный выбор конкретного подходящего склада"
+                  },
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "product_id",
+                        "quantity"
+                      ],
+                      "properties": {
+                        "product_id": {
+                          "type": "integer",
+                          "description": "ID товара или конкретного SKU"
+                        },
+                        "variant_id": {
+                          "type": "integer",
+                          "description": "ID активной вариации этого товара; обязателен для вариативного родителя"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "description": "Количество единиц",
+                          "minimum": 1,
+                          "maximum": 1000
+                        }
+                      }
+                    }
+                  },
+                  "requires_assembly": {
+                    "type": "boolean",
+                    "description": "Добавить сборку по настроенному тарифу"
+                  },
+                  "delivery_handling_type_id": {
+                    "type": "integer",
+                    "description": "Тип подъёма/разгрузки"
+                  },
+                  "delivery_floor": {
+                    "type": "integer",
+                    "description": "Этаж",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "additional_services": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "description": "ID фиксированной дополнительной услуги. Передавать price запрещено."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "directory_external_id": "GUID-здания-из-справочника",
+                  "items": [
+                    {
+                      "product_id": 123,
+                      "variant_id": 456,
+                      "quantity": 2
+                    }
+                  ],
+                  "requires_assembly": false
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Расчёт. Для карточки available=false — штатный результат, возможен самовывоз.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseQuote"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Адрес профиля требует входа"
+          },
+          "404": {
+            "description": "Сохранённый адрес не принадлежит пользователю"
+          },
+          "422": {
+            "description": "Ошибка валидации, неподходящий SKU/услуга или нет доставки корзины"
+          },
+          "503": {
+            "description": "Адресный справочник недоступен; это не отсутствие покрытия"
+          }
+        }
+      }
+    },
+    "/api/v1/orders/one-click": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "createOneClickLead",
+        "summary": "Создать заявку менеджеру «Купить в один клик»",
+        "description": "Создаёт заявку в админке «Заявки в один клик», не заказ; не резервирует остаток и не изменяет корзину. Повтор идентичного запроса в течение 10 минут возвращает прежний номер. Idempotency-Key первого создания сохраняется; другой payload с тем же ключом — 409. До 5 новых заявок на телефон за 10 минут, плюс существующий IP-limit orders. Согласия, время и хеш IP фиксируются сервером.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            },
+            "description": "Стабильный случайный ключ повторной отправки одной заявки"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "phone",
+                  "product_id",
+                  "quantity",
+                  "accept_offer",
+                  "accept_personal_data"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "ФИО покупателя",
+                    "maxLength": 255
+                  },
+                  "phone": {
+                    "type": "string",
+                    "description": "Телефон, нормализуется в +7XXXXXXXXXX"
+                  },
+                  "comment": {
+                    "type": "string",
+                    "description": "Комментарий",
+                    "maxLength": 1000
+                  },
+                  "product_id": {
+                    "type": "integer",
+                    "description": "ID товара или SKU"
+                  },
+                  "variant_id": {
+                    "type": "integer",
+                    "description": "Активный вариант выбранного товара"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "description": "Количество",
+                    "minimum": 1,
+                    "maximum": 1000
+                  },
+                  "region_id": {
+                    "type": "integer",
+                    "description": "Бизнес-локация покупателя, необязательно"
+                  },
+                  "accept_offer": {
+                    "type": "boolean",
+                    "description": "Явное согласие с офертой, обязательно true"
+                  },
+                  "accept_personal_data": {
+                    "type": "boolean",
+                    "description": "Явное согласие на обработку данных, обязательно true"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Повтор: прежняя заявка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "number": {
+                      "type": "string",
+                      "description": "Номер заявки"
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Статус обработки менеджером"
+                    },
+                    "duplicate": {
+                      "type": "boolean",
+                      "description": "true для повторного запроса"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Подтверждение приёма заявки"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Новая заявка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "number": {
+                      "type": "string",
+                      "description": "Номер заявки"
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Статус обработки менеджером"
+                    },
+                    "duplicate": {
+                      "type": "boolean",
+                      "description": "true для повторного запроса"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Подтверждение приёма заявки"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ключ повторной отправки использован для другого содержимого"
+          },
+          "422": {
+            "description": "Неверный SKU, телефон, количество или отсутствуют согласия"
+          },
+          "429": {
+            "description": "Превышен лимит новых заявок; Retry-After задаёт время повтора"
           }
         }
       }

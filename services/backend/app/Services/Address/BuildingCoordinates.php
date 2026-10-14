@@ -12,7 +12,7 @@ class BuildingCoordinates
         if (($target['kind'] ?? null) !== 'building') {
             return null;
         }
-        if (($target['coordinatePrecision'] ?? null) === 'building' && $this->valid($target['latitude'] ?? null, $target['longitude'] ?? null)) {
+        if (in_array($target['coordinatePrecision'] ?? null, ['building', 'building_centroid', 'address_point', 'entrance'], true) && $this->valid($target['latitude'] ?? null, $target['longitude'] ?? null)) {
             return ['latitude' => (float) $target['latitude'], 'longitude' => (float) $target['longitude'], 'source' => $target['coordinateSource'] ?? 'directory'];
         }
         $file = config('address_directory.building_points_path');

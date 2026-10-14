@@ -18,11 +18,28 @@ class WarehouseOrderStock
             return;
         }
         $warehouse = \App\Models\Inventory\Warehouse::lockForUpdate()->find($quote['warehouse_id']);
-        $profile = \App\Models\Shipping\WarehouseDeliveryProfile::lockForUpdate()->find($quote['profile_id']);
-        if (! $warehouse?->is_active || $warehouse->stock_mode !== $quote['stock_mode'] || ! $profile?->is_active
-            || $profile->warehouse_id !== $warehouse->id
-            || hash('sha256', json_encode($profile->getAttributes())) !== ($quote['profile_fingerprint'] ?? null)) {
+        if ($warehouse?->physical_site_id) {
+            $warehouse->setRelation('physicalSite', \App\Models\Inventory\PhysicalSite::lockForUpdate()->find($warehouse->physical_site_id));
+        }
+        if (! $warehouse?->is_active || $warehouse->stock_mode !== $quote['stock_mode']) {
             throw ValidationException::withMessages(['delivery' => 'Условия доставки изменились. Пересчитайте заказ.']);
+        }
+        if (isset($quote['warehouse_fingerprint']) && hash('sha256', json_encode([$warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes()])) !== $quote['warehouse_fingerprint']) {
+            throw ValidationException::withMessages(['delivery' => 'Параметры склада изменились. Пересчитайте заказ.']);
+        }
+        if (($quote['mode'] ?? null) === 'pickup') {
+            $store = ! empty($quote['store_id']) ? \App\Models\Page\Store::lockForUpdate()->find($quote['store_id']) : null;
+            $enabled = $store ? $store->is_active && $store->pickup_enabled && $store->warehouse_id === $warehouse->id
+                && $store->physical_site_id && $store->physical_site_id === $warehouse->physical_site_id : $warehouse->pickup_enabled;
+            if (! $enabled || $warehouse->source_type !== 'physical' || $warehouse->stock_mode !== 'quantity') {
+                throw ValidationException::withMessages(['warehouse_id' => 'Самовывоз в выбранной точке больше недоступен.']);
+            }
+        } else {
+            $profile = \App\Models\Shipping\WarehouseDeliveryProfile::lockForUpdate()->find($quote['profile_id']);
+            if (! $profile?->is_active || $profile->warehouse_id !== $warehouse->id
+                || hash('sha256', json_encode($profile->getAttributes())) !== ($quote['profile_fingerprint'] ?? null)) {
+                throw ValidationException::withMessages(['delivery' => 'Условия доставки изменились. Пересчитайте заказ.']);
+            }
         }
         if ($quote['stock_mode'] === 'availability') {
             foreach ($quote['items'] as $item) {

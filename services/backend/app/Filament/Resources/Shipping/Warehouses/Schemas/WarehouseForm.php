@@ -70,6 +70,8 @@ class WarehouseForm
                             Toggle::make('is_active')
                                 ->label('Активен')
                                 ->default(true),
+                            Toggle::make('pickup_enabled')->label('Разрешить самовывоз со склада')->default(false)
+                                ->helperText('Для физического склада с фактическими остатками. Связанный магазин настраивает выдачу отдельно.'),
                         ])
                         ->columns(2),
 

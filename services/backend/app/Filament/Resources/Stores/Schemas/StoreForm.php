@@ -96,6 +96,18 @@ class StoreForm
                             ->label(__('filament/admin_sv/store_resource.hours'))
                             ->maxLength(255)
                             ->helperText('Например: Пн-Вс: 10:00 - 22:00'),
+                        Toggle::make('pickup_enabled')->label('Выдавать заказы в этом магазине')->default(true)
+                            ->helperText('Самовывоз доступен только при связанном действующем физическом складе с достаточным остатком.'),
+                        TextInput::make('timezone')->label('Часовой пояс')->default('Europe/Moscow')->required()->rules(['timezone']),
+                        \Filament\Forms\Components\Repeater::make('opening_hours')->label('График по дням недели')->columnSpanFull()->defaultItems(0)->maxItems(7)
+                            ->schema([
+                                Select::make('day')->label('День')->options([1 => 'Понедельник', 2 => 'Вторник', 3 => 'Среда', 4 => 'Четверг', 5 => 'Пятница', 6 => 'Суббота', 7 => 'Воскресенье'])->required(),
+                                Toggle::make('is_closed')->label('Выходной')->default(false),
+                                \Filament\Forms\Components\Repeater::make('intervals')->label('Часы работы, включая перерывы')->defaultItems(0)->schema([
+                                    TextInput::make('opens')->label('Открытие')->placeholder('09:00')->required()->rules(['date_format:H:i']),
+                                    TextInput::make('closes')->label('Закрытие')->placeholder('18:00')->required()->rules(['date_format:H:i']),
+                                ])->columns(2)->columnSpanFull(),
+                            ])->columns(2)->helperText('1 — понедельник, 7 — воскресенье. Неуказанный день неизвестен, а не выходной. Текстовое hours сохраняется отдельно.'),
                         TextInput::make('coordinates')
                             ->visible(fn ($get): bool => blank($get('physical_site_id')))
                             ->label(__('filament/admin_sv/store_resource.coordinates'))

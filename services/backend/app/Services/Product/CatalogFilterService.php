@@ -18,6 +18,14 @@ class CatalogFilterService
 
     private array $matches = [];
 
+    private ?\App\Models\Shipping\ShippingLocation $location = null;
+
+    public function forLocation(?\App\Models\Shipping\ShippingLocation $location): self
+    {
+        $this->location = $location;
+        return $this;
+    }
+
     private function attribute(string $slug): ?Attribute
     {
         if (! array_key_exists($slug, $this->attributesBySlug)) {
@@ -93,18 +101,19 @@ class CatalogFilterService
         $sku = Product::query()->active()->where(function ($q) use ($ids) {
             $q->where(function ($simple) use ($ids) {
                 $simple->whereIn('products.id', clone $ids)->whereNull('parent_product_id')
-                    ->where(fn ($v) => $v->whereNull('is_variable')->orWhere('is_variable', false));
+                    ->where(fn ($v) => $v->whereNull('is_variable')->orWhere('is_variable', false)->orWhereDoesntHave('variants'));
             })->orWhere(function ($variant) use ($ids) {
                 $variant->whereIn('products.parent_product_id', clone $ids);
             });
         });
+        $sku->joinSub(app(CatalogPrice::class)->rows($this->location), 'catalog_prices', 'catalog_prices.sku_id', '=', 'products.id');
         foreach (['min' => '>=', 'max' => '<='] as $bound => $operator) {
             if (isset($filters['price_'.$bound]) && $filters['price_'.$bound] !== '') {
-                $sku->where('products.price', $operator, $filters['price_'.$bound]);
+                $sku->whereRaw('CAST(catalog_prices.effective_price AS DECIMAL(20,4)) '.$operator.' CAST(? AS DECIMAL(20,4))', [(float) $filters['price_'.$bound]]);
             }
         }
         if (! empty($filters['on_sale'])) {
-            $sku->whereColumn('products.original_price', '>', 'products.price');
+            $sku->whereColumn('products.original_price', '>', 'catalog_prices.effective_price');
         }
         foreach ($filters['attributes'] ?? [] as $slug => $values) {
             $values = $this->tokens($values);
@@ -226,10 +235,11 @@ class CatalogFilterService
         $meta = ['price' => ['min' => 0, 'max' => 0], 'colors' => [], 'sizes' => [],
             'attributes' => [], 'manufacturers' => [], 'dimensions' => [], 'facet_mode' => 'excluding_self'];
         $priceSkus = $this->skus($roots, $this->filters($input, $mandatory, 'price'));
-        $meta['price'] = ['min' => (float) ((clone $priceSkus)->min('products.price') ?? 0),
-            'max' => (float) ((clone $priceSkus)->max('products.price') ?? 0)];
+        $meta['price'] = ['min' => (float) ((clone $priceSkus)->min('catalog_prices.effective_price') ?? 0),
+            'max' => (float) ((clone $priceSkus)->max('catalog_prices.effective_price') ?? 0)];
         $meta['has_on_sale'] = $this->skus($roots, $this->filters($input, $mandatory, 'on_sale'))
-            ->whereColumn('products.original_price', '>', 'products.price')->exists();
+            ->whereColumn('products.original_price', '>', 'catalog_prices.effective_price')->exists();
+        $meta['has_sale'] = $meta['has_on_sale'];
         foreach (self::DIMENSIONS as $key => $slug) {
             $attribute = $this->attribute($slug);
             $range = ['min' => null, 'max' => null, 'unit' => 'mm'];

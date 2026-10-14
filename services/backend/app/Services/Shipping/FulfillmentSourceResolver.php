@@ -24,7 +24,7 @@ class FulfillmentSourceResolver
             // Validate even if no stock/profile matches.
             app(WarehouseDistance::class)->kilometres(new Warehouse, (float) $coordinates['latitude'], (float) $coordinates['longitude']);
         }
-        $locationIds = $this->locationPathIds($destination);
+        $context = app(WarehouseCoverage::class)->destination($destination, null, $coordinates);
 
         return Warehouse::query()
             ->where('is_active', true)
@@ -35,12 +35,8 @@ class FulfillmentSourceResolver
                 'productAvailabilities' => fn ($query) => $query->where('product_id', $product->id),
             ])
             ->get()
-            ->map(function (Warehouse $warehouse) use ($locationIds, $coordinates) {
-                $profile = $warehouse->deliveryProfiles
-                    ->filter(fn (WarehouseDeliveryProfile $profile) => in_array($profile->coverage_type, ['locations', 'hybrid'], true))
-                    ->filter(fn (WarehouseDeliveryProfile $profile) => $profile->locations->pluck('id')->intersect($locationIds)->isNotEmpty())
-                    ->sortBy('priority')
-                    ->first();
+            ->map(function (Warehouse $warehouse) use ($context, $coordinates) {
+                $profile = app(WarehouseCoverage::class)->firstProfile($warehouse, $context);
 
                 if (! $profile) {
                     return null;

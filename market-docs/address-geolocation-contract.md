@@ -215,7 +215,7 @@ GUID склада в 1С (`external_id`) и GUID здания (`gar_guid`) — �
   ошибка внешнего запроса может быть преобразована в 503. Не полагаться только
   на 404 для определения отсутствия записи.
 
-Покрытие внешнего API: `GET https://api.svetofor-mebel.ru/api/v2/address/directory/status`.
+Покрытие внешнего API: `GET https://api.svetofor-mebel.ru/api/v2/address/status`.
 `garReady` не означает всю Россию: нужно проверять список завершённых областей
 импорта. `nationwideReady` нового контракта подтверждает завершённый общероссийский
 scope; региональные пакеты отдельно перечисляются в `gar.imports`.
