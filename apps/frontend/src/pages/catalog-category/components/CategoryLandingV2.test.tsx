@@ -8,10 +8,16 @@ import { resetSessionQueue } from '../../../lib/session-queue';
 import type { Category, Product } from '../../../lib/api';
 
 vi.mock('../../../hooks/useCounters', () => ({
-  useCounters: () => ({ setCartCount: vi.fn(), bumpWishlistCount: vi.fn(), bumpCompareCount: vi.fn() }),
+  useCounters: () => ({
+    setCartCount: vi.fn(),
+    bumpWishlistCount: vi.fn(),
+    bumpCompareCount: vi.fn(),
+  }),
 }));
 vi.mock('../../../hooks/useRegion', () => ({ useRegion: () => ({ getRegionId: () => null }) }));
-vi.mock('../../../contexts/cart-toast-context', () => ({ useCartToast: () => ({ showCartToast: vi.fn() }) }));
+vi.mock('../../../contexts/cart-toast-context', () => ({
+  useCartToast: () => ({ showCartToast: vi.fn() }),
+}));
 
 const api = vi.hoisted(() => ({
   cart: { get: vi.fn(), add: vi.fn(), update: vi.fn(), remove: vi.fn() },
@@ -52,13 +58,27 @@ beforeEach(() => {
 describe('CategoryLandingV2', () => {
   it('shows the cart quantity on a popular product whose variant is in the cart', async () => {
     api.cart.get.mockResolvedValue({
-      items: [{ id: 9, product_id: 51, name: 'Диван «Доро», серый', slug: 'doro', price: 46210, quantity: 2, total: 92420, image: null, sku: null }],
+      items: [
+        {
+          id: 9,
+          product_id: 51,
+          name: 'Диван «Доро», серый',
+          slug: 'doro',
+          price: 46210,
+          quantity: 2,
+          total: 92420,
+          image: null,
+          sku: null,
+        },
+      ],
       subtotal: 92420,
       item_count: 2,
       is_empty: false,
     });
 
-    render(<CategoryLandingV2 category={category} products={[sofa]} isLoadingProducts={false} />, { wrapper });
+    render(<CategoryLandingV2 category={category} products={[sofa]} isLoadingProducts={false} />, {
+      wrapper,
+    });
 
     expect(await screen.findByRole('button', { name: 'Увеличить количество' })).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();

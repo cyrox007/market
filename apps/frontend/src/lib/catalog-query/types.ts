@@ -26,6 +26,9 @@ export interface CatalogQuery extends Record<RangeKey, Range>, Record<ListKey, s
   onSale: boolean;
 }
 
+/** Производитель в API — характеристика (market-docs/44, ответ 3) */
+export const MANUFACTURER_ATTRIBUTE = 'proizvoditel';
+
 export const DEFAULT_SORT: CatalogSort = 'popular';
 
 export const CATALOG_PER_PAGE = 12;

@@ -135,9 +135,17 @@ describe('строка фильтров', () => {
         depth: { min: 450, max: 1070 },
         height: { min: 107, max: 1680 },
       },
-      manufacturers: [
-        { id: 1, name: 'Мебельный Рай', slug: 'rai' },
-        { id: 2, name: 'АСМ', slug: 'asm' },
+      // Производитель в API — характеристика (market-docs/44, ответ 3)
+      attributes: [
+        {
+          id: 9,
+          name: 'Производитель',
+          slug: 'proizvoditel',
+          values: [
+            { id: 1, name: 'Мебельный Рай', slug: 'rai' },
+            { id: 2, name: 'АСМ', slug: 'asm' },
+          ],
+        },
       ],
       has_sale: true,
     };
@@ -164,14 +172,14 @@ describe('строка фильтров', () => {
       expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?width_min=2400'));
     });
 
-    it('производители: пока бэкенд принимает одного — новый выбор заменяет прежний', () => {
+    it('производители: можно выбрать несколько (market-docs/44, ответ 3)', () => {
       const { onQueryChange } = renderToolbar('?manufacturers=rai', { meta: full });
       fireEvent.click(screen.getByRole('button', { name: 'Производители' }));
       expect(screen.getByRole('checkbox', { name: 'Мебельный Рай' })).toBeChecked();
       fireEvent.click(screen.getByRole('checkbox', { name: 'АСМ' }));
-      expect(screen.getByRole('checkbox', { name: 'Мебельный Рай' })).not.toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Мебельный Рай' })).toBeChecked();
       fireEvent.click(screen.getByRole('button', { name: /^Показать/ }));
-      expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?manufacturers=asm'));
+      expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?manufacturers=rai,asm'));
     });
 
     it('«По акции» применяется сразу', () => {

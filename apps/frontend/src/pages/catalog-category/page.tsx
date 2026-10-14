@@ -1,7 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import CategoryLandingV2 from './components/CategoryLandingV2';
 import CatalogListing from './listing/CatalogListing';
+import CatalogPageSkeleton from './components/CatalogPageSkeleton';
+import { pageView } from './pageView';
+import { preloadCatalogPage } from './listing/preloadPage';
+import { useUrlCatalogQuery } from './listing/useUrlCatalogQuery';
+import { getCategoryFragment } from '../../lib/category-fragment-cache';
 import { useCatalogCategory } from './hooks/useCatalogCategory';
 import { useLandingProducts } from './hooks/useLandingProducts';
 import { useSSR } from '../../contexts/ssr-context';
@@ -23,14 +28,12 @@ export default function CatalogCategory() {
   const ssrData = useSSR();
   const { region } = useRegion();
   const prefetchCategory = usePrefetchCategory();
-  const { category, effectiveCategory, displayName, seo, notFound } = useCatalogCategory(
-    slug,
-    isRooms,
-  );
+  const { category, displayName, seo, notFound } = useCatalogCategory(slug, isRooms);
   usePageSeo(seo);
 
+  const view = pageView({ slug, category, isRooms, notFound });
   // Лендинг — только у родительских категорий с подкатегориями
-  const isLanding = !isRooms && Boolean(effectiveCategory?.children?.length);
+  const isLanding = view === 'landing';
   const landing = useLandingProducts(isLanding && slug ? slug : null, region?.id);
 
   const scope = useMemo<CatalogScope>(
@@ -38,13 +41,20 @@ export default function CatalogCategory() {
     [isRooms, slug, region?.id],
   );
 
+  // Пока раздел грузится, товары — параллельно: у конечного раздела список возьмёт их из кэша
+  const [query] = useUrlCatalogQuery();
+  const loading = view === 'loading';
+  useEffect(() => {
+    if (loading) preloadCatalogPage(scope, query);
+  }, [loading, scope, query]);
+
   const ssrListing = ssrData?.category;
   const initial =
     ssrListing?.products && ssrListing.productsParams
       ? { params: ssrListing.productsParams, response: ssrListing.products }
       : null;
 
-  if (notFound) {
+  if (view === 'notFound') {
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-[1280px] mx-auto px-4 py-12">
@@ -54,11 +64,15 @@ export default function CatalogCategory() {
     );
   }
 
+  // Название — только из фрагментного кэша: displayName до ответа — «Каталог» или прежний раздел
+  if (view === 'loading') {
+    return <CatalogPageSkeleton name={slug ? getCategoryFragment(slug)?.name : undefined} />;
+  }
+
   if (isLanding && category) {
     return (
       <CategoryLandingV2
         category={category}
-        regionName={region?.name}
         products={landing.products}
         isLoadingProducts={landing.isLoading}
         onPrefetchCategory={prefetchCategory}

@@ -20,8 +20,14 @@ const meta: FiltersMeta = {
       slug: 'mechanism',
       values: [{ id: 2, name: 'Еврокнижка', slug: 'evro' }],
     },
+    // Производитель в API — характеристика (market-docs/44, ответ 3)
+    {
+      id: 4,
+      name: 'Производитель',
+      slug: 'proizvoditel',
+      values: [{ id: 3, name: 'Шатура', slug: 'shatura' }],
+    },
   ],
-  manufacturers: [{ id: 3, name: 'Шатура', slug: 'shatura' }],
 };
 
 const labels = (search: string) =>

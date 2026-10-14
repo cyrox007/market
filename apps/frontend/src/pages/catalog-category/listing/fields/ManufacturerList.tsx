@@ -6,13 +6,10 @@ interface ManufacturerListProps {
   onChange: (slugs: string[]) => void;
 }
 
-/** Пока API принимает одного производителя (market-docs/44, вопрос 3) — новый выбор заменяет прежний */
-const SEVERAL_ALLOWED = false;
-
 export default function ManufacturerList({ options, value, onChange }: ManufacturerListProps) {
   const toggle = (slug: string, checked: boolean) => {
     if (!checked) return onChange(value.filter((v) => v !== slug));
-    onChange(SEVERAL_ALLOWED ? [...value, slug] : [slug]);
+    onChange([...value, slug]);
   };
 
   return (

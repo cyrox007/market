@@ -2,8 +2,8 @@ import { useCallback } from 'react';
 import { mutate } from 'swr';
 import { api } from '../lib/api';
 import { setCategoryFragmentFromCategory } from '../lib/category-fragment-cache';
-import { parseCatalogQuery, toApiParams, type CatalogScope } from '../lib/catalog-query';
-import { pageKey, sectionOf, type LoadedPage } from '../pages/catalog-category/listing/pageKey';
+import { parseCatalogQuery, type CatalogScope } from '../lib/catalog-query';
+import { preloadCatalogPage } from '../pages/catalog-category/listing/preloadPage';
 import { useRegion } from './useRegion';
 
 /**
@@ -17,7 +17,6 @@ export function usePrefetchCategory() {
     (slug: string) => {
       if (!slug) return;
       const scope: CatalogScope = { scope: 'category', slug, regionId: region?.id };
-      const params = toApiParams(parseCatalogQuery(''), scope);
 
       api.categories
         .get(slug)
@@ -27,12 +26,7 @@ export function usePrefetchCategory() {
         })
         .catch(() => {});
 
-      api.products
-        .list(params)
-        .then((response) =>
-          mutate(pageKey(scope, params), { section: sectionOf(scope), response } as LoadedPage),
-        )
-        .catch(() => {});
+      preloadCatalogPage(scope, parseCatalogQuery(''));
     },
     [region?.id],
   );

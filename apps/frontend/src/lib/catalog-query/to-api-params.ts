@@ -1,6 +1,6 @@
 import type { ProductListParams } from '../api';
 import { SORT_TO_API } from './sort';
-import { CATALOG_PER_PAGE, RANGE_KEYS, type CatalogQuery } from './types';
+import { CATALOG_PER_PAGE, MANUFACTURER_ATTRIBUTE, RANGE_KEYS, type CatalogQuery } from './types';
 
 export interface CatalogScope {
   scope: 'category' | 'room';
@@ -8,7 +8,7 @@ export interface CatalogScope {
   regionId?: number;
 }
 
-/** Один производитель / подкатегория — параметрами, которые API уже понимает (market-docs/46) */
+/** Подкатегория — параметрами, которые API уже понимает (market-docs/46); производители — характеристикой */
 export function toApiParams(query: CatalogQuery, scope: CatalogScope): ProductListParams {
   const params: ProductListParams = {
     ...(scope.scope === 'room' ? { room_slug: scope.slug } : { category_slug: scope.slug }),
@@ -30,12 +30,12 @@ export function toApiParams(query: CatalogQuery, scope: CatalogScope): ProductLi
     params.category_slugs = query.categories;
   }
 
-  if (query.manufacturers.length === 1) params.manufacturer_slug = query.manufacturers[0];
-  else if (query.manufacturers.length) params.manufacturers = query.manufacturers;
-
   if (query.colors.length) params.colors = query.colors;
   if (query.sizes.length) params.sizes = query.sizes;
-  if (Object.keys(query.attributes).length) params.attributes = query.attributes;
+  const attributes = query.manufacturers.length
+    ? { ...query.attributes, [MANUFACTURER_ATTRIBUTE]: query.manufacturers }
+    : query.attributes;
+  if (Object.keys(attributes).length) params.attributes = attributes;
   if (query.onSale) params.on_sale = true;
   return params;
 }

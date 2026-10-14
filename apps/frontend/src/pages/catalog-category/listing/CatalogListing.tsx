@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Category } from '../../../lib/api';
-import type { CatalogScope } from '../../../lib/catalog-query';
+import { resetFilters, type CatalogScope } from '../../../lib/catalog-query';
 import { PAGE_CONTAINER } from '../../../lib/layout';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import CatalogHeader, { ProductCount } from './CatalogHeader';
+import CategoryDescription from '../components/CategoryDescription';
 import FilterChips from './chips/FilterChips';
 import { countProductsIn } from './countProducts';
 import AllFiltersPanel from './all-filters/AllFiltersPanel';
+import EmptyResults from './empty/EmptyResults';
+import CatalogPagination from './pagination/CatalogPagination';
 import ProductGrid from './ProductGrid';
 import CatalogToolbar from './toolbar/CatalogToolbar';
 import { useCatalogListing, type CatalogListingOptions } from './useCatalogListing';
@@ -42,6 +45,17 @@ export default function CatalogListing({
     setAllFiltersSession((n) => n + 1);
     setAllFiltersOpen(true);
   };
+  const { goToPage } = listing;
+  // Номер страницы заменяет список — к началу страницы (market-docs/44)
+  const openPage = useCallback(
+    (page: number) => {
+      goToPage(page);
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    },
+    [goToPage],
+  );
+  const isEmpty = !listing.isLoading && listing.products.length === 0;
   const subcategories = useMemo(
     () => (category?.children ?? []).map((c) => ({ slug: c.slug, name: c.name })),
     [category],
@@ -109,14 +123,41 @@ export default function CatalogListing({
         />
 
         <div className="mt-6">
-          <ProductGrid
-            products={listing.products}
-            isLoading={listing.isLoading}
-            isLoadingMore={listing.isLoadingMore}
-            hasMore={listing.hasMore}
-            onLoadMore={listing.loadMore}
-          />
+          {isEmpty ? (
+            <EmptyResults
+              query={query}
+              sectionTotal={category?.products_count || null}
+              onReset={() => setQuery(resetFilters(query))}
+            />
+          ) : (
+            <ProductGrid
+              products={listing.products}
+              isLoading={listing.isLoading}
+              isLoadingMore={listing.isLoadingMore}
+              isRefreshing={listing.isRefreshing}
+            />
+          )}
         </div>
+
+        {!isEmpty && !listing.isLoading && (
+          <div className="mt-8 empty:hidden max-vsm:mt-6">
+            <CatalogPagination
+              query={query}
+              pages={listing.pages}
+              lastPage={listing.lastPage}
+              hasMore={listing.hasMore}
+              isLoadingMore={listing.isLoadingMore}
+              onLoadMore={listing.loadMore}
+              onPage={openPage}
+            />
+          </div>
+        )}
+
+        {category?.description ? (
+          <div className="mt-10 max-vsm:mt-8">
+            <CategoryDescription name={displayName} description={category.description} />
+          </div>
+        ) : null}
       </div>
     </main>
   );

@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { AccordionSection } from '../../../../components/ui/primitives';
 import type { FiltersMeta } from '../../../../lib/api';
-import type { CatalogQuery } from '../../../../lib/catalog-query';
+import { MANUFACTURER_ATTRIBUTE, type CatalogQuery } from '../../../../lib/catalog-query';
 import { filterAvailability } from '../fields/availability';
 import DimensionFields from '../fields/DimensionFields';
 import ManufacturerList from '../fields/ManufacturerList';
@@ -110,7 +110,8 @@ export default function FilterSections({ draft, set, meta, subcategories }: Filt
     });
   }
   for (const attr of meta?.attributes ?? []) {
-    if (!attr.values.length) continue;
+    // Производители — своим разделом выше
+    if (!attr.values.length || attr.slug === MANUFACTURER_ATTRIBUTE) continue;
     sections.push({
       key: `attr:${attr.slug}`,
       title: attr.name,

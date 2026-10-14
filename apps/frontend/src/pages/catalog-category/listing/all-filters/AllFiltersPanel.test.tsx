@@ -35,10 +35,16 @@ const meta: FiltersMeta = {
         { id: 3, name: 'Аккордеон', slug: 'akk', count: 0 },
       ],
     },
-  ],
-  manufacturers: [
-    { id: 1, name: 'Мебельный Рай', slug: 'rai' },
-    { id: 2, name: 'АСМ', slug: 'asm' },
+    // Производитель в API — характеристика (market-docs/44, ответ 3)
+    {
+      id: 9,
+      name: 'Производитель',
+      slug: 'proizvoditel',
+      values: [
+        { id: 1, name: 'Мебельный Рай', slug: 'rai' },
+        { id: 2, name: 'АСМ', slug: 'asm' },
+      ],
+    },
   ],
   has_sale: true,
 };
@@ -70,6 +76,8 @@ describe('панель «Все фильтры»', () => {
       .getAllByRole('button', { expanded: true })
       .map((b) => b.textContent);
     expect(headings).toEqual(['Цена, ₽', 'Производители', 'Категория', 'Акция']);
+    // Характеристика proizvoditel — это «Производители», вторым разделом не дублируется
+    expect(within(dialog).queryByRole('button', { name: 'Производитель' })).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Механизм трансформации' })).toHaveAttribute(
       'aria-expanded',
       'false',

@@ -1,6 +1,7 @@
 import type { FiltersMeta } from '../api';
 import {
   LIST_KEYS,
+  MANUFACTURER_ATTRIBUTE,
   RANGE_KEYS,
   type CatalogQuery,
   type ListKey,
@@ -44,9 +45,18 @@ function nameIn(list: Named[] | undefined, slug: string): string {
   return list?.find((item) => item.slug === slug)?.name || slug;
 }
 
+/** Производители — значения характеристики proizvoditel; meta.filters.manufacturers бэкенд не заполняет */
+export function manufacturerOptions(meta: FiltersMeta | null | undefined) {
+  return (
+    meta?.attributes.find((a) => a.slug === MANUFACTURER_ATTRIBUTE)?.values ??
+    meta?.manufacturers ??
+    []
+  );
+}
+
 function listNames(names: ChipNames): Record<ListKey, Named[] | undefined> {
   return {
-    manufacturers: names.meta?.manufacturers,
+    manufacturers: manufacturerOptions(names.meta),
     categories: names.categories,
     colors: names.meta?.colors,
     sizes: names.meta?.sizes,

@@ -1,5 +1,5 @@
 import type { FiltersMeta } from '../../../../lib/api';
-import type { CatalogQuery, Range } from '../../../../lib/catalog-query';
+import { manufacturerOptions, type CatalogQuery, type Range } from '../../../../lib/catalog-query';
 
 export const DIMENSIONS = [
   { key: 'width', title: 'Ширина' },
@@ -31,7 +31,7 @@ export function filterAvailability(meta: FiltersMeta | null, query: CatalogQuery
     const bounds = rangeBounds(meta?.dimensions?.[d.key], query[d.key]);
     return bounds ? [{ ...d, bounds }] : [];
   });
-  const manufacturers = meta?.manufacturers ?? [];
+  const manufacturers = manufacturerOptions(meta);
   return {
     price: meta ? rangeBounds(meta.price, query.price) : null,
     dimensions,

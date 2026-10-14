@@ -1,64 +1,56 @@
 import type { Product } from '../../../lib/api';
+import { CATALOG_PER_PAGE } from '../../../lib/catalog-query';
+import { cn } from '../../../lib/cn';
 import ProductCardConnected from '../../../components/ui/ProductCardConnected';
 
 interface ProductGridProps {
   products: Product[];
   isLoading: boolean;
   isLoadingMore: boolean;
-  hasMore: boolean;
-  onLoadMore: () => void;
+  /** На экране прежний список, новый грузится */
+  isRefreshing: boolean;
 }
 
-const GRID = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5';
+/** До 550 — одна колонка, дальше 2 / 3 / 4 (market-docs/44) */
+const GRID =
+  'grid grid-cols-1 gap-x-3 gap-y-6 vsm:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 md:gap-x-6 md:gap-y-8';
 
-function Skeletons({ count }: { count: number }) {
+function Skeleton() {
   return (
-    <div className={GRID}>
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="bg-gray-200 rounded-2xl h-96 animate-pulse" />
-      ))}
+    <div className="animate-pulse motion-reduce:animate-none">
+      <div className="aspect-square rounded-btn bg-surface-grey" />
+      <div className="mt-3 h-4 w-5/6 rounded bg-surface-grey" />
+      <div className="mt-2 h-5 w-24 rounded bg-surface-grey" />
     </div>
   );
 }
 
-/** Временная вёрстка до задачи 06 (сетка по макету, номера страниц) */
+const skeletons = (count: number) =>
+  Array.from({ length: count }, (_, i) => <Skeleton key={`skeleton-${i}`} />);
+
 export default function ProductGrid({
   products,
   isLoading,
   isLoadingMore,
-  hasMore,
-  onLoadMore,
+  isRefreshing,
 }: ProductGridProps) {
-  if (isLoading) return <Skeletons count={8} />;
-  if (products.length === 0) {
+  if (isLoading) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">Товары не найдены</p>
+      <div className={GRID} aria-busy>
+        {skeletons(CATALOG_PER_PAGE)}
       </div>
     );
   }
   return (
-    <>
-      <div className={GRID} data-product-shop>
-        {products.map((product, index) => (
-          <ProductCardConnected key={product.id} product={product} priority={index < 8} />
-        ))}
-      </div>
-      {hasMore && (
-        <div className="flex flex-col items-center gap-4 py-8">
-          {isLoadingMore ? (
-            <Skeletons count={4} />
-          ) : (
-            <button
-              type="button"
-              onClick={onLoadMore}
-              className="px-6 py-3 border-2 border-red-600 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
-            >
-              Показать ещё
-            </button>
-          )}
-        </div>
-      )}
-    </>
+    <div
+      className={cn(GRID, 'transition-opacity', isRefreshing && 'opacity-60')}
+      aria-busy={isRefreshing || isLoadingMore || undefined}
+      data-product-shop
+    >
+      {products.map((product, index) => (
+        <ProductCardConnected key={product.id} product={product} priority={index < 4} />
+      ))}
+      {isLoadingMore && skeletons(4)}
+    </div>
   );
 }

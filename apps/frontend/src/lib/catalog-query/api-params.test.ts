@@ -53,13 +53,19 @@ describe('запрос каталога → параметры API', () => {
     });
   });
 
-  it('один производитель — manufacturer_slug, несколько — manufacturers', () => {
-    expect(toApiParams(parseCatalogQuery('?manufacturers=ikea'), category)).toMatchObject({
-      manufacturer_slug: 'ikea',
-    });
-    const several = toApiParams(parseCatalogQuery('?manufacturers=ikea,shatura'), category);
-    expect(several).toMatchObject({ manufacturers: ['ikea', 'shatura'] });
-    expect(several).not.toHaveProperty('manufacturer_slug');
+  it('производители — характеристикой proizvoditel, рядом с другими (market-docs/44, ответ 3)', () => {
+    const params = toApiParams(
+      parseCatalogQuery('?manufacturers=ikea,shatura&attr_mechanism=evro'),
+      category,
+    );
+    expect(params.attributes).toEqual({ mechanism: ['evro'], proizvoditel: ['ikea', 'shatura'] });
+    expect(params).not.toHaveProperty('manufacturer_slug');
+    expect(params).not.toHaveProperty('manufacturers');
+  });
+
+  it('attr_proizvoditel в адресе читается как производители', () => {
+    expect(parseCatalogQuery('?attr_proizvoditel=ikea').manufacturers).toEqual(['ikea']);
+    expect(parseCatalogQuery('?attr_proizvoditel=ikea').attributes).toEqual({});
   });
 
   it('одна подкатегория заменяет категорию, несколько — category_slugs', () => {

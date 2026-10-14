@@ -7,20 +7,14 @@ interface CategoryTilesProps {
   onPrefetch?: (slug: string) => void;
 }
 
-export default function CategoryTiles({
-  categories,
-  onPrefetch,
-}: CategoryTilesProps) {
+export default function CategoryTiles({ categories, onPrefetch }: CategoryTilesProps) {
   if (!categories.length) return null;
 
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-6 vsm:grid-cols-4 md:grid-cols-6 max-vsm:gap-x-3 max-vsm:gap-y-5">
       {categories.map((category) => {
         const image =
-          category.image_thumb ||
-          category.image_hd ||
-          category.image_fullhd ||
-          category.image;
+          category.image_thumb || category.image_hd || category.image_fullhd || category.image;
 
         return (
           <Link
