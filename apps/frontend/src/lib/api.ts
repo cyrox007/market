@@ -747,8 +747,11 @@ export interface FiltersMeta {
     }[];
   }[];
   manufacturers?: { id: number; name: string; slug: string; count?: number }[];
-  /** Формат предполагаемый — ждём бэкенд (market-docs/44, вопросы 1–2); читается в toolbar/availability */
-  dimensions?: Partial<Record<'width' | 'depth' | 'height', { min: number; max: number }>>;
+  /** Миллиметры; нет данных — null (market-docs/44, ответ 3 от 14.10); читается в toolbar/availability */
+  dimensions?: Partial<
+    Record<'width' | 'depth' | 'height', { min: number | null; max: number | null; unit?: 'mm' }>
+  >;
+  /** Есть ли товары по акции без учёта самого «По акции»; has_on_sale — старое имя */
   has_sale?: boolean;
 }
 

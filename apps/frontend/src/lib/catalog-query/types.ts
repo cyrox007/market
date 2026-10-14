@@ -1,5 +1,4 @@
-/** «По рейтингу» добавим, когда в API появится рейтинг (market-docs/44, вопрос 5) */
-export type CatalogSort = 'popular' | 'cheap' | 'expensive';
+export type CatalogSort = 'popular' | 'rating' | 'cheap' | 'expensive';
 
 export interface Range {
   min?: number;

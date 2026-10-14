@@ -26,12 +26,12 @@ export default function CatalogHeader({ category, title, total }: CatalogHeaderP
     <header>
       <CategoryBreadcrumbs name={title} trail={parentTrail(category)} />
       {/* Ниже 980 заголовка на макетах нет — остаётся для поисковиков и экранного диктора */}
-      <div className="mt-7 flex flex-wrap items-baseline gap-x-4 gap-y-2 max-md:mt-0">
-        <h1 className="font-display text-32 font-bold leading-none text-ink max-md:sr-only">
+      <div className="mt-7 flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:mt-0">
+        <h1 className="text-24 font-bold text-ink max-md:sr-only">
           {title}
         </h1>
         {/* Ниже 980 число стоит под плашками — ProductCount в CatalogListing */}
-        <ProductCount total={total} className="max-md:hidden" />
+        <ProductCount total={total} className="font-medium md:text-14 max-md:hidden" />
       </div>
     </header>
   );

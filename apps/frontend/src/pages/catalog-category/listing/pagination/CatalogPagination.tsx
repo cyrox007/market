@@ -42,26 +42,26 @@ export default function CatalogPagination({
     <div className="flex flex-col items-center gap-6 max-vsm:gap-5">
       {hasMore && (
         <Button
-          variant="outline"
+          variant="muted"
           size="lg"
           shape="rounded"
           isLoading={isLoadingMore}
           onClick={onLoadMore}
-          className="bg-surface px-10 max-vsm:w-full"
+          className="px-10 max-vsm:w-full"
         >
           Показать ещё
         </Button>
       )}
       <nav aria-label="Страницы">
-        <ul className="flex flex-wrap items-center justify-center gap-2">
+        <ul className="flex flex-wrap items-end justify-center gap-2">
           {pageNumbers(pages, lastPage).map((item, i) =>
             item === 'gap' ? (
               <li
                 key={`gap-${i}`}
                 aria-hidden
-                className="w-4 self-end text-center text-ink-secondary"
+                className="text-14 font-semibold text-ink"
               >
-                …
+                ...
               </li>
             ) : (
               <li key={item}>
@@ -102,7 +102,8 @@ function PageLink({
         onPage(page);
       }}
       className={cn(
-        'inline-flex size-9 items-center justify-center rounded-[8px] text-14 font-medium outline-none transition-colors',
+        // Figma 730:59762: 35 × 37 (py 10 + строка 14), радиус 10, Inter 14 Semi Bold
+        'inline-flex h-[37px] min-w-[35px] items-center justify-center rounded-field px-1 text-14 font-semibold outline-none transition-colors',
         'hover:bg-brand-green hover:text-ink-inverse focus-visible:ring-2 focus-visible:ring-brand-green',
         current ? 'bg-brand-yellow text-ink' : 'bg-surface-grey text-ink',
       )}

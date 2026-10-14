@@ -13,11 +13,15 @@ export type Bounds = { min: number; max: number };
 const isSet = (r: Range) => r.min !== undefined || r.max !== undefined;
 
 /** Границы из meta, расширенные выбранным: выбор не должен оказаться за краем */
-function rangeBounds(meta: Bounds | undefined, selected: Range): Bounds | null {
-  const hasChoice = Boolean(meta && meta.max > meta.min);
+function rangeBounds(
+  meta: { min: number | null; max: number | null } | undefined,
+  selected: Range,
+): Bounds | null {
+  const hasChoice = meta?.min != null && meta.max != null && meta.max > meta.min;
   if (!hasChoice && !isSet(selected)) return null;
+  // Габарита без данных бэкенд отдаёт null (market-docs/44, ответ 3 от 14.10)
   const values = [meta?.min, meta?.max, selected.min, selected.max].filter(
-    (v): v is number => v !== undefined,
+    (v): v is number => v != null,
   );
   return { min: Math.min(...values), max: Math.max(...values) };
 }

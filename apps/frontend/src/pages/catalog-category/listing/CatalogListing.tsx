@@ -96,7 +96,7 @@ export default function CatalogListing({
           />
         </div>
 
-        <div className="mt-4 empty:hidden">
+        <div className="mt-4 empty:hidden md:mt-6">
           <FilterChips
             query={query}
             meta={listing.filtersMeta}

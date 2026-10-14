@@ -172,6 +172,26 @@ describe('строка фильтров', () => {
       expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?width_min=2400'));
     });
 
+    it('габариты без данных приходят null — такого поля нет, выбранное не съезжает к нулю', () => {
+      renderToolbar('?width_min=2400', {
+        meta: {
+          ...full,
+          dimensions: {
+            width: { min: null, max: null, unit: 'mm' },
+            depth: { min: null, max: null, unit: 'mm' },
+            height: { min: 800, max: 1100, unit: 'mm' },
+          },
+        },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Габариты' }));
+      expect(screen.getByRole('textbox', { name: 'Ширина от' })).toHaveAttribute(
+        'placeholder',
+        'от 2 400',
+      );
+      expect(screen.queryByRole('textbox', { name: 'Глубина от' })).not.toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Высота от' })).toBeInTheDocument();
+    });
+
     it('производители: можно выбрать несколько (market-docs/44, ответ 3)', () => {
       const { onQueryChange } = renderToolbar('?manufacturers=rai', { meta: full });
       fireEvent.click(screen.getByRole('button', { name: 'Производители' }));

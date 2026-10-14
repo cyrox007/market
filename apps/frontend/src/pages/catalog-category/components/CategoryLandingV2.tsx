@@ -4,22 +4,13 @@ import CategoryBreadcrumbs from './CategoryBreadcrumbs';
 import CategoryDescription from './CategoryDescription';
 import CategoryTiles from './CategoryTiles';
 import ProductCardConnected from '../../../components/ui/ProductCardConnected';
+import ProductCardSkeleton from '../../../components/ui/ProductCardSkeleton';
 
 interface CategoryLandingV2Props {
   category: Category;
   products: Product[];
   isLoadingProducts: boolean;
   onPrefetchCategory?: (slug: string) => void;
-}
-
-function ProductSkeleton() {
-  return (
-    <div className="animate-pulse">
-      <div className="aspect-square rounded-btn bg-surface-grey" />
-      <div className="mt-3 h-4 w-5/6 rounded bg-surface-grey" />
-      <div className="mt-2 h-5 w-24 rounded bg-surface-grey" />
-    </div>
-  );
 }
 
 export default function CategoryLandingV2({
@@ -57,7 +48,7 @@ export default function CategoryLandingV2({
           {isLoadingProducts ? (
             <div className="grid grid-cols-1 gap-x-3 gap-y-6 vsm:grid-cols-2 md:grid-cols-4 md:gap-5">
               {Array.from({ length: 4 }).map((_, index) => (
-                <ProductSkeleton key={index} />
+                <ProductCardSkeleton key={index} />
               ))}
             </div>
           ) : products.length ? (

@@ -33,6 +33,13 @@ describe('запрос каталога → параметры API', () => {
     });
   });
 
+  it('сортировка по рейтингу — от высокого (market-docs/44, бэкенд 14.10)', () => {
+    expect(toApiParams(parseCatalogQuery('?sort=rating'), category)).toMatchObject({
+      sort_by: 'rating',
+      sort_order: 'desc',
+    });
+  });
+
   it('фильтры передаются, пустые не передаются', () => {
     const query = parseCatalogQuery(
       '?page=2&price_min=10000&width_max=3000&colors=grey&sizes=200x90' +
