@@ -5,6 +5,11 @@
 
     RewriteEngine On
 
+    # OSPanel local domain: keep the site and API on the same secure origin.
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP_HOST} ^(?:www\.)?svetofor\.local(?::80)?$ [NC]
+    RewriteRule ^ https://svetofor.local%{REQUEST_URI} [R=307,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

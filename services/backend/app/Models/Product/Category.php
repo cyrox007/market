@@ -37,6 +37,14 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
         parent::boot();
 
         static::bootCacheable();
+        static::saving(function (self $category): void {
+            if ($category->isDirty('regional_text_template') && filled($category->regional_text_template)) {
+                preg_match_all('/\{([a-z_]+)\}/', $category->regional_text_template, $tokens);
+                if (mb_strlen($category->regional_text_template) > 2000 || array_diff($tokens[1], ['category_name', 'city', 'delivery_cities_count'])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['regional_text_template' => 'Допустимы только {category_name}, {city}, {delivery_cities_count}, не более 2000 символов.']);
+                }
+            }
+        });
 
         // Ограничиваем модель своей таксономией (Category → продуктовая, Room → комнаты),
         // иначе вторая таксономия «протекает» в запросы каталога.

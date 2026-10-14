@@ -7,11 +7,30 @@ use App\Models\Order\Order;
 use App\Models\Shipping\ShippingLocation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AddressControllerTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Cache::flush();
+        Http::fake(['*/api/v2/address/hierarchy/*' => function ($request) {
+            $id = basename($request->url());
+            $city = $id === 'building-new' ? 'Санкт-Петербург' : 'Москва';
+            $street = $id === 'building-new' ? 'Невский проспект' : 'Ленина';
+
+            return Http::response([
+                'target' => ['kind' => 'building', 'externalId' => $id, 'name' => '1', 'source' => 'kladr', 'kladrCode' => $id],
+                'path' => [['kind' => 'locality', 'name' => $city], ['kind' => 'street', 'name' => $street]],
+                'label' => "$city, $street, д. 1",
+            ]);
+        }]);
+    }
 
     public function test_authenticated_user_can_list_addresses(): void
     {
@@ -38,12 +57,9 @@ class AddressControllerTest extends TestCase
         $response = $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/addresses', [
                 'title' => 'Дом',
-                'city' => 'Москва',
-                'street' => 'Ленина',
-                'house' => '1',
+                'directory_external_id' => 'building-1',
                 'apartment' => '10',
                 'entrance' => '2',
-                'shipping_location_id' => $location->id,
             ]);
 
         $response->assertStatus(201)
@@ -92,9 +108,7 @@ class AddressControllerTest extends TestCase
 
         $response = $this->actingAs($user, 'sanctum')
             ->putJson("/api/v1/addresses/{$address->id}", [
-                'city' => 'Санкт-Петербург',
-                'street' => 'Невский проспект',
-                'house' => '1',
+                'directory_external_id' => 'building-new',
             ]);
 
         $response->assertStatus(200)
@@ -229,7 +243,7 @@ class AddressControllerTest extends TestCase
         $response->assertStatus(401);
     }
 
-    public function test_address_creation_requires_city_street_house(): void
+    public function test_address_creation_requires_directory_building(): void
     {
         $user = User::factory()->create();
 
@@ -239,7 +253,7 @@ class AddressControllerTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['city', 'street', 'house']);
+            ->assertJsonValidationErrors(['directory_external_id']);
     }
 
     public function test_address_list_shows_default_first(): void

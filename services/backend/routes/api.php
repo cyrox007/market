@@ -68,6 +68,7 @@ Route::prefix('v1')->group(function () {
     // Products (public)
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
+        Route::get('/count', [ProductController::class, 'count']);
         Route::get('/featured', [ProductController::class, 'featured']);
         Route::get('/new', [ProductController::class, 'new']);
         Route::get('/sale', [ProductController::class, 'sale']);
@@ -135,6 +136,7 @@ Route::prefix('v1')->group(function () {
 
     // Shipping (public)
     Route::prefix('shipping')->group(function () {
+        Route::post('/quote', \App\Http\Controllers\Api\WarehouseDeliveryQuoteController::class)->middleware('api-session');
         Route::get('/locations', [ShippingController::class, 'getLocations']);
         Route::get('/locations/tree', [ShippingController::class, 'getLocationTree']);
         Route::get('/locations/{locationId}', [ShippingController::class, 'getLocationInfo']);
@@ -184,6 +186,7 @@ Route::prefix('v1')->group(function () {
 
     // Orders: создание и payment-config без auth
     Route::middleware(['api-session'])->prefix('orders')->group(function () {
+        Route::post('/one-click', \App\Http\Controllers\Api\OneClickLeadController::class)->middleware('throttle:orders');
         Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });

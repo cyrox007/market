@@ -18,7 +18,7 @@ class StoreController extends Controller
     {
         $city = $request->query('city');
 
-        $stores = Store::cached('index' . ($city ? "_city_{$city}" : ''), function () use ($city) {
+        $stores = Store::cached('index'.($city ? "_city_{$city}" : ''), function () use ($city) {
             $query = Store::active()
                 ->ordered();
 
@@ -28,6 +28,8 @@ class StoreController extends Controller
 
             return $query->get();
         });
+
+        $stores->load(['physicalSite', 'warehouse']);
 
         return ApiStoreResource::collection($stores);
     }
@@ -43,6 +45,8 @@ class StoreController extends Controller
                 ->active()
                 ->firstOrFail();
         });
+
+        $store->load(['physicalSite', 'warehouse']);
 
         return response()->json([
             'store' => new ApiStoreResource($store),

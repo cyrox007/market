@@ -5,20 +5,55 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AddressResource;
 use App\Models\Address\Address;
+use App\Services\Address\DeliveryAddressResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AddressController extends Controller
 {
+    public function __construct(private readonly DeliveryAddressResolver $resolver) {}
+
+    private function addressInput(Request $request, ?Address $address = null): array
+    {
+        $validated = $request->validate([
+            'directory_external_id' => [$address ? 'sometimes' : 'required', 'string', 'max:128'],
+            'title' => 'nullable|string|max:255',
+            'apartment' => 'nullable|string|max:64',
+            'entrance' => 'nullable|string|max:64',
+            'room' => 'nullable|string|max:64',
+            'floor' => 'nullable|string|max:64',
+            'intercom' => 'nullable|string|max:64',
+            'comment' => 'nullable|string|max:2000',
+            'city' => 'prohibited', 'street' => 'prohibited', 'house' => 'prohibited',
+            'shipping_location_id' => 'prohibited',
+        ]);
+        $id = $validated['directory_external_id'] ?? null;
+        // An unchanged saved destination remains editable even during directory outages.
+        if ($id && $id !== $address?->directory_external_id) {
+            try {
+                $validated = array_merge($validated, $this->resolver->resolve($id));
+            } catch (ValidationException $error) {
+                throw $error;
+            } catch (Throwable $error) {
+                report($error);
+                abort(503, 'Адресный справочник временно недоступен. Адрес не сохранён.');
+            }
+        }
+
+        return $validated;
+    }
+
     public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
@@ -33,36 +68,20 @@ class AddressController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'nullable|string|max:255',
-            'city' => 'required|string|max:255',
-            'street' => 'required|string|max:255',
-            'house' => 'required|string|max:255',
-            'apartment' => 'nullable|string|max:255',
-            'entrance' => 'nullable|string|max:255',
-            'shipping_location_id' => 'nullable|exists:shipping_locations,id',
-        ]);
-
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $address = $user->addresses()->create([
-            'title' => $validated['title'] ?? 'Адрес доставки',
-            'city' => $validated['city'],
-            'street' => $validated['street'],
-            'house' => $validated['house'],
-            'apartment' => $validated['apartment'] ?? null,
-            'entrance' => $validated['entrance'] ?? null,
-            'is_default' => false,
-            'shipping_location_id' => $validated['shipping_location_id'] ?? null,
-        ]);
+        $validated = $this->addressInput($request);
+        $address = $user->addresses()->create(array_merge($validated, [
+            'title' => $validated['title'] ?? 'Адрес доставки', 'is_default' => false,
+        ]));
 
         $address->load('shippingLocation');
-        
+
         return response()->json([
             'address' => new AddressResource($address),
         ], 201);
@@ -73,7 +92,7 @@ class AddressController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
@@ -91,20 +110,10 @@ class AddressController extends Controller
 
     public function update(Request $request, Address $address): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'nullable|string|max:255',
-            'city' => 'sometimes|required|string|max:255',
-            'street' => 'sometimes|required|string|max:255',
-            'house' => 'sometimes|required|string|max:255',
-            'apartment' => 'nullable|string|max:255',
-            'entrance' => 'nullable|string|max:255',
-            'shipping_location_id' => 'nullable|exists:shipping_locations,id',
-        ]);
-
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
@@ -113,7 +122,7 @@ class AddressController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $address->fill($validated);
+        $address->fill($this->addressInput($request, $address));
         $address->save();
         $address->load('shippingLocation');
 
@@ -127,7 +136,7 @@ class AddressController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
@@ -157,7 +166,7 @@ class AddressController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 

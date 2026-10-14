@@ -186,6 +186,15 @@ class OrderController extends Controller
                 'delivery_date' => 'nullable|date',
                 'delivery_time' => 'nullable|string|max:255',
                 'address_id' => 'nullable|exists:user_addresses,id',
+                'directory_external_id' => 'nullable|string|max:128',
+                'warehouse_id' => 'nullable|integer|exists:warehouses,id',
+                'store_id' => 'nullable|integer|exists:stores,id',
+                'delivery_details' => 'nullable|array',
+                'delivery_details.apartment' => 'nullable|string|max:100',
+                'delivery_details.room' => 'nullable|string|max:100',
+                'delivery_details.entrance' => 'nullable|string|max:100',
+                'delivery_details.floor' => 'nullable|string|max:100',
+                'delivery_details.intercom' => 'nullable|string|max:100',
                 'delivery_cost' => 'nullable|numeric|min:0',
                 'assembly_cost' => 'nullable|numeric|min:0',
                 'comment' => 'nullable|string|max:1000',
@@ -199,8 +208,27 @@ class OrderController extends Controller
                 'address.entrance' => 'nullable|string|max:255',
             ]);
 
-            // Для delivery shipping_location_id обязателен
-            if ($validated['delivery_type'] === 'delivery' && empty($validated['shipping_location_id'])) {
+            $savedDestination = null;
+            if (!empty($validated['address_id'])) {
+                if (!$request->user()) {
+                    return response()->json(['message' => 'Для использования адреса профиля войдите в аккаунт.'], 401);
+                }
+                $savedDestination = Address::where('user_id', $request->user()->id)->findOrFail($validated['address_id']);
+            }
+            if ($savedDestination && filled($validated['directory_external_id'] ?? null)
+                && $savedDestination->directory_external_id !== $validated['directory_external_id']) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['address_id' => 'Адрес профиля не совпадает с выбранным зданием.']);
+            }
+            $directoryId = $savedDestination ? $savedDestination->directory_external_id : ($validated['directory_external_id'] ?? null);
+            $directoryDelivery = $validated['delivery_type'] === 'delivery' && filled($directoryId);
+            $warehousePickup = $validated['delivery_type'] === 'pickup' && ! empty($validated['warehouse_id']);
+            $warehouseQuote = null;
+            if ($directoryDelivery && !empty($validated['address'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['delivery' => 'Для тарифа склада адрес задаётся справочником.']);
+            }
+
+            // Old clients retain the location-based workflow; classifier addresses use profiles.
+            if ($validated['delivery_type'] === 'delivery' && !$directoryDelivery && empty($validated['shipping_location_id'])) {
                 return response()->json([
                     'message' => 'Для доставки необходимо указать локацию доставки',
                     'errors' => ['shipping_location_id' => ['Поле локация доставки обязательно для типа доставки: delivery']],
@@ -232,6 +260,13 @@ class OrderController extends Controller
             }
 
             $cartItems = Cart::getItems();
+            if ($warehousePickup) {
+                if (! empty($validated['additional_services']) || ! empty($validated['requires_assembly']) || ! empty($validated['delivery_handling_type_id'])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['services' => 'Услуги доставки недоступны в расчёте самовывоза.']);
+                }
+                $warehouseQuote = ['selected' => app(\App\Services\Shipping\WarehousePickup::class)->select((int) $validated['warehouse_id'],
+                    isset($validated['store_id']) ? (int) $validated['store_id'] : null, app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems))];
+            }
             $subtotal = (float) Cart::total();
 
             // Получаем регион для применения правил корзины
@@ -243,7 +278,19 @@ class OrderController extends Controller
             }
 
             // Проверка остатков
-            $stockValidation = $this->validateStockAction->execute(isset($validated['shipping_location_id']) ? (int) $validated['shipping_location_id'] : null);
+            if ($directoryDelivery) {
+                $quotes = app(\App\Services\Shipping\WarehouseDeliveryQuote::class);
+                try {
+                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, $validated);
+                } catch (\RuntimeException $error) {
+                    report($error);
+                    return response()->json(['message' => 'Не удалось проверить адрес и тариф доставки. Повторите позже.'], 503);
+                }
+                if (!$warehouseQuote['available']) {
+                    return response()->json(['message' => $warehouseQuote['reason'], 'available' => false], 422);
+                }
+            }
+            $stockValidation = $directoryDelivery || $warehousePickup ? ['valid' => true] : $this->validateStockAction->execute(isset($validated['shipping_location_id']) ? (int) $validated['shipping_location_id'] : null);
             if (!$stockValidation['valid']) {
                 return response()->json([
                     'message' => 'Недостаточно товаров на складе',
@@ -300,7 +347,18 @@ class OrderController extends Controller
             $deliveryBasePrice = null;
             $deliveryFreeThreshold = null;
 
-            if ($validated['delivery_type'] === 'delivery') {
+            if ($directoryDelivery || $warehousePickup) {
+                if ($directoryDelivery && isset($validated['delivery_handling_type_id'])) {
+                    $deliveryHandlingType = DeliveryHandlingType::find($validated['delivery_handling_type_id']);
+                }
+                $selected = $warehouseQuote['selected'];
+                $deliveryCost = $selected['delivery_cost'];
+                $assemblyCost = $selected['assembly_cost'];
+                $deliveryDaysMin = $selected['delivery_days_min'];
+                $deliveryDaysMax = $selected['delivery_days_max'];
+                $deliveryBasePrice = $selected['base_price'];
+                $deliveryFreeThreshold = $selected['free_delivery_threshold'] ?? null;
+            } elseif ($validated['delivery_type'] === 'delivery') {
                 // Получаем локацию доставки
                 $shippingLocation = ShippingLocation::findOrFail($validated['shipping_location_id']);
 
@@ -517,16 +575,19 @@ class OrderController extends Controller
                 $validated['address'] ?? null,
                 $shippingLocation
             );
+            if ($directoryDelivery) {
+                $addressSnapshot = $savedDestination?->full_address ?? $warehouseQuote['address']['address_snapshot']['label'];
+            }
 
             // Самовывоз всегда бесплатный; для доставки клиент не может подменить расчёт через delivery_cost без согласования
             if ($validated['delivery_type'] === 'pickup') {
                 $finalDeliveryCost = 0.0;
             } else {
-                $finalDeliveryCost = isset($validated['delivery_cost']) && $validated['delivery_cost'] !== null
+                $finalDeliveryCost = !$directoryDelivery && isset($validated['delivery_cost']) && $validated['delivery_cost'] !== null
                     ? (float) $validated['delivery_cost']
                     : $deliveryCost;
             }
-            $finalAssemblyCost = isset($validated['assembly_cost']) && $validated['assembly_cost'] !== null
+            $finalAssemblyCost = !$directoryDelivery && !$warehousePickup && isset($validated['assembly_cost']) && $validated['assembly_cost'] !== null
                 ? (float) $validated['assembly_cost']
                 : $assemblyCost;
 
@@ -558,6 +619,7 @@ class OrderController extends Controller
                     'contact_email' => $validated['contact_email'],
                     'address_id' => $addressId,
                     'address_snapshot' => $addressSnapshot,
+                    'fulfillment_snapshot' => $directoryDelivery || $warehousePickup ? $warehouseQuote['selected'] : null,
                     'comment' => $validated['comment'] ?? null,
                     // Новые поля для системы доставки (сохраняем для обоих типов, если указаны)
                     'shipping_location_id' => $shippingLocation?->id,
@@ -565,13 +627,23 @@ class OrderController extends Controller
                     'shipping_method_id' => $shippingMethod?->id,
                     'delivery_handling_type_id' => $deliveryHandlingType?->id,
                     'delivery_floor' => $validated['delivery_floor'] ?? null,
-                    'requires_assembly' => $validated['requires_assembly'] ?? ($shippingLocation?->getEffectiveRequiresAssembly() ?? false),
+                    'requires_assembly' => $directoryDelivery ? $warehouseQuote['selected']['requires_assembly'] : ($validated['requires_assembly'] ?? ($shippingLocation?->getEffectiveRequiresAssembly() ?? false)),
                     // Данные о доставке из конфигурации метода доставки
                     'delivery_days_min' => $deliveryDaysMin ?? null,
                     'delivery_days_max' => $deliveryDaysMax ?? null,
                     'delivery_base_price' => $deliveryBasePrice ?? null,
                     'delivery_free_threshold' => $deliveryFreeThreshold ?? null,
                 ]);
+
+            if ($directoryDelivery && !$addressId) {
+                $address = Address::create(array_merge($warehouseQuote['address'], $validated['delivery_details'] ?? [], [
+                    'user_id' => $user?->id, 'title' => 'Адрес доставки', 'is_default' => false,
+                ]));
+                $order->update(['address_id' => $address->id, 'address_snapshot' => $address->full_address]);
+            }
+            if ($directoryDelivery || $warehousePickup) {
+                app(\App\Services\Shipping\WarehouseOrderStock::class)->reserve($order);
+            }
 
             // Создаем адрес доставки если передан (для любого типа доставки)
             if (!$addressId && isset($validated['address'])) {
@@ -684,7 +756,13 @@ class OrderController extends Controller
 
             // Сохраняем дополнительные услуги
             $additionalServicesTotal = 0;
-            if (isset($validated['additional_services']) && is_array($validated['additional_services'])) {
+            if ($directoryDelivery) {
+                foreach ($warehouseQuote['selected']['additional_services'] as $service) {
+                    $order->additionalServices()->attach($service['id'], ['service_name' => $service['name'],
+                        'price' => $service['price'], 'price_type' => $service['price_type'], 'icon' => $service['icon']]);
+                    $additionalServicesTotal += $service['price'];
+                }
+            } elseif (isset($validated['additional_services']) && is_array($validated['additional_services'])) {
                 foreach ($validated['additional_services'] as $serviceData) {
                     $service = AdditionalService::find($serviceData['id']);
                     if ($service && $service->isAvailableForLocation($shippingLocation)) {

@@ -14,24 +14,29 @@ class FulfillmentSourceResolver
      * Find active sources that can supply a concrete product/SKU and deliver it
      * to the customer's locality. Parent locations are inherited.
      */
-    public function resolve(Product $product, ShippingLocation $destination): Collection
+    public function resolve(Product $product, ShippingLocation $destination, ?array $coordinates = null): Collection
     {
-        $locationIds = $this->locationPathIds($destination);
+        if ($coordinates !== null) {
+            if (! isset($coordinates['latitude'], $coordinates['longitude'])
+                || ! is_numeric($coordinates['latitude']) || ! is_numeric($coordinates['longitude'])) {
+                throw new \InvalidArgumentException('Both destination coordinates are required');
+            }
+            // Validate even if no stock/profile matches.
+            app(WarehouseDistance::class)->kilometres(new Warehouse, (float) $coordinates['latitude'], (float) $coordinates['longitude']);
+        }
+        $context = app(WarehouseCoverage::class)->destination($destination, null, $coordinates);
 
         return Warehouse::query()
             ->where('is_active', true)
             ->with([
+                'physicalSite',
                 'deliveryProfiles' => fn ($query) => $query->active()->with('locations'),
                 'productStocks' => fn ($query) => $query->where('product_id', $product->id),
                 'productAvailabilities' => fn ($query) => $query->where('product_id', $product->id),
             ])
             ->get()
-            ->map(function (Warehouse $warehouse) use ($locationIds) {
-                $profile = $warehouse->deliveryProfiles
-                    ->filter(fn (WarehouseDeliveryProfile $profile) => in_array($profile->coverage_type, ['locations', 'hybrid'], true))
-                    ->filter(fn (WarehouseDeliveryProfile $profile) => $profile->locations->pluck('id')->intersect($locationIds)->isNotEmpty())
-                    ->sortBy('priority')
-                    ->first();
+            ->map(function (Warehouse $warehouse) use ($context, $coordinates) {
+                $profile = app(WarehouseCoverage::class)->firstProfile($warehouse, $context);
 
                 if (! $profile) {
                     return null;
@@ -50,6 +55,11 @@ class FulfillmentSourceResolver
                 return [
                     'warehouse_id' => $warehouse->id,
                     'source_name' => $warehouse->name,
+                    'distance_km' => $coordinates !== null
+                        ? app(WarehouseDistance::class)->kilometres($warehouse, $coordinates['latitude'], $coordinates['longitude'])
+                        : null,
+                    'distance_type' => 'straight_line',
+                    'distance_available' => $coordinates !== null && $warehouse->dispatchCoordinates() !== null,
                     'source_type' => $warehouse->source_type,
                     'stock_mode' => $warehouse->stock_mode,
                     'quantity' => $stock?->quantity,
@@ -65,6 +75,7 @@ class FulfillmentSourceResolver
             })
             ->filter()
             ->sortBy([
+                ...($coordinates !== null ? [['distance_available', 'desc'], ['distance_km', 'asc']] : []),
                 ['delivery_days_min', 'asc'],
                 ['base_price', 'asc'],
             ])

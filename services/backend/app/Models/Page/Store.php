@@ -3,23 +3,23 @@
 namespace App\Models\Page;
 
 use App\Contracts\Models\PageableContract;
+use App\Models\Shipping\ShippingLocation;
 use App\Models\Traits\Cacheable;
 use App\Models\Traits\Pageable;
 use App\Models\Traits\SEO\MetaUniversalSEO;
-use App\Models\Shipping\ShippingLocation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
-use Spatie\Image\Enums\Fit;
 
 class Store extends Model implements HasMedia, PageableContract
 {
-    use Cacheable, HasFactory, InteractsWithMedia, Pageable, HasSEO, MetaUniversalSEO;
+    use Cacheable, HasFactory, HasSEO, InteractsWithMedia, MetaUniversalSEO, Pageable;
 
     public const ROOT_PATH = '/stores';
 
@@ -40,6 +40,11 @@ class Store extends Model implements HasMedia, PageableContract
         'is_active',
         'priority',
         'shipping_location_id',
+        'physical_site_id',
+        'warehouse_id',
+        'pickup_enabled',
+        'opening_hours',
+        'timezone',
     ];
 
     protected $casts = [
@@ -47,6 +52,8 @@ class Store extends Model implements HasMedia, PageableContract
         'priority' => 'integer',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
+        'pickup_enabled' => 'boolean',
+        'opening_hours' => 'array',
     ];
 
     /**
@@ -60,7 +67,10 @@ class Store extends Model implements HasMedia, PageableContract
 
         // Автоматически парсим coordinates в latitude и longitude
         static::saving(function ($store) {
-            if ($store->coordinates && !$store->latitude && !$store->longitude) {
+            if ($store->isDirty('opening_hours') || $store->isDirty('timezone')) {
+                app(\App\Services\Shipping\StoreOpeningHours::class)->validate($store->opening_hours, $store->timezone ?? 'Europe/Moscow');
+            }
+            if ($store->coordinates && ! $store->latitude && ! $store->longitude) {
                 $coords = explode(',', trim($store->coordinates));
                 if (count($coords) === 2) {
                     $store->latitude = trim($coords[0]);
@@ -115,11 +125,11 @@ class Store extends Model implements HasMedia, PageableContract
      */
     public function getFullPathAttribute(): ?string
     {
-        if (!$this->slug) {
+        if (! $this->slug) {
             return null;
         }
 
-        return self::ROOT_PATH . '/' . $this->slug;
+        return self::ROOT_PATH.'/'.$this->slug;
     }
 
     /**
@@ -128,6 +138,16 @@ class Store extends Model implements HasMedia, PageableContract
     public function region(): BelongsTo
     {
         return $this->belongsTo(ShippingLocation::class, 'shipping_location_id');
+    }
+
+    public function physicalSite(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Inventory\PhysicalSite::class);
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Inventory\Warehouse::class);
     }
 
     /**
