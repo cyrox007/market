@@ -56,11 +56,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         // Сбрасываем кэш при любом изменении/создании товара (flushCache также вызывается из трейта Cacheable)
         static::saved(function ($product) {
             if ($product->wasChanged() || $product->wasRecentlyCreated) {
+                \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid());
                 $product->flushCategoryCaches();
                 // Сбрасываем кэш товара и списков при любом изменении
                 $product->flushCache();
             }
         });
+        static::deleted(fn () => \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid()));
 
         // Сбрасываем кэш при изменении вариаций и синхронизируем цену родителя
         static::saved(function ($product) {
@@ -1510,6 +1512,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public static function flushAllProductCaches(): void
     {
+        \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid());
         // Сбрасываем мета-фильтры категорий (ключи без тегов, поэтому сбрасываем явно)
         $categoryIds = Category::pluck('id');
         foreach ($categoryIds as $categoryId) {

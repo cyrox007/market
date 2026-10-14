@@ -46,7 +46,11 @@ class ProductResource extends JsonResource
             // Загружаем варианты, если они не загружены
             $variants = $this->relationLoaded('variants')
                 ? $this->variants
-                : $this->variants()->orderBy('id')->get();
+                : $this->variants()->active()->orderBy('id')->get();
+            $variants = $variants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active');
+            if ($request->attributes->has('matching_sku_ids')) {
+                $variants = $variants->whereIn('id', $request->attributes->get('matching_sku_ids'));
+            }
 
             if ($variants->isNotEmpty()) {
                 // Применяем правила для каждой вариации и находим минимальную цену
@@ -63,6 +67,7 @@ class ProductResource extends JsonResource
                 // length/width/height остаются физическими габаритами и не участвуют в выборе размера.
                 $cheapestEntry = $variantsWithPrices->where('price', $minPrice)->first();
                 if ($cheapestEntry) {
+                    $oldPrice = $cheapestEntry['variant']->original_price !== null ? (float) $cheapestEntry['variant']->original_price : null;
                     $selected = $variationAttributeService->selectedForVariant($cheapestEntry['variant']);
                     $defaultColor = $selected['color'];
                     $defaultSize = $selected['size'];
@@ -74,16 +79,9 @@ class ProductResource extends JsonResource
                 }
                 // Получаем ID первого доступного варианта (in_stock = true и stock > 0)
                 $firstAvailableVariant = $variants
-                    ->filter(function ($variant) {
-                        $stock = $variant->attributes['stock'] ?? $variant->stock ?? 0;
-                        $backorder = $variant->attributes['backorder'] ?? $variant->backorder ?? false;
-                        return ($stock > 0) || $backorder;
-                    })
+                    ->filter(fn ($variant) => ($warehouseStockResolver->resolveForProduct($variant, $region) ?? 0) > 0)
                     ->sortBy('id')
                     ->first();
-                if (!$firstAvailableVariant && $variants->isNotEmpty()) {
-                    $firstAvailableVariant = $variants->sortBy('id')->first();
-                }
                 if ($firstAvailableVariant) {
                     $firstAvailableVariantId = $firstAvailableVariant->id;
                 }
@@ -148,16 +146,7 @@ class ProductResource extends JsonResource
         }
 
         $resolvedStock = $warehouseStockResolver->resolveForProduct($this->resource, $region);
-        $stocks = [];
-        if ($this->relationLoaded('warehouseStocks')) {
-            $stocks = $this->warehouseStocks->map(function ($stock) {
-                return [
-                    'warehouse_id' => $stock->warehouse_id,
-                    'warehouse_name' => $stock->warehouse->name ?? 'Склад #' . $stock->warehouse_id,
-                    'quantity' => (int) $stock->quantity,
-                ];
-            })->values()->toArray();
-        }
+        $stocks = app(\App\Services\Inventory\WarehousePriorityResolver::class)->resolve($this->resource, $region)['stocks'];
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -165,16 +154,23 @@ class ProductResource extends JsonResource
             'sku' => $isListView ? null : $this->sku,
             'price' => $price,
             'delivery_days' => $deliveryDays,
+            'delivery_days_source' => 'legacy_region_rule',
+            'delivery_quote_endpoint' => '/api/v1/shipping/quote',
             'old_price' => $oldPrice,
-            'discount_percent' => $this->discount_percent,
+            'discount_percent' => $oldPrice !== null && $oldPrice > $price ? (int) round((1 - $price / $oldPrice) * 100) : null,
             // Для списков: image — основное изображение (оригинал), thumbnail — миниатюра,
             // дополнительные сжатые варианты: image_hd и image_fullhd
             'image' => $this->main_image_url,
             'image_hd' => $isListView ? null : $this->image_hd_url,
             'image_fullhd' => $isListView ? null : $this->image_fullhd_url,
             'thumbnail' => $this->thumbnail_url,
-            'in_stock' => $resolvedStock > 0 || $this->backorder,
+            'in_stock' => $resolvedStock > 0,
+            'available_to_order' => $warehouseStockResolver->availableToOrder($this->resource, $region),
+            'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'stock' => $resolvedStock,
+            'stock_known' => $resolvedStock !== null,
+            'nearest_distance_km' => $this->getAttributes()['nearest_distance_km'] ?? null,
+            'distance_type' => 'straight_line',
             'stocks' => $stocks,
             'rating' => $this->rating ?? 0,
             'reviews_count' => $this->reviews_count ?? 0,

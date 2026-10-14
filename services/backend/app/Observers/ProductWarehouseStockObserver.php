@@ -26,6 +26,7 @@ class ProductWarehouseStockObserver
 
     private function dispatchChanged(ProductWarehouseStock $stock, string $action): void
     {
+        \Illuminate\Support\Facades\Cache::forever('fulfillment_revision', (string) \Illuminate\Support\Str::uuid());
         $stock->loadMissing(['product', 'warehouse']);
 
         $productExternalId = (string) ($stock->product?->external_id ?? '');

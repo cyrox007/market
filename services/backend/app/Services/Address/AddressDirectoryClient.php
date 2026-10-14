@@ -23,11 +23,40 @@ class AddressDirectoryClient
             throw new RuntimeException('Unsupported directory level');
         }
 
-        return Cache::remember(
+        $items = Cache::remember(
             'address-directory:options:'.sha1($level.':'.json_encode($query)),
             min(300, (int) config('address_directory.cache_ttl')),
             fn (): array => $this->get(rtrim(config('address_directory.directory_path'), '/').'/'.$level, $query)
         );
+
+        if ($level !== 'localities') {
+            return $items;
+        }
+
+        // A legacy padded code is an alias only when its canonical record is
+        // present with the same parent, name and locality type. Never merge by name alone.
+        $canonical = [];
+        foreach ($items as $item) {
+            if (($item['source'] ?? null) === 'kladr' && preg_match('/^\d{13}$/', $item['externalId'] ?? '')) {
+                $canonical[$item['externalId']] = $item;
+            }
+        }
+
+        return array_values(array_filter($items, static function (array $item) use ($canonical): bool {
+            $id = $item['externalId'] ?? '';
+            if (($item['source'] ?? null) !== 'kladr' || ! preg_match('/^\d{13}00$/', $id)) {
+                return true;
+            }
+            $other = $canonical[substr($id, 0, 13)] ?? null;
+            $type = static fn (string $value): string => match (mb_strtolower(trim($value, ' .'))) {
+                'г', 'город' => 'город',
+                default => mb_strtolower(trim($value, ' .')),
+            };
+
+            return ! ($other && ($other['parentExternalId'] ?? null) === ($item['parentExternalId'] ?? null)
+                && ($other['name'] ?? null) === ($item['name'] ?? null)
+                && $type($other['type'] ?? '') === $type($item['type'] ?? ''));
+        }));
     }
 
     public function searchBuildings(string $query, int $limit = 20): array

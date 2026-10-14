@@ -51,6 +51,8 @@ class ProductController extends Controller
         $locationId = $shippingLocationId ?? $legacyRegionId;
 
         if (!$locationId) {
+            $request->attributes->set('warehouse_destination', app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, null));
+            $request->merge(['_region' => null, '_region_id' => null]);
             return null;
         }
 
@@ -81,9 +83,10 @@ class ProductController extends Controller
                 'region_id' => $legacyRegionId,
                 'path' => $request->path(),
             ]);
-            return null;
+            throw \Illuminate\Validation\ValidationException::withMessages(['shipping_location_id' => 'Локация не найдена или отключена.']);
         }
 
+        $request->attributes->set('warehouse_destination', app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location));
         return $location;
     }
 
@@ -121,6 +124,22 @@ class ProductController extends Controller
         }
         $attrs = $this->parseAttributesFromRequest($request);
         return empty($attrs);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/v1/products/count",
+     *     operationId="countProducts",
+     *     summary="Количество товаров по фильтрам каталога",
+     *     tags={"Products"},
+     *     @OA\Response(response=200, description="Количество уникальных карточек",
+     *         @OA\JsonContent(type="object", @OA\Property(property="total", type="integer")))
+     * )
+     * Full parameter contract is maintained in public/api-docs/openapi.json.
+     */
+    public function count(Request $request): JsonResponse
+    {
+        return $this->index($request, countOnly: true);
     }
 
     /**
@@ -189,7 +208,7 @@ class ProductController extends Controller
      *     @OA\Parameter(
      *         name="sort_by",
      *         in="query",
-     *         description="Поле для сортировки (created_at, price, name)",
+     *         description="Поле для сортировки (created_at, price, name, units_sold, rating)",
      *         required=false,
      *         @OA\Schema(type="string", example="created_at")
      *     ),
@@ -212,8 +231,33 @@ class ProductController extends Controller
      *     )
      * )
      */
-    public function index(Request $request): AnonymousResourceCollection|JsonResponse
+    public function index(Request $request, bool $countOnly = false): AnonymousResourceCollection|JsonResponse
     {
+        $request->validate([
+            'on_sale' => 'sometimes|boolean',
+            'price_min' => 'sometimes|numeric|min:0|max:100000000000',
+            'price_max' => 'sometimes|numeric|min:0|max:100000000000',
+            'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating,distance',
+            'sort_order' => 'sometimes|in:asc,desc',
+        ]);
+        $dimensionRules = [];
+        foreach (\App\Services\Product\CatalogFilterService::DIMENSIONS as $dimension => $slug) {
+            $dimensionRules[$dimension.'_min'] = ['sometimes', 'numeric', 'min:0', 'max:1000000'];
+            $dimensionRules[$dimension.'_max'] = ['sometimes', 'numeric', 'min:0', 'max:1000000'];
+            if ($request->has($dimension.'_min') && $request->has($dimension.'_max')) {
+                $dimensionRules[$dimension.'_max'][] = 'gte:'.$dimension.'_min';
+            }
+        }
+        $request->validate($dimensionRules);
+        $categorySlugs = $request->input('category_slugs', []);
+        if (is_string($categorySlugs)) {
+            $categorySlugs = explode(',', $categorySlugs);
+        }
+        validator(['category_slugs' => $categorySlugs], [
+            'category_slugs' => 'array|max:100', 'category_slugs.*' => 'string|max:255',
+        ])->validate();
+        $categorySlugs = array_values(array_unique(array_filter(array_map('trim', $categorySlugs))));
+        sort($categorySlugs);
         // Комната (вторая таксономия): сводим к продуктовым категориям + базовый фильтр из комнаты.
         $roomSlug = $request->get('room_slug') ?? $request->get('room_id');
         $roomCategoryIds = null;
@@ -239,7 +283,7 @@ class ProductController extends Controller
         }
 
         // Создаем детальный ключ кэша с учетом всех параметров запроса
-        $perPage = min($request->get('per_page', 20), 100);
+        $perPage = max(1, min((int) $request->get('per_page', 20), 100));
         $page = max(1, (int) $request->input('page', 1));
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
@@ -270,38 +314,16 @@ class ProductController extends Controller
         $colors = array_values(array_filter(array_map('trim', $colors)));
         $sizes = array_values(array_filter(array_map('trim', $sizes)));
 
-        // Комната диктует потолок ограничений: фильтр пользователя только сужает её, но не ослабляет.
-        // Пустое пересечение (пользователь выбрал запрещённое комнатой) → заведомо пустой результат.
-        $roomForceEmpty = false;
-        if ($roomEffectiveFilters !== null) {
-            $narrowed = RoomFilters::narrow($roomEffectiveFilters, [
-                'price_min' => $priceMin,
-                'price_max' => $priceMax,
-                'colors' => $colors,
-                'attributes' => $attributes,
-            ]);
-            if (array_key_exists('price_min', $narrowed)) {
-                $priceMin = $narrowed['price_min'];
-            }
-            if (array_key_exists('price_max', $narrowed)) {
-                $priceMax = $narrowed['price_max'];
-            }
-            if (array_key_exists('colors', $narrowed)) {
-                $colors = $narrowed['colors'];
-                $roomForceEmpty = $roomForceEmpty || $colors === [];
-            }
-            if (array_key_exists('attributes', $narrowed)) {
-                $attributes = $narrowed['attributes'];
-                foreach ($attributes as $values) {
-                    if ($values === []) {
-                        $roomForceEmpty = true;
-                    }
-                }
+        $catalogInput = ['price_min' => $priceMin, 'price_max' => $priceMax,
+            'colors' => $colors, 'sizes' => $sizes, 'attributes' => $attributes,
+            'on_sale' => $request->boolean('on_sale')];
+        foreach (\App\Services\Product\CatalogFilterService::DIMENSIONS as $dimension => $slug) {
+            foreach (['min', 'max'] as $bound) {
+                $catalogInput[$dimension.'_'.$bound] = $request->input($dimension.'_'.$bound);
             }
         }
 
-        // Ключ кэша без region_id: состав списка (какие товары на странице) не зависит от региона,
-        // цены и is_visible_in_region подставляются в ProductResource при отдаче — один кэш на все регионы.
+        // Visibility can change the result set: include location and all new filters in the cache key.
         $cacheKeyPayload = sprintf(
             'index:page:%d:per_page:%d:sort_by:%s:sort_order:%s:category_id:%s:category_slug:%s:price_min:%s:price_max:%s:search:%s:colors:%s:sizes:%s:attributes:%s:manufacturer:%s',
             $page,
@@ -318,14 +340,23 @@ class ProductController extends Controller
             json_encode($attributes),
             $manufacturerId ?: $manufacturerSlug ?: 'null'
         );
-        $cacheKey = 'idx:' . md5($cacheKeyPayload . '|room:' . ($roomSlug ?: 'null') . '|empty:' . ($roomForceEmpty ? '1' : '0'));
+        $cacheKey = 'idx:v3:' . md5($cacheKeyPayload . '|room:' . ($roomSlug ?: 'null')
+            .'|room_constraints:'.json_encode([$roomEffectiveFilters, $roomCategoryIds])
+            .'|dimension_filters:'.json_encode($catalogInput).'|categories:'.json_encode($categorySlugs).'|sale:'.(int) $request->boolean('on_sale')
+            .'|revision:'.Cache::get('catalog_filters_revision', '0')
+            .'|location:'.($request->input('shipping_location_id') ?? $request->input('region_id') ?? 'none'));
 
         // ВАЖНО: Получаем регион из запроса ДО построения запроса
         // Передаём объект в request, чтобы ProductResource не вызывал find() на каждый товар (N+1)
         $location = $this->getRegionFromRequest($request);
+        $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location);
+        $request->attributes->set('warehouse_destination', $destination);
+        $cacheKey = 'idx:v4:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0'));
         if ($location) {
             $request->merge(['_region_id' => $location->id, '_region' => $location]);
-            $this->regionRuleService->preloadRulesForLocation($location);
+            if (! $countOnly) {
+                $this->regionRuleService->preloadRulesForLocation($location);
+            }
         }
 
         $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer']);
@@ -349,9 +380,13 @@ class ProductController extends Controller
             }
         }
 
-        // Комната запрещает выбранную пользователем комбинацию (пустое пересечение) → пустой список.
-        if ($roomForceEmpty) {
-            $query->whereRaw('1 = 0');
+        if ($categorySlugs) {
+            $categories = Category::whereIn('slug', $categorySlugs)->get();
+            if ($categories->count() !== count($categorySlugs)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['category_slugs' => 'Одна из выбранных категорий не найдена.']);
+            }
+            $ids = $categories->flatMap(fn ($category) => Category::getAllDescendantIdsFor($category->id))->unique()->values()->all();
+            $query->whereHas('taxons', fn ($taxons) => $taxons->whereIn('taxons.id', $ids));
         }
 
         // Товары комнаты = объединение товаров её продуктовых категорий (с потомками).
@@ -361,40 +396,6 @@ class ProductController extends Controller
             } else {
                 $query->whereRaw('1 = 0');
             }
-        }
-
-        // Фильтрация по цене
-        if ($priceMin || $priceMax) {
-
-            $query->where(function ($q) use ($priceMin, $priceMax) {
-                // Для невариативных товаров проверяем цену напрямую
-                $q->where(function ($qq) use ($priceMin, $priceMax) {
-                    $qq->where(function ($qqq) {
-                        $qqq->whereNull('is_variable')
-                            ->orWhere('is_variable', false);
-                    });
-
-                    if ($priceMin !== null && $priceMin !== '') {
-                        $qq->where('price', '>=', (float) $priceMin);
-                    }
-                    if ($priceMax !== null && $priceMax !== '') {
-                        $qq->where('price', '<=', (float) $priceMax);
-                    }
-                })
-                    // Для вариативных товаров проверяем, что есть вариации с подходящей ценой
-                    ->orWhere(function ($qq) use ($priceMin, $priceMax) {
-                        $qq->where('is_variable', true)
-                            ->whereHas('variants', function ($v) use ($priceMin, $priceMax) {
-                                if ($priceMin !== null && $priceMin !== '' && $priceMax !== null && $priceMax !== '') {
-                                    $v->whereBetween('price', [(float) $priceMin, (float) $priceMax]);
-                                } elseif ($priceMin !== null && $priceMin !== '') {
-                                    $v->where('price', '>=', (float) $priceMin);
-                                } elseif ($priceMax !== null && $priceMax !== '') {
-                                    $v->where('price', '<=', (float) $priceMax);
-                                }
-                            });
-                    });
-            });
         }
 
         if ($search) {
@@ -410,120 +411,28 @@ class ProductController extends Controller
             });
         }
 
-        // Базовый запрос для мета-фильтров: все опции категории (без цвет/размер/атрибуты), чтобы показывать все фильтры, недоступные — серыми
         $baseQueryForFilters = (clone $query)->whereNull('parent_product_id');
-
-        // Канонические цвет и коммерческий размер хранятся как характеристики.
-        // Старые products.color/color_code и физические length/width/height здесь больше не участвуют.
-        $canonicalAttributeQuery = app(ProductCanonicalAttributeQueryService::class);
-
-        $colors = array_values(array_filter(array_map('trim', $colors)));
-        $canonicalColors = array_values(array_unique(array_merge(
-            $colors,
-            (array) ($attributes[Attribute::SLUG_COLOR] ?? []),
-        )));
-        if ($canonicalColors !== []) {
-            $query = $canonicalAttributeQuery->applyFilter($query, Attribute::SLUG_COLOR, $canonicalColors);
-        }
-
-        $sizes = array_values(array_filter(array_map('trim', $sizes)));
-        $canonicalSizes = array_values(array_unique(array_merge(
-            $sizes,
-            (array) ($attributes[Attribute::SLUG_SIZE] ?? []),
-        )));
-        if ($canonicalSizes !== []) {
-            $query = $canonicalAttributeQuery->applyFilter($query, Attribute::SLUG_SIZE, $canonicalSizes);
-        }
-
-        // Эти два системных атрибута уже применены единым каноническим фильтром выше.
-        unset($attributes[Attribute::SLUG_COLOR], $attributes[Attribute::SLUG_SIZE]);
-
-        // Фильтрация по характеристикам: пустой фильтр = все товары категории; при выборе значений — товары, у которых есть ЛЮБОЕ из выбранных (OR)
-        if (is_array($attributes) && count($attributes) > 0) {
-            foreach ($attributes as $attributeSlug => $valueSlugs) {
-                if (is_string($valueSlugs)) {
-                    $valueSlugs = [$valueSlugs];
-                }
-                $valueSlugs = array_values(array_filter(array_map('trim', (array) $valueSlugs)));
-                if (count($valueSlugs) === 0) {
-                    continue;
-                }
-
-                $attribute = Attribute::where('slug', $attributeSlug)->first();
-                if (!$attribute) {
-                    continue;
-                }
-
-                // OR по значениям одного атрибута: товар подходит, если у него есть любое из выбранных значений
-                $valueIds = AttributeValue::where('attribute_id', $attribute->id)
-                    ->whereIn('slug', $valueSlugs)
-                    ->pluck('id');
-
-                if ($attribute->is_use_in_variations) {
-                    // Атрибуты вариаций: товар или его вариация имеет одно из значений
-                    $query->where(function ($q) use ($attribute, $valueIds, $valueSlugs) {
-                        $q->where(function ($qq) use ($valueIds) {
-                            $qq->where(function ($qqq) {
-                                $qqq->whereNull('is_variable')->orWhere('is_variable', false);
-                            });
-                            if ($valueIds->isNotEmpty()) {
-                                $qq->whereHas('attributeValues', function ($avq) use ($valueIds) {
-                                    $avq->whereIn('product_attribute_values.id', $valueIds);
-                                });
-                            }
-                        })
-                            ->orWhere(function ($qq) use ($attribute, $valueIds, $valueSlugs) {
-                                $qq->where('is_variable', true)
-                                    ->whereHas('variants', function ($vq) use ($attribute, $valueIds, $valueSlugs) {
-                                        $vq->whereExists(function ($eq) use ($attribute, $valueIds, $valueSlugs) {
-                                            $eq->from('product_variant_attributes as pva')
-                                                ->whereColumn('pva.product_id', 'products.id')
-                                                ->where('pva.attribute_id', $attribute->id)
-                                                ->where(function ($pvaq) use ($valueIds, $valueSlugs) {
-                                                    if ($valueIds->isNotEmpty()) {
-                                                        $pvaq->whereIn('pva.attribute_value_id', $valueIds);
-                                                    }
-                                                    foreach ($valueSlugs as $val) {
-                                                        $val = trim((string) $val);
-                                                        if ($val === '') {
-                                                            continue;
-                                                        }
-                                                        $valLower = strtolower($val);
-                                                        $pvaq->orWhere(function ($cvq) use ($val, $valLower) {
-                                                            $cvq->where('pva.custom_value', $val)
-                                                                ->orWhereRaw('LOWER(TRIM(pva.custom_value)) = ?', [$valLower])
-                                                                ->orWhereRaw('LOWER(pva.custom_value) LIKE ?', ['%' . $valLower . '%']);
-                                                        });
-                                                    }
-                                                });
-                                        });
-                                    });
-                            });
-                    });
-                } else {
-                    // Обычные атрибуты: родительский товар имеет значение у себя или у любой вариации
-                    if ($valueIds->isNotEmpty()) {
-                        $query->where(function ($q) use ($valueIds) {
-                            $q->whereHas('attributeValues', function ($avq) use ($valueIds) {
-                                $avq->whereIn('product_attribute_values.id', $valueIds);
-                            })->orWhereHas('variants', function ($vq) use ($valueIds) {
-                                $vq->whereHas('attributeValues', function ($avq) use ($valueIds) {
-                                    $avq->whereIn('product_attribute_values.id', $valueIds);
-                                });
-                            });
-                        });
-                    }
-                }
-            }
-        }
-
-        // Фильтрация только по вариативным товарам (исключаем вариации)
+        $catalogFilters = app(\App\Services\Product\CatalogFilterService::class)->forLocation($location);
         $query->whereNull('parent_product_id');
+        $catalogFilters->apply($query, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []));
+        if ($countOnly) {
+            return response()->json(['total' => (clone $query)->reorder()->count('products.id')]);
+        }
 
-        $allowedSorts = ['created_at', 'price', 'name', 'units_sold'];
-
-        if (in_array($sortBy, $allowedSorts)) {
-            $query->orderBy($sortBy, $sortOrder);
+        if ($sortBy === 'distance') {
+            if (! $destination['specified']) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['directory_external_id' => 'Для сортировки по расстоянию выберите местоположение.']);
+            }
+            app(\App\Services\Inventory\CatalogWarehouseDistance::class)->order($query,
+                $catalogFilters->skus($baseQueryForFilters, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? [])), $destination);
+        } elseif ($sortBy === 'price') {
+            $prices = $catalogFilters->skus($baseQueryForFilters, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))
+                ->selectRaw('COALESCE(products.parent_product_id, products.id) AS root_id, MIN(catalog_prices.effective_price) AS effective_price')
+                ->groupByRaw('COALESCE(products.parent_product_id, products.id)');
+            $query->leftJoinSub($prices, 'root_prices', 'root_prices.root_id', '=', 'products.id')
+                ->select('products.*')->orderByRaw('root_prices.effective_price IS NULL')->orderBy('root_prices.effective_price', $sortOrder)->orderBy('products.id');
+        } else {
+            $this->applyCatalogSort($query, $sortBy, $sortOrder);
         }
 
         $categoryId = $categoryResolved?->id ?? $categoryId;
@@ -542,15 +451,19 @@ class ProductController extends Controller
                 'sizes' => [],
                 'attributes' => [],
                 'manufacturers' => [],
+                'has_on_sale' => false,
+                'has_sale' => false,
+                'facet_mode' => 'excluding_self',
+                'dimensions' => array_fill_keys(['width', 'depth', 'height'], ['min' => null, 'max' => null, 'unit' => 'mm']),
             ];
             return ProductResource::collection($emptyPaginator)->additional([
                 'meta' => ['filters' => $emptyFilters],
             ]);
         };
 
-        // Пустая категория: по кэшу или один exists() — сразу отдаём пустой список без fetchProductsForCache и buildFiltersMeta
+        // Пустая категория: по кэшу или один exists() — сразу отдаём пустой список без загрузки карточек и построения фасетов
         if ($categoryId) {
-            $emptyCategoryKey = 'empty_category:' . $categoryId;
+            $emptyCategoryKey = 'empty_category:v2:'.sha1($baseQueryForFilters->toSql().json_encode($baseQueryForFilters->getBindings()).Cache::get('catalog_filters_revision', '0'));
             if (Cache::get($emptyCategoryKey)) {
                 return $emptyFiltersResponse();
             }
@@ -590,9 +503,12 @@ class ProductController extends Controller
         // Если категория не задана, фильтрацию по атрибутам/цветам/размерам не строим — это сильно нагружает БД
         // и в реальном фронте каталог всегда фильтруется по категории.
         $filtersMeta = null;
-        if ($categoryId) {
-            $filtersMetaCacheKey = 'product_filters_meta:cat:' . $categoryId;
-            $filtersMeta = Cache::remember($filtersMetaCacheKey, 300, fn () => $this->buildFiltersMeta($baseQueryForFilters));
+        if ($categoryId || $categorySlugs || $roomSlug) {
+            $filtersMetaCacheKey = 'product_filters_meta:v3:'.sha1($baseQueryForFilters->toSql()
+                .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters, $location?->id])
+                .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0'));
+            $filtersMeta = Cache::remember($filtersMetaCacheKey, 300,
+                fn () => $catalogFilters->meta($baseQueryForFilters, $catalogInput, $roomEffectiveFilters ?? []));
         }
 
         if ($location) {
@@ -601,12 +517,28 @@ class ProductController extends Controller
 
         // Облегчённый ответ для списка: без specifications и seo — меньше payload и быстрее сериализация
         $request->merge(['_list_view' => true]);
+        $request->attributes->set('matching_sku_ids', $catalogFilters->skus((clone $baseQueryForFilters)->whereIn('products.id', $products->pluck('id')),
+            $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))->pluck('products.id')->all());
 
         return ProductResource::collection($products)->additional([
             'meta' => [
                 'filters' => $filtersMeta,
             ],
         ]);
+    }
+
+    private function applyCatalogSort(\Illuminate\Database\Eloquent\Builder $query, string $sortBy, string $sortOrder): void
+    {
+        if ($sortBy === 'rating') {
+            $query->addSelect('products.*')->selectSub(
+                DB::table('reviews')->selectRaw('COALESCE(ROUND(AVG(rating), 1), 0)')
+                    ->whereColumn('reviews.product_id', 'products.id')->where('is_approved', true),
+                'rating',
+            )->orderBy('rating', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+        $query->orderBy('products.id', 'asc');
     }
 
     /**
@@ -1328,7 +1260,7 @@ class ProductController extends Controller
      *     @OA\Parameter(
      *         name="sort_by",
      *         in="query",
-     *         description="Поле для сортировки (created_at, price, name, units_sold)",
+     *         description="Поле для сортировки (created_at, price, name, units_sold, rating)",
      *         required=false,
      *         @OA\Schema(type="string", example="created_at")
      *     ),
@@ -1364,6 +1296,8 @@ class ProductController extends Controller
     {
         $request->validate([
             'q' => 'required|string|min:2',
+            'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating',
+            'sort_order' => 'sometimes|in:asc,desc',
         ]);
 
         // Создаем детальный ключ кэша для поиска
@@ -1373,7 +1307,7 @@ class ProductController extends Controller
         $sortOrder = $request->get('sort_order', 'desc');
         $searchQuery = $request->q;
 
-        // Ключ без region_id — один кэш на все регионы, регион применяется в Resource при отдаче
+        // The resolved location and catalog revision are appended below before reading the cache.
         $cacheKey = sprintf(
             'search:q:%s:page:%d:per_page:%d:sort_by:%s:sort_order:%s',
             md5($searchQuery),
@@ -1396,11 +1330,8 @@ class ProductController extends Controller
         $query->whereNull('parent_product_id');
         $query->search($searchQuery);
 
-        $allowedSorts = ['created_at', 'price', 'name', 'units_sold'];
-
-        if (in_array($sortBy, $allowedSorts)) {
-            $query->orderBy($sortBy, $sortOrder);
-        }
+        $this->applyCatalogSort($query, $sortBy, $sortOrder);
+        $cacheKey .= ':v2:'.Cache::get('catalog_filters_revision', '0').':location:'.($location?->id ?? 'none');
 
         // Используем кэш для поиска с тегами (без region_id; облегчённый список как в index)
         $products = Product::cachedWithTags(
@@ -1500,123 +1431,4 @@ class ProductController extends Controller
         return $out;
     }
 
-    /**
-     * Построить мета-данные для фильтров каталога.
-     * Использует подзапросы вместо загрузки всех ID в память — масштабируется на большие категории.
-     */
-    private function buildFiltersMeta(\Illuminate\Database\Eloquent\Builder $baseQuery): array
-    {
-        $queryForFilters = clone $baseQuery;
-
-        $priceMin = (float) ($queryForFilters->min('price') ?? 0);
-        $priceMax = (float) ($queryForFilters->max('price') ?? 0);
-
-        // Подзапрос ID товаров категории (без загрузки списка в PHP)
-        $productIdsSubquery = fn () => (clone $queryForFilters)->select('products.id');
-        $hasProducts = (clone $queryForFilters)->exists();
-        if (!$hasProducts) {
-            return [
-                'price' => ['min' => $priceMin, 'max' => $priceMax],
-                'colors' => collect(),
-                'sizes' => collect(),
-                'attributes' => collect(),
-                'manufacturers' => collect(),
-            ];
-        }
-
-        $canonicalAttributeQuery = app(ProductCanonicalAttributeQueryService::class);
-
-        $colors = $canonicalAttributeQuery
-            ->buildFilterMeta(clone $queryForFilters, Attribute::SLUG_COLOR)
-            ->map(fn (array $value) => [
-                'id' => $value['id'],
-                'name' => $value['name'],
-                'slug' => $value['slug'],
-                'code' => $value['code'],
-                'count' => $value['count'],
-            ]);
-
-        // Коммерческие размеры — только характеристика size. Габариты доставки сюда не попадают.
-        $sizes = $canonicalAttributeQuery
-            ->buildFilterMeta(clone $queryForFilters, Attribute::SLUG_SIZE)
-            ->map(fn (array $value) => [
-                'id' => $value['id'],
-                'name' => $value['name'],
-                'slug' => $value['slug'],
-                'value' => $value['value'],
-                'count' => $value['count'],
-            ]);
-
-        // ID товаров и вариаций подзапросом для атрибутов (клонируем для каждого использования)
-        $productOrVariantIdsSubquery = fn () => Product::query()
-            ->whereIn('id', $productIdsSubquery())
-            ->orWhereIn('parent_product_id', $productIdsSubquery())
-            ->select('id');
-
-        $attributes = collect();
-        $attributeValueCounts = DB::table('product_product_attributes')
-            ->join('products', 'products.id', '=', 'product_product_attributes.product_id')
-            ->whereIn('product_product_attributes.product_id', $productOrVariantIdsSubquery())
-            ->selectRaw('product_product_attributes.attribute_value_id, COUNT(DISTINCT COALESCE(products.parent_product_id, products.id)) as product_count')
-            ->groupBy('product_product_attributes.attribute_value_id')
-            ->pluck('product_count', 'attribute_value_id');
-
-        $attributeValues = AttributeValue::query()
-            ->select('product_attribute_values.*')
-            ->join('product_product_attributes', 'product_product_attributes.attribute_value_id', '=', 'product_attribute_values.id')
-            ->join('product_attributes', 'product_attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->where('product_attributes.is_filterable', true)
-            ->whereNotIn('product_attributes.slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE])
-            ->whereIn('product_product_attributes.product_id', $productOrVariantIdsSubquery())
-            ->get()
-            ->groupBy('attribute_id');
-
-        if ($attributeValues->isNotEmpty()) {
-            $attributeIds = $attributeValues->keys()->unique()->values();
-            $attributesById = Attribute::whereIn('id', $attributeIds)->get()->keyBy('id');
-
-            $attributes = $attributeValues->map(function ($values, $attributeId) use ($attributeValueCounts, $attributesById) {
-                $attribute = $attributesById->get($attributeId);
-                if (!$attribute) {
-                    return null;
-                }
-
-                $values = $values->unique('id')->values()->map(function ($value) use ($attributeValueCounts) {
-                    return [
-                        'id' => $value->id,
-                        'name' => $value->value,
-                        'slug' => $value->slug ?? Str::slug($value->value ?? 'value'),
-                        'code' => $value->color_code,
-                        'count' => (int) ($attributeValueCounts[$value->id] ?? 0),
-                    ];
-                });
-
-                return [
-                    'id' => $attribute->id,
-                    'name' => $attribute->name,
-                    'slug' => $attribute->slug ?? Str::slug($attribute->name ?? 'attribute'),
-                    'values' => $values,
-                ];
-            })->filter()->values();
-        }
-
-        // Производители (подзапрос)
-        $manufacturers = Manufacturer::query()
-            ->whereHas('products', fn ($q) => $q->whereIn('id', $productIdsSubquery()))
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($m) => [
-                'id' => $m->id,
-                'name' => $m->name,
-                'slug' => $m->slug ?? Str::slug($m->name),
-            ]);
-
-        return [
-            'price' => ['min' => $priceMin, 'max' => $priceMax],
-            'colors' => $colors,
-            'sizes' => $sizes,
-            'attributes' => $attributes,
-            'manufacturers' => $manufacturers,
-        ];
-    }
 }

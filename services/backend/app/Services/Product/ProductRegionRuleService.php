@@ -37,7 +37,7 @@ class ProductRegionRuleService
             return;
         }
 
-        $this->preloadedLocationIds = array_reverse($location->getAncestorsIds());
+        $this->preloadedLocationIds = $location->getAncestorsIds();
         $rules = ProductRegionRule::query()
             ->active()
             ->whereIn('shipping_location_id', $this->preloadedLocationIds)
@@ -79,7 +79,7 @@ class ProductRegionRuleService
             return $basePrice;
         }
 
-        $locationIds = $this->preloadedLocationIds ?? array_reverse($location->getAncestorsIds());
+        $locationIds = $this->preloadedLocationIds ?? $location->getAncestorsIds();
 
         if ($this->preloadedRules !== null) {
             foreach ($locationIds as $locId) {
@@ -89,7 +89,7 @@ class ProductRegionRuleService
                 }
                 $rule = $variant ? ($byProduct[$variant->id] ?? $byProduct['p'] ?? null) : ($byProduct['p'] ?? null);
                 if ($rule) {
-                    return $rule->applyToPrice($basePrice);
+                    return round($rule->applyToPrice($basePrice), 2);
                 }
             }
             return $basePrice;
@@ -113,12 +113,12 @@ class ProductRegionRuleService
                       ->whereNull('variant_id');
             }
 
-            $rule = $query->orderBy('priority', 'desc')
+            $rule = $query->orderByRaw('CASE WHEN variant_id IS NULL THEN 1 ELSE 0 END')->orderBy('priority', 'desc')
                 ->orderBy('id', 'desc')
                 ->first();
 
             if ($rule) {
-                return $rule->applyToPrice($basePrice);
+                return round($rule->applyToPrice($basePrice), 2);
             }
         }
 
@@ -149,7 +149,7 @@ class ProductRegionRuleService
             return true;
         }
 
-        $locationIds = $this->preloadedLocationIds ?? array_reverse($location->getAncestorsIds());
+        $locationIds = $this->preloadedLocationIds ?? $location->getAncestorsIds();
 
         if ($this->preloadedRules !== null) {
             foreach ($locationIds as $locId) {
@@ -174,7 +174,7 @@ class ProductRegionRuleService
             return true;
         }
 
-        $locationIds = array_reverse($location->getAncestorsIds());
+        $locationIds = $location->getAncestorsIds();
 
         if ($variant) {
             foreach ($locationIds as $locId) {
@@ -241,7 +241,7 @@ class ProductRegionRuleService
             return null;
         }
 
-        $locationIds = $this->preloadedLocationIds ?? array_reverse($location->getAncestorsIds());
+        $locationIds = $this->preloadedLocationIds ?? $location->getAncestorsIds();
 
         if ($this->preloadedRules !== null) {
             foreach ($locationIds as $locId) {

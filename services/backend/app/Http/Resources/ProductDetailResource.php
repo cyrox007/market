@@ -200,6 +200,7 @@ class ProductDetailResource extends JsonResource
             $allVariants = $this->relationLoaded('variants')
                 ? $this->variants
                 : $this->variants()->active()->orderBy('id')->get();
+            $allVariants = $allVariants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active');
 
             $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver) {
                 $variantPrice = (float) $variant->price;
@@ -208,7 +209,8 @@ class ProductDetailResource extends JsonResource
                 }
 
                 $variantSpecs = $variant->buildSpecificationsForApi();
-                $variantStock = (int) round((float) ($warehouseStockResolver->resolveForProduct($variant, $region) ?? 0));
+                $rawVariantStock = $warehouseStockResolver->resolveForProduct($variant, $region);
+                $variantStock = $rawVariantStock === null ? null : (int) round((float) $rawVariantStock);
 
                 $colorAttr = \App\Models\Product\Attribute::where('slug', 'color')->first();
                 $colorValues = $colorAttr
@@ -237,8 +239,10 @@ class ProductDetailResource extends JsonResource
                     'price' => $variantPrice,
                     'old_price' => $variant->original_price ? (float) $variant->original_price : null,
                     'stock' => $variantStock,
-                    'stock_label' => StockCategoryHelper::formatStockDisplay($variantStock),
-                    'in_stock' => $variantStock > 0 || $variant->backorder,
+                    'stock_known' => $rawVariantStock !== null,
+                    'stock_label' => $variantStock === null ? null : StockCategoryHelper::formatStockDisplay($variantStock),
+                    'in_stock' => $variantStock > 0,
+                    'available_to_order' => $warehouseStockResolver->availableToOrder($variant, $region),
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
                     'images' => $variant->images_urls ?: ($variant->main_image_url ? [$variant->main_image_url] : []),
                     'description' => $variant->description,
@@ -402,19 +406,19 @@ class ProductDetailResource extends JsonResource
             ]);
         }
 
-        $resolvedStock = (int) round((float) ($warehouseStockResolver->resolveForProduct($this->resource, $region) ?? 0));
-        $inStock = $resolvedStock > 0 || $this->backorder;
+        $rawStock = $warehouseStockResolver->resolveForProduct($this->resource, $region);
+        $resolvedStock = (int) round((float) ($rawStock ?? 0));
+        $inStock = $resolvedStock > 0;
 
         // Для вариативного родителя: в наличии, если доступна хотя бы одна вариация
         if ($isVariable && ! $isVariant && ! empty($variants)) {
-            $inStock = collect($variants)->contains(fn(array $variant): bool => (bool) ($variant['in_stock'] ?? false))
-                || $this->backorder;
+            $inStock = collect($variants)->contains(fn(array $variant): bool => (bool) ($variant['in_stock'] ?? false));
             if (! $inStock) {
                 $resolvedStock = 0;
             } else {
                 $resolvedStock = (int) collect($variants)
                     ->filter(fn(array $variant): bool => (bool) ($variant['in_stock'] ?? false))
-                    ->max(fn(array $variant): int => (int) ($variant['stock'] ?? 0));
+                    ->sum(fn(array $variant): int => (int) ($variant['stock'] ?? 0));
             }
         }
 
@@ -433,6 +437,7 @@ class ProductDetailResource extends JsonResource
         $stockLabel = StockCategoryHelper::formatStockDisplay($resolvedStock);
 
         $priority = app(WarehousePriorityResolver::class)->resolve($this->resource, $region);
+        $effectiveOldPrice = isset($cheapest) ? ($cheapest['old_price'] ?? null) : ($this->original_price ? (float) $this->original_price : null);
 
         return [
             'id' => $this->id,
@@ -441,16 +446,22 @@ class ProductDetailResource extends JsonResource
             'sku' => $sku, // ВАЖНО: Для вариаций это артикул вариации
             'article' => $sku,
             'price' => $productPrice, // ВАЖНО: Цена с применением правил корзины
-            'old_price' => $this->original_price ? (float) $this->original_price : null,
+            'old_price' => $effectiveOldPrice,
             'delivery_days' => $deliveryDays,
-            'discount_percent' => $this->discount_percent,
+            'delivery_days_source' => 'legacy_region_rule',
+            'delivery_quote_endpoint' => '/api/v1/shipping/quote',
+            'discount_percent' => $effectiveOldPrice !== null && $effectiveOldPrice > $productPrice ? (int) round((1 - $productPrice / $effectiveOldPrice) * 100) : null,
             // Для детальной карточки: изображения по умолчанию в HD, с fallback на оригиналы
             'images' => $this->images_hd_urls ?: ($this->images_urls ?: ($this->main_image_url ? [$this->main_image_url] : [])),
             'main_image' => $this->image_hd_url ?: $this->main_image_url,
             'main_image_fullhd' => $this->image_fullhd_url ?: $this->main_image_url,
             'thumbnail' => $this->thumbnail_url,
             'in_stock' => $inStock,
-            'stock' => $resolvedStock,
+            'stock' => $rawStock === null ? null : $resolvedStock,
+            'stock_known' => $rawStock !== null,
+            'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
+            'available_to_order' => $warehouseStockResolver->availableToOrder($this->resource, $region),
+            'nearest_distance_km' => $priority['nearest_distance_km'],
             'nearest_stock' => $priority['nearest_stock'],
             'nearest_warehouse_name' => $priority['nearest_warehouse_name'],
             'stocks' => $priority['stocks'],

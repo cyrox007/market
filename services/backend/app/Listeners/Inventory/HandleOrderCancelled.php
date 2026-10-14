@@ -28,6 +28,11 @@ class HandleOrderCancelled
         static $processedOrders = [];
 
         $order = $event->getOrder();
+        if ($order->fulfillment_snapshot) {
+            // Persistent reservation state provides idempotency across requests/workers.
+            $this->increaseStockAction->execute($order);
+            return;
+        }
         $orderId = $order->id;
         $cacheKey = 'cancelled_' . $orderId;
 

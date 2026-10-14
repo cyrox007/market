@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 class ProductRegionRule extends Model
 {
     use HasFactory;
+    use \App\Models\Traits\InvalidatesFulfillment;
 
     protected static function booted(): void
     {

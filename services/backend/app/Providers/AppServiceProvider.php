@@ -92,6 +92,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(\App\Models\Order\OneClickLead::class, \App\Policies\OneClickLeadPolicy::class);
         Gate::before(function ($user, string $ability): ?bool {
             if ($user instanceof User && $user->hasRole('super_admin')) {
                 return true;

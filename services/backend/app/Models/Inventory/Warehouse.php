@@ -15,6 +15,7 @@ use Illuminate\Support\Str;
 class Warehouse extends Model
 {
     use HasFactory;
+    use \App\Models\Traits\InvalidatesFulfillment;
 
     protected $fillable = [
         'external_id',
@@ -24,21 +25,30 @@ class Warehouse extends Model
         'stock_mode',
         'address',
         'address_external_id',
+        'physical_site_id',
+        'gar_guid',
+        'kladr_code',
+        'address_snapshot',
+        'coordinate_source',
+        'coordinate_precision',
         'latitude',
         'longitude',
         'processing_days_min',
         'processing_days_max',
         'is_active',
+        'pickup_enabled',
         'meta',
     ];
 
     protected $casts = [
         'is_active' => 'bool',
+        'pickup_enabled' => 'boolean',
         'latitude' => 'decimal:7',
         'longitude' => 'decimal:7',
         'processing_days_min' => 'integer',
         'processing_days_max' => 'integer',
         'meta' => 'array',
+        'address_snapshot' => 'array',
     ];
 
     protected static function booted(): void
@@ -51,6 +61,28 @@ class Warehouse extends Model
     public function manufacturer(): BelongsTo
     {
         return $this->belongsTo(Manufacturer::class);
+    }
+
+    public function physicalSite(): BelongsTo
+    {
+        return $this->belongsTo(PhysicalSite::class);
+    }
+
+    public function stores(): HasMany
+    {
+        return $this->hasMany(\App\Models\Page\Store::class);
+    }
+
+    public function dispatchCoordinates(): ?array
+    {
+        // A warehouse's explicit loading gate takes precedence over the site's point.
+        if ($this->latitude !== null && $this->longitude !== null) {
+            return ['latitude' => (float) $this->latitude, 'longitude' => (float) $this->longitude];
+        }
+        $site = $this->physicalSite;
+
+        return $site?->latitude !== null && $site?->longitude !== null
+            ? ['latitude' => (float) $site->latitude, 'longitude' => (float) $site->longitude] : null;
     }
 
     public function shippingLocations(): BelongsToMany

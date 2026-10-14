@@ -35,3 +35,7 @@ CLAUDE.md
 .vscode
 .osp
 .env
+
+# Local geographic source datasets (large, not application assets)
+/storage/geodata/
+/scripts/geodata/__pycache__/

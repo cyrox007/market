@@ -73,9 +73,13 @@ class CategoryForm
                         Tab::make('Описание')
                             ->icon('heroicon-m-document-text')
                             ->schema([
+                                Section::make('Региональный текст')->schema([
+                                    \Filament\Forms\Components\Textarea::make('regional_text_template')->label('Шаблон для выбранного города')->maxLength(2000)
+                                        ->helperText('Подстановки: {category_name}, {city}, {delivery_cities_count}. Число городов известно только для явно выбранных населённых пунктов с доступными товарами. При покрытии целыми регионами/радиусом число неизвестно и текст с ним не выводится. Склонение названий автоматически не выполняется.'),
+                                ]),
                                 Section::make('Описание категории')
                                     ->schema([
-                                        RichEditor::make('Описание')
+                                        RichEditor::make('description')->label('Описание')
                                             ->label(__('filament/admin_sv/category_resource.описание'))
                                             ->maxLength(3000)
                                             ->columnSpanFull(),

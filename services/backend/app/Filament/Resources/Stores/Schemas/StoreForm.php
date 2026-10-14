@@ -19,6 +19,35 @@ class StoreForm
     {
         return $schema
             ->components([
+                Section::make('1. Адрес и товары магазина')
+                    ->description('Магазин — страница для покупателей. Остатки хранятся на связанном складе, второй учёт товаров не создаётся.')
+                    ->schema([
+                        Select::make('store_stock_mode')->label('В этом магазине есть собственные остатки?')
+                            ->options(['showroom' => 'Нет — только магазин / выставочный зал', 'warehouse' => 'Да — товары учитываются на складе этого магазина'])
+                            ->default('showroom')->required()->live()
+                            ->afterStateUpdated(fn ($state, $set) => $state === 'showroom' ? $set('warehouse_id', null) : null),
+                        Select::make('warehouse_id')->label('Какой склад хранит остатки магазина?')
+                            ->relationship('warehouse', 'name', modifyQueryUsing: fn ($query) => $query->where('source_type', 'physical')->where('stock_mode', 'quantity')->where('is_active', true))
+                            ->getOptionLabelFromRecordUsing(fn ($record): string => $record->name.' — ID 1С: '.$record->external_id)
+                            ->searchable()->preload()->live()
+                            ->visible(fn ($get): bool => $get('store_stock_mode') === 'warehouse')
+                            ->required(fn ($get): bool => $get('store_stock_mode') === 'warehouse')
+                            ->helperText('Выберите уже существующий склад по ID 1С. Если его нет, сначала создайте в «Доставка → Склады» и назначьте площадку. Не создавайте копию остатков.')
+                            ->afterStateUpdated(function ($state, $set): void {
+                                $warehouse = $state ? \App\Models\Inventory\Warehouse::find($state) : null;
+                                if ($warehouse?->physical_site_id) {
+                                    $set('physical_site_id', $warehouse->physical_site_id);
+                                }
+                            }),
+                        \App\Filament\Forms\PhysicalSiteSelect::make()->columnSpanFull()
+                            ->afterStateUpdated(function ($state, $set): void {
+                                $site = $state ? \App\Models\Inventory\PhysicalSite::find($state) : null;
+                                if ($site) {
+                                    $set('city', $site->city);
+                                    $set('address', $site->address);
+                                }
+                            }),
+                    ])->columns(2),
                 Section::make('Основная информация')
                     ->schema([
                         TextInput::make('name')
@@ -27,7 +56,7 @@ class StoreForm
                             ->maxLength(255)
                             ->live(onBlur: true)
                             ->afterStateUpdated(function ($state, $set) {
-                                if (!$state) {
+                                if (! $state) {
                                     return;
                                 }
                                 $set('slug', \Str::slug($state));
@@ -38,7 +67,9 @@ class StoreForm
                             ->unique(ignoreRecord: true),
                         TextInput::make('city')
                             ->label(__('filament/admin_sv/store_resource.city'))
-                            ->required()
+                            ->required(fn ($get): bool => blank($get('physical_site_id')))
+                            ->readOnly(fn ($get): bool => filled($get('physical_site_id')))
+                            ->helperText('При выбранной площадке город берётся из её адреса при сохранении.')
                             ->maxLength(255),
                         Select::make('shipping_location_id')
                             ->label('Регион')
@@ -50,7 +81,9 @@ class StoreForm
                             ->nullable(),
                         TextInput::make('address')
                             ->label(__('filament/admin_sv/store_resource.address'))
-                            ->required()
+                            ->required(fn ($get): bool => blank($get('physical_site_id')))
+                            ->readOnly(fn ($get): bool => filled($get('physical_site_id')))
+                            ->helperText('При выбранной площадке используется её адрес из ГАР/КЛАДР. Ручные поля оставлены для старых магазинов.')
                             ->maxLength(500)
                             ->columnSpanFull(),
                         TextInput::make('phone')
@@ -63,7 +96,20 @@ class StoreForm
                             ->label(__('filament/admin_sv/store_resource.hours'))
                             ->maxLength(255)
                             ->helperText('Например: Пн-Вс: 10:00 - 22:00'),
+                        Toggle::make('pickup_enabled')->label('Выдавать заказы в этом магазине')->default(true)
+                            ->helperText('Самовывоз доступен только при связанном действующем физическом складе с достаточным остатком.'),
+                        TextInput::make('timezone')->label('Часовой пояс')->default('Europe/Moscow')->required()->rules(['timezone']),
+                        \Filament\Forms\Components\Repeater::make('opening_hours')->label('График по дням недели')->columnSpanFull()->defaultItems(0)->maxItems(7)
+                            ->schema([
+                                Select::make('day')->label('День')->options([1 => 'Понедельник', 2 => 'Вторник', 3 => 'Среда', 4 => 'Четверг', 5 => 'Пятница', 6 => 'Суббота', 7 => 'Воскресенье'])->required(),
+                                Toggle::make('is_closed')->label('Выходной')->default(false),
+                                \Filament\Forms\Components\Repeater::make('intervals')->label('Часы работы, включая перерывы')->defaultItems(0)->schema([
+                                    TextInput::make('opens')->label('Открытие')->placeholder('09:00')->required()->rules(['date_format:H:i']),
+                                    TextInput::make('closes')->label('Закрытие')->placeholder('18:00')->required()->rules(['date_format:H:i']),
+                                ])->columns(2)->columnSpanFull(),
+                            ])->columns(2)->helperText('1 — понедельник, 7 — воскресенье. Неуказанный день неизвестен, а не выходной. Текстовое hours сохраняется отдельно.'),
                         TextInput::make('coordinates')
+                            ->visible(fn ($get): bool => blank($get('physical_site_id')))
                             ->label(__('filament/admin_sv/store_resource.coordinates'))
                             ->maxLength(255)
                             ->helperText('Формат: Широта,Долгота (например: 55.751244, 37.618423)')
@@ -77,11 +123,13 @@ class StoreForm
                                 }
                             }),
                         TextInput::make('latitude')
+                            ->visible(fn ($get): bool => blank($get('physical_site_id')))
                             ->label(__('filament/admin_sv/store_resource.latitude'))
                             ->numeric()
                             ->step(0.00000001)
                             ->maxLength(10),
                         TextInput::make('longitude')
+                            ->visible(fn ($get): bool => blank($get('physical_site_id')))
                             ->label(__('filament/admin_sv/store_resource.longitude'))
                             ->numeric()
                             ->step(0.00000001)
@@ -111,7 +159,7 @@ class StoreForm
                 Section::make('SEO настройки')
                     ->description('Управление мета данными')
                     ->schema([
-                        SEO::make()
+                        SEO::make(),
                     ])
                     ->collapsible(),
                 Section::make('Изображение магазина')

@@ -97,6 +97,7 @@ class ApplyOneCStockSnapshotAction
             $product->stock = $totalStock;
             $product->saveQuietly();
             $product->flushCache();
+              \Illuminate\Support\Facades\Cache::forever('fulfillment_revision', (string) \Illuminate\Support\Str::uuid());
 
             return [
                 'warehouse_rows' => $warehouseRows,
