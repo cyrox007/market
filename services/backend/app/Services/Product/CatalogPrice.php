@@ -9,7 +9,13 @@ use Illuminate\Support\Facades\DB;
 /** SQL counterpart of region pricing, shared by list/count predicates, facets and ordering. */
 class CatalogPrice
 {
-    public function rows(?ShippingLocation $location): Builder
+    public function rows(?ShippingLocation $location, bool $applyPricingRules = true): Builder
+    {
+        $base = $this->baseRows($location);
+        return $applyPricingRules ? app(\App\Services\Pricing\PricingEngine::class)->rows($base, $location, app(\App\Services\Pricing\PricingEngine::class)->customer()) : $base;
+    }
+
+    private function baseRows(?ShippingLocation $location): Builder
     {
         $rows = DB::table('products')->selectRaw('products.id AS sku_id');
         if (! $location) {

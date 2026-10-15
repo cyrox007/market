@@ -201,12 +201,11 @@ class ProductDetailResource extends JsonResource
                 ? $this->variants
                 : $this->variants()->active()->orderBy('id')->get();
             $allVariants = $allVariants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active');
+            app(\App\Services\Pricing\PricingEngine::class)->preload($allVariants->pluck('id')->all(), $region);
 
             $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver) {
                 $variantPrice = (float) $variant->price;
-                if ($region) {
-                    $variantPrice = $regionRuleService->getPriceForRegion($this->resource, $region, $variant);
-                }
+                $variantPrice = $regionRuleService->getPriceForRegion($this->resource, $region, $variant);
 
                 $variantSpecs = $variant->buildSpecificationsForApi();
                 $rawVariantStock = $warehouseStockResolver->resolveForProduct($variant, $region);
@@ -237,7 +236,7 @@ class ProductDetailResource extends JsonResource
                     'id' => $variant->id,
                     'sku' => $variant->sku,
                     'price' => $variantPrice,
-                    'old_price' => $variant->original_price ? (float) $variant->original_price : null,
+                    'old_price' => app(\App\Services\Pricing\PricingEngine::class)->oldPrice($variant, $region, $variantPrice),
                     'stock' => $variantStock,
                     'stock_known' => $rawVariantStock !== null,
                     'stock_label' => $variantStock === null ? null : StockCategoryHelper::formatStockDisplay($variantStock),
@@ -317,6 +316,7 @@ class ProductDetailResource extends JsonResource
             }
         } else {
             // Без региона: для вариативного товара используем цену самой дешёвой вариации
+            $productPrice = $regionRuleService->getPriceForRegion($parentProduct ?? $this->resource, null, $isVariant ? $this->resource : null);
             if ($productPriceFromCheapestVariant !== null) {
                 $productPrice = $productPriceFromCheapestVariant;
             }
@@ -437,7 +437,7 @@ class ProductDetailResource extends JsonResource
         $stockLabel = StockCategoryHelper::formatStockDisplay($resolvedStock);
 
         $priority = app(WarehousePriorityResolver::class)->resolve($this->resource, $region);
-        $effectiveOldPrice = isset($cheapest) ? ($cheapest['old_price'] ?? null) : ($this->original_price ? (float) $this->original_price : null);
+        $effectiveOldPrice = isset($cheapest) ? ($cheapest['old_price'] ?? null) : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $productPrice);
 
         return [
             'id' => $this->id,

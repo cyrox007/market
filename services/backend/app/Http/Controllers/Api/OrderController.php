@@ -278,6 +278,11 @@ class OrderController extends Controller
             }
 
             // Проверка остатков
+            $subtotal = 0;
+            foreach (app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems) as $pricingLine) {
+                $pricingProduct = Product::findOrFail($pricingLine['product_id']);
+                $subtotal += $this->regionRuleService->getPriceForRegion($pricingProduct->parentProduct ?? $pricingProduct, $region, $pricingProduct->isVariant() ? $pricingProduct : null) * $pricingLine['quantity'];
+            }
             if ($directoryDelivery) {
                 $quotes = app(\App\Services\Shipping\WarehouseDeliveryQuote::class);
                 try {
@@ -728,17 +733,7 @@ class OrderController extends Controller
                     $parentProduct = $product;
                 }
 
-                // Применяем региональные правила для цены (только если регион указан)
-                if ($region) {
-                    $price = $this->regionRuleService->getPriceForRegion($parentProduct, $region, $variant);
-                    if ($price === null) {
-                        // Если правило не найдено, используем базовую цену
-                        $price = $variant ? (float) $variant->price : (float) $product->price ?? (float) $cartItem->price ?? 0;
-                    }
-                } else {
-                    // Если регион не указан, используем базовую цену
-                    $price = $variant ? (float) $variant->price : (float) $product->price ?? (float) $cartItem->price ?? 0;
-                }
+                $price = $this->regionRuleService->getPriceForRegion($parentProduct, $region, $variant);
 
                 $quantity = $cartItem->quantity;
                 $total = $price * $quantity;
@@ -749,6 +744,7 @@ class OrderController extends Controller
                     'quantity' => $quantity,
                     'price' => $price,
                     'total' => $total,
+                    'pricing_snapshot' => app(\App\Services\Pricing\PricingEngine::class)->explain($product, $region),
                 ]);
 
                 $calculatedSubtotal += $total;

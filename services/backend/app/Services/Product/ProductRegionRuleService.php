@@ -74,6 +74,16 @@ class ProductRegionRuleService
      */
     public function getPriceForRegion(Product $product, ?ShippingLocation $location, ?Product $variant = null): float
     {
+        $sku = $variant ?? $product;
+        $engine = app(\App\Services\Pricing\PricingEngine::class);
+        if ($engine->eligible($location, $engine->customer())->isEmpty()) {
+            return $this->getLegacyPriceForRegion($product, $location, $variant);
+        }
+        return $engine->price($sku, $location);
+    }
+
+    public function getLegacyPriceForRegion(Product $product, ?ShippingLocation $location, ?Product $variant = null): float
+    {
         $basePrice = $variant ? (float) $variant->price : (float) $product->price;
         if (!$location) {
             return $basePrice;

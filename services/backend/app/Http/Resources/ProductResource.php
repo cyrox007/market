@@ -67,7 +67,7 @@ class ProductResource extends JsonResource
                 // length/width/height остаются физическими габаритами и не участвуют в выборе размера.
                 $cheapestEntry = $variantsWithPrices->where('price', $minPrice)->first();
                 if ($cheapestEntry) {
-                    $oldPrice = $cheapestEntry['variant']->original_price !== null ? (float) $cheapestEntry['variant']->original_price : null;
+                    $oldPrice = app(\App\Services\Pricing\PricingEngine::class)->oldPrice($cheapestEntry['variant'], $region, (float) $minPrice);
                     $selected = $variationAttributeService->selectedForVariant($cheapestEntry['variant']);
                     $defaultColor = $selected['color'];
                     $defaultSize = $selected['size'];
@@ -124,8 +124,9 @@ class ProductResource extends JsonResource
         }
 
         // Применяем правила для невариативных товаров
-        if (!$this->isVariable() && $region) {
+        if (!$this->isVariable()) {
             $price = $regionRuleService->getPriceForRegion($this->resource, $region);
+            $oldPrice = app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $price);
             $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($this->resource, $region);
         }
 
