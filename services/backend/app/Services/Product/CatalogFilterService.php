@@ -267,7 +267,7 @@ class CatalogFilterService
         $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id')
             ->union(DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id'));
         foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
-            ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE]))->orderBy('sort_order')->get() as $attribute) {
+            ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {
                 continue; // Numeric dimensions have a separate range contract.
@@ -293,14 +293,11 @@ class CatalogFilterService
             } elseif ($values !== []) {
                 $meta['attributes'][] = ['id' => $attribute->id, 'name' => $attribute->name,
                     'slug' => $attribute->slug, 'values' => $values];
+                if ($attribute->slug === Attribute::SLUG_MANUFACTURER) {
+                    $meta['manufacturers'] = $values;
+                }
             }
         }
-
-        $filteredRootIds = $this->apply(clone $roots, $this->filters($input, $mandatory))->select('products.id');
-        $meta['manufacturers'] = \App\Models\Product\Manufacturer::query()
-            ->whereHas('products', fn ($q) => $q->whereIn('products.id', $filteredRootIds))
-            ->orderBy('name')->get()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name,
-                'slug' => $m->slug ?? Str::slug($m->name)])->all();
 
         return $meta;
     }

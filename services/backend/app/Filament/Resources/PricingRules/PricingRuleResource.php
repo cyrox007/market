@@ -29,11 +29,11 @@ class PricingRuleResource extends Resource
 
     protected static ?string $policy = \App\Policies\PricingRulePolicy::class;
 
-    protected static ?string $modelLabel = 'ценовое правило';
+    protected static ?string $modelLabel = 'ценовая политика';
 
-    protected static ?string $pluralModelLabel = 'Цены и акции';
+    protected static ?string $pluralModelLabel = 'Ценовые политики';
 
-    protected static ?string $navigationLabel = 'Цены и акции';
+    protected static ?string $navigationLabel = 'Ценовые политики';
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
@@ -65,13 +65,16 @@ class PricingRuleResource extends Resource
                 self::selector('room_ids', 'Комнаты', \App\Models\Product\Room::class)->visible(fn ($get) => $get('target_type') === 'rooms')->required(fn ($get) => $get('target_type') === 'rooms')
                     ->helperText('Учитываются категории и фильтры комнаты. Ценовые условия комнаты проверяются до применения акции.'),
                 self::selector('product_group_ids', 'Подборки товаров', \App\Models\Pricing\PricingProductGroup::class)->visible(fn ($get) => $get('target_type') === 'groups')->required(fn ($get) => $get('target_type') === 'groups')
-                    ->helperText('Подборки создаются в разделе «Подборки для ценовых правил».'),
+                    ->createOptionForm([TextInput::make('name')->label('Название подборки')->required()->maxLength(255), self::selector('product_ids', 'Товары и варианты', Product::class)->required()])
+                    ->createOptionUsing(fn (array $data) => \App\Models\Pricing\PricingProductGroup::create($data)->id),
                 self::selector('excluded_product_ids', 'Кроме этих товаров и вариантов', Product::class)->helperText('Выбор товара исключает и все его варианты.'),
             ])->columns(2)->columnSpanFull(),
             Section::make('2. Для каких покупателей?')->schema([
                 Select::make('audience_type')->label('Кому доступно')->options(PricingRule::AUDIENCES)->default('all')->required()->live(),
                 self::selector('user_ids', 'Покупатели', User::class)->visible(fn ($get) => $get('audience_type') === 'users')->required(fn ($get) => $get('audience_type') === 'users'),
-                self::selector('customer_group_ids', 'Группы покупателей', \App\Models\Pricing\PricingCustomerGroup::class)->visible(fn ($get) => $get('audience_type') === 'groups')->required(fn ($get) => $get('audience_type') === 'groups'),
+                self::selector('customer_group_ids', 'Группы покупателей', \App\Models\Pricing\PricingCustomerGroup::class)->visible(fn ($get) => $get('audience_type') === 'groups')->required(fn ($get) => $get('audience_type') === 'groups')
+                    ->createOptionForm([TextInput::make('name')->label('Название группы')->required()->maxLength(255), self::selector('user_ids', 'Покупатели', User::class)->required()])
+                    ->createOptionUsing(fn (array $data) => \App\Models\Pricing\PricingCustomerGroup::create($data)->id),
                 Section::make('Все заполненные условия должны выполняться')->visible(fn ($get) => $get('audience_type') === 'conditions')->schema([
                     TextInput::make('conditions.min_orders')->label('Доставленных заказов не меньше')->integer()->minValue(0),
                     TextInput::make('conditions.max_orders')->label('Доставленных заказов не больше')->integer()->minValue(0)->helperText('0 — ещё нет доставленных заказов.'),

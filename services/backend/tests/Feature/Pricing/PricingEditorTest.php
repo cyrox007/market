@@ -15,6 +15,13 @@ use Tests\TestCase;
 
 class PricingEditorTest extends TestCase
 {
+    public function test_only_policies_are_registered_in_navigation(): void
+    {
+        $this->assertSame('Ценовые политики', \App\Filament\Resources\PricingRules\PricingRuleResource::getNavigationLabel());
+        $this->assertFalse(\App\Filament\Resources\PricingGroups\ProductGroups\ProductGroupResource::shouldRegisterNavigation());
+        $this->assertFalse(\App\Filament\Resources\PricingGroups\CustomerGroups\CustomerGroupResource::shouldRegisterNavigation());
+        $this->assertFalse(\App\Filament\Resources\OneClickLeads\OneClickLeadResource::shouldRegisterNavigation());
+    }
     protected function setUp(): void
     {
         parent::setUp();

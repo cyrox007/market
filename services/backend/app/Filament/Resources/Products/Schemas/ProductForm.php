@@ -136,18 +136,17 @@ class ProductForm
         return Section::make('Производитель')
             ->description('Производитель товара (заполняется при импорте из 1С, можно задать вручную)')
             ->schema([
-                Select::make('manufacturer_id')
+                TextInput::make('manufacturer_name')
                     ->label('Производитель')
-                    ->options(Manufacturer::orderBy('name')->pluck('name', 'id'))
-                    ->searchable()
-                    ->preload()
+                    ->datalist(fn () => array_column(app(\App\Services\Product\ProductManufacturer::class)->options(), 'name'))
+                    ->maxLength(255)
                     ->nullable()
-                    ->helperText('Выберите производителя из списка. Список пополняется при импорте каталога из 1С.')
+                    ->helperText('Введите название или выберите ранее сохранённое. Новое название запомнится после сохранения товара.')
                     ->columnSpanFull(),
             ])
             ->columns(1)
             ->collapsible()
-            ->collapsed();
+            ->collapsed(false);
     }
 
     protected static function statusPriceSection(): Section
@@ -541,7 +540,7 @@ class ProductForm
                     ->schema([
                         Select::make('attribute_id')
                             ->label('Характеристика')
-                            ->options(Attribute::orderBy('sort_order')->pluck('name', 'id'))
+                            ->options(Attribute::where('slug', '!=', Attribute::SLUG_MANUFACTURER)->orderBy('sort_order')->pluck('name', 'id'))
                             ->searchable()
                             ->preload()
                             ->required()

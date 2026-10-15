@@ -16,6 +16,7 @@ use UnitEnum;
 
 class OneClickLeadResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $model = OneClickLead::class;
 
     protected static ?string $policy = \App\Policies\OneClickLeadPolicy::class;

@@ -201,6 +201,18 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     /**
      * Получить значения характеристик продукта
      */
+    public function manufacturerAttributes(): BelongsToMany
+    {
+        return $this->attributes()->where('product_attributes.slug', Attribute::SLUG_MANUFACTURER)
+            ->withPivot('attribute_value_id', 'custom_value');
+    }
+
+    public function variantManufacturerAttributes(): BelongsToMany
+    {
+        return $this->belongsToMany(Attribute::class, 'product_variant_attributes', 'product_id', 'attribute_id')
+            ->where('product_attributes.slug', Attribute::SLUG_MANUFACTURER)->withPivot('attribute_value_id', 'custom_value');
+    }
+
     public function attributeValues(): BelongsToMany
     {
         return $this->belongsToMany(

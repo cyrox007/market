@@ -66,6 +66,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // Products (public)
+    Route::get('/manufacturers', \App\Http\Controllers\Api\ManufacturerValuesController::class);
     Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
         Route::get('/count', [ProductController::class, 'count']);
@@ -186,7 +187,7 @@ Route::prefix('v1')->group(function () {
 
     // Orders: создание и payment-config без auth
     Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('orders')->group(function () {
-        Route::post('/one-click', \App\Http\Controllers\Api\OneClickLeadController::class)->middleware('throttle:orders');
+        Route::post('/one-click', \App\Http\Controllers\Api\DirectCheckoutController::class)->middleware('throttle:orders');
         Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });

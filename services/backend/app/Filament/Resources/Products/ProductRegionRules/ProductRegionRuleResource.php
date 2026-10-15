@@ -17,6 +17,7 @@ use UnitEnum;
 
 class ProductRegionRuleResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $model = ProductRegionRule::class;
 
     protected static ?string $navigationLabel = 'Региональные настройки (прежние)';

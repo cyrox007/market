@@ -37,6 +37,7 @@ class ProductTabbedForm extends ProductForm
                                             self::identitySection(),
                                         ]),
                                         Group::make([
+                                            self::manufacturerSection(),
                                             self::categoriesSection(),
                                             self::statusPriceSection(),
                                         ]),
@@ -245,7 +246,7 @@ class ProductTabbedForm extends ProductForm
                         Select::make('attribute_id')
                             ->label('Характеристика')
                             ->options(function (?Product $record) {
-                                $query = Attribute::query()->orderBy('name');
+                                $query = Attribute::query()->where('slug', '!=', Attribute::SLUG_MANUFACTURER)->orderBy('name');
                                 if ($record?->is_variable) {
                                     $query->where('is_use_in_variations', false);
                                 }

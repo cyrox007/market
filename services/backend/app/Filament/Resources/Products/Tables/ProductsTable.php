@@ -45,6 +45,8 @@ class ProductsTable
                         'taxons',
                         'media',
                         'manufacturer',
+                        'manufacturerAttributes.values',
+                        'variantManufacturerAttributes.values',
                         'warehouseStocks',
                         'variants' => fn($q) => $q->where('state', ProductState::ACTIVE),
                         'variants.warehouseStocks',
@@ -100,7 +102,8 @@ class ProductsTable
                     ->placeholder('—')
                     ->toggleable(),
 
-                TextColumn::make('manufacturer.name')
+                TextColumn::make('manufacturer_name')
+                    ->getStateUsing(fn (Product $record) => app(\App\Services\Product\ProductManufacturer::class)->value($record))
                     ->label('Производитель')
                     ->placeholder('—')
                     ->toggleable(),
@@ -303,9 +306,10 @@ class ProductsTable
                     ->searchable()
                     ->preload(),
 
-                SelectFilter::make('manufacturer_id')
+                SelectFilter::make('manufacturer_name')
                     ->label('Производитель')
-                    ->relationship('manufacturer', 'name')
+                    ->options(fn () => collect(app(\App\Services\Product\ProductManufacturer::class)->options())->pluck('name', 'name')->all())
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null) ? app(\App\Services\Product\ProductManufacturer::class)->filter($query, $data['value']) : $query)
                     ->searchable()
                     ->preload(),
 
@@ -315,7 +319,7 @@ class ProductsTable
                 $baseFilters = array_values(array_filter([
                     $filters['state'] ?? null,
                     $filters['taxons'] ?? null,
-                    $filters['manufacturer_id'] ?? null,
+                    $filters['manufacturer_name'] ?? null,
                 ]));
 
                 $attributeFilters = array_values(array_filter(
@@ -594,6 +598,7 @@ class ProductsTable
     {
         $attributes = Attribute::query()
             ->where('is_filterable', true)
+            ->where('slug', '!=', Attribute::SLUG_MANUFACTURER)
             // SelectFilter работает только со справочными значениями AttributeValue.
             // Текстовые характеристики с одним custom_value раньше создавали пустые
             // выпадающие списки и раздували панель фильтров без пользы.

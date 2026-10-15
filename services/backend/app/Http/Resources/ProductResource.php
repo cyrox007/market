@@ -153,6 +153,7 @@ class ProductResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'sku' => $isListView ? null : $this->sku,
+            'manufacturer' => app(\App\Services\Product\ProductManufacturer::class)->value($this->resource),
             'price' => $price,
             'delivery_days' => $deliveryDays,
             'delivery_days_source' => 'legacy_region_rule',

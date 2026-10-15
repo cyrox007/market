@@ -359,7 +359,7 @@ class ProductController extends Controller
             }
         }
 
-        $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer']);
+        $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer', 'manufacturerAttributes.values', 'variantManufacturerAttributes.values', 'parentProduct.manufacturerAttributes.values']);
         if ($location) {
             $query = $this->applyRegionVisibilityFilter($query, $location);
         }
@@ -1406,6 +1406,10 @@ class ProductController extends Controller
             $attributes = [];
         }
 
+        if ($request->filled('manufacturers')) {
+            $attributes[\App\Models\Product\Attribute::SLUG_MANUFACTURER] = is_array($request->input('manufacturers'))
+                ? $request->input('manufacturers') : explode(',', $request->input('manufacturers'));
+        }
         $allParams = $request->all();
         foreach ($allParams as $key => $value) {
             if (strpos($key, 'attr_') === 0 && strlen($key) > 5) {

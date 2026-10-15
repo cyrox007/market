@@ -137,7 +137,18 @@ class OrderController extends Controller
     public function store(Request $request): JsonResponse
     {
         try {
-            if (Cart::isEmpty()) {
+            $directCheckout = $request->exists('items');
+            if ($directCheckout) {
+                $request->validate([
+                    'items' => 'required|array|size:1',
+                    'items.*.product_id' => 'required|integer',
+                    'items.*.variant_id' => 'nullable|integer',
+                    'items.*.quantity' => 'required|integer|min:1|max:1000',
+                    'accept_offer' => 'required|accepted',
+                    'accept_personal_data' => 'required|accepted',
+                ]);
+            }
+            if (! $directCheckout && Cart::isEmpty()) {
                 return response()->json([
                     'message' => 'Корзина пуста',
                 ], 422);
@@ -259,7 +270,9 @@ class OrderController extends Controller
                 }
             }
 
-            $cartItems = Cart::getItems();
+            $cartItems = $directCheckout
+                ? app(\App\Services\Order\DirectCheckout::class)->items($request->input('items'))
+                : Cart::getItems();
             if ($warehousePickup) {
                 if (! empty($validated['additional_services']) || ! empty($validated['requires_assembly']) || ! empty($validated['delivery_handling_type_id'])) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['services' => 'Услуги доставки недоступны в расчёте самовывоза.']);
@@ -267,7 +280,7 @@ class OrderController extends Controller
                 $warehouseQuote = ['selected' => app(\App\Services\Shipping\WarehousePickup::class)->select((int) $validated['warehouse_id'],
                     isset($validated['store_id']) ? (int) $validated['store_id'] : null, app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems))];
             }
-            $subtotal = (float) Cart::total();
+            $subtotal = 0;
 
             // Получаем регион для применения правил корзины
             $region = null;
@@ -295,7 +308,7 @@ class OrderController extends Controller
                     return response()->json(['message' => $warehouseQuote['reason'], 'available' => false], 422);
                 }
             }
-            $stockValidation = $directoryDelivery || $warehousePickup ? ['valid' => true] : $this->validateStockAction->execute(isset($validated['shipping_location_id']) ? (int) $validated['shipping_location_id'] : null);
+            $stockValidation = $directoryDelivery || $warehousePickup ? ['valid' => true] : $this->validateStockAction->executeForItems($cartItems, isset($validated['shipping_location_id']) ? (int) $validated['shipping_location_id'] : null);
             if (!$stockValidation['valid']) {
                 return response()->json([
                     'message' => 'Недостаточно товаров на складе',
@@ -865,7 +878,9 @@ class OrderController extends Controller
                 throw $e;
             }
 
-            Cart::clear();
+            if (! $directCheckout) {
+                Cart::clear();
+            }
 
             if (!$user) {
                 session(['last_created_order_id' => $order->id]);

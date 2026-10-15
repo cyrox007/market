@@ -17,6 +17,7 @@ class CreateProduct extends CreateRecord
     protected static string $resource = ProductResource::class;
 
     protected array $productAttributesData = [];
+    protected ?string $manufacturerName = null;
 
     /**
      * Перед созданием товара гарантируем, что поля,
@@ -24,6 +25,8 @@ class CreateProduct extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $this->manufacturerName = $data['manufacturer_name'] ?? null;
+        unset($data['manufacturer_name']);
         $this->productAttributesData = $data['product_attributes'] ?? [];
         unset($data['product_attributes']);
 
@@ -52,6 +55,7 @@ class CreateProduct extends CreateRecord
     protected function afterCreate(): void
     {
         app(ProductAttributeSyncService::class)->sync($this->record, $this->productAttributesData);
+        app(\App\Services\Product\ProductManufacturer::class)->save($this->record, $this->manufacturerName);
 
         $this->record->flushCache();
 
