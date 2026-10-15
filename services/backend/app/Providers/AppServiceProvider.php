@@ -92,6 +92,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        foreach ([\App\Models\Pricing\PricingRule::class, \App\Models\Pricing\PricingProductGroup::class, \App\Models\Pricing\PricingCustomerGroup::class] as $pricingModel) {
+            \Illuminate\Support\Facades\Gate::policy($pricingModel, \App\Policies\PricingRulePolicy::class);
+        }
         Gate::policy(\App\Models\Order\OneClickLead::class, \App\Policies\OneClickLeadPolicy::class);
         Gate::before(function ($user, string $ability): ?bool {
             if ($user instanceof User && $user->hasRole('super_admin')) {

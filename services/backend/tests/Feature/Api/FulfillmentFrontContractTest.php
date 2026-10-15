@@ -147,17 +147,16 @@ class FulfillmentFrontContractTest extends TestCase
         $this->assertSame(300.0, (float) $order->additionalServices()->firstOrFail()->pivot->price);
     }
 
-    public function test_one_click_requires_consents_is_idempotent_and_does_not_create_an_order(): void
+    public function test_one_click_prepares_repeatable_checkout_without_leads(): void
     {
         $sku = Product::factory()->create();
         $data = ['name' => 'Покупатель', 'phone' => '89991234567', 'product_id' => $sku->id, 'quantity' => 1, 'accept_offer' => true, 'accept_personal_data' => true];
-        $first = $this->withHeader('Idempotency-Key', 'one-click-fixture-123456')->postJson('/api/v1/orders/one-click', $data)->assertCreated()->assertJsonPath('duplicate', false);
-        $this->postJson('/api/v1/orders/one-click', $data)->assertOk()->assertJsonPath('number', $first->json('number'))->assertJsonPath('duplicate', true);
-        $this->assertSame(1, OneClickLead::count());
+        $this->postJson('/api/v1/orders/one-click', $data)->assertOk()->assertJsonPath('mode', 'direct_checkout');
+        $this->postJson('/api/v1/orders/one-click', $data)->assertOk();
+        $this->assertSame(0, OneClickLead::count());
         $this->assertDatabaseCount('orders', 0);
-        $this->assertTrue(OneClickLead::first()->consents['personal_data']);
-        $data['accept_offer'] = false;
-        $this->postJson('/api/v1/orders/one-click', $data)->assertUnprocessable()->assertJsonValidationErrors('accept_offer');
+        $data['quantity'] = 0;
+        $this->postJson('/api/v1/orders/one-click', $data)->assertUnprocessable()->assertJsonValidationErrors('quantity');
     }
 
     public function test_selected_pickup_reserves_only_its_warehouse_and_ignores_client_assembly_price(): void
@@ -176,6 +175,28 @@ class FulfillmentFrontContractTest extends TestCase
         $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
     }
 
+    public function test_direct_order_uses_only_selected_sku_and_preserves_cart(): void
+    {
+        $sku = Product::factory()->create(['price' => 1000, 'stock' => 20]);
+        $other = Product::factory()->create(['price' => 500, 'stock' => 20]);
+        $warehouse = $this->warehouse($sku, ['pickup_enabled' => true]);
+        \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
+        $this->postJson('/api/v1/cart', ['product_id' => $other->id, 'quantity' => 1])->assertCreated();
+        $response = $this->postJson('/api/v1/orders', [
+            'items' => [['product_id' => $sku->id, 'quantity' => 2]],
+            'accept_offer' => true, 'accept_personal_data' => true,
+            'contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'direct@example.test',
+            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $warehouse->id,
+        ])->assertCreated();
+        $order = \App\Models\Order\Order::findOrFail($response->json('order.id'));
+        $this->assertCount(1, $order->items);
+        $this->assertSame($sku->id, $order->items->first()->product_id);
+        $this->assertEquals(2000, $order->subtotal);
+        $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertCount(1, \Vanilo\Cart\Facades\Cart::getItems());
+        $this->assertEquals($other->id, \Vanilo\Cart\Facades\Cart::getItems()->first()->product_id);
+    }
+
     public function test_category_city_count_is_explicit_and_becomes_unknown_for_region_coverage(): void
     {
         $category = Category::factory()->create(['regional_text_template' => '{category_name}: {city}, {delivery_cities_count}']);
@@ -192,19 +213,19 @@ class FulfillmentFrontContractTest extends TestCase
         $this->assertNull($text['text']);
     }
 
-    public function test_phone_limit_and_idempotency_conflict_do_not_create_more_leads(): void
+    public function test_preparation_does_not_use_obsolete_lead_limits(): void
     {
         $sku = Product::factory()->create();
         $data = ['name' => 'Покупатель', 'phone' => '+79990000005', 'product_id' => $sku->id, 'quantity' => 1, 'accept_offer' => true, 'accept_personal_data' => true];
-        $this->withHeader('Idempotency-Key', 'conflict-fixture-12345')->postJson('/api/v1/orders/one-click', $data)->assertCreated();
+        $this->withHeader('Idempotency-Key', 'conflict-fixture-12345')->postJson('/api/v1/orders/one-click', $data)->assertOk();
         $data['quantity'] = 2;
-        $this->postJson('/api/v1/orders/one-click', $data)->assertStatus(409);
+        $this->postJson('/api/v1/orders/one-click', $data)->assertOk()->assertJsonPath('items.0.quantity', 2);
         $this->withHeader('Idempotency-Key', 'new-key-fixture-12345');
         \Illuminate\Support\Facades\RateLimiter::hit('one-click:phone:'.hash('sha256', $data['phone']), 600);
         for ($i = 0; $i < 4; $i++) {
             \Illuminate\Support\Facades\RateLimiter::hit('one-click:phone:'.hash('sha256', $data['phone']), 600);
         }
-        $this->postJson('/api/v1/orders/one-click', $data)->assertStatus(429);
-        $this->assertSame(1, OneClickLead::count());
+        $this->postJson('/api/v1/orders/one-click', $data)->assertOk();
+        $this->assertSame(0, OneClickLead::count());
     }
 }

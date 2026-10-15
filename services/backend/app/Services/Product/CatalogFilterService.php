@@ -17,6 +17,13 @@ class CatalogFilterService
     private array $attributesBySlug = [];
 
     private array $matches = [];
+    private bool $applyPricingRules = true;
+
+    public function withoutPricingRules(): static
+    {
+        $this->applyPricingRules = false;
+        return $this;
+    }
 
     private ?\App\Models\Shipping\ShippingLocation $location = null;
 
@@ -106,14 +113,14 @@ class CatalogFilterService
                 $variant->whereIn('products.parent_product_id', clone $ids);
             });
         });
-        $sku->joinSub(app(CatalogPrice::class)->rows($this->location), 'catalog_prices', 'catalog_prices.sku_id', '=', 'products.id');
+        $sku->joinSub(app(CatalogPrice::class)->rows($this->location, $this->applyPricingRules), 'catalog_prices', 'catalog_prices.sku_id', '=', 'products.id');
         foreach (['min' => '>=', 'max' => '<='] as $bound => $operator) {
             if (isset($filters['price_'.$bound]) && $filters['price_'.$bound] !== '') {
                 $sku->whereRaw('CAST(catalog_prices.effective_price AS DECIMAL(20,4)) '.$operator.' CAST(? AS DECIMAL(20,4))', [(float) $filters['price_'.$bound]]);
             }
         }
         if (! empty($filters['on_sale'])) {
-            $sku->whereColumn('products.original_price', '>', 'catalog_prices.effective_price');
+            $sku->whereColumn($this->applyPricingRules ? 'catalog_prices.reference_price' : 'products.original_price', '>', 'catalog_prices.effective_price');
         }
         foreach ($filters['attributes'] ?? [] as $slug => $values) {
             $values = $this->tokens($values);
@@ -238,7 +245,7 @@ class CatalogFilterService
         $meta['price'] = ['min' => (float) ((clone $priceSkus)->min('catalog_prices.effective_price') ?? 0),
             'max' => (float) ((clone $priceSkus)->max('catalog_prices.effective_price') ?? 0)];
         $meta['has_on_sale'] = $this->skus($roots, $this->filters($input, $mandatory, 'on_sale'))
-            ->whereColumn('products.original_price', '>', 'catalog_prices.effective_price')->exists();
+            ->whereColumn('catalog_prices.reference_price', '>', 'catalog_prices.effective_price')->exists();
         $meta['has_sale'] = $meta['has_on_sale'];
         foreach (self::DIMENSIONS as $key => $slug) {
             $attribute = $this->attribute($slug);
@@ -260,7 +267,7 @@ class CatalogFilterService
         $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id')
             ->union(DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id'));
         foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
-            ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE]))->orderBy('sort_order')->get() as $attribute) {
+            ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {
                 continue; // Numeric dimensions have a separate range contract.
@@ -286,14 +293,11 @@ class CatalogFilterService
             } elseif ($values !== []) {
                 $meta['attributes'][] = ['id' => $attribute->id, 'name' => $attribute->name,
                     'slug' => $attribute->slug, 'values' => $values];
+                if ($attribute->slug === Attribute::SLUG_MANUFACTURER) {
+                    $meta['manufacturers'] = $values;
+                }
             }
         }
-
-        $filteredRootIds = $this->apply(clone $roots, $this->filters($input, $mandatory))->select('products.id');
-        $meta['manufacturers'] = \App\Models\Product\Manufacturer::query()
-            ->whereHas('products', fn ($q) => $q->whereIn('products.id', $filteredRootIds))
-            ->orderBy('name')->get()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name,
-                'slug' => $m->slug ?? Str::slug($m->name)])->all();
 
         return $meta;
     }

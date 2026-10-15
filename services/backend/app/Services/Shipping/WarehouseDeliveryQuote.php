@@ -61,9 +61,9 @@ class WarehouseDeliveryQuote
         }
         $amount = 0;
         foreach ($products as $product) {
-            $price = $priceRegion ? app(ProductRegionRuleService::class)->getPriceForRegion(
+            $price = app(ProductRegionRuleService::class)->getPriceForRegion(
                 $product->isVariant() ? ($product->parentProduct ?? $product) : $product,
-                $priceRegion, $product->isVariant() ? $product : null) : null;
+                $priceRegion, $product->isVariant() ? $product : null);
             $amount += (float) ($price ?? $product->price) * $quantities[$product->id];
         }
         $options = [];

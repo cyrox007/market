@@ -20,6 +20,7 @@ class EditProduct extends EditRecord
     protected static string $resource = ProductResource::class;
 
     protected array $productAttributesData = [];
+    protected ?string $manufacturerName = null;
 
     protected function getFormActions(): array
     {
@@ -195,6 +196,8 @@ class EditProduct extends EditRecord
             $data['is_variable'] = true;
         }
 
+        $this->manufacturerName = $data['manufacturer_name'] ?? null;
+        unset($data['manufacturer_name']);
         $this->productAttributesData = $data['product_attributes'] ?? [];
         unset($data['product_attributes']);
 
@@ -210,7 +213,8 @@ class EditProduct extends EditRecord
 
         if ($product) {
             $attributes = $product->attributes()->withPivot('attribute_value_id', 'custom_value')->get();
-            $data['product_attributes'] = $attributes->map(function ($attribute) {
+            $data['manufacturer_name'] = app(\App\Services\Product\ProductManufacturer::class)->value($product);
+            $data['product_attributes'] = $attributes->where('slug', '!=', \App\Models\Product\Attribute::SLUG_MANUFACTURER)->map(function ($attribute) {
                 return [
                     'attribute_id' => $attribute->id,
                     'attribute_value_id' => $attribute->pivot->attribute_value_id,
@@ -229,6 +233,7 @@ class EditProduct extends EditRecord
         $product = $this->record;
         if ($product) {
             app(ProductAttributeSyncService::class)->sync($product, $this->productAttributesData);
+            app(\App\Services\Product\ProductManufacturer::class)->save($product, $this->manufacturerName);
         }
 
         if ($product) {

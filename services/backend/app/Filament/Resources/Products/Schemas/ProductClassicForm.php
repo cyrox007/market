@@ -33,6 +33,7 @@ class ProductClassicForm extends ProductForm
                             self::categoriesSection(),
                             self::pricesSection(),
                             self::statusSection(),
+                            self::manufacturerSection(),
                             self::stockSection(),
                             self::warehouseStocksSection(),
                         ]),
@@ -163,7 +164,7 @@ class ProductClassicForm extends ProductForm
                         Select::make('attribute_id')
                             ->label('Характеристика')
                             ->options(function (?Product $record) {
-                                $query = Attribute::query()->orderBy('sort_order')->orderBy('name');
+                                $query = Attribute::query()->where('slug', '!=', Attribute::SLUG_MANUFACTURER)->orderBy('sort_order')->orderBy('name');
 
                                 if ($record?->is_variable) {
                                     $query->where('is_use_in_variations', false);

@@ -66,7 +66,8 @@ Route::prefix('v1')->group(function () {
     });
 
     // Products (public)
-    Route::prefix('products')->group(function () {
+    Route::get('/manufacturers', \App\Http\Controllers\Api\ManufacturerValuesController::class);
+    Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
         Route::get('/count', [ProductController::class, 'count']);
         Route::get('/featured', [ProductController::class, 'featured']);
@@ -135,7 +136,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // Shipping (public)
-    Route::prefix('shipping')->group(function () {
+    Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('shipping')->group(function () {
         Route::post('/quote', \App\Http\Controllers\Api\WarehouseDeliveryQuoteController::class)->middleware('api-session');
         Route::get('/locations', [ShippingController::class, 'getLocations']);
         Route::get('/locations/tree', [ShippingController::class, 'getLocationTree']);
@@ -157,7 +158,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['api-session'])->get('/counters', [CountersController::class, 'index']);
 
     // Cart (public - uses sessions)
-    Route::middleware(['api-session'])->prefix('cart')->group(function () {
+    Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('cart')->group(function () {
         Route::get('/', [CartController::class, 'index']);
         Route::post('/', [CartController::class, 'add']);
         Route::get('/count', [CartController::class, 'count']);
@@ -185,8 +186,8 @@ Route::prefix('v1')->group(function () {
     });
 
     // Orders: создание и payment-config без auth
-    Route::middleware(['api-session'])->prefix('orders')->group(function () {
-        Route::post('/one-click', \App\Http\Controllers\Api\OneClickLeadController::class)->middleware('throttle:orders');
+    Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('orders')->group(function () {
+        Route::post('/one-click', \App\Http\Controllers\Api\DirectCheckoutController::class)->middleware('throttle:orders');
         Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });

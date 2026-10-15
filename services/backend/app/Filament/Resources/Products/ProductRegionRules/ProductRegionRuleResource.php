@@ -17,9 +17,10 @@ use UnitEnum;
 
 class ProductRegionRuleResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $model = ProductRegionRule::class;
 
-    protected static ?string $navigationLabel = 'Правила работы с корзиной';
+    protected static ?string $navigationLabel = 'Региональные настройки (прежние)';
 
     protected static ?string $modelLabel = 'Правило работы с корзиной';
 

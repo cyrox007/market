@@ -24,8 +24,8 @@ class ProductRegionRuleForm
                             ->searchable()
                             ->preload()
                             ->getOptionLabelFromRecordUsing(fn (Product $record): string => $record->name . ' (SKU: ' . $record->sku . ')')
-                            ->nullable()
-                            ->helperText('Выберите товар. Если не указан, правило применяется ко всем товарам.')
+                            ->required()
+                            ->helperText('Региональная настройка конкретного товара. Для всех товаров, категорий и покупателей используйте раздел «Цены и акции».')
                             ->reactive()
                             ->afterStateUpdated(fn ($set) => $set('variant_id', null)),
 

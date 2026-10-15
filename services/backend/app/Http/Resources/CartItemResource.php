@@ -64,7 +64,7 @@ class CartItemResource extends JsonResource
         if (!$region && $regionId) {
             $region = ShippingLocation::find($regionId);
         }
-        if ($region && $product) {
+        if ($product) {
             $regionRuleService = app(ProductRegionRuleService::class);
             $variant = $product->isVariant() ? $product : null;
 

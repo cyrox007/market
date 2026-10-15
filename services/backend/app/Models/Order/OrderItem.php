@@ -17,6 +17,7 @@ class OrderItem extends Model
         'quantity',
         'price',
         'total',
+        'pricing_snapshot',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class OrderItem extends Model
             'quantity' => 'integer',
             'price' => 'decimal:2',
             'total' => 'decimal:2',
+            'pricing_snapshot' => 'array',
         ];
     }
 

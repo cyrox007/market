@@ -351,7 +351,7 @@ class ProductController extends Controller
         $location = $this->getRegionFromRequest($request);
         $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location);
         $request->attributes->set('warehouse_destination', $destination);
-        $cacheKey = 'idx:v4:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0'));
+        $cacheKey = 'idx:v5:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
         if ($location) {
             $request->merge(['_region_id' => $location->id, '_region' => $location]);
             if (! $countOnly) {
@@ -359,7 +359,7 @@ class ProductController extends Controller
             }
         }
 
-        $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer']);
+        $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer', 'manufacturerAttributes.values', 'variantManufacturerAttributes.values', 'parentProduct.manufacturerAttributes.values']);
         if ($location) {
             $query = $this->applyRegionVisibilityFilter($query, $location);
         }
@@ -506,7 +506,7 @@ class ProductController extends Controller
         if ($categoryId || $categorySlugs || $roomSlug) {
             $filtersMetaCacheKey = 'product_filters_meta:v3:'.sha1($baseQueryForFilters->toSql()
                 .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters, $location?->id])
-                .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0'));
+                .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
             $filtersMeta = Cache::remember($filtersMetaCacheKey, 300,
                 fn () => $catalogFilters->meta($baseQueryForFilters, $catalogInput, $roomEffectiveFilters ?? []));
         }
@@ -519,6 +519,7 @@ class ProductController extends Controller
         $request->merge(['_list_view' => true]);
         $request->attributes->set('matching_sku_ids', $catalogFilters->skus((clone $baseQueryForFilters)->whereIn('products.id', $products->pluck('id')),
             $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))->pluck('products.id')->all());
+        app(\App\Services\Pricing\PricingEngine::class)->preload($request->attributes->get('matching_sku_ids'), $location);
 
         return ProductResource::collection($products)->additional([
             'meta' => [
@@ -1041,8 +1042,8 @@ class ProductController extends Controller
             $request->merge(['_region_id' => $location->id]);
         }
 
-        $products = $this->resolveHomeBlockProducts('sale', function () {
-            return Product::with([
+        $products = $this->resolveHomeBlockProducts('sale', function () use ($location) {
+            $roots = Product::with([
                 'taxons',
                 'variants' => fn ($q) => $q->active()->orderBy('id'),
                 'attributeValues.attribute',
@@ -1050,10 +1051,9 @@ class ProductController extends Controller
                 'media',
             ])
                 ->whereNull('parent_product_id')
-                ->active()
-                ->sale()
-                ->limit(12)
-                ->get();
+                ->active();
+            app(\App\Services\Product\CatalogFilterService::class)->forLocation($location)->apply($roots, ['on_sale' => true]);
+            return $roots->limit(12)->get();
         });
 
         return ProductResource::collection($products);
@@ -1330,8 +1330,16 @@ class ProductController extends Controller
         $query->whereNull('parent_product_id');
         $query->search($searchQuery);
 
-        $this->applyCatalogSort($query, $sortBy, $sortOrder);
-        $cacheKey .= ':v2:'.Cache::get('catalog_filters_revision', '0').':location:'.($location?->id ?? 'none');
+        if ($sortBy === 'price') {
+            $prices = app(\App\Services\Product\CatalogFilterService::class)->forLocation($location)->skus(clone $query, [])
+                ->selectRaw('COALESCE(products.parent_product_id, products.id) AS root_id, MIN(catalog_prices.effective_price) AS effective_price')
+                ->groupByRaw('COALESCE(products.parent_product_id, products.id)');
+            $query->leftJoinSub($prices, 'search_prices', 'search_prices.root_id', '=', 'products.id')->select('products.*')
+                ->orderByRaw('search_prices.effective_price IS NULL')->orderBy('search_prices.effective_price', $sortOrder)->orderBy('products.id');
+        } else {
+            $this->applyCatalogSort($query, $sortBy, $sortOrder);
+        }
+        $cacheKey .= ':v3:'.Cache::get('catalog_filters_revision', '0').':location:'.($location?->id ?? 'none').':pricing:'.app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location);
 
         // Используем кэш для поиска с тегами (без region_id; облегчённый список как в index)
         $products = Product::cachedWithTags(
@@ -1398,6 +1406,10 @@ class ProductController extends Controller
             $attributes = [];
         }
 
+        if ($request->filled('manufacturers')) {
+            $attributes[\App\Models\Product\Attribute::SLUG_MANUFACTURER] = is_array($request->input('manufacturers'))
+                ? $request->input('manufacturers') : explode(',', $request->input('manufacturers'));
+        }
         $allParams = $request->all();
         foreach ($allParams as $key => $value) {
             if (strpos($key, 'attr_') === 0 && strlen($key) > 5) {
