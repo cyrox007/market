@@ -7,6 +7,11 @@ import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import type { SSRContext } from '../src/types/ssr';
 import { withCache, withCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
+import {
+  parseCatalogQuery,
+  toApiParams,
+  type CatalogScope,
+} from '../src/lib/catalog-query';
 
 function escapeHtml(s: string): string {
   return s
@@ -16,42 +21,10 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Разбор query-параметров листинга (общий для страниц каталога и комнат). */
-function parseProductQueryFromReq(req: Request) {
-  const query = req.query as Record<string, string | string[] | undefined>;
-  const page = parseInt(Array.isArray(query.page) ? query.page[0] : query.page || '1', 10);
-  const priceMin = query.price_min
-    ? parseInt(Array.isArray(query.price_min) ? query.price_min[0] : query.price_min, 10)
-    : undefined;
-  const priceMax = query.price_max
-    ? parseInt(Array.isArray(query.price_max) ? query.price_max[0] : query.price_max, 10)
-    : undefined;
-  const sortBy = (Array.isArray(query.sort) ? query.sort[0] : query.sort) || 'created_at';
-  const sortOrder = ((Array.isArray(query.order) ? query.order[0] : query.order) || 'desc') as
-    'asc' | 'desc';
-  const colors = query.colors
-    ? (Array.isArray(query.colors) ? query.colors : [query.colors]).flatMap((c) =>
-        c.split(',').filter(Boolean),
-      )
-    : [];
-  const sizes = query.sizes
-    ? (Array.isArray(query.sizes) ? query.sizes : [query.sizes]).flatMap((s) =>
-        s.split(',').filter(Boolean),
-      )
-    : [];
-  const attributes: Record<string, string[]> = {};
-  Object.keys(query).forEach((key) => {
-    if (key.startsWith('attr_')) {
-      const slug = key.replace('attr_', '');
-      const value = query[key];
-      attributes[slug] = Array.isArray(value)
-        ? value.flatMap((v) => v.split(',').filter(Boolean))
-        : value
-          ? value.split(',').filter(Boolean)
-          : [];
-    }
-  });
-  return { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes };
+/** Запрос листинга каталога / комнаты из адреса — то же правило, что в браузере (market-docs/46) */
+function listingParamsFromReq(req: Request, scope: CatalogScope) {
+  const search = new URL(req.originalUrl, 'http://ssr.local').searchParams;
+  return toApiParams(parseCatalogQuery(search), scope);
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -383,22 +356,11 @@ async function createServer() {
         const categorySlug = categoryMatch?.[1].split('/').filter(Boolean).pop();
         if (categoryMatch && categorySlug) {
           try {
-            const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
-              parseProductQueryFromReq(req);
-
-            const categoryParams = {
-              category_slug: categorySlug,
-              price_min: priceMin,
-              price_max: priceMax,
-              sort_by: sortBy,
-              sort_order: sortOrder,
-              page,
-              per_page: 20,
-              colors,
-              sizes,
-              attributes,
-              region_id: regionId,
-            };
+            const productsParams = listingParamsFromReq(req, {
+              scope: 'category',
+              slug: categorySlug,
+              regionId,
+            });
 
             const [categoryResponse, productsResponse] = await Promise.allSettled([
               withCache(
@@ -407,21 +369,8 @@ async function createServer() {
                 { ttl: 300 }, // 5 минут для категории
               ),
               withCache(
-                createCacheKey('/products', categoryParams, undefined),
-                () =>
-                  ssrApi.products.list({
-                    category_slug: categorySlug,
-                    price_min: priceMin,
-                    price_max: priceMax,
-                    sort_by: sortBy,
-                    sort_order: sortOrder,
-                    page,
-                    per_page: 20,
-                    colors,
-                    sizes,
-                    attributes,
-                    region_id: regionId,
-                  }),
+                createCacheKey('/products', productsParams, undefined),
+                () => ssrApi.products.list(productsParams),
                 { ttl: 120 }, // 2 минуты для списка товаров
               ),
             ]);
@@ -432,6 +381,7 @@ async function createServer() {
             }
             if (productsResponse.status === 'fulfilled') {
               ssrContext.category.products = productsResponse.value;
+              ssrContext.category.productsParams = productsParams;
             }
           } catch (error) {
             console.error('SSR category data loading error:', error);
@@ -443,22 +393,11 @@ async function createServer() {
         const roomSlug = roomMatch?.[1].split('/').filter(Boolean).pop();
         if (roomMatch && roomSlug) {
           try {
-            const { page, priceMin, priceMax, sortBy, sortOrder, colors, sizes, attributes } =
-              parseProductQueryFromReq(req);
-
-            const roomParams = {
-              room_slug: roomSlug,
-              price_min: priceMin,
-              price_max: priceMax,
-              sort_by: sortBy,
-              sort_order: sortOrder,
-              page,
-              per_page: 20,
-              colors,
-              sizes,
-              attributes,
-              region_id: regionId,
-            };
+            const productsParams = listingParamsFromReq(req, {
+              scope: 'room',
+              slug: roomSlug,
+              regionId,
+            });
 
             const [roomResponse, productsResponse] = await Promise.allSettled([
               withCache(
@@ -467,21 +406,8 @@ async function createServer() {
                 { ttl: 300 },
               ),
               withCache(
-                createCacheKey('/products', roomParams, undefined),
-                () =>
-                  ssrApi.products.list({
-                    room_slug: roomSlug,
-                    price_min: priceMin,
-                    price_max: priceMax,
-                    sort_by: sortBy,
-                    sort_order: sortOrder,
-                    page,
-                    per_page: 20,
-                    colors,
-                    sizes,
-                    attributes,
-                    region_id: regionId,
-                  }),
+                createCacheKey('/products', productsParams, undefined),
+                () => ssrApi.products.list(productsParams),
                 { ttl: 120 },
               ),
             ]);
@@ -492,6 +418,7 @@ async function createServer() {
             }
             if (productsResponse.status === 'fulfilled') {
               ssrContext.category.products = productsResponse.value;
+              ssrContext.category.productsParams = productsParams;
             }
           } catch (error) {
             console.error('SSR room data loading error:', error);

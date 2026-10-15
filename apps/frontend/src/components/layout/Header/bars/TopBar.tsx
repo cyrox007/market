@@ -49,7 +49,7 @@ export default function TopBar({
           <button
             type="button"
             onClick={onCityClick}
-            className="inline-flex items-center gap-1 outline-none hover:text-brand-green focus-visible:text-brand-green"
+            className="inline-flex items-center gap-1 outline-none transition-colors hover:text-ink-secondary focus-visible:text-ink-secondary"
           >
             <MapPin className="size-4" aria-hidden="true" />
             {city}
@@ -66,7 +66,7 @@ export default function TopBar({
               <Link
                 key={to}
                 to={to}
-                className="outline-none hover:text-brand-green focus-visible:text-brand-green max-sm:hidden"
+                className="outline-none transition-colors hover:text-ink-secondary focus-visible:text-ink-secondary max-sm:hidden"
               >
                 {label}
               </Link>
@@ -77,7 +77,7 @@ export default function TopBar({
         <div className="flex items-center gap-6">
           <a
             href={`tel:${phone.replace(/[^\d+]/g, '')}`}
-            className="inline-flex items-center gap-2 outline-none hover:text-brand-green focus-visible:text-brand-green"
+            className="inline-flex items-center gap-2 outline-none transition-colors hover:text-ink-secondary focus-visible:text-ink-secondary"
           >
             <Phone className="size-4" aria-hidden="true" />
             {phone}

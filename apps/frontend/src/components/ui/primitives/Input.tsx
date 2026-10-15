@@ -2,14 +2,18 @@ import { forwardRef } from 'react';
 import type { InputHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
-export type InputSize = 'sm' | 'md' | 'lg';
-export type InputShape = 'pill' | 'rounded';
+export type InputSize = 'sm' | 'md' | 'lg' | 'field';
+export type InputShape = 'pill' | 'rounded' | 'field';
+export type InputTone = 'grey' | 'white' | 'outline';
 
 interface InputOwnProps {
   inputSize?: InputSize;
   shape?: InputShape;
-  /** Тон подложки: серая как в шапке или белая с рамкой как в формах */
-  tone?: 'grey' | 'white';
+  /**
+   * Тон подложки: серая как в шапке, белая как в формах,
+   * `outline` — белая с заметной рамкой, как поля «от / до» в фильтрах (market-docs/45)
+   */
+  tone?: InputTone;
   leftIcon?: ReactNode;
   /** Слот справа внутри поля — кнопка отправки, счётчик, крестик очистки */
   rightSlot?: ReactNode;
@@ -30,17 +34,29 @@ const HEIGHT: Record<InputSize, string> = {
   sm: 'h-9',
   md: 'h-11',
   lg: 'h-[52px]',
+  // Поле «от / до» в фильтрах: 14 + 17 + 14 + рамка (Figma 475:25592, market-docs/45)
+  field: 'h-[47px]',
+};
+
+/** Отступ текста от края; у поля фильтров 20 по Figma */
+const PADDING: Record<InputSize, string> = {
+  sm: 'px-4',
+  md: 'px-4',
+  lg: 'px-4',
+  field: 'px-5',
 };
 
 const TEXT: Record<InputSize, string> = {
   sm: 'text-14',
   md: 'text-14',
   lg: 'text-16',
+  field: 'text-14',
 };
 
 const SHAPE: Record<InputShape, string> = {
   pill: 'rounded-pill',
   rounded: 'rounded-btn',
+  field: 'rounded-field',
 };
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
@@ -69,7 +85,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         // Обе рамки светлые: тёмной, которая мерещилась на скриншоте, в макете нет
         invalid
           ? 'border-brand-red'
-          : cn('border-surface-grey', !disabled && 'focus-within:border-surface-border'),
+          : tone === 'outline'
+            ? cn('border-surface-border', !disabled && 'focus-within:border-ink-secondary')
+            : cn('border-surface-grey', !disabled && 'focus-within:border-surface-border'),
         disabled && 'opacity-60',
         wrapperClassName,
       )}
@@ -81,7 +99,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         disabled={disabled}
         aria-invalid={invalid || undefined}
         className={cn(
-          'min-w-0 h-full flex-1 bg-transparent px-4 text-ink outline-none',
+          'min-w-0 h-full flex-1 bg-transparent text-ink outline-none',
+          PADDING[inputSize],
           'placeholder:text-ink-secondary',
           'disabled:cursor-not-allowed',
           TEXT[inputSize],

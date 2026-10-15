@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  getCategoryProductsKey,
   getHomeProductsKey,
   getSearchKey,
-  parseCategoryProductsKey,
   ssrToSwrFallback,
 } from './ssr-to-swr';
 
@@ -11,32 +9,6 @@ describe('ssr-to-swr utilities', () => {
   it('builds home key with region', () => {
     expect(getHomeProductsKey('featured', 77)).toBe('/api/products/featured?region_id=77');
     expect(getHomeProductsKey('new')).toBe('/api/products/new');
-  });
-
-  it('round-trips category key params', () => {
-    const key = getCategoryProductsKey('chairs', {
-      page: 2,
-      per_page: 20,
-      sort_by: 'price',
-      sort_order: 'asc',
-      colors: ['red'],
-      sizes: ['200x90'],
-      attributes: { material: ['wood'] },
-      region_id: 5,
-    });
-
-    const parsed = parseCategoryProductsKey(key);
-    expect(parsed).toMatchObject({
-      category_slug: 'chairs',
-      page: 2,
-      per_page: 20,
-      sort_by: 'price',
-      sort_order: 'asc',
-      colors: ['red'],
-      sizes: ['200x90'],
-      attributes: { material: ['wood'] },
-      region_id: 5,
-    });
   });
 
   it('builds search key with sort and region', () => {

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'muted' | 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export type ButtonShape = 'pill' | 'rounded';
 
@@ -57,6 +57,8 @@ const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-brand-yellow text-ink',
   secondary: 'bg-surface-grey text-ink',
   outline: 'border border-surface-border bg-transparent text-ink',
+  // Второстепенное действие: «Сбросить все фильтры» (Figma 730:53152, market-docs/45)
+  muted: 'border border-ink-secondary bg-surface text-ink-secondary',
   ghost: 'bg-transparent text-ink',
 };
 
@@ -64,13 +66,16 @@ const VARIANT_HOVER: Record<ButtonVariant, string> = {
   primary: 'hover:bg-brand-green hover:text-ink-inverse',
   secondary: 'hover:bg-brand-green hover:text-ink-inverse',
   outline: 'hover:border-brand-green hover:bg-brand-green hover:text-ink-inverse',
-  ghost: 'hover:text-brand-green',
+  muted: 'hover:border-brand-green hover:bg-brand-green hover:text-ink-inverse',
+  ghost: 'hover:text-ink-secondary',
 };
 
 /** То же для клавиатуры: иначе пользователь Tab не видит отклика. */
 const VARIANT_FOCUS: Record<ButtonVariant, string> = {
   primary: 'focus-visible:bg-brand-green focus-visible:text-ink-inverse',
   secondary: 'focus-visible:bg-brand-green focus-visible:text-ink-inverse',
+  muted:
+    'focus-visible:border-brand-green focus-visible:bg-brand-green focus-visible:text-ink-inverse',
   outline:
     'focus-visible:border-brand-green focus-visible:bg-brand-green focus-visible:text-ink-inverse',
   ghost: 'focus-visible:text-brand-green',

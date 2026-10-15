@@ -1,3 +1,5 @@
+import { toProductListSearch } from './product-list-search';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -262,46 +264,11 @@ export const api = {
     tree: () => fetchAPI<{ tree: Category[] }>('/rooms/tree'),
   },
   products: {
-    list: (params?: ProductListParams) => {
-      const query = new URLSearchParams();
-      if (params?.category_id) query.append('category_id', params.category_id.toString());
-      if (params?.category_slug) query.append('category_slug', params.category_slug);
-      if (params?.room_slug) query.append('room_slug', params.room_slug);
-      if (params?.price_min !== undefined) query.append('price_min', params.price_min.toString());
-      if (params?.price_max !== undefined) query.append('price_max', params.price_max.toString());
-      if (params?.search) query.append('search', params.search);
-      // Явно передаём сортировку — бэкенд и кэш используют sort_by/sort_order
-      if (params?.sort_by != null) query.append('sort_by', params.sort_by);
-      if (params?.sort_order != null) query.append('sort_order', params.sort_order);
-      if (params?.per_page) query.append('per_page', params.per_page.toString());
-      if (params?.page) query.append('page', params.page.toString());
-
-      // Цвета (передаем как строку через запятую для совместимости)
-      if (params?.colors && params.colors.length) {
-        query.append('colors', params.colors.join(','));
-      }
-
-      // Размеры
-      if (params?.sizes && params.sizes.length) {
-        params.sizes.forEach((size) => query.append('sizes[]', size));
-      }
-
-      // Характеристики — передаём только при непустом наборе (иначе каталог без фильтра = все товары)
-      if (params?.attributes && Object.keys(params.attributes).length > 0) {
-        Object.entries(params.attributes).forEach(([attrSlug, values]) => {
-          if (values?.length) {
-            values.forEach((val) => query.append(`attributes[${attrSlug}][]`, val));
-          }
-        });
-      }
-
-      // Регион для применения правил
-      if (params?.region_id) {
-        query.append('region_id', params.region_id.toString());
-      }
-
-      return fetchAPI<ProductListResponse>(`/products?${query.toString()}`);
-    },
+    list: (params?: ProductListParams) =>
+      fetchAPI<ProductListResponse>(`/products?${toProductListSearch(params)}`),
+    /** Только число карточек — те же фильтры, без товаров и meta.filters */
+    count: (params?: ProductListParams) =>
+      fetchAPI<{ total: number }>(`/products/count?${toProductListSearch(params)}`),
     get: (slug: string, params?: { color?: string; size?: string; region_id?: number }) => {
       const query = new URLSearchParams();
       if (params?.color) query.append('color', params.color);
@@ -782,15 +749,27 @@ export interface FiltersMeta {
       count?: number;
     }[];
   }[];
+  manufacturers?: { id: number; name: string; slug: string; count?: number }[];
+  /** Миллиметры; нет данных — null (market-docs/44, ответ 3 от 14.10); читается в toolbar/availability */
+  dimensions?: Partial<
+    Record<'width' | 'depth' | 'height', { min: number | null; max: number | null; unit?: 'mm' }>
+  >;
+  /** Есть ли товары по акции без учёта самого «По акции»; has_on_sale — старое имя */
+  has_sale?: boolean;
 }
 
 export interface ProductListResponse {
   data: Product[];
-  current_page: number;
-  last_page: number;
-  per_page: number;
-  total: number;
+  /** Пагинация приходит в meta; поля верхнего уровня — старый тип, API их не отдаёт */
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
   meta?: {
+    current_page?: number;
+    last_page?: number;
+    per_page?: number;
+    total?: number;
     filters?: FiltersMeta;
   };
 }
@@ -810,6 +789,17 @@ export interface ProductListParams {
   sizes?: string[];
   attributes?: Record<string, string[]>;
   region_id?: number;
+  manufacturer_slug?: string;
+  /** Ниже — ждут бэкенд (market-docs/44, вопросы 1–3, 6) */
+  manufacturers?: string[];
+  category_slugs?: string[];
+  on_sale?: boolean;
+  width_min?: number;
+  width_max?: number;
+  depth_min?: number;
+  depth_max?: number;
+  height_min?: number;
+  height_max?: number;
 }
 
 export interface Article {

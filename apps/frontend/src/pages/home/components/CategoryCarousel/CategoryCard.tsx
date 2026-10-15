@@ -31,7 +31,7 @@ export default function CategoryCard({
           />
         ) : null}
       </div>
-      <span className="text-14 text-ink group-hover:text-brand-green group-focus-visible:text-brand-green">
+      <span className="text-14 text-ink group-hover:text-ink-secondary group-focus-visible:text-ink-secondary">
         {item.name}
       </span>
     </Link>

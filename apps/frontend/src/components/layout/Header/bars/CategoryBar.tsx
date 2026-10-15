@@ -59,7 +59,16 @@ export default function CategoryBar({
             <>
               {label}
               {badge && (
-                <Badge variant="soft" size="xs" shape="badge">
+                <Badge
+                  variant="soft"
+                  size="xs"
+                  shape="badge"
+                  className={
+                    accent
+                      ? 'group-hover:bg-brand-green/10 group-hover:text-brand-green group-focus-visible:bg-brand-green/10 group-focus-visible:text-brand-green'
+                      : undefined
+                  }
+                >
                   {badge}
                 </Badge>
               )}
@@ -83,8 +92,11 @@ export default function CategoryBar({
               to={to}
               className={cn(
                 shared,
-                'outline-none focus-visible:text-brand-green',
-                accent ? 'text-brand-red' : 'text-ink hover:text-brand-green',
+                'outline-none transition-colors',
+                // UI Kit: «Распродажа» красная → зелёная, остальные чёрные → серые
+                accent
+                  ? 'group text-brand-red hover:text-brand-green focus-visible:text-brand-green'
+                  : 'text-ink hover:text-ink-secondary focus-visible:text-ink-secondary',
               )}
             >
               {content}
