@@ -1,30 +1,36 @@
 import { useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { Popover, Radio, RadioGroup, Sheet } from '../../../../components/ui/primitives';
-import { CATALOG_SORT_OPTIONS, type CatalogSort } from '../../../../lib/catalog-query';
 import FilterPill from './FilterPill';
 
-interface SortControlProps {
-  value: CatalogSort;
-  onChange: (sort: CatalogSort) => void;
+interface SortControlProps<T extends string> {
+  /** Варианты в порядке показа: каталог — CATALOG_SORT_OPTIONS, поиск — SORT_OPTIONS */
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (sort: T) => void;
   /** Ниже 980 — шторкой снизу (market-docs/44) */
   asSheet: boolean;
 }
 
-export default function SortControl({ value, onChange, asSheet }: SortControlProps) {
+export default function SortControl<T extends string>({
+  options: sortOptions,
+  value,
+  onChange,
+  asSheet,
+}: SortControlProps<T>) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const current = CATALOG_SORT_OPTIONS.find((o) => o.value === value) ?? CATALOG_SORT_OPTIONS[0];
+  const current = sortOptions.find((o) => o.value === value) ?? sortOptions[0];
 
   const choose = (next: string) => {
     setOpen(false);
-    if (next !== value) onChange(next as CatalogSort);
+    if (next !== value) onChange(next as T);
   };
 
   const options = (
     <RadioGroup label="Сортировка" value={value} onChange={choose}>
-      {CATALOG_SORT_OPTIONS.map((o) => (
+      {sortOptions.map((o) => (
         <Radio key={o.value} value={o.value} label={o.label} />
       ))}
     </RadioGroup>
@@ -67,7 +73,7 @@ export default function SortControl({ value, onChange, asSheet }: SortControlPro
           anchorRef={anchorRef}
           label="Сортировка"
           id={panelId}
-          className="w-60"
+          className="w-max min-w-60"
         >
           {options}
         </Popover>

@@ -1,7 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
-import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
-import ProductCardConnected from '../../components/ui/ProductCardConnected';
+import { SearchInput } from '../../components/ui/primitives';
+import SortControl from '../catalog-category/listing/toolbar/SortControl';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
@@ -10,19 +12,25 @@ import {
   getSortSelectValue,
   parseSortSelectValue,
   SORT_OPTIONS,
-  CATALOG_PRODUCTS_PER_PAGE,
 } from '../../lib/catalog-sort';
 import { normalizeListProduct } from '../../utils/cartProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
-import { ChevronLeft, ChevronRight, Search as SearchIcon, X } from 'lucide-react';
+import { CATALOG_PER_PAGE } from '../../lib/catalog-query';
+import { PAGE_CONTAINER } from '../../lib/layout';
+import CategoryBreadcrumbs from '../catalog-category/components/CategoryBreadcrumbs';
+import { ProductCount } from '../catalog-category/listing/CatalogHeader';
+import EmptyState from '../catalog-category/listing/empty/EmptyState';
+import PageLinks from '../catalog-category/listing/pagination/PageLinks';
+import ProductGrid from '../catalog-category/listing/ProductGrid';
 
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const ssrData = useSSR();
   const { region } = useRegion();
+  // Сортировка ниже 980 — шторкой снизу, как в каталоге
+  const compact = useMediaQuery('(max-width: 979.98px)');
 
   // Используем SSR данные если они есть
   const initialSearchQuery = ssrData?.search?.query || '';
@@ -99,7 +107,8 @@ export default function Search() {
     swrKey
       ? () =>
           api.products.search(searchParamsForSWR!.query, {
-            per_page: CATALOG_PRODUCTS_PER_PAGE,
+            // 12 — как в каталоге: сетка 4 / 3 / 2 колонки без хвоста
+            per_page: CATALOG_PER_PAGE,
             page: searchParamsForSWR!.page,
             sort_by: searchParamsForSWR!.sort_by,
             sort_order: searchParamsForSWR!.sort_order,
@@ -149,11 +158,10 @@ export default function Search() {
 
   // Wishlist и compare загружаются через централизованный хук useWishlistAndCompare
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim().length >= 2) {
+  const submitSearch = (value: string) => {
+    if (value.length >= 2) {
       const newParams = new URLSearchParams();
-      newParams.set('q', searchQuery.trim());
+      newParams.set('q', value);
       newParams.set('page', '1');
       setSearchParams(newParams);
     }
@@ -177,170 +185,78 @@ export default function Search() {
 
   const query = searchParams.get('q') || '';
 
+  const hrefOf = (page: number) => {
+    const next = new URLSearchParams(searchParams);
+    if (page > 1) next.set('page', String(page));
+    else next.delete('page');
+    return `/search?${next.toString()}`;
+  };
+  const tooShort = query.trim().length < 2;
+
+  // Вид — как у списка каталога (market-docs/52): крошки, заголовок с числом, сетка, номера
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 py-6 md:py-12">
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-2 text-xs md:text-sm mb-4">
-          <Link to="/" className="text-gray-600 hover:text-red-600">
-            Главная
-          </Link>
-          <ChevronRight className="size-[1em] text-gray-400" />
-          <span className="text-gray-900">Поиск</span>
-        </div>
-
-        {/* Search Header */}
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-4xl font-bold mb-4">Результаты поиска</h1>
-
-          {/* Search Input */}
-          <form onSubmit={handleSearch} className="max-w-2xl">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск товаров..."
-                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-full text-sm md:text-base focus:outline-none focus:border-red-600 transition-colors bg-white"
-              />
-              <SearchIcon className="size-[1em] absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    navigate('/search');
-                  }}
-                  className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="size-[1em] text-lg" />
-                </button>
-              )}
-              <button
-                type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-white bg-red-600 rounded-full hover:bg-red-700 transition-colors"
-              >
-                <SearchIcon className="size-[1em] text-lg" />
-              </button>
-            </div>
-          </form>
-
-          {query && total > 0 && (
-            <p className="text-gray-600 text-sm md:text-base mt-4">
-              По запросу <span className="font-semibold text-gray-900">"{query}"</span> найдено:{' '}
-              <span className="font-semibold">{total}</span>{' '}
-              {total === 1 ? 'товар' : total < 5 ? 'товара' : 'товаров'}
-            </p>
-          )}
-          {query && total === 0 && !isLoading && (
-            <p className="text-gray-600 text-sm md:text-base mt-4">
-              По запросу <span className="font-semibold text-gray-900">"{query}"</span> ничего не
-              найдено
-            </p>
+    <main className="bg-surface">
+      <div
+        className={`${PAGE_CONTAINER} pb-16 pt-6 max-md:pb-12 max-md:pt-5 max-vsm:pb-10 max-vsm:pt-4`}
+      >
+        <CategoryBreadcrumbs name="Поиск" inCatalog={false} />
+        <div className="mt-7 flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:mt-5">
+          <h1 className="text-24 font-bold text-ink">Результаты поиска</h1>
+          {!tooShort && !isLoading && (
+            <ProductCount total={total} className="font-medium md:text-14" />
           )}
         </div>
 
-        {/* Results */}
-        {!query || query.trim().length < 2 ? (
-          <div className="text-center py-12">
-            <SearchIcon className="size-[1em] text-6xl text-gray-300 mb-4" />
-            <p className="text-gray-500 text-lg mb-2">Введите запрос для поиска</p>
-            <p className="text-gray-400 text-sm">Минимум 2 символа</p>
+        {/* Тот же SearchInput, что в шапке (Figma 235:3090 «search») */}
+        <SearchInput
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onSearch={submitSearch}
+          placeholder="Диван-кровать, шкаф-купе, матрас..."
+          aria-label="Поиск по каталогу"
+          wrapperClassName="mt-6 max-w-2xl"
+        />
+
+        {!tooShort && products.length > 0 && (
+          <div className="mt-6">
+            <SortControl
+              options={SORT_OPTIONS}
+              value={getSortSelectValue(searchParams)}
+              asSheet={compact}
+              onChange={handleSortChange}
+            />
           </div>
-        ) : isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-gray-200 rounded-2xl h-96 animate-pulse" />
-            ))}
+        )}
+
+        <div className="mt-6">
+          {tooShort ? (
+            <EmptyState title="Введите запрос для поиска" hint="Минимум 2 символа." />
+          ) : !isLoading && products.length === 0 ? (
+            <EmptyState
+              title={`По запросу «${query}» ничего не нашлось`}
+              hint="Попробуйте изменить запрос или поискать по другим словам."
+            />
+          ) : (
+            <ProductGrid
+              products={products}
+              isLoading={isLoading}
+              isLoadingMore={false}
+              isRefreshing={false}
+            />
+          )}
+        </div>
+
+        {!tooShort && !isLoading && (
+          <div className="mt-8">
+            <PageLinks
+              pages={{ from: currentPage, to: currentPage }}
+              lastPage={totalPages}
+              hrefOf={hrefOf}
+              onPage={handlePageChange}
+            />
           </div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-12">
-            <SearchIcon className="size-[1em] text-6xl text-gray-300 mb-4" />
-            <p className="text-gray-500 text-lg mb-2">Ничего не найдено</p>
-            <p className="text-gray-400 text-sm">
-              Попробуйте изменить запрос или использовать другие ключевые слова
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Sort */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-              <p className="text-gray-600 text-sm">
-                Найдено товаров: <span className="font-semibold">{total}</span>
-              </p>
-              <select
-                value={getSortSelectValue(searchParams)}
-                onChange={(e) => handleSortChange(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm pr-8"
-              >
-                {SORT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Products Grid */}
-            <div
-              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5"
-              data-product-shop
-            >
-              {products.map((product) => (
-                <ProductCardConnected key={product.id} product={product} />
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-8 md:mt-12">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <ChevronLeft className="size-[1em] text-sm md:text-base" />
-                </button>
-                {(() => {
-                  const pages: number[] = [];
-                  const maxPages = 5;
-                  let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
-                  const endPage = Math.min(totalPages, startPage + maxPages - 1);
-
-                  if (endPage - startPage < maxPages - 1) {
-                    startPage = Math.max(1, endPage - maxPages + 1);
-                  }
-
-                  for (let i = startPage; i <= endPage; i++) {
-                    pages.push(i);
-                  }
-
-                  return pages.map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg font-medium cursor-pointer text-sm md:text-base ${
-                        currentPage === page
-                          ? 'bg-red-600 text-white'
-                          : 'border border-gray-300 hover:border-red-600'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ));
-                })()}
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <ChevronRight className="size-[1em] text-sm md:text-base" />
-                </button>
-              </div>
-            )}
-          </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

@@ -1,5 +1,9 @@
 import type { FiltersMeta } from '../../../../lib/api';
-import { activeFilterCount, type CatalogQuery } from '../../../../lib/catalog-query';
+import {
+  activeFilterCount,
+  CATALOG_SORT_OPTIONS,
+  type CatalogQuery,
+} from '../../../../lib/catalog-query';
 import { useFilterDraft } from '../useFilterDraft';
 import AllFiltersButton from './AllFiltersButton';
 import { filterAvailability } from '../fields/availability';
@@ -46,7 +50,12 @@ export default function CatalogToolbar({
   const applyNow = (patch: Partial<CatalogQuery>) => onQueryChange({ ...query, ...patch, page: 1 });
 
   const sort = (
-    <SortControl value={query.sort} asSheet={compact} onChange={(s) => applyNow({ sort: s })} />
+    <SortControl
+      options={CATALOG_SORT_OPTIONS}
+      value={query.sort}
+      asSheet={compact}
+      onChange={(s) => applyNow({ sort: s })}
+    />
   );
   const allFilters = (
     <AllFiltersButton count={activeFilterCount(query)} onClick={onOpenAllFilters} />

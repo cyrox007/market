@@ -8,6 +8,7 @@ import { createServer as createViteServer } from 'vite';
 import type { SSRContext } from '../src/types/ssr';
 import { withCache, withCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
 import {
+  CATALOG_PER_PAGE,
   parseCatalogQuery,
   toApiParams,
   type CatalogScope,
@@ -444,7 +445,8 @@ async function createServer() {
                 : queryParams.order) || undefined) as 'asc' | 'desc' | undefined;
               const searchParams = {
                 page,
-                per_page: 24,
+                // Как на клиенте (pages/search) — иначе SSR и переходы по номерам считают страницы по-разному
+                per_page: CATALOG_PER_PAGE,
                 sort_by: sortBy,
                 sort_order: sortOrder,
                 region_id: regionId,
