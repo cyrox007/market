@@ -11,6 +11,28 @@ use Tests\TestCase;
 
 class SyncProductAndStocksFrom1CJobTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled' => true]);
+    }
+
+    public function test_already_queued_legacy_job_does_not_sync_when_disabled(): void
+    {
+        config(['catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled' => false]);
+        $action = Mockery::mock(SyncProductStocksFrom1CByExternalIdAction::class);
+        $action->shouldNotReceive('execute');
+        (new SyncProductAndStocksFrom1CJob('old-queued-product'))->handle($action);
+        $this->assertTrue(true);
+    }
+
+    public function test_queued_full_catalog_import_is_also_disabled(): void
+    {
+        config(['catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled' => false]);
+        $this->mock(\App\Services\Catalog\Integrations\Svetofor1CCatalogImport::class)->shouldNotReceive('import');
+        (new \App\Jobs\RunCatalogImportJob(\App\Services\Catalog\Integrations\Svetofor1CCatalogImport::class))->handle();
+        $this->assertTrue(true);
+    }
     public function test_it_uses_configured_queue_and_executes_sync_action(): void
     {
         config()->set('catalog_import.config.svetofor_1c.minute_sync_queue', 'integration-1c-minute');

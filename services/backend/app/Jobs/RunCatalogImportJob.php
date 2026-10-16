@@ -32,6 +32,10 @@ class RunCatalogImportJob implements ShouldQueue
 
     public function handle(): void
     {
+        if ($this->importerClass === \App\Services\Catalog\Integrations\Svetofor1CCatalogImport::class
+            && ! config('catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled', false)) {
+            return;
+        }
         if (! is_subclass_of($this->importerClass, CatalogImportInterface::class)) {
             Log::warning('RunCatalogImportJob: invalid importer class', ['class' => $this->importerClass]);
 
