@@ -138,12 +138,13 @@ function ProductCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-btn border border-surface-stroke/[0.08] p-3">
+      {/* Наведение: тень на фото и лёгкий зум картинки (market-docs/53) */}
+      <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-btn border border-surface-stroke/[0.08] p-3 transition-shadow duration-slow ease-out motion-reduce:transition-none [@media(hover:hover)]:group-hover:shadow-card">
         {image ? (
           <img
             src={image}
             alt=""
-            className="absolute inset-0 size-full object-cover"
+            className="absolute inset-0 size-full object-cover transition-transform duration-slow ease-out [@media(hover:hover)_and_(prefers-reduced-motion:no-preference)]:group-hover:scale-[1.02]"
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
             fetchPriority={priority ? 'high' : undefined}
