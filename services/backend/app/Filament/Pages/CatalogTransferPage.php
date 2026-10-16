@@ -273,6 +273,8 @@ class CatalogTransferPage extends Page
             'unmatchedTotal' => $counts['unmatched'] ?? 0,
             'apiFoundTotal' => (clone $query)->where('result->api->status', 'found')->count(),
             'apiMissingTotal' => (clone $query)->where('result->api->status', 'not_found')->count(),
+            'apiFailedTotal' => (clone $query)->where('status', 'applied_waiting')->where(fn ($q) => $q->whereNull('result->api->status')->orWhere('result->api->status', '!=', 'not_found'))->count(),
+            'apiPendingTotal' => (clone $query)->whereNotNull('table_applied_at')->where('status', 'pending')->count(),
             'apiRequestTotal' => DB::table('catalog_transfer_events')->where('run_id', $this->runId)->where('message', 'like', 'API запрос:%')->count(),
             'apiResponseTotal' => DB::table('catalog_transfer_events')->where('run_id', $this->runId)->where('message', 'like', 'API ответ:%')->count(),
             'apiLastResponse' => DB::table('catalog_transfer_events')->where('run_id', $this->runId)->where('message', 'like', 'API ответ:%')->latest('id')->first(),

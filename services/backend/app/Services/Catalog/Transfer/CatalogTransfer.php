@@ -84,7 +84,10 @@ class CatalogTransfer
             if ($run->apply_enabled) {
                 $data = $sources->enrichment($row->code);
                 if ($data['status'] !== 'found') {
-                    $this->finish($row->id, 'applied_waiting', 'Товар сохранён из таблицы. Дополнение из API ожидает: '.$data['status'].'.', ['api' => $data]);
+                    $message = $data['status'] === 'not_found'
+                        ? 'Товар сохранён из таблицы. Код 1С не найден в API (404); остатки и характеристики не получены.'
+                        : 'Товар сохранён из таблицы. Данные API не получены: '.$data['status'].'. Требуется повторная проверка.';
+                    $this->finish($row->id, 'applied_waiting', $message, ['api' => $data]);
 
                     return 0;
                 }

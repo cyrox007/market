@@ -10,7 +10,7 @@
 <div class="ct-stage">Проверка API<strong>{{ $apiFoundTotal }} найдено</strong>Не найдены в API: {{ $apiMissingTotal }}. Сохранение остатков отключено в режиме проверки.</div>
 @else
 <div class="ct-stage">Товары из таблицы<strong>{{ $appliedTotal }} / {{ $eligibleTotal }}</strong>Создано {{ $createdTotal }}, обновлено {{ max(0,$appliedTotal-$createdTotal) }}</div>
-<div class="ct-stage">Остатки и характеристики<strong>{{ $apiTotal }} / {{ $appliedTotal }}</strong>Ожидают API: {{ $counts['applied_waiting']??0 }}</div>
+<div class="ct-stage">Остатки и характеристики<strong>{{ $apiTotal }} / {{ $appliedTotal }}</strong><p>Не найдены в API: {{ $apiMissingTotal }}</p><p>Ошибки / требуется повтор: {{ $apiFailedTotal }}</p><p>Ещё не обработаны: {{ $apiPendingTotal }}</p></div>
 <div class="ct-stage">Галереи и категории<strong>{{ $assetsTotal??'—' }} / {{ $appliedTotal }}</strong>Замечания — в строках ниже</div>
 @endif
 <div class="ct-stage">Без sku пропущено<strong>{{ $counts['skipped']??0 }}</strong>Конфликты {{ $counts['conflict']??0 }}, ошибки {{ $counts['error']??0 }}</div>
@@ -22,7 +22,7 @@
 @if($currentAsset && $run->status==='running')<p>Галерея / категории: код 1С <strong>{{ $currentAsset->code }}</strong>.</p>@elseif($currentRow && $run->status==='running')<p>Обрабатывается код 1С <strong>{{ $currentRow->code }}</strong>.</p>@endif
 <p class="ct-note">Последняя активность: {{ $run->heartbeat_at?\Illuminate\Support\Carbon::parse($run->heartbeat_at)->addHours(3)->format('d.m.Y H:i:s'):'ожидание обработчика' }} (Москва)</p>
 <div class="ct-line">
-@if(in_array($run->status,['draft','paused','running']))<x-filament::button color="gray" wire:click="start">Продолжить</x-filament::button>@endif
+@if(in_array($run->status,['draft','paused']))<x-filament::button color="gray" wire:click="start">Продолжить</x-filament::button>@endif
 @if($run->status==='running')<x-filament::button color="gray" wire:click="pause">Пауза</x-filament::button>@endif
 @if(in_array($run->status,['review','review_errors','paused']))<x-filament::button color="gray" wire:click="retryErrors">Повторить дополнение из источников</x-filament::button>@if($run->apply_enabled && $this->canApply())<x-filament::button color="gray" wire:click="continueAssets">Продолжить галереи</x-filament::button>@endif @endif
 @if(!$run->apply_enabled && in_array($run->status,['review','review_errors']) && $this->canApply())<x-filament::button wire:click="applyRun" wire:confirm="Создать и обновить товары локально из таблиц?">Применить проверенные файлы</x-filament::button>@endif

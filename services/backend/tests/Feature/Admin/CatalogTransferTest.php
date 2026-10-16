@@ -321,4 +321,22 @@ class CatalogTransferTest extends TestCase
         $this->assertEquals(500, $product->fresh()->price);
         $this->assertEquals(7, $product->fresh()->stock);
     }
+
+    public function test_api_progress_distinguishes_missing_failed_and_pending_rows(): void
+    {
+        Role::findOrCreate('super_admin', 'web');
+        $user = User::factory()->create();
+        $user->assignRole('super_admin');
+        $this->actingAs($user);
+        Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
+        $run = $this->runWithFile(data: [['MISSING', '', '100'], ['FAILED', '', '100'], ['PENDING', '', '100']]);
+        app(CatalogTransfer::class)->step($run);
+        DB::table('catalog_transfer_runs')->where('id', $run)->update(['apply_enabled' => true]);
+        DB::table('catalog_transfer_rows')->where('run_id', $run)->update(['table_applied_at' => now()]);
+        DB::table('catalog_transfer_rows')->where('run_id', $run)->where('code', 'MISSING')->update(['status' => 'applied_waiting', 'result' => json_encode(['api' => ['status' => 'not_found']])]);
+        DB::table('catalog_transfer_rows')->where('run_id', $run)->where('code', 'FAILED')->update(['status' => 'applied_waiting']);
+        Livewire::test(\App\Livewire\CatalogTransferProgress::class, ['runId' => $run])
+            ->assertViewHas('apiMissingTotal', 1)->assertViewHas('apiFailedTotal', 1)->assertViewHas('apiPendingTotal', 1)
+            ->assertDontSee('Ожидают API:')->assertDontSee('Продолжить');
+    }
 }
