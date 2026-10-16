@@ -95,6 +95,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
             if ($existing === null) {
                 $rowsForFullCreate[] = $row;
+
                 continue;
             }
 
@@ -168,6 +169,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 'external_id' => $product->external_id,
                 'price' => $product->price,
             ]);
+
             return;
         }
 
@@ -304,7 +306,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchProductsRaw(?string $updatedAfter = null): array
     {
-        $url = $this->baseUrl . '/' . $this->productsCachePath;
+        $url = $this->baseUrl.'/'.$this->productsCachePath;
         $resolvedUpdatedAfter = $updatedAfter !== null && $updatedAfter !== ''
             ? $updatedAfter
             : $this->resolveUpdatedAfterIso8601();
@@ -313,7 +315,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             ->get($url, ['updatedAfter' => $resolvedUpdatedAfter]);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('API products request failed: ' . $response->status() . ' ' . $response->body());
+            throw new \RuntimeException('API products request failed: '.$response->status().' '.$response->body());
         }
 
         $data = $response->json();
@@ -374,7 +376,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchProductDetailByExternalId(string $externalId): ?array
     {
-        $url = $this->baseUrl . '/api/v1/integration/1c/products/external/' . $externalId;
+        $url = $this->baseUrl.'/api/v1/integration/1c/products/external/'.$externalId;
         $response = Http::timeout($this->timeout)
             ->withHeaders($this->requestHeaders())
             ->get($url);
@@ -427,13 +429,13 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchManufacturersRaw(): array
     {
-        $url = $this->baseUrl . '/api/v1/integration/1c/manufacturers';
+        $url = $this->baseUrl.'/api/v1/integration/1c/manufacturers';
         $response = Http::timeout($this->timeout)
             ->withHeaders($this->requestHeaders())
             ->get($url);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('API manufacturers request failed: ' . $response->status() . ' ' . $response->body());
+            throw new \RuntimeException('API manufacturers request failed: '.$response->status().' '.$response->body());
         }
 
         $data = $response->json();
@@ -459,7 +461,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
         } catch (\Throwable $e) {
             Log::warning('Catalog import: manufacturers fetch failed', [
                 'error' => $e->getMessage(),
-                'url' => $this->baseUrl . '/api/v1/integration/1c/manufacturers',
+                'url' => $this->baseUrl.'/api/v1/integration/1c/manufacturers',
             ]);
 
             return;
@@ -470,7 +472,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             // Нормализуем slug из API (могут быть точки, например "futuka-kids.ru") для безопасного хранения в БД
             $slug = Str::slug((string) ($item['slug'] ?? $name));
             if ($slug === '') {
-                $slug = 'm-' . ($item['id'] ?? 'unknown');
+                $slug = 'm-'.($item['id'] ?? 'unknown');
             }
             $externalId = $item['externalId'] ?? $item['external_id'] ?? null;
             $apiId = $item['id'] ?? null;
@@ -478,7 +480,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             if ($apiId !== null) {
                 $this->manufacturerIdToExternalId[$apiId] = ($externalId !== null && $externalId !== '')
                     ? (string) $externalId
-                    : 'api_' . $apiId;
+                    : 'api_'.$apiId;
             }
 
             $manufacturer = Manufacturer::updateOrCreate(
@@ -489,7 +491,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 ]
             );
 
-            $key = ($externalId !== null && $externalId !== '') ? (string) $externalId : 'api_' . $apiId;
+            $key = ($externalId !== null && $externalId !== '') ? (string) $externalId : 'api_'.$apiId;
             $this->manufacturerIdByExternalId[$key] = (int) $manufacturer->id;
         }
     }
@@ -498,7 +500,6 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      * Внешний идентификатор 1С (поле externalId из API). Переопределите в наследнике под формат API.
      *
      * @param  array<string, mixed>  $item  сырой элемент категории из API
-     * @return string|null
      */
     protected function getCategoryExternalId(array $item): ?string
     {
@@ -511,7 +512,6 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      * Внешний идентификатор 1С (поле externalId из API). Переопределите в наследнике под формат API.
      *
      * @param  array<string, mixed>  $item  сырой элемент товара из API
-     * @return string|null
      */
     protected function getProductExternalId(array $item): ?string
     {
@@ -572,10 +572,12 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             $payload = (isset($item['payload']) && is_array($item['payload'])) ? $item['payload'] : $item;
             if (empty($payload['name'] ?? null) && empty($payload['title'] ?? null)) {
                 $skippedNoName++;
+
                 continue;
             }
             if ($this->getProductExternalId($item) === null) {
                 $skippedNoExternalId++;
+
                 continue;
             }
             $name = $this->decodeHtml((string) ($payload['name'] ?? $payload['title'] ?? '')) ?? '';
@@ -586,7 +588,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             if (preg_match('/\b(\d{3}\.\d{3}\.\d{3})\b/', $name, $matches)) {
                 $unknow_code = $matches[1];
                 // Удаляем этот код из названия вместе с пробелом после или перед
-                $cleanName = trim(preg_replace('/\b' . preg_quote($unknow_code, '/') . '\s*/', '', $name));
+                $cleanName = trim(preg_replace('/\b'.preg_quote($unknow_code, '/').'\s*/', '', $name));
             }
 
             $sku = $payload['sku']
@@ -620,7 +622,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 // Полезно для выборочного обновления существующих товаров:
                 // фиксируем какие поля реально были в payload.
                 '_payload_keys' => array_keys($payload),
-                'other_code' => $unknow_code
+                'other_code' => $unknow_code,
             ];
         }
 
@@ -794,7 +796,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                     $created += $vCreated;
                     $updated += $vUpdated;
                 } catch (\Throwable $e) {
-                    Log::warning('Catalog import: modifications fetch failed for product ' . $productExternalId, [
+                    Log::warning('Catalog import: modifications fetch failed for product '.$productExternalId, [
                         'error' => $e->getMessage(),
                     ]);
                 }
@@ -831,6 +833,9 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function syncProductManufacturer(Product $product, array $row): void
     {
+        if (app(\App\Services\Catalog\Transfer\TransferTableAuthority::class)->owns($product, 'manufacturer')) {
+            return;
+        }
         $resolved = $this->resolveManufacturerFromRow($row);
 
         $this->detachManufacturerAttribute($product);
@@ -870,6 +875,12 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             }
 
             $attributeSlug = Attribute::canonicalSlugForName($name);
+            $tableAuthority = app(\App\Services\Catalog\Transfer\TransferTableAuthority::class);
+            foreach (['manufacturer' => 'Производитель', 'model' => 'Модель', 'width' => 'Ширина (мм)', 'height' => 'Высота (мм)', 'length' => 'Глубина (мм)'] as $field => $label) {
+                if ($attributeSlug === Attribute::canonicalSlugForName($label) && $tableAuthority->owns($product, $field)) {
+                    continue 2;
+                }
+            }
             $isCanonicalColor = $attributeSlug === Attribute::SLUG_COLOR;
             $isCanonicalSize = $attributeSlug === Attribute::SLUG_SIZE;
 
@@ -896,7 +907,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
             $valueSlug = Str::slug($value);
             if ($valueSlug === '') {
-                $valueSlug = 'v-' . substr(md5($value), 0, 8);
+                $valueSlug = 'v-'.substr(md5($value), 0, 8);
             }
 
             $attributeValue = AttributeValue::firstOrCreate(
@@ -912,6 +923,9 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
     protected function syncProductPriceFromCache(Product $product, string $externalId): bool
     {
+        if (app(\App\Services\Catalog\Transfer\TransferTableAuthority::class)->owns($product, 'price')) {
+            return false;
+        }
         if ($externalId === '') {
             return false;
         }
@@ -994,7 +1008,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchProductCharacteristicsRaw(string $externalId): array
     {
-        $url = $this->baseUrl . '/api/v1/integration/1c/v2/cache/products/' . urlencode($externalId) . '/characteristics';
+        $url = $this->baseUrl.'/api/v1/integration/1c/v2/cache/products/'.urlencode($externalId).'/characteristics';
         $response = Http::timeout($this->timeout)->withHeaders($this->requestHeaders())->get($url);
         if (! $response->successful()) {
             Log::warning('Catalog import: characteristics fetch failed', [
@@ -1017,7 +1031,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
 
     protected function fetchProductPriceRaw(string $externalId): ?float
     {
-        $url = $this->baseUrl . '/api/v1/integration/1c/v2/cache/products/' . urlencode($externalId) . '/price';
+        $url = $this->baseUrl.'/api/v1/integration/1c/v2/cache/products/'.urlencode($externalId).'/price';
         $response = Http::timeout($this->timeout)->withHeaders($this->requestHeaders())->get($url);
         if (! $response->successful()) {
             Log::warning('Catalog import: price fetch failed', [
@@ -1034,6 +1048,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 'external_id' => $externalId,
                 'payload' => $data,
             ]);
+
             return null;
         }
 
@@ -1050,7 +1065,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchProductStocksRaw(string $externalId): array
     {
-        $url = $this->baseUrl . '/api/v1/integration/1c/v2/cache/products/' . urlencode($externalId) . '/stocks';
+        $url = $this->baseUrl.'/api/v1/integration/1c/v2/cache/products/'.urlencode($externalId).'/stocks';
         $response = Http::timeout($this->timeout)->withHeaders($this->requestHeaders())->get($url);
         if (! $response->successful()) {
             Log::warning('Catalog import: stocks fetch failed', [
@@ -1130,7 +1145,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
         );
         $valueSlug = Str::slug($name);
         if ($valueSlug === '') {
-            $valueSlug = 'm-' . substr(md5($name), 0, 8);
+            $valueSlug = 'm-'.substr(md5($name), 0, 8);
         }
         $attrValue = AttributeValue::firstOrCreate(
             [
@@ -1172,13 +1187,13 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchStockRaw(): array
     {
-        $url = $this->baseUrl . '/' . $this->stockPath;
+        $url = $this->baseUrl.'/'.$this->stockPath;
         $response = Http::timeout($this->timeout)
             ->withHeaders($this->requestHeaders())
             ->get($url);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('API stock request failed: ' . $response->status() . ' ' . $response->body());
+            throw new \RuntimeException('API stock request failed: '.$response->status().' '.$response->body());
         }
 
         $data = $response->json();
@@ -1237,13 +1252,13 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
      */
     protected function fetchModificationsRaw(string $productExternalId): array
     {
-        $url = $this->baseUrl . '/api/v1/integration/1c/products/' . urlencode($productExternalId) . '/modifications';
+        $url = $this->baseUrl.'/api/v1/integration/1c/products/'.urlencode($productExternalId).'/modifications';
         $response = Http::timeout($this->timeout)
             ->withHeaders($this->requestHeaders())
             ->get($url);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('API modifications request failed: ' . $response->status() . ' ' . $response->body());
+            throw new \RuntimeException('API modifications request failed: '.$response->status().' '.$response->body());
         }
 
         $data = $response->json();
@@ -1394,6 +1409,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             if (array_key_exists('backorder', $row) && $row['backorder'] !== null) {
                 $variant->backorder = (bool) $row['backorder'];
             }
+
             return;
         }
 
@@ -1462,7 +1478,8 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             $product->slug = (string) ($row['slug'] ?? Str::slug($row['name'] ?? $product->name ?? ''));
         }
 
-        if (! $isUpdate || in_array('price', $payloadKeys, true) || in_array('basePrice', $payloadKeys, true)) {
+        $tableAuthority = app(\App\Services\Catalog\Transfer\TransferTableAuthority::class);
+        if ((! $isUpdate || in_array('price', $payloadKeys, true) || in_array('basePrice', $payloadKeys, true)) && ! $tableAuthority->owns($product, 'price')) {
             $product->price = (float) ($row['price'] ?? $product->price ?? 0);
         }
 
@@ -1473,6 +1490,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
             if (isset($row['external_id']) && $row['external_id'] !== null && $row['external_id'] !== '') {
                 $product->external_id = (string) $row['external_id'];
             }
+
             return;
         }
 
@@ -1481,10 +1499,10 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 ? (float) $row['original_price']
                 : null;
         }
-        if (array_key_exists('description', $row) && in_array('description', $payloadKeys, true)) {
+        if (array_key_exists('description', $row) && in_array('description', $payloadKeys, true) && ! $tableAuthority->owns($product, 'description')) {
             $product->description = $row['description'] !== null ? (string) $row['description'] : null;
         }
-        if (array_key_exists('excerpt', $row) && (in_array('excerpt', $payloadKeys, true) || in_array('shortDescription', $payloadKeys, true))) {
+        if (array_key_exists('excerpt', $row) && (in_array('excerpt', $payloadKeys, true) || in_array('shortDescription', $payloadKeys, true)) && ! $tableAuthority->owns($product, 'excerpt')) {
             $product->excerpt = $row['excerpt'] !== null ? (string) $row['excerpt'] : null;
         }
         if (isset($row['external_id']) && ($row['external_id'] !== null && $row['external_id'] !== '')) {
@@ -1499,7 +1517,7 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
     {
         $headers = ['Accept' => 'application/json'];
         if ($this->apiKey !== '') {
-            $headers['Authorization'] = 'Bearer ' . $this->apiKey;
+            $headers['Authorization'] = 'Bearer '.$this->apiKey;
         }
 
         return $headers;
