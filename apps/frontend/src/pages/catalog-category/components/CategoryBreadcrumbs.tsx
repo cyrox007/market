@@ -6,14 +6,20 @@ interface CategoryBreadcrumbsProps {
   name: string;
   /** Родители от старшего к младшему — между «Каталогом» и текущей */
   trail?: { name: string; to: string }[];
+  /** Без «Каталога» — страницы вне каталога, например поиск: «Главная › Поиск» */
+  inCatalog?: boolean;
 }
 
 const LINK = 'shrink-0 text-ink transition-colors hover:text-ink-secondary';
 const CHEVRON = 'size-4 shrink-0 max-vsm:size-3.5';
 
 /** От 550 — полный путь; ниже — «Главная › … › текущая», «…» ведёт к ближайшему родителю */
-export default function CategoryBreadcrumbs({ name, trail = [] }: CategoryBreadcrumbsProps) {
-  const middle = [{ name: 'Каталог', to: '/catalog' }, ...trail];
+export default function CategoryBreadcrumbs({
+  name,
+  trail = [],
+  inCatalog = true,
+}: CategoryBreadcrumbsProps) {
+  const middle = [...(inCatalog ? [{ name: 'Каталог', to: '/catalog' }] : []), ...trail];
   const parent = middle[middle.length - 1];
 
   return (
@@ -32,10 +38,18 @@ export default function CategoryBreadcrumbs({ name, trail = [] }: CategoryBreadc
           </Link>
         </Fragment>
       ))}
-      <ChevronRight className={`${CHEVRON} vsm:hidden`} aria-hidden />
-      <Link to={parent.to} aria-label={`Назад: ${parent.name}`} className={`${LINK} vsm:hidden`}>
-        …
-      </Link>
+      {parent && (
+        <>
+          <ChevronRight className={`${CHEVRON} vsm:hidden`} aria-hidden />
+          <Link
+            to={parent.to}
+            aria-label={`Назад: ${parent.name}`}
+            className={`${LINK} vsm:hidden`}
+          >
+            …
+          </Link>
+        </>
+      )}
       <ChevronRight className={CHEVRON} aria-hidden />
       <span className="truncate text-ink-secondary">{name}</span>
     </nav>

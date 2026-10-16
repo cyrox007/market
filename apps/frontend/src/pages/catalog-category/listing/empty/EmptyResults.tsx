@@ -1,8 +1,8 @@
-import { Search } from 'lucide-react';
 import { Button } from '../../../../components/ui/primitives';
 import { formatNumber } from '../../../../components/ui/primitives/digits';
 import { activeFilterCount, type CatalogQuery, type Range } from '../../../../lib/catalog-query';
 import { plural } from '../../../../lib/plural';
+import EmptyState from './EmptyState';
 
 interface EmptyResultsProps {
   query: CatalogQuery;
@@ -34,26 +34,21 @@ export default function EmptyResults({ query, sectionTotal, onReset }: EmptyResu
     : `Попробуйте снять часть фильтров${tail}`;
 
   return (
-    <section className="flex flex-col items-center gap-4 rounded-popover bg-surface-grey px-10 py-16 text-center max-vsm:px-4 max-vsm:py-10">
-      <span className="flex rounded-pill bg-surface p-[15px] text-ink-secondary">
-        <Search size={30} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-      </span>
-      <div className="flex flex-col items-center gap-3">
-        <h2 className="text-24 font-bold text-ink max-vsm:text-20">
-          {filtered ? 'По вашим фильтрам ничего не нашлось' : 'В этом разделе пока нет товаров'}
-        </h2>
-        {filtered && <p className="max-w-[554px] text-14 text-ink-secondary">{hint}</p>}
-      </div>
-      {filtered && (
-        <Button
-          size="lg"
-          shape="rounded"
-          onClick={onReset}
-          className="w-[200px] px-7 shadow-card max-vsm:w-full"
-        >
-          Сбросить фильтры
-        </Button>
-      )}
-    </section>
+    <EmptyState
+      title={filtered ? 'По вашим фильтрам ничего не нашлось' : 'В этом разделе пока нет товаров'}
+      hint={filtered ? hint : undefined}
+      action={
+        filtered && (
+          <Button
+            size="lg"
+            shape="rounded"
+            onClick={onReset}
+            className="w-[200px] px-7 shadow-card max-vsm:w-full"
+          >
+            Сбросить фильтры
+          </Button>
+        )
+      }
+    />
   );
 }
