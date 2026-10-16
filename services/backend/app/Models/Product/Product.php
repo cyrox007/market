@@ -30,6 +30,7 @@ use App\Models\Product\Category;
 use App\Models\Product\Manufacturer;
 use App\Models\Product\ProductCollection;
 use App\Models\Product\ProductDeliveryBlock;
+use App\Models\Product\ProductDocument;
 use App\Models\Product\ProductFeatureBlock;
 use App\Models\Product\ProductRegionRule;
 use App\Models\Product\Review;
@@ -120,6 +121,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             if (Schema::hasTable('interior_idea_hotspots')) {
                 InteriorIdeaHotspot::query()->where('product_id', $product->getKey())->delete();
             }
+
+            // Через модели, чтобы вместе со строками удалились и файлы документов.
+            $product->documents()->get()->each->delete();
         });
     }
 
@@ -542,6 +546,11 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     public function warehouseStocks(): HasMany
     {
         return $this->hasMany(ProductWarehouseStock::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ProductDocument::class)->orderBy('sort_order')->orderBy('id');
     }
 
 

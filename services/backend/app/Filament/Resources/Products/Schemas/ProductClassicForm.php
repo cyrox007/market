@@ -5,11 +5,13 @@ namespace App\Filament\Resources\Products\Schemas;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
+use App\Models\Product\ProductDocument;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
@@ -39,6 +41,7 @@ class ProductClassicForm extends ProductForm
 
                         Group::make([
                             self::imagesSection(),
+                            self::documentsSection(),
                             self::dimensionsSection(),
                             self::taxShippingSection(),
                             self::seoSection(),
@@ -49,6 +52,47 @@ class ProductClassicForm extends ProductForm
 
                 self::attributesSection()->columnSpanFull(),
             ]);
+    }
+
+    protected static function documentsSection(): Section
+    {
+        return Section::make('Инструкции и документы')
+            ->description('Файлы для скачивания на карточке товара: PDF, Word, Excel, текст или изображение, до 10MB')
+            ->schema([
+                Repeater::make('documents')
+                    ->label('Документы')
+                    ->hiddenLabel()
+                    ->relationship('documents')
+                    ->orderColumn('sort_order')
+                    ->reorderable()
+                    ->grid(2)
+                    ->extraAttributes(['class' => 'product-documents'])
+                    ->schema([
+                        TextInput::make('title')
+                            ->label('Название')
+                            ->hiddenLabel()
+                            ->placeholder('Название')
+                            ->extraInputAttributes(['title' => 'Подпись на сайте. Если пусто — имя файла'])
+                            ->extraFieldWrapperAttributes(['class' => 'product-documents-title'])
+                            ->maxLength(255),
+                        SpatieMediaLibraryFileUpload::make('file')
+                            ->label('Файл')
+                            ->collection(ProductDocument::MEDIA_COLLECTION)
+                            ->preserveFilenames()
+                            ->acceptedFileTypes(ProductDocument::MIME_TYPES)
+                            ->maxSize(10240)
+                            ->downloadable()
+                            ->openable()
+                            ->required(),
+                        Toggle::make('is_published')
+                            ->label('Опубликован')
+                            ->extraFieldWrapperAttributes(['class' => 'product-documents-published'])
+                            ->default(true),
+                    ])
+                    ->defaultItems(0)
+                    ->addActionLabel('Добавить документ'),
+            ])
+            ->collapsible();
     }
 
     protected static function seoSection(): Section

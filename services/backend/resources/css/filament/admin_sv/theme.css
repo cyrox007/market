@@ -300,3 +300,65 @@
 .chpu-section .fi-collapsed .fi-section-header-description::before {
     content: "— ";
 }
+
+/* Карточки документов товара: свой фон и подсветка при наведении */
+.product-documents .fi-fo-repeater-item {
+    background-color: var(--theme-surface-inset);
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.product-documents .fi-fo-repeater-item:hover {
+    background-color: var(--theme-brass-dim);
+    border-color: var(--theme-brass-ring);
+}
+
+/* Название документа — в строке заголовка карточки, между ⇅ и корзиной */
+.product-documents .fi-fo-repeater-item {
+    position: relative;
+}
+
+.product-documents .fi-sc-component:has(> .product-documents-title) {
+    position: absolute;
+    top: 4px;
+    left: 44px;
+    right: 44px;
+    height: max-content;
+    z-index: 1;
+}
+
+.product-documents-title input {
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.product-documents .fi-grid-col:has(.product-documents-title) {
+    display: contents;
+}
+
+.product-documents .fi-fo-repeater-item-content {
+    padding-top: 8px;
+}
+
+/* «Опубликован» — справа в строке подписи «Файл», если карточка достаточно широкая */
+.product-documents .fi-fo-repeater-item {
+    container-type: inline-size;
+}
+
+@container (min-width: 250px) {
+    .product-documents .fi-grid-col:has(.product-documents-published) {
+        display: contents;
+    }
+
+    .product-documents .fi-sc-component:has(> .product-documents-published) {
+        position: absolute;
+        top: 52px; /* заголовок карточки 44px + отступ содержимого 8px */
+        right: 16px;
+        height: max-content;
+    }
+}
+
+/* FilePond оставляет под загруженным файлом пустую зону загрузки — поджимаем до высоты файла */
+.product-documents .filepond--root:has(.filepond--item) {
+    height: 44px !important;
+    overflow: hidden;
+}
