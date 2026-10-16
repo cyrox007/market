@@ -749,6 +749,39 @@
               "type": "object"
             }
           },
+          "documents": {
+            "type": "array",
+            "description": "Опубликованные инструкции и документы в порядке, заданном в админке; пустой массив, если их нет",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Название для вывода; если в админке не задано — имя файла без расширения"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Прямая ссылка на файл"
+                },
+                "file_name": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "extension": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "Размер в байтах"
+                }
+              }
+            }
+          },
           "seo": {
             "oneOf": [
               {
