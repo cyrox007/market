@@ -2,12 +2,37 @@ import { toProductListSearch } from './product-list-search';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
+const API_TIMEOUT_MS = 20_000;
+
+// Очередь сессии и вход не обрываем: сервер доработает запрос и запишет сессию поверх следующего
+const NO_TIMEOUT_PREFIXES = ['/cart', '/wishlist', '/compare', '/counters', '/orders', '/auth'];
+
+const needsTimeout = (endpoint: string) =>
+  !NO_TIMEOUT_PREFIXES.some(
+    (prefix) => endpoint === prefix || endpoint.startsWith(`${prefix}/`) || endpoint.startsWith(`${prefix}?`),
+  );
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   // Убеждаемся, что endpoint начинается с /, а API_BASE_URL не заканчивается на /
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const cleanBaseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   const url = endpoint.startsWith('http') ? endpoint : `${cleanBaseUrl}${cleanEndpoint}`;
 
+  const controller = !options?.signal && needsTimeout(cleanEndpoint) ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), API_TIMEOUT_MS) : undefined;
+  try {
+    return await request<T>(url, { ...options, signal: controller?.signal ?? options?.signal });
+  } catch (err) {
+    if (controller?.signal.aborted) {
+      throw Object.assign(new Error(`API Timeout after ${API_TIMEOUT_MS}ms`), { status: 504 });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function request<T>(url: string, options: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
     headers: {
