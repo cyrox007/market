@@ -47,6 +47,42 @@ class CategoryControllerTest extends TestCase
             ]);
     }
 
+    public function test_popular_title_is_saved_and_returned_in_category_details(): void
+    {
+        $category = Category::factory()->create([
+            'popular_title' => 'Популярные системы хранения',
+        ]);
+
+        $this->assertSame('Популярные системы хранения', $category->fresh()->popular_title);
+        $this->getJson("/api/v1/categories/{$category->slug}")
+            ->assertOk()
+            ->assertJsonPath('category.popular_title', 'Популярные системы хранения');
+    }
+
+    public function test_unfilled_popular_title_is_returned_as_null(): void
+    {
+        $category = Category::factory()->create();
+
+        $this->getJson("/api/v1/categories/{$category->slug}")
+            ->assertOk()
+            ->assertJsonPath('category.popular_title', null);
+    }
+
+    public function test_popular_title_can_be_updated_and_cleared(): void
+    {
+        $category = Category::factory()->create(['popular_title' => 'Подборка']);
+        $this->getJson("/api/v1/categories/{$category->slug}")
+            ->assertOk()->assertJsonPath('category.popular_title', 'Подборка');
+
+        $category->update(['popular_title' => 'Популярные диваны']);
+        $this->getJson("/api/v1/categories/{$category->slug}")
+            ->assertOk()->assertJsonPath('category.popular_title', 'Популярные диваны');
+
+        $category->update(['popular_title' => null]);
+        $this->getJson("/api/v1/categories/{$category->slug}")
+            ->assertOk()->assertJsonPath('category.popular_title', null);
+    }
+
     public function test_can_get_category_tree(): void
     {
         $parent = Category::factory()->create([
