@@ -5,7 +5,7 @@ import { Button, SearchInput } from '../../../ui/primitives';
 import UserActions from '../menu/UserActions';
 import { useMediaQuery } from '../../../../hooks/useMediaQuery';
 import { cn } from '../../../../lib/cn';
-import { PAGE_CONTAINER } from '../../../../lib/layout';
+import { BELOW_MD, PAGE_CONTAINER } from '../../../../lib/layout';
 
 interface MainBarProps {
   /** id панели меню для aria-controls */
@@ -48,7 +48,7 @@ export default function MainBar({
   className,
 }: MainBarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const isNarrow = useMediaQuery('(max-width: 979.98px)');
+  const isNarrow = useMediaQuery(BELOW_MD);
 
   return (
     <div className={cn('bg-surface', className)}>

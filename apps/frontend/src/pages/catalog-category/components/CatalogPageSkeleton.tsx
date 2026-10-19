@@ -1,6 +1,6 @@
 import { PAGE_CONTAINER } from '../../../lib/layout';
 import ProductCardSkeleton from '../../../components/ui/ProductCardSkeleton';
-import CategoryBreadcrumbs from './CategoryBreadcrumbs';
+import CategoryBreadcrumbs from '../../../components/catalog/CategoryBreadcrumbs';
 
 const BAR = 'animate-pulse rounded bg-surface-grey motion-reduce:animate-none';
 

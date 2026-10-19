@@ -19,10 +19,8 @@
    * полоса пропадает и страница сдвигается вбок. Полоса тонкая — market-docs/48.
    */
   html {
+    @apply scroll-thin;
     font-size: 16px;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    scrollbar-color: theme('colors.surface.border') transparent;
   }
 
   body {

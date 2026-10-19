@@ -1,3 +1,4 @@
+import type { CatalogSort } from '../lib/catalog-query';
 import type { Category, ProductListParams, ProductListResponse } from '../lib/api';
 
 /** SEO для текущей страницы (товар, категория и т.д.) — подставляется в <head> при SSR */
@@ -54,6 +55,8 @@ export interface SSRContext {
   // Поиск
   search?: {
     query?: string;
+    /** Сортировка, с которой получены products */
+    sort?: CatalogSort;
     products?: {
       data: any[];
       meta: any;

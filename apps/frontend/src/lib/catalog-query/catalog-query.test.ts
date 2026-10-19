@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCatalogQuery, toCatalogSearch } from '.';
+import { filtersSignature, parseCatalogQuery, toCatalogSearch } from '.';
 
 describe('адрес ↔ запрос каталога', () => {
   it('пустой адрес — первая страница, по популярности, без фильтров', () => {
@@ -78,5 +78,14 @@ describe('адрес ↔ запрос каталога', () => {
     expect(toCatalogSearch(a)).toBe(
       'manufacturers=ikea%2Cshatura&attr_color=red&attr_mech=akkordeon%2Cevro',
     );
+  });
+});
+
+describe('подпись выбора', () => {
+  it('страница в подпись не входит, фильтры и сортировка входят', () => {
+    const third = parseCatalogQuery('?sort=cheap&on_sale=1&page=3');
+    expect(filtersSignature(third)).toBe('sort=cheap&on_sale=1');
+    expect(filtersSignature(third)).toBe(filtersSignature({ ...third, page: 1 }));
+    expect(filtersSignature(third)).not.toBe(filtersSignature({ ...third, onSale: false }));
   });
 });

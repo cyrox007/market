@@ -31,5 +31,6 @@ export { default as RangeInputs } from './RangeInputs';
 export type { RangeValue } from './RangeInputs';
 export { default as RangeSlider } from './RangeSlider';
 export { default as Popover } from './Popover';
-export { default as Sheet, isSheetHistoryEntry } from './Sheet';
+export { default as Sheet } from './Sheet';
+export { isSheetHistoryEntry } from './sheetHistory';
 export type { SheetSide } from './Sheet';

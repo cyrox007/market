@@ -1,7 +1,7 @@
 import { Filter } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../../../lib/cn';
-import FilterPill from './FilterPill';
+import FilterPill from '../../../../components/catalog/FilterPill';
 
 interface AllFiltersButtonProps {
   count: number;

@@ -2,35 +2,38 @@ import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
 import { isSheetHistoryEntry, SearchInput } from '../../components/ui/primitives';
-import SortControl from '../catalog-category/listing/toolbar/SortControl';
+import SortControl from '../../components/catalog/SortControl';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
 import { getSearchKey } from '../../utils/ssr-to-swr';
-import {
-  getSortSelectValue,
-  parseSortSelectValue,
-  SORT_OPTIONS,
-} from '../../lib/catalog-sort';
 import { normalizeListProduct } from '../../utils/cartProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
-import { CATALOG_PER_PAGE } from '../../lib/catalog-query';
-import { PAGE_CONTAINER } from '../../lib/layout';
-import CategoryBreadcrumbs from '../catalog-category/components/CategoryBreadcrumbs';
-import { ProductCount } from '../catalog-category/listing/CatalogHeader';
-import EmptyState from '../catalog-category/listing/empty/EmptyState';
-import PageLinks from '../catalog-category/listing/pagination/PageLinks';
-import ProductGrid from '../catalog-category/listing/ProductGrid';
+import {
+  CATALOG_PER_PAGE,
+  CATALOG_SORT_OPTIONS,
+  DEFAULT_SORT,
+  searchSort,
+  withSort,
+  type CatalogSort,
+} from '../../lib/catalog-query';
+import { BELOW_MD, PAGE_CONTAINER } from '../../lib/layout';
+import { scrollToTop } from '../../lib/motion';
+import CategoryBreadcrumbs from '../../components/catalog/CategoryBreadcrumbs';
+import ProductCount from '../../components/catalog/ProductCount';
+import EmptyState from '../../components/catalog/EmptyState';
+import PageLinks from '../../components/catalog/PageLinks';
+import ProductGrid from '../../components/catalog/ProductGrid';
 
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const ssrData = useSSR();
   const { region } = useRegion();
   // Сортировка ниже 980 — шторкой снизу, как в каталоге
-  const compact = useMediaQuery('(max-width: 979.98px)');
+  const compact = useMediaQuery(BELOW_MD);
 
   // Используем SSR данные если они есть
   const initialSearchQuery = ssrData?.search?.query || '';
@@ -76,16 +79,9 @@ export default function Search() {
     if (!q || q.trim().length < 2) return null;
 
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const sortBy = searchParams.get('sort') || 'created_at';
-    const sortOrder = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
+    const { sort, sort_by, sort_order } = searchSort(searchParams);
 
-    return {
-      query: q,
-      page,
-      sort_by: sortBy,
-      sort_order: sortOrder,
-      region_id: region?.id,
-    };
+    return { query: q, page, sort, sort_by, sort_order, region_id: region?.id };
   }, [searchParams, region?.id]);
 
   // Используем SWR для загрузки результатов поиска
@@ -97,8 +93,7 @@ export default function Search() {
     initialSearchQuery === searchParamsForSWR?.query &&
     searchParamsForSWR &&
     searchParamsForSWR.page === (initialProducts.meta?.current_page || 1) &&
-    searchParamsForSWR.sort_by === 'created_at' &&
-    searchParamsForSWR.sort_order === 'desc';
+    searchParamsForSWR.sort === (ssrData?.search?.sort ?? DEFAULT_SORT);
 
   // Всегда передаём ключ SWR при наличии searchParamsForSWR, чтобы кэш обновлялся (revalidateInterval/revalidateOnFocus).
   // При SSR используем fallbackData — данные показываются сразу, SWR ревалидирует в фоне.
@@ -107,7 +102,6 @@ export default function Search() {
     swrKey
       ? () =>
           api.products.search(searchParamsForSWR!.query, {
-            // 12 — как в каталоге: сетка 4 / 3 / 2 колонки без хвоста
             per_page: CATALOG_PER_PAGE,
             page: searchParamsForSWR!.page,
             sort_by: searchParamsForSWR!.sort_by,
@@ -171,17 +165,12 @@ export default function Search() {
     const newParams = new URLSearchParams(searchParams);
     newParams.set('page', page.toString());
     setSearchParams(newParams);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop();
   };
 
-  const handleSortChange = (selectValue: string) => {
-    const { sortBy, sortOrder } = parseSortSelectValue(selectValue);
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set('sort', sortBy);
-    newParams.set('order', sortOrder);
-    newParams.set('page', '1');
+  const handleSortChange = (sort: CatalogSort) => {
     // Выбрали в шторке сортировки — адрес заменяет её запись в истории
-    setSearchParams(newParams, { replace: isSheetHistoryEntry() });
+    setSearchParams(withSort(searchParams, sort), { replace: isSheetHistoryEntry() });
   };
 
   const query = searchParams.get('q') || '';
@@ -221,8 +210,8 @@ export default function Search() {
         {!tooShort && products.length > 0 && (
           <div className="mt-6">
             <SortControl
-              options={SORT_OPTIONS}
-              value={getSortSelectValue(searchParams)}
+              options={CATALOG_SORT_OPTIONS}
+              value={searchSort(searchParams).sort}
               asSheet={compact}
               onChange={handleSortChange}
             />

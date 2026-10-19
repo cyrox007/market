@@ -1,5 +1,5 @@
-import type { ProductListParams, ProductListResponse } from '../../../lib/api';
-import type { CatalogScope } from '../../../lib/catalog-query';
+import type { ProductListParams, ProductListResponse } from '../api';
+import type { CatalogScope } from '../catalog-query';
 
 /** Раздел — в ключе отдельно от параметров: одна подкатегория в фильтре меняет category_slug */
 export type PageKey = readonly ['catalog-products', string, ProductListParams];

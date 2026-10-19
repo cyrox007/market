@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { resetFilters, toCatalogSearch, type CatalogQuery } from '../../../lib/catalog-query';
+import { filtersSignature, resetFilters, type CatalogQuery } from '../../../lib/catalog-query';
 
 export interface FilterDraftOptions {
   applied: CatalogQuery;
@@ -11,9 +11,6 @@ export interface FilterDraftOptions {
   /** Окно открыто сразу — панель, которую монтируют только открытой */
   initialSurface?: string;
 }
-
-/** Подпись выбора без страницы: одинаковые фильтры — одно число */
-const signature = (query: CatalogQuery) => toCatalogSearch({ ...query, page: 1 });
 
 /** Черновик фильтров до «Показать N товаров»; число — с задержкой, устаревшие ответы отброшены (market-docs/46) */
 export function useFilterDraft({
@@ -28,8 +25,8 @@ export function useFilterDraft({
   const [draft, setDraft] = useState(applied);
   const [counted, setCounted] = useState<{ signature: string; value: number | null } | null>(null);
 
-  const draftSignature = signature(draft);
-  const isApplied = draftSignature === signature(applied);
+  const draftSignature = filtersSignature(draft);
+  const isApplied = draftSignature === filtersSignature(applied);
 
   useEffect(() => {
     if (surface === null || isApplied) return;

@@ -1,6 +1,6 @@
 import { mutate } from 'swr';
-import { api } from '../../../lib/api';
-import { toApiParams, type CatalogQuery, type CatalogScope } from '../../../lib/catalog-query';
+import { api } from '../api';
+import { toApiParams, type CatalogQuery, type CatalogScope } from '../catalog-query';
 import { pageKey, sectionOf, type LoadedPage } from './pageKey';
 
 /** Первая страница списка — в кэш SWR заранее: список при монтировании возьмёт её оттуда */

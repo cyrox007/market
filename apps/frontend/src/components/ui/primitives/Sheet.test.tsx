@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import Sheet, { isSheetHistoryEntry } from './Sheet';
+import Sheet from './Sheet';
+import { isSheetHistoryEntry } from './sheetHistory';
 import type { SheetSide } from './Sheet';
 
 function Harness({

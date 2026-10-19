@@ -5,7 +5,10 @@ export interface Range {
   max?: number;
 }
 
-export const RANGE_KEYS = ['price', 'width', 'depth', 'height'] as const;
+export const DIMENSION_KEYS = ['width', 'depth', 'height'] as const;
+export type DimensionKey = (typeof DIMENSION_KEYS)[number];
+
+export const RANGE_KEYS = ['price', ...DIMENSION_KEYS] as const;
 export type RangeKey = (typeof RANGE_KEYS)[number];
 
 /** Ключ в адресе → поле запроса */

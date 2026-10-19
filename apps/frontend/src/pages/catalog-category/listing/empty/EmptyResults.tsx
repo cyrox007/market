@@ -2,7 +2,7 @@ import { Button } from '../../../../components/ui/primitives';
 import { formatNumber } from '../../../../components/ui/primitives/digits';
 import { activeFilterCount, type CatalogQuery, type Range } from '../../../../lib/catalog-query';
 import { plural } from '../../../../lib/plural';
-import EmptyState from './EmptyState';
+import EmptyState from '../../../../components/catalog/EmptyState';
 
 interface EmptyResultsProps {
   query: CatalogQuery;

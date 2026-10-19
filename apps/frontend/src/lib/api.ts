@@ -1,3 +1,4 @@
+import type { DimensionKey } from './catalog-query';
 import { toProductListSearch } from './product-list-search';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -754,7 +755,7 @@ export interface FiltersMeta {
   manufacturers?: { id: number; name: string; slug: string; count?: number }[];
   /** Миллиметры; нет данных — null (market-docs/44, ответ 3 от 14.10); читается в toolbar/availability */
   dimensions?: Partial<
-    Record<'width' | 'depth' | 'height', { min: number | null; max: number | null; unit?: 'mm' }>
+    Record<DimensionKey, { min: number | null; max: number | null; unit?: 'mm' }>
   >;
   /** Есть ли товары по акции без учёта самого «По акции»; has_on_sale — старое имя */
   has_sale?: boolean;
@@ -762,11 +763,6 @@ export interface FiltersMeta {
 
 export interface ProductListResponse {
   data: Product[];
-  /** Пагинация приходит в meta; поля верхнего уровня — старый тип, API их не отдаёт */
-  current_page?: number;
-  last_page?: number;
-  per_page?: number;
-  total?: number;
   meta?: {
     current_page?: number;
     last_page?: number;

@@ -4,7 +4,7 @@ import CategoryLandingV2 from './components/CategoryLandingV2';
 import CatalogListing from './listing/CatalogListing';
 import CatalogPageSkeleton from './components/CatalogPageSkeleton';
 import { pageView } from './pageView';
-import { preloadCatalogPage } from './listing/preloadPage';
+import { preloadCatalogPage } from '../../lib/catalog-listing/preloadPage';
 import { useUrlCatalogQuery } from './listing/useUrlCatalogQuery';
 import { getCategoryFragment } from '../../lib/category-fragment-cache';
 import { useCatalogCategory } from './hooks/useCatalogCategory';

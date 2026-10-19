@@ -10,6 +10,7 @@ import { withCache, withCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
 import {
   CATALOG_PER_PAGE,
   parseCatalogQuery,
+  searchSort,
   toApiParams,
   type CatalogScope,
 } from '../src/lib/catalog-query';
@@ -437,18 +438,15 @@ async function createServer() {
                 Array.isArray(queryParams.page) ? queryParams.page[0] : queryParams.page || '1',
                 10,
               );
-              const sortBy =
-                (Array.isArray(queryParams.sort) ? queryParams.sort[0] : queryParams.sort) ||
-                undefined;
-              const sortOrder = ((Array.isArray(queryParams.order)
-                ? queryParams.order[0]
-                : queryParams.order) || undefined) as 'asc' | 'desc' | undefined;
+              const { sort, sort_by, sort_order } = searchSort(
+                new URL(req.originalUrl, 'http://ssr.local').searchParams,
+              );
               const searchParams = {
                 page,
                 // Как на клиенте (pages/search) — иначе SSR и переходы по номерам считают страницы по-разному
                 per_page: CATALOG_PER_PAGE,
-                sort_by: sortBy,
-                sort_order: sortOrder,
+                sort_by,
+                sort_order,
                 region_id: regionId,
               };
               const productsResponse = await withCache(
@@ -458,6 +456,7 @@ async function createServer() {
               );
               ssrContext.search = {
                 query,
+                sort,
                 products: productsResponse,
               };
             }

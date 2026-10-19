@@ -1,7 +1,6 @@
 import type { Category } from '../../../lib/api';
-import { plural } from '../../../lib/plural';
-import { formatNumber } from '../../../components/ui/primitives/digits';
-import CategoryBreadcrumbs from '../components/CategoryBreadcrumbs';
+import CategoryBreadcrumbs from '../../../components/catalog/CategoryBreadcrumbs';
+import ProductCount from '../../../components/catalog/ProductCount';
 
 interface CatalogHeaderProps {
   category: Category | null;
@@ -11,8 +10,6 @@ interface CatalogHeaderProps {
   /** false — комната: «Главная › Гостиная», без «Каталога» */
   inCatalog?: boolean;
 }
-
-const PRODUCTS = ['товар', 'товара', 'товаров'] as const;
 
 /** Родители из category.parent: API отдаёт цепочку вложенными объектами */
 function parentTrail(category: Category | null) {
@@ -41,15 +38,5 @@ export default function CatalogHeader({
         <ProductCount total={total} className="font-medium md:text-14 max-md:hidden" />
       </div>
     </header>
-  );
-}
-
-/** «226 товаров»; null — ещё не загружено */
-export function ProductCount({ total, className }: { total: number | null; className?: string }) {
-  if (total === null) return null;
-  return (
-    <span className={`text-16 text-ink-secondary max-vsm:text-14 ${className ?? ''}`}>
-      {formatNumber(total)} {plural(total, PRODUCTS)}
-    </span>
   );
 }

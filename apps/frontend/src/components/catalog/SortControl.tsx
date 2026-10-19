@@ -1,10 +1,10 @@
 import { useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { Popover, Radio, RadioGroup, Sheet } from '../../../../components/ui/primitives';
+import { Popover, Radio, RadioGroup, Sheet } from '../ui/primitives';
 import FilterPill from './FilterPill';
 
 interface SortControlProps<T extends string> {
-  /** Варианты в порядке показа: каталог — CATALOG_SORT_OPTIONS, поиск — SORT_OPTIONS */
+  /** Варианты в порядке показа — CATALOG_SORT_OPTIONS (каталог и поиск) */
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (sort: T) => void;

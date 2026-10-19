@@ -1,9 +1,9 @@
 import type { Category, Product } from '../../../lib/api';
 import { PAGE_CONTAINER } from '../../../lib/layout';
-import CategoryBreadcrumbs from './CategoryBreadcrumbs';
+import CategoryBreadcrumbs from '../../../components/catalog/CategoryBreadcrumbs';
 import CategoryDescription from './CategoryDescription';
 import CategoryTiles from './CategoryTiles';
-import EmptyState from '../listing/empty/EmptyState';
+import EmptyState from '../../../components/catalog/EmptyState';
 import ProductCardConnected from '../../../components/ui/ProductCardConnected';
 import ProductCardSkeleton from '../../../components/ui/ProductCardSkeleton';
 

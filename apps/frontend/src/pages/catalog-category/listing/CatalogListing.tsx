@@ -2,16 +2,18 @@ import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Category } from '../../../lib/api';
 import { resetFilters, type CatalogScope } from '../../../lib/catalog-query';
-import { PAGE_CONTAINER } from '../../../lib/layout';
+import { BELOW_MD, PAGE_CONTAINER } from '../../../lib/layout';
+import { scrollToTop } from '../../../lib/motion';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import CatalogHeader, { ProductCount } from './CatalogHeader';
+import CatalogHeader from './CatalogHeader';
+import ProductCount from '../../../components/catalog/ProductCount';
 import CategoryDescription from '../components/CategoryDescription';
 import FilterChips from './chips/FilterChips';
 import { countProductsIn } from './countProducts';
 import AllFiltersPanel from './all-filters/AllFiltersPanel';
 import EmptyResults from './empty/EmptyResults';
 import CatalogPagination from './pagination/CatalogPagination';
-import ProductGrid from './ProductGrid';
+import ProductGrid from '../../../components/catalog/ProductGrid';
 import CatalogToolbar from './toolbar/CatalogToolbar';
 import { useCatalogListing, type CatalogListingOptions } from './useCatalogListing';
 import { useUrlCatalogQuery } from './useUrlCatalogQuery';
@@ -39,7 +41,7 @@ export default function CatalogListing({
   const settledTotal = listing.isLoading || listing.isRefreshing ? null : listing.total;
   const countProducts = useMemo(() => countProductsIn(scope), [scope]);
   // Один раз на странице: панель создаётся при каждом открытии, а хук в первом кадре даёт false
-  const compact = useMediaQuery('(max-width: 979.98px)');
+  const compact = useMediaQuery(BELOW_MD);
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
   // Новое открытие — новый экземпляр панели со свежим черновиком
   const [allFiltersSession, setAllFiltersSession] = useState(0);
@@ -52,8 +54,7 @@ export default function CatalogListing({
   const openPage = useCallback(
     (page: number) => {
       goToPage(page);
-      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      scrollToTop();
     },
     [goToPage],
   );

@@ -17,17 +17,13 @@ export function useCatalogCategory(slug: string | undefined, isRooms: boolean) {
     if (initialCategory && initialCategory.slug === slug) setCategory(initialCategory);
   }, [initialCategory, slug]);
 
-  // keepPreviousData: при смене категории показываем прежнюю, пока грузится новая
+  // Раздел с сервера выключает ключ; пока грузится новый, на экране прежний (market-docs/54)
   const { data, error, isLoading } = useSWR(
     slug && (!initialCategory || initialCategory.slug !== slug)
       ? `/api/${isRooms ? 'rooms' : 'categories'}/${slug}`
       : null,
     () => (isRooms ? api.rooms : api.categories).get(slug!),
-    {
-      fallbackData: initialCategory ? { category: initialCategory } : undefined,
-      revalidateOnMount: !initialCategory,
-      keepPreviousData: true,
-    },
+    { keepPreviousData: true },
   );
 
   useEffect(() => {
