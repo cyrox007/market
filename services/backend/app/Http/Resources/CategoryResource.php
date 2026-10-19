@@ -23,6 +23,7 @@ class CategoryResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug ?? \Str::slug($this->name),
             'description' => $this->description,
+            'popular_title' => $this->popular_title,
             'regional' => app(\App\Services\Product\CategoryRegionalText::class)->render($this->resource, $request),
             'image' => $media ? $media->getUrl() : null,
             'image_thumb' => $media ? $media->getUrl('thumb') : null,

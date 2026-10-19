@@ -63,6 +63,10 @@ class CategoryForm
                                             ->numeric()
                                             ->default(0)
                                             ->helperText('Чем меньше число, тем выше в списке'),
+                                        TextInput::make('popular_title')
+                                            ->label('Заголовок блока популярных товаров')
+                                            ->maxLength(255)
+                                            ->helperText('Необязательно. Если не заполнено, на сайте выводится «Популярные товары».'),
                                         Toggle::make('is_active')
                                             ->label(__('filament/admin_sv/category_resource.is_active'))
                                             ->default(true),
