@@ -16,13 +16,7 @@ interface AccordionSectionProps {
   children: ReactNode;
 }
 
-/**
- * Раздел панели фильтров: заголовок со стрелкой, под ним содержимое.
- * Свёрнутое содержимое остаётся в DOM — введённое в поля не теряется. Раскрытие плавное:
- * высота через grid-template-rows, содержимое проявляется, стрелка поворачивается (market-docs/48).
- * Свёрнутое — visibility: hidden (уходит в конце перехода) и inert: Tab в него не заходит.
- * Замеры — market-docs/45.
- */
+/** Раздел панели фильтров; свёрнутое остаётся в DOM, чтобы не терять ввод (market-docs/45, 48) */
 export default function AccordionSection({
   title,
   defaultOpen = true,

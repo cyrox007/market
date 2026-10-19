@@ -26,13 +26,18 @@ interface SheetProps {
 /** Насколько стянуть шторку вниз, чтобы она закрылась, px */
 const PULL_TO_CLOSE = 80;
 
-/**
- * Модальная панель: слева («Все фильтры» на десктопе) или шторкой снизу (телефон).
- * Кнопку «Назад» телефона не перехватывает — это решает страница. Замеры — market-docs/45.
- */
-/** Уход, мс — как duration-200 у классов ниже; появление — duration-300 (market-docs/48) */
+/** Уход, мс — как duration-200 у классов ниже (market-docs/48) */
 const LEAVE_MS = 200;
 
+const HISTORY_KEY = 'sheet';
+let openSheets = 0;
+
+/** Сверху истории — запись открытой шторки: переход по ссылке должен её заменить, а не лечь сверху */
+export function isSheetHistoryEntry(): boolean {
+  return Boolean((window.history.state as Record<string, unknown> | null)?.[HISTORY_KEY]);
+}
+
+/** Модальная панель: слева или шторкой снизу; «Назад» телефона её закрывает (market-docs/45, 54) */
 export default function Sheet(props: SheetProps) {
   const { rendered, shown, leaving } = usePresence(props.open, LEAVE_MS);
   if (!rendered) return null;
@@ -99,6 +104,24 @@ function SheetPanel({
       document.removeEventListener('keydown', handleKey);
       root.style.overflow = previousOverflow;
       opener?.focus({ preventScroll: true });
+    };
+  }, []);
+
+  // Своя запись в истории: «Назад» снимает её и закрывает шторку, а не уводит со страницы
+  useEffect(() => {
+    openSheets += 1;
+    if (!isSheetHistoryEntry()) {
+      window.history.pushState({ ...window.history.state, [HISTORY_KEY]: true }, '');
+    }
+    const handlePop = () => onCloseRef.current();
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      openSheets -= 1;
+      window.removeEventListener('popstate', handlePop);
+      // Отложено: при повторном монтировании (StrictMode) запись остаётся за новой шторкой
+      setTimeout(() => {
+        if (openSheets === 0 && isSheetHistoryEntry()) window.history.back();
+      });
     };
   }, []);
 

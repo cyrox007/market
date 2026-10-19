@@ -35,11 +35,7 @@ const toOptions = (items: MetaOption[]): CheckboxOption[] =>
     return slug ? [{ slug, name: i.name || slug, count: i.count }] : [];
   });
 
-/**
- * Разделы «Все фильтры» по макету 730:53152: цена, габариты, производители, категория, акция —
- * раскрыты; атрибуты (механизм, особенности) — свёрнуты. Цвета и размера в макете нет — свёрнуты
- * в конце, чтобы не потерять фильтры, которые API уже умеет (market-docs/48).
- */
+/** Разделы «Все фильтры» по макету 730:53152; что раскрыто и почему есть цвет и размер — market-docs/48 */
 export default function FilterSections({ draft, set, meta, subcategories }: FilterSectionsProps) {
   const available = filterAvailability(meta, draft);
   const sections: Section[] = [];

@@ -25,13 +25,10 @@ interface PopoverProps {
 const GAP = 8;
 const EDGE = 16;
 
-/**
- * Окно под кнопкой-триггером: выпадашки «Цена», «Габариты», сортировка.
- * Рендерится в body, чтобы его не обрезал прокручиваемый ряд кнопок. Замеры — market-docs/45.
- */
-/** Уход, мс — как duration-100 у классов ниже; появление — duration-150 (market-docs/48) */
+/** Уход, мс — как duration-100 у классов ниже (market-docs/48) */
 const LEAVE_MS = 100;
 
+/** Окно под кнопкой; в body, чтобы его не обрезал прокручиваемый ряд кнопок (market-docs/45) */
 export default function Popover(props: PopoverProps) {
   const { rendered, shown, leaving } = usePresence(props.open, LEAVE_MS);
   if (!rendered) return null;

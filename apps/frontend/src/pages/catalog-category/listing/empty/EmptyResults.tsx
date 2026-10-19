@@ -9,6 +9,7 @@ interface EmptyResultsProps {
   /** Товаров в разделе без фильтров (category.products_count); null — неизвестно */
   sectionTotal: number | null;
   onReset: () => void;
+  onFirstPage: () => void;
 }
 
 const PRODUCTS = ['товар', 'товара', 'товаров'] as const;
@@ -23,7 +24,29 @@ function rangeHint(q: CatalogQuery): string | null {
   return parts.length ? parts.join(' / ') : null;
 }
 
-export default function EmptyResults({ query, sectionTotal, onReset }: EmptyResultsProps) {
+const ACTION = 'w-[200px] px-7 shadow-card max-vsm:w-full';
+
+export default function EmptyResults({
+  query,
+  sectionTotal,
+  onReset,
+  onFirstPage,
+}: EmptyResultsProps) {
+  // Старая ссылка или ручной ?page=99 — страниц стало меньше
+  if (query.page > 1) {
+    return (
+      <EmptyState
+        title="На этой странице товаров нет"
+        hint="Страниц в разделе меньше — начните с первой."
+        action={
+          <Button size="lg" shape="rounded" onClick={onFirstPage} className={ACTION}>
+            На первую страницу
+          </Button>
+        }
+      />
+    );
+  }
+
   const filtered = activeFilterCount(query) > 0;
   const range = rangeHint(query);
   const tail = sectionTotal
@@ -39,12 +62,7 @@ export default function EmptyResults({ query, sectionTotal, onReset }: EmptyResu
       hint={filtered ? hint : undefined}
       action={
         filtered && (
-          <Button
-            size="lg"
-            shape="rounded"
-            onClick={onReset}
-            className="w-[200px] px-7 shadow-card max-vsm:w-full"
-          >
+          <Button size="lg" shape="rounded" onClick={onReset} className={ACTION}>
             Сбросить фильтры
           </Button>
         )

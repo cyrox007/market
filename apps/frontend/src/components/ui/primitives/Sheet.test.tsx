@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import Sheet from './Sheet';
+import Sheet, { isSheetHistoryEntry } from './Sheet';
 import type { SheetSide } from './Sheet';
 
 function Harness({
@@ -143,5 +143,31 @@ describe('Sheet', () => {
     render(<Harness side="left" />);
     openIt();
     expect(screen.queryByTestId('sheet-grip')).not.toBeInTheDocument();
+  });
+
+  it('кнопка «Назад» телефона закрывает шторку и не уводит со страницы', async () => {
+    const onClose = vi.fn();
+    const before = window.location.href;
+    render(<Harness onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Все фильтры' }));
+    await screen.findByRole('dialog');
+
+    window.history.back();
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(window.location.href).toBe(before);
+  });
+
+  it('закрыли крестиком — запись шторки убрана из истории', async () => {
+    render(<Harness />);
+    const length = window.history.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Все фильтры' }));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(isSheetHistoryEntry()).toBe(false));
+    // Новая запись осталась бы «вперёд»; назад шагнули ровно на неё
+    expect(window.history.length).toBeGreaterThanOrEqual(length);
   });
 });

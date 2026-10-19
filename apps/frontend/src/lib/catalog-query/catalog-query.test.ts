@@ -47,14 +47,14 @@ describe('адрес ↔ запрос каталога', () => {
   it('списки, атрибуты и «По акции» сохраняются туда и обратно', () => {
     const search =
       'manufacturers=ikea%2Cshatura&category=pryamye&colors=grey&sizes=200x90' +
-      '&attr_mechanism=evro%2Cakkordeon&on_sale=1';
+      '&attr_mechanism=akkordeon%2Cevro&on_sale=1';
     const query = parseCatalogQuery(search);
     expect(query).toMatchObject({
       manufacturers: ['ikea', 'shatura'],
       categories: ['pryamye'],
       colors: ['grey'],
       sizes: ['200x90'],
-      attributes: { mechanism: ['evro', 'akkordeon'] },
+      attributes: { mechanism: ['akkordeon', 'evro'] },
       onSale: true,
     });
     expect(toCatalogSearch(query)).toBe(search);
@@ -65,5 +65,18 @@ describe('адрес ↔ запрос каталога', () => {
     expect(query.colors).toEqual(['grey', 'red']);
     expect(query.attributes).toEqual({});
     expect(query.onSale).toBe(false);
+  });
+
+  it('один и тот же выбор — один адрес, в каком порядке ни отмечали', () => {
+    const a = parseCatalogQuery(
+      '?manufacturers=shatura,ikea&attr_mech=evro,akkordeon&attr_color=red',
+    );
+    const b = parseCatalogQuery(
+      '?attr_color=red&attr_mech=akkordeon,evro&manufacturers=ikea,shatura',
+    );
+    expect(toCatalogSearch(a)).toBe(toCatalogSearch(b));
+    expect(toCatalogSearch(a)).toBe(
+      'manufacturers=ikea%2Cshatura&attr_color=red&attr_mech=akkordeon%2Cevro',
+    );
   });
 });

@@ -22,7 +22,7 @@ export interface CatalogToolbarProps {
   onQueryChange: (next: CatalogQuery) => void;
   meta: FiltersMeta | null;
   /** Товаров по применённым фильтрам */
-  total: number;
+  total: number | null;
   countProducts: (query: CatalogQuery) => Promise<number>;
   onOpenAllFilters: () => void;
 }

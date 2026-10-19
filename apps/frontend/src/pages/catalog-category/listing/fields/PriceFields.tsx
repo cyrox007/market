@@ -9,15 +9,18 @@ interface PriceFieldsProps {
 
 const PRICE_STEP = 100;
 
-/** Граница, равная пределу категории, — не фильтр: в адрес не пишем */
+/** Граница на краю раздела — не фильтр; не тронутая сейчас остаётся, даже если край — она сама */
 function toRange(
   min: number | null,
   max: number | null,
   bounds: PriceFieldsProps['bounds'],
+  prev: Range,
 ): Range {
+  const keep = (n: number | null, edge: number, was: number | undefined) =>
+    n !== null && (n !== edge || n === was);
   return {
-    ...(min !== null && min > bounds.min && { min }),
-    ...(max !== null && max < bounds.max && { max }),
+    ...(keep(min, bounds.min, prev.min) && { min: min! }),
+    ...(keep(max, bounds.max, prev.max) && { max: max! }),
   };
 }
 
@@ -30,7 +33,7 @@ export default function PriceFields({ value, bounds, onChange }: PriceFieldsProp
         min={bounds.min}
         max={bounds.max}
         value={[value.min ?? null, value.max ?? null]}
-        onChange={([min, max]) => onChange(toRange(min, max, bounds))}
+        onChange={([min, max]) => onChange(toRange(min, max, bounds, value))}
       />
       <RangeSlider
         label="Цена"
@@ -38,7 +41,7 @@ export default function PriceFields({ value, bounds, onChange }: PriceFieldsProp
         max={bounds.max}
         step={PRICE_STEP}
         value={[value.min ?? bounds.min, value.max ?? bounds.max]}
-        onChange={([min, max]) => onChange(toRange(min, max, bounds))}
+        onChange={([min, max]) => onChange(toRange(min, max, bounds, value))}
       />
     </div>
   );

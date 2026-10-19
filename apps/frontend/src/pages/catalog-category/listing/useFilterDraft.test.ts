@@ -108,4 +108,13 @@ describe('useFilterDraft', () => {
     expect(result.current.draft).toEqual(parseCatalogQuery('?sort=cheap'));
     expect(onApply).not.toHaveBeenCalled();
   });
+
+  it('число по применённым ещё неизвестно (список грузится) — ждём, а не «Ничего не найдено»', () => {
+    const { result, countProducts } = renderDraft({ appliedTotal: null });
+    act(() => result.current.open('all'));
+
+    expect(result.current.count).toEqual({ value: null, loading: true });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(countProducts).not.toHaveBeenCalled();
+  });
 });

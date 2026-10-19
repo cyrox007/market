@@ -118,4 +118,33 @@ describe('RangeSlider', () => {
     fireEvent.pointerDown(track, { clientX: 48, pointerId: 2 });
     expect(onChange).toHaveBeenLastCalledWith([200, 900]);
   });
+
+  it('шаг кратен step, даже если минимум не круглый: 18 243 → 18 300 → 18 400', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <RangeSlider
+        label="Цена"
+        min={18243}
+        max={180350}
+        step={100}
+        value={[18243, 180350]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Цена от' }), { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenLastCalledWith([18300, 180350]);
+
+    rerender(
+      <RangeSlider
+        label="Цена"
+        min={18243}
+        max={180350}
+        step={100}
+        value={[18300, 180350]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Цена от' }), { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenLastCalledWith([18400, 180350]);
+  });
 });

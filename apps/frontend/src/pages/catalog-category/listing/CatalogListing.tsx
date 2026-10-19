@@ -35,6 +35,8 @@ export default function CatalogListing({
   const [query, setQuery] = useUrlCatalogQuery();
   const listing = useCatalogListing({ scope, query, onQueryChange: setQuery, initial });
   const shownTotal = listing.isLoading ? null : listing.total;
+  // Пока новый список не пришёл, на экране прежний — его число для «Показать N» уже неверно
+  const settledTotal = listing.isLoading || listing.isRefreshing ? null : listing.total;
   const countProducts = useMemo(() => countProductsIn(scope), [scope]);
   // Один раз на странице: панель создаётся при каждом открытии, а хук в первом кадре даёт false
   const compact = useMediaQuery('(max-width: 979.98px)');
@@ -95,7 +97,7 @@ export default function CatalogListing({
             query={query}
             onQueryChange={setQuery}
             meta={listing.filtersMeta}
-            total={listing.total}
+            total={settledTotal}
             countProducts={countProducts}
             onOpenAllFilters={openAllFilters}
           />
@@ -121,7 +123,7 @@ export default function CatalogListing({
           onQueryChange={setQuery}
           onClose={() => setAllFiltersOpen(false)}
           meta={listing.filtersMeta}
-          total={listing.total}
+          total={settledTotal}
           countProducts={countProducts}
           subcategories={subcategories}
         />
@@ -132,6 +134,7 @@ export default function CatalogListing({
               query={query}
               sectionTotal={category?.products_count || null}
               onReset={() => setQuery(resetFilters(query))}
+              onFirstPage={() => setQuery({ ...query, page: 1 })}
             />
           ) : (
             <ProductGrid

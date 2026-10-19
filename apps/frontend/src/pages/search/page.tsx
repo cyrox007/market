@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
-import { SearchInput } from '../../components/ui/primitives';
+import { isSheetHistoryEntry, SearchInput } from '../../components/ui/primitives';
 import SortControl from '../catalog-category/listing/toolbar/SortControl';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { api } from '../../lib/api';
@@ -180,7 +180,8 @@ export default function Search() {
     newParams.set('sort', sortBy);
     newParams.set('order', sortOrder);
     newParams.set('page', '1');
-    setSearchParams(newParams);
+    // Выбрали в шторке сортировки — адрес заменяет её запись в истории
+    setSearchParams(newParams, { replace: isSheetHistoryEntry() });
   };
 
   const query = searchParams.get('q') || '';
