@@ -8,8 +8,11 @@ export function preloadCatalogPage(scope: CatalogScope, query: CatalogQuery) {
   const params = toApiParams(query, scope);
   api.products
     .list(params)
+    // Ответ только что с сервера — без revalidate, иначе тот, кто уже ждёт ключ, запросит его ещё раз
     .then((response) =>
-      mutate(pageKey(scope, params), { section: sectionOf(scope), response } as LoadedPage),
+      mutate(pageKey(scope, params), { section: sectionOf(scope), response } as LoadedPage, {
+        revalidate: false,
+      }),
     )
     .catch(() => {});
 }

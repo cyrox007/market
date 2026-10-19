@@ -14,14 +14,10 @@ import {
   toApiParams,
   type CatalogScope,
 } from '../src/lib/catalog-query';
+import { applySeoToHead } from '../src/lib/seo-head';
+import { SEARCH_SEO } from '../src/pages/search/seo';
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+const isNotFound = (reason: unknown) => (reason as { status?: number } | null)?.status === 404;
 
 /** Запрос листинга каталога / комнаты из адреса — то же правило, что в браузере (market-docs/46) */
 function listingParamsFromReq(req: Request, scope: CatalogScope) {
@@ -380,6 +376,8 @@ async function createServer() {
             ssrContext.category = {};
             if (categoryResponse.status === 'fulfilled') {
               ssrContext.category.category = categoryResponse.value.category;
+            } else if (isNotFound(categoryResponse.reason)) {
+              ssrContext.category.notFoundSlug = categorySlug;
             }
             if (productsResponse.status === 'fulfilled') {
               ssrContext.category.products = productsResponse.value;
@@ -417,6 +415,8 @@ async function createServer() {
             ssrContext.category = {};
             if (roomResponse.status === 'fulfilled') {
               ssrContext.category.category = roomResponse.value.category;
+            } else if (isNotFound(roomResponse.reason)) {
+              ssrContext.category.notFoundSlug = roomSlug;
             }
             if (productsResponse.status === 'fulfilled') {
               ssrContext.category.products = productsResponse.value;
@@ -430,6 +430,7 @@ async function createServer() {
         // Страница поиска /search?q=...
         const searchMatch = url.match(/^\/search/);
         if (searchMatch) {
+          ssrContext.seo = SEARCH_SEO;
           try {
             const queryParams = req.query as Record<string, string | string[] | undefined>;
             const query = Array.isArray(queryParams.q) ? queryParams.q[0] : queryParams.q;
@@ -551,59 +552,13 @@ async function createServer() {
         template = fs.readFileSync(indexPath, 'utf-8');
       }
 
-      // Подставляем SEO в head при SSR (title, description, og, canonical)
-      if (ssrContext.seo) {
-        const s = ssrContext.seo;
-        if (s.title) {
-          template = template.replace(
-            /<title>[\s\S]*?<\/title>/,
-            `<title>${escapeHtml(s.title)}</title>`,
-          );
-        }
-        if (s.description) {
-          template = template.replace(
-            /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/,
-            `<meta name="description" content="${escapeHtml(s.description)}">`,
-          );
-        }
-        if (s.canonical_url) {
-          template = template.replace(
-            /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/,
-            `<link rel="canonical" href="${escapeHtml(s.canonical_url)}">`,
-          );
-        }
-        if (s.open_graph_title ?? s.title) {
-          const ogTitle = s.open_graph_title ?? s.title ?? '';
-          template = template.replace(
-            /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/,
-            `<meta property="og:title" content="${escapeHtml(ogTitle)}">`,
-          );
-        }
-        if (s.description) {
-          template = template.replace(
-            /<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/,
-            `<meta property="og:description" content="${escapeHtml(s.description)}">`,
-          );
-        }
-        if (s.image) {
-          const ogImageTag = `<meta property="og:image" content="${escapeHtml(s.image)}">`;
-          if (template.includes('property="og:image"')) {
-            template = template.replace(
-              /<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/,
-              ogImageTag,
-            );
-          } else {
-            template = template.replace('</head>', `${ogImageTag}</head>`);
-          }
-        }
-        if (s.canonical_url) {
-          const ogUrl = s.canonical_url;
-          template = template.replace(
-            /<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/,
-            `<meta property="og:url" content="${escapeHtml(ogUrl)}">`,
-          );
-        }
-      }
+      // SEO в <head>; нет canonical — адрес страницы (market-docs/55)
+      const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
+      template = applySeoToHead(
+        template,
+        ssrContext.seo,
+        `${proto}://${req.get('host')}${req.originalUrl}`,
+      );
 
       // Вставляем рендеренный HTML и initial state
       const initialState = JSON.stringify(ssrContext).replace(/</g, '\\u003c');
@@ -612,7 +567,7 @@ async function createServer() {
         .replace('</head>', `<script>window.__INITIAL_STATE__ = ${initialState}</script></head>`);
 
       res
-        .status(200)
+        .status(ssrContext.category?.notFoundSlug ? 404 : 200)
         .set({
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'private, no-cache, no-store, must-revalidate',

@@ -82,6 +82,23 @@ describe('раздел по адресу', () => {
     expect(result.current.notFound).toBe(false);
   });
 
+  it('сервер уже знает, что раздела нет, — сразу «не найден», без запроса', () => {
+    const ssr = { category: { notFoundSlug: 'net-takogo' } } as SSRData;
+    const { result } = renderHook(() => useCatalogCategory('net-takogo', false), {
+      wrapper: wrap(ssr),
+    });
+    expect(result.current.notFound).toBe(true);
+    expect(api.categories.get).not.toHaveBeenCalled();
+  });
+
+  it('«нет раздела» с сервера — про другой адрес: этот грузится', async () => {
+    api.categories.get.mockResolvedValue({ category: category('tumby', 'Тумбы') });
+    const ssr = { category: { notFoundSlug: 'net-takogo' } } as SSRData;
+    const { result } = renderHook(() => useCatalogCategory('tumby', false), { wrapper: wrap(ssr) });
+    expect(result.current.notFound).toBe(false);
+    await waitFor(() => expect(result.current.category?.name).toBe('Тумбы'));
+  });
+
   it('API ответил ошибкой — раздел не найден', async () => {
     api.categories.get.mockRejectedValue(new Error('404'));
     const { result } = renderHook(() => useCatalogCategory('net-takogo', false), {

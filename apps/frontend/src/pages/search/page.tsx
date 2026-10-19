@@ -11,7 +11,7 @@ import { getSearchKey } from '../../utils/ssr-to-swr';
 import { normalizeListProduct } from '../../utils/cartProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
-import { buildTitle } from '../../constants/seo';
+import { SEARCH_SEO } from './seo';
 import {
   CATALOG_PER_PAGE,
   CATALOG_SORT_OPTIONS,
@@ -64,14 +64,7 @@ export default function Search() {
     setCurrentPage(page);
   }, [searchParams]);
 
-  usePageSeo({
-    title: buildTitle('Поиск'),
-    description: 'Результаты поиска в интернет-магазине Светофор-Мебель.',
-    image: '/logo.png',
-    robots: 'noindex, follow',
-    open_graph_title: buildTitle('Поиск'),
-    locale: 'ru_RU',
-  });
+  usePageSeo(SEARCH_SEO);
 
   // Параметры для SWR/API из URL. sort_by и sort_order — как в API, ключ кэша уникален при смене сортировки.
   const searchParamsForSWR = useMemo(() => {
