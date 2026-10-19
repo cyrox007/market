@@ -574,6 +574,8 @@ export interface Category {
   parent?: Category;
   full_path: string | null;
   full_path_array?: string[];
+  /** Заголовок блока «Популярные» из админки; пусто — «Популярные товары» */
+  popular_title?: string | null;
 }
 
 export interface Product {

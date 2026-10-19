@@ -66,7 +66,12 @@ export default function CatalogCategory() {
 
   // Название — только из фрагментного кэша: displayName до ответа — «Каталог» или прежний раздел
   if (view === 'loading') {
-    return <CatalogPageSkeleton name={slug ? getCategoryFragment(slug)?.name : undefined} />;
+    return (
+      <CatalogPageSkeleton
+        name={slug ? getCategoryFragment(slug)?.name : undefined}
+        inCatalog={!isRooms}
+      />
+    );
   }
 
   if (isLanding && category) {

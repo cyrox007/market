@@ -8,6 +8,8 @@ interface CatalogHeaderProps {
   title: string;
   /** null — ещё не загружено */
   total: number | null;
+  /** false — комната: «Главная › Гостиная», без «Каталога» */
+  inCatalog?: boolean;
 }
 
 const PRODUCTS = ['товар', 'товара', 'товаров'] as const;
@@ -21,10 +23,15 @@ function parentTrail(category: Category | null) {
   return trail;
 }
 
-export default function CatalogHeader({ category, title, total }: CatalogHeaderProps) {
+export default function CatalogHeader({
+  category,
+  title,
+  total,
+  inCatalog = true,
+}: CatalogHeaderProps) {
   return (
     <header>
-      <CategoryBreadcrumbs name={title} trail={parentTrail(category)} />
+      <CategoryBreadcrumbs name={title} trail={parentTrail(category)} inCatalog={inCatalog} />
       {/* Ниже 980 заголовка на макетах нет — остаётся для поисковиков и экранного диктора */}
       <div className="mt-7 flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:mt-0">
         <h1 className="text-24 font-bold text-ink max-md:sr-only">

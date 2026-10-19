@@ -66,7 +66,12 @@ export default function CatalogListing({
       <div
         className={`${PAGE_CONTAINER} pb-16 pt-6 max-md:pb-12 max-md:pt-5 max-vsm:pb-10 max-vsm:pt-4`}
       >
-        <CatalogHeader category={category} title={displayName} total={shownTotal} />
+        <CatalogHeader
+          category={category}
+          title={displayName}
+          total={shownTotal}
+          inCatalog={scope.scope !== 'room'}
+        />
 
         {category?.children && category.children.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2 md:gap-3">

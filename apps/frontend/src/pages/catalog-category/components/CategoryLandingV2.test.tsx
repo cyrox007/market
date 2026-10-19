@@ -98,4 +98,29 @@ describe('CategoryLandingV2', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Посмотрите подкатегории выше.')).toBeInTheDocument();
   });
+
+  it('заголовок популярных — из popular_title, без него — «Популярные товары»', () => {
+    const { unmount } = render(
+      <CategoryLandingV2
+        category={{ ...category, popular_title: 'Популярные системы хранения' } as Category}
+        products={[]}
+        isLoadingProducts={false}
+      />,
+      { wrapper },
+    );
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Популярные системы хранения' }),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(
+      <CategoryLandingV2
+        category={{ ...category, popular_title: '  ' } as Category}
+        products={[]}
+        isLoadingProducts={false}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'Популярные товары' })).toBeInTheDocument();
+  });
 });
