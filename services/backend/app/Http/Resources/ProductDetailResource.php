@@ -3,7 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Helpers\StockCategoryHelper;
+use App\Models\Product\Product;
 use App\Models\Product\ProductDeliveryBlock;
+use App\Models\Product\ProductDocument;
 use App\Models\Product\ProductFeatureBlock;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehouseStockResolver;
@@ -490,7 +492,38 @@ class ProductDetailResource extends JsonResource
             'seo' => SeoApiTransformer::forModel($this->resource),
             'feature_blocks' => $featureBlocks,
             'delivery_blocks' => $deliveryBlocks,
+            'documents' => $this->documentsForApi($sourceProduct),
             'colors' => $this->getColorsArray(),
         ];
+    }
+
+    /**
+     * Документы общего товара: у торгового предложения своих нет.
+     */
+    private function documentsForApi(Product $product): array
+    {
+        $product->loadMissing('documents.media');
+
+        return $product->documents
+            ->where('is_published', true)
+            ->map(function (ProductDocument $document): ?array {
+                $file = $document->file();
+                if ($file === null) {
+                    return null;
+                }
+
+                return [
+                    'id' => $document->id,
+                    'title' => filled($document->title) ? $document->title : $file->name,
+                    'url' => $file->getUrl(),
+                    'file_name' => $file->file_name,
+                    'mime_type' => $file->mime_type,
+                    'extension' => strtolower((string) $file->extension),
+                    'size' => (int) $file->size,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 }

@@ -21,6 +21,11 @@ class InventorySync1CMinuteCommand extends Command
         RunMinute1CSyncAction $runMinute1CSyncAction,
         Store1CSyncCursorAction $storeCursorAction
     ): int {
+        if (! config('catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled', false)) {
+            $this->warn('Старый импорт каталога 1С отключён. Используйте комбинированный перенос каталога.');
+
+            return self::SUCCESS;
+        }
         Log::info('1C minute sync command: started');
 
         try {

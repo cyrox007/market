@@ -36,6 +36,9 @@ class SyncProductAndStocksFrom1CJob implements ShouldQueue
 
     public function handle(SyncProductStocksFrom1CByExternalIdAction $syncAction): void
     {
+        if (! config('catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled', false)) {
+            return;
+        }
         Log::info('1C minute sync job: started', [
             'external_id' => $this->externalId,
             'attempt' => $this->attempts(),
