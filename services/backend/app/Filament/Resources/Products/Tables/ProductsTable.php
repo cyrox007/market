@@ -316,6 +316,12 @@ class ProductsTable
                 ...self::attributeFilters(),
             ])
             ->filtersFormSchema(function (array $filters): array {
+                // The filters dropdown scrolls: absolute select menus would be
+                // clipped by its overflow. Use Filament's fixed-position context.
+                foreach ($filters as $filter) {
+                    $filter->extraAttributes(['class' => 'fi-fixed-positioning-context']);
+                }
+
                 $baseFilters = array_values(array_filter([
                     $filters['state'] ?? null,
                     $filters['taxons'] ?? null,
