@@ -26,6 +26,7 @@ use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
@@ -316,12 +317,6 @@ class ProductsTable
                 ...self::attributeFilters(),
             ])
             ->filtersFormSchema(function (array $filters): array {
-                // The filters dropdown scrolls: absolute select menus would be
-                // clipped by its overflow. Use Filament's fixed-position context.
-                foreach ($filters as $filter) {
-                    $filter->extraAttributes(['class' => 'fi-fixed-positioning-context']);
-                }
-
                 $baseFilters = array_values(array_filter([
                     $filters['state'] ?? null,
                     $filters['taxons'] ?? null,
@@ -358,7 +353,7 @@ class ProductsTable
                 'lg' => 3,
             ])
             ->filtersFormWidth(Width::SevenExtraLarge)
-            ->filtersFormMaxHeight('75vh')
+            ->filtersLayout(FiltersLayout::Modal)
             ->defaultSort('updated_at', 'desc')
             ->recordActions([
                 EditAction::make(),
