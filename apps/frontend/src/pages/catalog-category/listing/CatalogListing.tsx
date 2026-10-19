@@ -4,7 +4,7 @@ import type { Category } from '../../../lib/api';
 import { resetFilters, type CatalogScope } from '../../../lib/catalog-query';
 import { BELOW_MD, PAGE_CONTAINER } from '../../../lib/layout';
 import { scrollToTop } from '../../../lib/motion';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { useMediaMatch } from '../../../hooks/useMediaQuery';
 import CatalogHeader from './CatalogHeader';
 import ProductCount from '../../../components/catalog/ProductCount';
 import CategoryDescription from '../components/CategoryDescription';
@@ -40,8 +40,8 @@ export default function CatalogListing({
   // Пока новый список не пришёл, на экране прежний — его число для «Показать N» уже неверно
   const settledTotal = listing.isLoading || listing.isRefreshing ? null : listing.total;
   const countProducts = useMemo(() => countProductsIn(scope), [scope]);
-  // Один раз на странице: панель создаётся при каждом открытии, а хук в первом кадре даёт false
-  const compact = useMediaQuery(BELOW_MD);
+  // Один раз на странице: панель создаётся при каждом открытии; null — ширина ещё неизвестна
+  const compact = useMediaMatch(BELOW_MD);
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
   // Новое открытие — новый экземпляр панели со свежим черновиком
   const [allFiltersSession, setAllFiltersSession] = useState(0);
@@ -119,7 +119,7 @@ export default function CatalogListing({
         <AllFiltersPanel
           key={allFiltersSession}
           open={allFiltersOpen}
-          compact={compact}
+          compact={compact === true}
           query={query}
           onQueryChange={setQuery}
           onClose={() => setAllFiltersOpen(false)}

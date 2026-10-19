@@ -4,7 +4,7 @@ import type { FiltersMeta } from '../../../../lib/api';
 import { parseCatalogQuery, type CatalogQuery } from '../../../../lib/catalog-query';
 import CatalogToolbar from './CatalogToolbar';
 
-let compact = false;
+let compact: boolean | null = false;
 
 beforeAll(() => {
   // jsdom без matchMedia; compact — экран уже 980
@@ -46,6 +46,33 @@ function renderToolbar(search = '', options: { meta?: FiltersMeta; count?: numbe
 }
 
 describe('строка фильтров', () => {
+  it('ширина ещё неизвестна (сервер) — обе раскладки, лишнюю скрывает CSS', () => {
+    compact = null;
+    const { container } = render(
+      <CatalogToolbar
+        compact={null}
+        query={parseCatalogQuery('')}
+        onQueryChange={vi.fn()}
+        meta={meta}
+        total={226}
+        countProducts={() => Promise.resolve(1)}
+        onOpenAllFilters={vi.fn()}
+      />,
+    );
+    const phone = container.querySelector<HTMLElement>('[class~="md:hidden"]');
+    const desktop = container.querySelector<HTMLElement>('[class~="max-md:hidden"]');
+    expect(phone && within(phone).queryByRole('button', { name: /Цена/ })).toBeNull();
+    expect(phone && within(phone).getByRole('button', { name: /Фильтры/ })).toBeTruthy();
+    expect(desktop && within(desktop).getByRole('button', { name: /Цена/ })).toBeTruthy();
+  });
+
+  it('ширина известна — только своя раскладка', () => {
+    compact = true;
+    renderToolbar();
+    expect(screen.queryByRole('button', { name: /Цена/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /Фильтры/ })).toHaveLength(1);
+  });
+
   it('сортировка применяется сразу и возвращает на первую страницу', async () => {
     const { onQueryChange } = renderToolbar('?page=3');
     fireEvent.click(screen.getByRole('button', { name: 'По популярности' }));

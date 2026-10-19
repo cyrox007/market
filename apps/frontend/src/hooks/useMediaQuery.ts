@@ -13,7 +13,12 @@ import { useEffect, useState } from 'react';
  * ругалась бы на рассинхрон. Значение уточняется в эффекте, уже после гидрации.
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  return useMediaMatch(query) ?? false;
+}
+
+/** То же, но до эффекта (на сервере и в первом кадре) — null: раскладку тогда выбирает CSS */
+export function useMediaMatch(query: string): boolean | null {
+  const [matches, setMatches] = useState<boolean | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia(query);

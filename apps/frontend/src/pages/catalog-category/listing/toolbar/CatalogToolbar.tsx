@@ -1,4 +1,5 @@
 import type { FiltersMeta } from '../../../../lib/api';
+import { cn } from '../../../../lib/cn';
 import {
   activeFilterCount,
   CATALOG_SORT_OPTIONS,
@@ -13,8 +14,8 @@ import OnSalePill from './OnSalePill';
 import SortControl from '../../../../components/catalog/SortControl';
 
 export interface CatalogToolbarProps {
-  /** Экран уже 980 — определяет страница один раз, чтобы первый кадр не был «десктопным» */
-  compact: boolean;
+  /** Экран уже 980; null — ещё неизвестно (сервер, первый кадр): обе раскладки, выбирает CSS */
+  compact: boolean | null;
   /** Применённые фильтры — из адреса */
   query: CatalogQuery;
   onQueryChange: (next: CatalogQuery) => void;
@@ -57,7 +58,7 @@ export default function CatalogToolbar({
     <SortControl
       options={CATALOG_SORT_OPTIONS}
       value={query.sort}
-      asSheet={compact}
+      asSheet={compact === true}
       onChange={(s) => applyNow({ sort: s })}
     />
   );
@@ -65,17 +66,16 @@ export default function CatalogToolbar({
     <AllFiltersButton count={activeFilterCount(query)} onClick={onOpenAllFilters} />
   );
 
-  if (compact) {
-    return (
-      <div className="flex items-center justify-between gap-2">
-        {sort}
-        {allFilters}
-      </div>
-    );
-  }
+  const phone = (
+    <div className={cn('flex items-center justify-between gap-2', compact === null && 'md:hidden')}>
+      {sort}
+      {allFilters}
+    </div>
+  );
+  if (compact) return phone;
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
+  const desktop = (
+    <div className={cn('flex flex-wrap items-center gap-2', compact === null && 'max-md:hidden')}>
       {allFilters}
       {sort}
       {basicFilters(available, draft.draft, draft.set).map(({ key, body }) => (
@@ -93,5 +93,13 @@ export default function CatalogToolbar({
         <OnSalePill checked={query.onSale} onChange={(onSale) => applyNow({ onSale })} />
       )}
     </div>
+  );
+  if (compact === false) return desktop;
+
+  return (
+    <>
+      {phone}
+      {desktop}
+    </>
   );
 }
