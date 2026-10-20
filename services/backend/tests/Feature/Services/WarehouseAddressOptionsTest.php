@@ -8,6 +8,42 @@ use Tests\TestCase;
 
 class WarehouseAddressOptionsTest extends TestCase
 {
+    public function test_localities_show_name_first_with_district_but_preserve_full_address(): void
+    {
+        Http::fake(['*' => Http::response([
+            ['externalId' => 'village', 'type' => 'с.', 'name' => 'Авдулово', 'label' => 'обл. Липецкая, р-н Данковский, с. Авдулово'],
+            ['externalId' => 'town', 'type' => 'г.', 'name' => 'Липецк', 'label' => 'обл. Липецкая, г. Липецк'],
+        ])]);
+        $options = app(WarehouseAddressOptions::class);
+        $this->assertSame(['village' => 'с. Авдулово (р-н Данковский)', 'town' => 'г. Липецк'], $options->initial('localities', 'region'));
+        $this->assertSame('с. Авдулово (р-н Данковский)', $options->localityLabel('village'));
+        $this->assertSame('обл. Липецкая, р-н Данковский, с. Авдулово', app(\App\Services\Address\AddressDirectoryClient::class)->cachedLabel('village'));
+    }
+
+    public function test_regions_are_filtered_by_name_even_when_api_returns_all_regions(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['*' => Http::response([
+            ['externalId' => 'adygea', 'name' => 'Адыгея', 'label' => 'респ. Адыгея'],
+            ['externalId' => 'lipetsk', 'name' => 'Липецкая', 'label' => 'обл. Липецкая'],
+        ])]);
+        $options = app(WarehouseAddressOptions::class);
+        $this->assertSame(['lipetsk' => 'обл. Липецкая'], $options->search('regions', null, ' ЛИПЕЦ '));
+        $this->assertSame([], $options->search('regions', null, 'несуществующий'));
+        $this->assertCount(2, $options->initial('regions', null));
+        Http::assertSent(fn ($request): bool => ! isset($request['q']));
+    }
+
+    public function test_locality_search_passes_name_and_selected_region_to_api(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['*' => Http::response([
+            ['externalId' => 'city', 'name' => 'Липецк', 'label' => 'обл. Липецкая, г. Липецк'],
+        ])]);
+        $this->assertArrayHasKey('city', app(WarehouseAddressOptions::class)->search('localities', 'region48', 'Липец'));
+        Http::assertSent(fn ($request): bool => $request['q'] === 'Липец' && $request['parentExternalId'] === 'region48');
+    }
+
     public function test_building_search_is_scoped_and_kladr_groups_are_split(): void
     {
         Http::preventStrayRequests();

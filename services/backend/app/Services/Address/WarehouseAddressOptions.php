@@ -21,10 +21,16 @@ class WarehouseAddressOptions
         }
         try {
             $items = $this->directory->options($level, array_filter([
-                'parentExternalId' => $parent, 'q' => trim($search), 'limit' => $level === 'regions' ? 100 : 50,
+                'parentExternalId' => $parent, 'q' => $level === 'regions' ? null : trim($search), 'limit' => $level === 'regions' ? 100 : 50,
             ], fn ($value) => $value !== null && $value !== ''));
             $options = [];
             foreach ($items as $item) {
+                // The regions endpoint returns the complete small directory and
+                // does not accept q. Filter names here, not the hierarchy label.
+                if ($level === 'regions' && trim($search) !== ''
+                    && ! str_contains(mb_strtolower($item['name'] ?? $item['label'] ?? ''), mb_strtolower(trim($search)))) {
+                    continue;
+                }
                 if (empty($item['externalId']) || empty($item['label'])) {
                     continue;
                 }
@@ -48,7 +54,21 @@ class WarehouseAddressOptions
                     if ($level === 'streets' && ! empty($item['name'])) {
                         $short = trim(($item['type'] ?? 'ул.').' '.$item['name']);
                     }
-                    $options[$id] = $compact ? $short : $label;
+                    if ($level === 'localities' && $parent) {
+                        $short = trim(($item['type'] ?? '').' '.($item['name'] ?? ''));
+                        if ($short === '') {
+                            $short = $label;
+                        }
+                        // The API label is the root-to-target hierarchy. Keep
+                        // intermediate context but omit the selected region.
+                        $parts = array_map('trim', explode(',', $label));
+                        if (count($parts) > 2) {
+                            array_shift($parts);
+                            array_pop($parts);
+                            $short .= ' ('.implode(', ', $parts).')';
+                        }
+                    }
+                    $options[$id] = ($compact || ($level === 'localities' && $parent)) ? $short : $label;
                     \Illuminate\Support\Facades\Cache::put('address-directory:short-label:'.sha1($id), $short,
                         (int) config('address_directory.cache_ttl'));
                     \Illuminate\Support\Facades\Cache::put('address-directory:label:'.sha1($id), $label,
@@ -64,5 +84,11 @@ class WarehouseAddressOptions
 
             return [];
         }
+    }
+
+    public function localityLabel(string $id): ?string
+    {
+        return \Illuminate\Support\Facades\Cache::get('address-directory:short-label:'.sha1($id))
+            ?? $this->directory->cachedLabel($id);
     }
 }

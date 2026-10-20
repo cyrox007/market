@@ -105,7 +105,7 @@ class WarehouseForm
                                 ->label('2. Населённый пункт')->searchable()->live()->dehydrated(false)
                                 ->searchPrompt('Введите минимум две буквы города, посёлка или села')
                                 ->getSearchResultsUsing(fn (string $search, Get $get): array => $get('directory_region') ? app(WarehouseAddressOptions::class)->search('localities', $get('directory_region'), $search) : [])
-                                ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
+                                ->getOptionLabelUsing(fn ($value): ?string => $value ? app(WarehouseAddressOptions::class)->localityLabel((string) $value) ?? $value : null)
                                 ->afterStateUpdated(function (Set $set): void {
                                     foreach (['directory_street', 'address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude', 'map_centre'] as $field) {
                                         $set($field, null);
