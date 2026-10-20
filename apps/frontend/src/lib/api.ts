@@ -10,7 +10,8 @@ const NO_TIMEOUT_PREFIXES = ['/cart', '/wishlist', '/compare', '/counters', '/or
 
 const needsTimeout = (endpoint: string) =>
   !NO_TIMEOUT_PREFIXES.some(
-    (prefix) => endpoint === prefix || endpoint.startsWith(`${prefix}/`) || endpoint.startsWith(`${prefix}?`),
+    (prefix) =>
+      endpoint === prefix || endpoint.startsWith(`${prefix}/`) || endpoint.startsWith(`${prefix}?`),
   );
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -63,7 +64,10 @@ async function request<T>(url: string, options: RequestInit): Promise<T> {
 
     const error = new Error(`API Error: ${response.status} ${errorMessage}`) as any;
     error.status = response.status;
-    error.retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || Number(errorData?.retry_after) || 60);
+    error.retryAfter = Math.max(
+      1,
+      Number(response.headers.get('Retry-After')) || Number(errorData?.retry_after) || 60,
+    );
     error.data = errorData;
     throw error;
   }
@@ -76,13 +80,28 @@ function productList(endpoint: string, params?: { region_id?: number }) {
   return fetchAPI<{ data: Product[] }>(`${endpoint}${suffix}`);
 }
 
-export interface CustomerLocality { externalId: string; name: string; label: string; source: string; kladrCode?: string | null }
+export interface CustomerLocality {
+  externalId: string;
+  name: string;
+  label: string;
+  source: string;
+  kladrCode?: string | null;
+}
 
 export const api = {
   localities: {
-    search: (q: string, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>(`/localities?q=${encodeURIComponent(q)}`, { signal }),
-    detect: (latitude: number, longitude: number, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>('/localities/detect', { method: 'POST', body: JSON.stringify({ latitude, longitude }), signal }),
-    get: (id: string) => fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(`/localities/${encodeURIComponent(id)}`),
+    search: (q: string, signal?: AbortSignal) =>
+      fetchAPI<{ data: CustomerLocality[] }>(`/localities?q=${encodeURIComponent(q)}`, { signal }),
+    detect: (latitude: number, longitude: number, signal?: AbortSignal) =>
+      fetchAPI<{ data: CustomerLocality[] }>('/localities/detect', {
+        method: 'POST',
+        body: JSON.stringify({ latitude, longitude }),
+        signal,
+      }),
+    get: (id: string) =>
+      fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(
+        `/localities/${encodeURIComponent(id)}`,
+      ),
   },
   shipping: {
     getLocations: (params?: { type?: string; parent_id?: number; search?: string }) => {
@@ -149,7 +168,13 @@ export const api = {
       if (params?.region_id) query.append('region_id', params.region_id.toString());
       return fetchAPI<Cart>(`/cart?${query.toString()}`);
     },
-    add: (data: { product_id: number; quantity?: number; region_id?: number; color?: string; size?: string }) =>
+    add: (data: {
+      product_id: number;
+      quantity?: number;
+      region_id?: number;
+      color?: string;
+      size?: string;
+    }) =>
       fetchAPI<{
         item: CartItem;
         message: string;
@@ -160,7 +185,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (itemId: number, data: { quantity: number; region_id?: number; color?: string; size?: string }) =>
+    update: (
+      itemId: number,
+      data: { quantity: number; region_id?: number; color?: string; size?: string },
+    ) =>
       fetchAPI<{
         item: CartItem;
         message: string;
@@ -672,7 +700,11 @@ export interface ProductVariant {
   stock: number;
   stock_label?: string | null;
   in_stock: boolean;
+  /** false — остаток бэку неизвестен, число не показываем */
+  stock_known?: boolean;
+  available_to_order?: boolean;
   color?: { name: string; slug: string; code?: string | null } | null;
+  colors?: { id: number; value: string; slug: string; color_code: string | null }[];
   size?: { name: string; slug: string; value: string } | null;
   images: string[];
   variation_attributes?: SelectedVariationItem[];
@@ -702,8 +734,35 @@ export interface ProductDeliveryBlock {
   bg_color: string;
 }
 
+export interface WarehouseStock {
+  warehouse_id: number;
+  warehouse_name: string;
+  quantity: number;
+  distance_km: number | null;
+}
+
+export interface ProductDocument {
+  id: number;
+  title: string;
+  url: string;
+  file_name: string;
+  mime_type: string;
+  extension: string;
+  size: number;
+}
+
 export interface ProductDetail extends Product {
   images: string[];
+  /** false — остаток бэку неизвестен, число не показываем */
+  stock_known?: boolean;
+  /** destination — остаток для региона покупателя, global — по всем складам */
+  stock_scope?: 'destination' | 'global';
+  available_to_order?: boolean;
+  nearest_stock?: number | null;
+  nearest_warehouse_name?: string | null;
+  nearest_distance_km?: number | null;
+  stocks?: WarehouseStock[];
+  documents?: ProductDocument[];
   image_hd?: string | null;
   colors?: ColorOption[];
   sizes?: SizeOption[];
