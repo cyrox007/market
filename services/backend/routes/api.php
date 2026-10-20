@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\Route;
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
+    Route::get('/address-directory/status', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'status'])->middleware('throttle:address-read');
     Route::get('/address-directory/hierarchy/{externalId}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'hierarchy'])->middleware('throttle:address-read');
     Route::get('/address-directory/{level}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'index'])
         ->where('level', 'regions|localities|streets|buildings')->middleware('throttle:address-read');

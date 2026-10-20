@@ -30,6 +30,10 @@ class BuildOrderSyncPayloadAction
             'createdAt' => $this->formatCreatedAt($order),
             'fullName' => (string) ($order->contact_name ?? ''),
             'address' => $this->formatAddress($order),
+            'addressExternalId' => $order->fulfillment_snapshot['address_directory']['external_id']
+                ?? ($order->delivery_type === 'pickup' ? null : $order->address?->directory_external_id),
+            'addressDetails' => $order->fulfillment_snapshot['address_directory']['details'] ?? null,
+            'warehouseExternalId' => $order->fulfillment_snapshot['warehouse_external_id'] ?? null,
             'phone' => (string) ($order->contact_phone ?? ''),
             'email' => $this->emailNormalizer->normalize($order->contact_email, (int) $order->id),
             'pickFromStore' => (bool) ($order->delivery_type === 'pickup'),
@@ -109,6 +113,9 @@ class BuildOrderSyncPayloadAction
 
     private function formatAddress(Order $order): string
     {
+        if (filled($order->address_snapshot)) {
+            return (string) $order->address_snapshot;
+        }
         if ($order->address === null) {
             return '';
         }

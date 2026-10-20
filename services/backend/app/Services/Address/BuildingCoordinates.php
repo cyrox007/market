@@ -19,7 +19,7 @@ class BuildingCoordinates
         if (! is_file($file)) {
             return null;
         }
-        $city = collect($snapshot['path'] ?? [])->last(fn (array $row): bool => ($row['kind'] ?? null) === 'locality');
+        $city = AddressHierarchy::locality($snapshot);
         $street = collect($snapshot['path'] ?? [])->last(fn (array $row): bool => ($row['kind'] ?? null) === 'street');
         if (! $city || ! $street) {
             return null;

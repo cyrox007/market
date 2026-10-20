@@ -26,7 +26,7 @@ class WarehouseAddressResolver
             || ($target['externalId'] ?? null) !== $externalId
             || ($isGar && (! preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $externalId) || $number !== null))
             || empty($snapshot['label'])
-            || ! collect($snapshot['path'] ?? [])->contains('kind', 'locality')) {
+            || ! AddressHierarchy::locality($snapshot)) {
             throw ValidationException::withMessages(['address_external_id' => 'Выберите конкретное здание из справочника с полной адресной иерархией.']);
         }
         if (! $isGar) {

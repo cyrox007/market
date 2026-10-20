@@ -9,6 +9,11 @@ use RuntimeException;
 
 class AddressDirectoryClient
 {
+    public function status(): array
+    {
+        return $this->get(rtrim(config('address_directory.directory_path'), '/').'/status', unwrap: false);
+    }
+
     public function nearby(float $latitude, float $longitude): array
     {
         // Precise user coordinates are not persisted in the cache.

@@ -25,11 +25,12 @@ class LocalityGeoDirectory
     {
         $hierarchy = $this->directory->hierarchy($id);
         $target = $hierarchy['target'] ?? null;
-        if (($target['kind'] ?? null) !== 'locality') {
+        if (! $target || ! AddressHierarchy::isLocality($target)) {
             return null;
         }
         $region = collect($hierarchy['path'] ?? [])->firstWhere('kind', 'region');
         return array_merge($target, [
+            'kind' => 'locality',
             'regionExternalId' => $region['externalId'] ?? null,
             'regionKladrCode' => $region['kladrCode'] ?? null,
         ]);

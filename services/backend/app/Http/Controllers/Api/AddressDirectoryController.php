@@ -10,6 +10,16 @@ use Throwable;
 
 class AddressDirectoryController extends Controller
 {
+    public function status(AddressDirectoryClient $directory): JsonResponse
+    {
+        try {
+            return response()->json(['data' => $directory->status()]);
+        } catch (Throwable $error) {
+            report($error);
+            return response()->json(['message' => 'Адресный справочник временно недоступен.'], 503);
+        }
+    }
+
     public function hierarchy(string $externalId, AddressDirectoryClient $directory): JsonResponse
     {
         abort_unless(preg_match('/^(?:\d{13,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i', $externalId), 422);
