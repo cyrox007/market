@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { resetFilters, toCatalogSearch, type CatalogQuery } from '../../../lib/catalog-query';
+import { filtersSignature, resetFilters, type CatalogQuery } from '../../../lib/catalog-query';
 
 export interface FilterDraftOptions {
   applied: CatalogQuery;
-  /** Сколько товаров по применённым фильтрам — число без запроса, пока черновик не менялся */
-  appliedTotal: number;
+  /** Сколько товаров по применённым фильтрам — без запроса, пока черновик не менялся; null — список грузится */
+  appliedTotal: number | null;
   onApply: (next: CatalogQuery) => void;
   countProducts: (query: CatalogQuery) => Promise<number>;
   delayMs?: number;
@@ -12,14 +12,7 @@ export interface FilterDraftOptions {
   initialSurface?: string;
 }
 
-/** Подпись выбора без страницы: одинаковые фильтры — одно число */
-const signature = (query: CatalogQuery) => toCatalogSearch({ ...query, page: 1 });
-
-/**
- * Выбор фильтров до «Показать N товаров» (market-docs/44, 46): черновик копится, применяется
- * кнопкой, закрытие без неё — отмена. Число — через delayMs после последнего изменения;
- * ответ для прежнего выбора не показывается.
- */
+/** Черновик фильтров до «Показать N товаров»; число — с задержкой, устаревшие ответы отброшены (market-docs/46) */
 export function useFilterDraft({
   applied,
   appliedTotal,
@@ -32,8 +25,8 @@ export function useFilterDraft({
   const [draft, setDraft] = useState(applied);
   const [counted, setCounted] = useState<{ signature: string; value: number | null } | null>(null);
 
-  const draftSignature = signature(draft);
-  const isApplied = draftSignature === signature(applied);
+  const draftSignature = filtersSignature(draft);
+  const isApplied = draftSignature === filtersSignature(applied);
 
   useEffect(() => {
     if (surface === null || isApplied) return;
@@ -71,7 +64,7 @@ export function useFilterDraft({
   const discard = () => setSurface(null);
 
   const count = isApplied
-    ? { value: appliedTotal, loading: false }
+    ? { value: appliedTotal, loading: appliedTotal === null }
     : counted?.signature === draftSignature
       ? { value: counted.value, loading: false }
       : { value: null, loading: true };

@@ -12,6 +12,19 @@ use Tests\TestCase;
 
 class InventorySync1CMinuteCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled' => true]);
+    }
+
+    public function test_disabled_legacy_import_does_not_run_sync(): void
+    {
+        config(['catalog_import.config.svetofor_1c.legacy_catalog_sync_enabled' => false]);
+        $this->mock(RunMinute1CSyncAction::class)->shouldNotReceive('execute');
+        $this->assertSame(0, Artisan::call('inventory:sync-1c-minute'));
+        $this->assertStringContainsString('отключён', Artisan::output());
+    }
     public function test_command_runs_successful_sync_and_returns_success_code(): void
     {
         $getCursor = new class extends Get1CSyncCursorAction

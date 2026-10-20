@@ -1,4 +1,5 @@
 import type { FiltersMeta } from '../../../../lib/api';
+import { cn } from '../../../../lib/cn';
 import {
   activeFilterCount,
   CATALOG_SORT_OPTIONS,
@@ -7,25 +8,29 @@ import {
 import { useFilterDraft } from '../useFilterDraft';
 import AllFiltersButton from './AllFiltersButton';
 import { filterAvailability } from '../fields/availability';
-import DimensionFields from '../fields/DimensionFields';
+import { basicFilters, type BasicFilterKey } from '../fields/basicFilters';
 import FilterDropdown from './FilterDropdown';
-import ManufacturerList from '../fields/ManufacturerList';
 import OnSalePill from './OnSalePill';
-import PriceFields from '../fields/PriceFields';
-import SortControl from './SortControl';
+import SortControl from '../../../../components/catalog/SortControl';
 
 export interface CatalogToolbarProps {
-  /** Экран уже 980 — определяет страница один раз, чтобы первый кадр не был «десктопным» */
-  compact: boolean;
+  /** Экран уже 980; null — ещё неизвестно (сервер, первый кадр): обе раскладки, выбирает CSS */
+  compact: boolean | null;
   /** Применённые фильтры — из адреса */
   query: CatalogQuery;
   onQueryChange: (next: CatalogQuery) => void;
   meta: FiltersMeta | null;
   /** Товаров по применённым фильтрам */
-  total: number;
+  total: number | null;
   countProducts: (query: CatalogQuery) => Promise<number>;
   onOpenAllFilters: () => void;
 }
+
+const DROPDOWNS: Record<BasicFilterKey, { label: string; className: string }> = {
+  price: { label: 'Цена', className: 'w-[322px]' },
+  dimensions: { label: 'Габариты', className: 'w-[320px]' },
+  manufacturers: { label: 'Производители', className: 'w-[264px]' },
+};
 
 /**
  * Строка фильтров над списком (market-docs/44, «Фильтры»): от 980 — кнопки с окнами,
@@ -53,7 +58,7 @@ export default function CatalogToolbar({
     <SortControl
       options={CATALOG_SORT_OPTIONS}
       value={query.sort}
-      asSheet={compact}
+      asSheet={compact === true}
       onChange={(s) => applyNow({ sort: s })}
     />
   );
@@ -61,54 +66,40 @@ export default function CatalogToolbar({
     <AllFiltersButton count={activeFilterCount(query)} onClick={onOpenAllFilters} />
   );
 
-  if (compact) {
-    return (
-      <div className="flex items-center justify-between gap-2">
-        {sort}
-        {allFilters}
-      </div>
-    );
-  }
+  const phone = (
+    <div className={cn('flex items-center justify-between gap-2', compact === null && 'md:hidden')}>
+      {sort}
+      {allFilters}
+    </div>
+  );
+  if (compact) return phone;
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
+  const desktop = (
+    <div className={cn('flex flex-wrap items-center gap-2', compact === null && 'max-md:hidden')}>
       {allFilters}
       {sort}
-      {available.price && (
-        <FilterDropdown label="Цена" surface="price" draft={draft} className="w-[322px]">
-          <PriceFields
-            value={draft.draft.price}
-            bounds={available.price}
-            onChange={(price) => draft.set({ price })}
-          />
-        </FilterDropdown>
-      )}
-      {available.dimensions.length > 0 && (
-        <FilterDropdown label="Габариты" surface="dimensions" draft={draft} className="w-[320px]">
-          <DimensionFields
-            dimensions={available.dimensions}
-            value={draft.draft}
-            onChange={(key, range) => draft.set({ [key]: range })}
-          />
-        </FilterDropdown>
-      )}
-      {available.manufacturers && (
+      {basicFilters(available, draft.draft, draft.set).map(({ key, body }) => (
         <FilterDropdown
-          label="Производители"
-          surface="manufacturers"
+          key={key}
+          label={DROPDOWNS[key].label}
+          surface={key}
           draft={draft}
-          className="w-[264px]"
+          className={DROPDOWNS[key].className}
         >
-          <ManufacturerList
-            options={available.manufacturers}
-            value={draft.draft.manufacturers}
-            onChange={(manufacturers) => draft.set({ manufacturers })}
-          />
+          {body}
         </FilterDropdown>
-      )}
+      ))}
       {available.onSale && (
         <OnSalePill checked={query.onSale} onChange={(onSale) => applyNow({ onSale })} />
       )}
     </div>
+  );
+  if (compact === false) return desktop;
+
+  return (
+    <>
+      {phone}
+      {desktop}
+    </>
   );
 }

@@ -48,8 +48,9 @@ export default function RangeSlider({
   const span = max - min || 1;
   const share = (n: number) => (n - min) / span;
 
+  // Кратно шагу от нуля, а не от min: цена 18 300, а не 18 343; края — сами min и max
   const snap = (n: number) => {
-    const stepped = min + Math.round((n - min) / step) * step;
+    const stepped = Math.round(n / step) * step;
     return Math.min(max, Math.max(min, stepped));
   };
 
@@ -147,10 +148,10 @@ export default function RangeSlider({
       onPointerCancel={handlePointerUp}
       className={cn('relative h-4 w-full touch-pan-y select-none', className)}
     >
-      <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-lg bg-surface-border/50" />
+      <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-pill bg-surface-border/50" />
       <div
         className={cn(
-          'absolute top-1/2 h-1 -translate-y-1/2 rounded-lg',
+          'absolute top-1/2 h-1 -translate-y-1/2 rounded-pill',
           disabled ? 'bg-surface-border' : 'bg-brand-yellow',
         )}
         style={{

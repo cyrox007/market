@@ -749,6 +749,39 @@
               "type": "object"
             }
           },
+          "documents": {
+            "type": "array",
+            "description": "Опубликованные инструкции и документы в порядке, заданном в админке; пустой массив, если их нет",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Название для вывода; если в админке не задано — имя файла без расширения"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Прямая ссылка на файл"
+                },
+                "file_name": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "extension": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "Размер в байтах"
+                }
+              }
+            }
+          },
           "seo": {
             "oneOf": [
               {
@@ -4019,7 +4052,7 @@
       "post": {
         "operationId": "addToCart",
         "summary": "Добавить товар в корзину",
-        "description": "Добавляет товар в корзину. Поддерживает вариации товаров (цвет, размер). Автоматически корректирует количество с учетом остатков.",
+        "description": "Добавляет товар в корзину. Поддерживает вариации товаров (цвет, размер). Автоматически корректирует количество с учетом остатков. Если товар уже в корзине, количество прибавляется к той же позиции (id сохраняется); ограничение — в limit_reason.",
         "tags": [
           "Cart"
         ],
@@ -4097,6 +4130,16 @@
                     "was_adjusted": {
                       "type": "boolean",
                       "example": false
+                    },
+                    "limit_reason": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "stock",
+                        "max_per_order"
+                      ],
+                      "description": "Почему количество урезано: stock — по остатку, max_per_order — лимит 100 шт. на позицию; null — сохранено запрошенное количество",
+                      "example": null
                     }
                   }
                 }
@@ -4197,7 +4240,7 @@
       "put": {
         "operationId": "updateCartItem",
         "summary": "Обновить товар в корзине",
-        "description": "Обновляет количество и/или вариацию товара в корзине. Поддерживает изменение вариаций (цвет, размер).",
+        "description": "Устанавливает конечное количество позиции. Количество проверяется по остатку и лимиту 100 шт.; фактически сохранённое — в updated_quantity, причина ограничения — в limit_reason. Изменение позиции атомарно, id позиции сохраняется. При передаче variation_attributes позиция заменяется на выбранную вариацию и получает новый id.",
         "tags": [
           "Cart"
         ],
@@ -4281,6 +4324,16 @@
                     "was_adjusted": {
                       "type": "boolean",
                       "example": false
+                    },
+                    "limit_reason": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "stock",
+                        "max_per_order"
+                      ],
+                      "description": "Почему количество урезано: stock — по остатку, max_per_order — лимит 100 шт. на позицию; null — сохранено запрошенное количество",
+                      "example": null
                     }
                   }
                 }

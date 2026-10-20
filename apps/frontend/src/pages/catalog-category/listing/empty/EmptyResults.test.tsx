@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseCatalogQuery } from '../../../../lib/catalog-query';
 import EmptyResults from './EmptyResults';
 
+const onFirstPage = vi.fn();
+
 const show = (search: string, sectionTotal: number | null = 226) => {
   const onReset = vi.fn();
   render(
@@ -10,6 +12,7 @@ const show = (search: string, sectionTotal: number | null = 226) => {
       query={parseCatalogQuery(search)}
       sectionTotal={sectionTotal}
       onReset={onReset}
+      onFirstPage={onFirstPage}
     />,
   );
   return onReset;
@@ -46,5 +49,13 @@ describe('пустая выдача', () => {
     show('sort=cheap');
     expect(screen.getByText('В этом разделе пока нет товаров')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).not.toBeInTheDocument();
+  });
+
+  it('страница за последней (?page=99) — не «пока нет товаров», а ссылка на первую', () => {
+    show('page=99&manufacturers=asm');
+    expect(screen.getByText('На этой странице товаров нет')).toBeInTheDocument();
+    expect(screen.queryByText('В этом разделе пока нет товаров')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'На первую страницу' }));
+    expect(onFirstPage).toHaveBeenCalled();
   });
 });

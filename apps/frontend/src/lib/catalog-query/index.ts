@@ -1,7 +1,7 @@
-export type { CatalogQuery, CatalogSort, ListKey, Range, RangeKey } from './types';
-export { CATALOG_PER_PAGE, MANUFACTURER_ATTRIBUTE } from './types';
+export type { CatalogQuery, CatalogSort, DimensionKey, ListKey, Range, RangeKey } from './types';
+export { CATALOG_PER_PAGE, DEFAULT_SORT, MANUFACTURER_ATTRIBUTE } from './types';
 export { parseCatalogQuery } from './parse';
-export { toCatalogSearch } from './to-search';
+export { filtersSignature, toCatalogSearch } from './to-search';
 export { toApiParams, type CatalogScope } from './to-api-params';
 export {
   activeFilterCount,
@@ -12,4 +12,4 @@ export {
   type ChipNames,
   type FilterChip,
 } from './chips';
-export { CATALOG_SORT_OPTIONS } from './sort';
+export { CATALOG_SORT_OPTIONS, searchSort, SORT_TO_API, withSort } from './sort';

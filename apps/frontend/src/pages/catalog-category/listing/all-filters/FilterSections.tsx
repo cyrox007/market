@@ -3,9 +3,7 @@ import { AccordionSection } from '../../../../components/ui/primitives';
 import type { FiltersMeta } from '../../../../lib/api';
 import { MANUFACTURER_ATTRIBUTE, type CatalogQuery } from '../../../../lib/catalog-query';
 import { filterAvailability } from '../fields/availability';
-import DimensionFields from '../fields/DimensionFields';
-import ManufacturerList from '../fields/ManufacturerList';
-import PriceFields from '../fields/PriceFields';
+import { basicFilters, type BasicFilterKey } from '../fields/basicFilters';
 import CheckboxList, { type CheckboxOption } from './CheckboxList';
 
 interface FilterSectionsProps {
@@ -29,60 +27,28 @@ type MetaOption = {
   count?: number;
 };
 
+const SECTION_TITLES: Record<BasicFilterKey, string> = {
+  price: 'Цена, ₽',
+  dimensions: 'Габариты, мм',
+  manufacturers: 'Производители',
+};
+
 const toOptions = (items: MetaOption[]): CheckboxOption[] =>
   items.flatMap((i) => {
     const slug = i.slug ?? i.value;
     return slug ? [{ slug, name: i.name || slug, count: i.count }] : [];
   });
 
-/**
- * Разделы «Все фильтры» по макету 730:53152: цена, габариты, производители, категория, акция —
- * раскрыты; атрибуты (механизм, особенности) — свёрнуты. Цвета и размера в макете нет — свёрнуты
- * в конце, чтобы не потерять фильтры, которые API уже умеет (market-docs/48).
- */
+/** Разделы «Все фильтры» по макету 730:53152; что раскрыто и почему есть цвет и размер — market-docs/48 */
 export default function FilterSections({ draft, set, meta, subcategories }: FilterSectionsProps) {
   const available = filterAvailability(meta, draft);
-  const sections: Section[] = [];
 
-  if (available.price) {
-    sections.push({
-      key: 'price',
-      title: 'Цена, ₽',
-      body: (
-        <PriceFields
-          value={draft.price}
-          bounds={available.price}
-          onChange={(price) => set({ price })}
-        />
-      ),
-    });
-  }
-  if (available.dimensions.length) {
-    sections.push({
-      key: 'dimensions',
-      title: 'Габариты, мм',
-      body: (
-        <DimensionFields
-          dimensions={available.dimensions}
-          value={draft}
-          onChange={(key, range) => set({ [key]: range })}
-        />
-      ),
-    });
-  }
-  if (available.manufacturers) {
-    sections.push({
-      key: 'manufacturers',
-      title: 'Производители',
-      body: (
-        <ManufacturerList
-          options={available.manufacturers}
-          value={draft.manufacturers}
-          onChange={(manufacturers) => set({ manufacturers })}
-        />
-      ),
-    });
-  }
+  const sections: Section[] = basicFilters(available, draft, set).map(({ key, body }) => ({
+    key,
+    title: SECTION_TITLES[key],
+    body,
+  }));
+
   if (subcategories.length) {
     sections.push({
       key: 'category',

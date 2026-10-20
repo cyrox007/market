@@ -2,6 +2,7 @@
  * Утилиты для преобразования SSR данных в SWR fallback data
  */
 
+import { DEFAULT_SORT, SORT_TO_API } from '../lib/catalog-query';
 import type { SSRContext } from '../types/ssr';
 
 /**
@@ -80,8 +81,7 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
       const page = ssrContext.search.products?.meta?.current_page ?? 1;
       const canonicalSearchKey = getSearchKey(query, {
         page,
-        sort_by: 'created_at',
-        sort_order: 'desc',
+        ...SORT_TO_API[ssrContext.search.sort ?? DEFAULT_SORT],
         region_id: regionId,
       });
 

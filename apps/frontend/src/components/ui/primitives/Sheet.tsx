@@ -1,9 +1,10 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { focusableIn } from './focusable';
 import { cn } from '../../../lib/cn';
-import { usePresence } from './usePresence';
+import PresencePortal from './PresencePortal';
+import { transitionMs, useCloseUnlessLeaving } from './usePresence';
+import { HISTORY_KEY, isSheetHistoryEntry } from './sheetHistory';
 
 export type SheetSide = 'left' | 'bottom';
 
@@ -26,17 +27,17 @@ interface SheetProps {
 /** Насколько стянуть шторку вниз, чтобы она закрылась, px */
 const PULL_TO_CLOSE = 80;
 
-/**
- * Модальная панель: слева («Все фильтры» на десктопе) или шторкой снизу (телефон).
- * Кнопку «Назад» телефона не перехватывает — это решает страница. Замеры — market-docs/45.
- */
-/** Уход, мс — как duration-200 у классов ниже; появление — duration-300 (market-docs/48) */
-const LEAVE_MS = 200;
+const MOTION = { enterMs: 300, leaveMs: 200 };
 
+let openSheets = 0;
+
+/** Модальная панель: слева или шторкой снизу; «Назад» телефона её закрывает (market-docs/45, 54) */
 export default function Sheet(props: SheetProps) {
-  const { rendered, shown, leaving } = usePresence(props.open, LEAVE_MS);
-  if (!rendered) return null;
-  return createPortal(<SheetPanel {...props} shown={shown} leaving={leaving} />, document.body);
+  return (
+    <PresencePortal open={props.open} motion={MOTION}>
+      {({ shown, leaving }) => <SheetPanel {...props} shown={shown} leaving={leaving} />}
+    </PresencePortal>
+  );
 }
 
 interface SheetPanelProps extends SheetProps {
@@ -59,8 +60,7 @@ function SheetPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const pull = useRef<{ startY: number; dy: number } | null>(null);
-  // Место под полосу прокрутки занято всегда (scroll-thin); вычитаем его из правого отступа,
-  // чтобы край содержимого совпал с футером. На Windows ~10 px, на Mac с наложенной полосой — 0
+  // Полоса прокрутки (scroll-thin) занимает место справа — вычитаем из отступа (market-docs/48)
   const bodyRef = useRef<HTMLDivElement>(null);
   const [gutter, setGutter] = useState(0);
   useLayoutEffect(() => {
@@ -68,18 +68,8 @@ function SheetPanel({
     if (body) setGutter(body.offsetWidth - body.clientWidth);
   }, []);
   const isBottom = side === 'bottom';
-
-  // Пока уезжает, повторное закрытие не зовём
-  const leavingRef = useRef(leaving);
-  const onCloseRef = useRef(() => {
-    if (!leavingRef.current) onClose();
-  });
-  useLayoutEffect(() => {
-    leavingRef.current = leaving;
-    onCloseRef.current = () => {
-      if (!leavingRef.current) onClose();
-    };
-  });
+  const padX = isBottom ? 16 : 32;
+  const onCloseRef = useCloseUnlessLeaving(onClose, leaving);
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -100,7 +90,25 @@ function SheetPanel({
       root.style.overflow = previousOverflow;
       opener?.focus({ preventScroll: true });
     };
-  }, []);
+  }, [onCloseRef]);
+
+  // Своя запись в истории: «Назад» снимает её и закрывает шторку, а не уводит со страницы
+  useEffect(() => {
+    openSheets += 1;
+    if (!isSheetHistoryEntry()) {
+      window.history.pushState({ ...window.history.state, [HISTORY_KEY]: true }, '');
+    }
+    const handlePop = () => onCloseRef.current();
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      openSheets -= 1;
+      window.removeEventListener('popstate', handlePop);
+      // Отложено: при повторном монтировании (StrictMode) запись остаётся за новой шторкой
+      setTimeout(() => {
+        if (openSheets === 0 && isSheetHistoryEntry()) window.history.back();
+      });
+    };
+  }, [onCloseRef]);
 
   const trapTab = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Tab' || !panelRef.current) return;
@@ -126,7 +134,7 @@ function SheetPanel({
     if (!panel) return;
     panel.style.transform = dy > 0 ? `translateY(${dy}px)` : '';
     // Пока тянут пальцем — без перехода, иначе шторка отстаёт от пальца
-    panel.style.transition = dy > 0 ? 'none' : '';
+    panel.style.transitionProperty = dy > 0 ? 'none' : '';
   };
 
   const startPull = (event: PointerEvent<HTMLDivElement>) => {
@@ -157,9 +165,10 @@ function SheetPanel({
         className={cn(
           // Затемнение и размытие «стекло» (макеты 08–09.10)
           'absolute inset-0 bg-ink/40 backdrop-blur transition-opacity motion-reduce:transition-none',
-          leaving ? 'duration-200 ease-in' : 'duration-300 ease-out',
+          leaving ? 'ease-in' : 'ease-out',
           shown ? 'opacity-100' : 'opacity-0',
         )}
+        style={transitionMs(MOTION, leaving)}
       />
       <div
         ref={panelRef}
@@ -171,7 +180,7 @@ function SheetPanel({
         className={cn(
           'absolute flex flex-col bg-surface outline-none',
           'transition-transform motion-reduce:transition-none',
-          leaving ? 'duration-200 ease-in' : 'duration-300 ease-out',
+          leaving ? 'ease-in' : 'ease-out',
           isBottom
             ? cn(
                 'inset-x-0 bottom-0 max-h-[90vh] rounded-t-card',
@@ -183,6 +192,7 @@ function SheetPanel({
               ),
           className,
         )}
+        style={transitionMs(MOTION, leaving)}
       >
         {isBottom && (
           <div
@@ -220,9 +230,9 @@ function SheetPanel({
             // overflow-x-hidden: бегунок ползунка в крайнем положении выходит на полкружка за край
             'scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain',
             headerDivider ? 'pt-6' : 'pt-2',
-            isBottom ? 'pb-6 pl-4' : 'pb-6 pl-8',
+            'pb-6',
           )}
-          style={{ paddingRight: Math.max(0, (isBottom ? 16 : 32) - gutter) }}
+          style={{ paddingLeft: padX, paddingRight: Math.max(0, padX - gutter) }}
         >
           {children}
         </div>

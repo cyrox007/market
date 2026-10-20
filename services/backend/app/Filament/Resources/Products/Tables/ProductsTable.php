@@ -26,6 +26,7 @@ use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
@@ -352,7 +353,7 @@ class ProductsTable
                 'lg' => 3,
             ])
             ->filtersFormWidth(Width::SevenExtraLarge)
-            ->filtersFormMaxHeight('75vh')
+            ->filtersLayout(FiltersLayout::Modal)
             ->defaultSort('updated_at', 'desc')
             ->recordActions([
                 EditAction::make(),

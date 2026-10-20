@@ -1,7 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { Button } from '../../../../components/ui/primitives';
 import { toCatalogSearch, type CatalogQuery } from '../../../../lib/catalog-query';
-import PageLinks from './PageLinks';
+import PageLinks from '../../../../components/catalog/PageLinks';
 
 interface CatalogPaginationProps {
   query: CatalogQuery;

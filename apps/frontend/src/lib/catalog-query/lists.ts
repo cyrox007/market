@@ -2,6 +2,9 @@ import { LIST_KEYS, type ListKey } from './types';
 
 const ATTR_PREFIX = 'attr_';
 
+/** По алфавиту: порядок отметок не меняет адрес */
+const sorted = (values: string[]) => [...values].sort();
+
 /** Принимает и «a,b», и повтор ключа; без пустых и повторов */
 function readValues(params: URLSearchParams, name: string): string[] {
   const values = params.getAll(name).flatMap((v) => v.split(','));
@@ -27,12 +30,13 @@ export function readAttributes(params: URLSearchParams): Record<string, string[]
 export function writeLists(params: URLSearchParams, lists: Record<ListKey, string[]>): void {
   for (const [field, name] of Object.entries(LIST_KEYS)) {
     const values = lists[field as ListKey];
-    if (values.length) params.set(name, values.join(','));
+    if (values.length) params.set(name, sorted(values).join(','));
   }
 }
 
 export function writeAttributes(params: URLSearchParams, attributes: Record<string, string[]>) {
-  for (const [slug, values] of Object.entries(attributes)) {
-    if (values.length) params.set(`${ATTR_PREFIX}${slug}`, values.join(','));
+  for (const slug of sorted(Object.keys(attributes))) {
+    const values = attributes[slug];
+    if (values.length) params.set(`${ATTR_PREFIX}${slug}`, sorted(values).join(','));
   }
 }

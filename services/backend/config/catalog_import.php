@@ -11,10 +11,10 @@ return [
     | Порядок записей определяет порядок отображения в списке.
     |
     */
-    'importers' => [
-        \App\Services\Catalog\Integrations\Svetofor1CCatalogImport::class,
+    'importers' => array_values(array_filter([
+        env('SVETOFOR_1C_LEGACY_CATALOG_SYNC_ENABLED', false) ? \App\Services\Catalog\Integrations\Svetofor1CCatalogImport::class : null,
         \App\Services\Catalog\Integrations\OpenCartXlsxCatalogImport::class,
-    ],
+    ])),
 
     /*
     |--------------------------------------------------------------------------
@@ -29,6 +29,7 @@ return [
 
     'config' => [
         'svetofor_1c' => [
+            'legacy_catalog_sync_enabled' => (bool) env('SVETOFOR_1C_LEGACY_CATALOG_SYNC_ENABLED', false),
             'base_url' => env('SVETOFOR_CATALOG_API_BASE_URL', 'http://api.svetofor-mebel.ru'),
             'api_key' => env('SVETOFOR_CATALOG_API_KEY', ''),
             'timeout' => (int) env('SVETOFOR_CATALOG_API_TIMEOUT', 60),

@@ -13,3 +13,6 @@ export function toCatalogSearch(query: CatalogQuery): string {
   if (query.page > 1) params.set('page', String(query.page));
   return params.toString();
 }
+
+/** Выбор без страницы: одинаковые фильтры и сортировка — одна подпись */
+export const filtersSignature = (query: CatalogQuery) => toCatalogSearch({ ...query, page: 1 });

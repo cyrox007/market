@@ -2,16 +2,18 @@ import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Category } from '../../../lib/api';
 import { resetFilters, type CatalogScope } from '../../../lib/catalog-query';
-import { PAGE_CONTAINER } from '../../../lib/layout';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import CatalogHeader, { ProductCount } from './CatalogHeader';
+import { BELOW_MD, PAGE_CONTAINER } from '../../../lib/layout';
+import { scrollToTop } from '../../../lib/motion';
+import { useMediaMatch } from '../../../hooks/useMediaQuery';
+import CatalogHeader from './CatalogHeader';
+import ProductCount from '../../../components/catalog/ProductCount';
 import CategoryDescription from '../components/CategoryDescription';
 import FilterChips from './chips/FilterChips';
 import { countProductsIn } from './countProducts';
 import AllFiltersPanel from './all-filters/AllFiltersPanel';
 import EmptyResults from './empty/EmptyResults';
 import CatalogPagination from './pagination/CatalogPagination';
-import ProductGrid from './ProductGrid';
+import ProductGrid from '../../../components/catalog/ProductGrid';
 import CatalogToolbar from './toolbar/CatalogToolbar';
 import { useCatalogListing, type CatalogListingOptions } from './useCatalogListing';
 import { useUrlCatalogQuery } from './useUrlCatalogQuery';
@@ -35,9 +37,11 @@ export default function CatalogListing({
   const [query, setQuery] = useUrlCatalogQuery();
   const listing = useCatalogListing({ scope, query, onQueryChange: setQuery, initial });
   const shownTotal = listing.isLoading ? null : listing.total;
+  // Пока новый список не пришёл, на экране прежний — его число для «Показать N» уже неверно
+  const settledTotal = listing.isLoading || listing.isRefreshing ? null : listing.total;
   const countProducts = useMemo(() => countProductsIn(scope), [scope]);
-  // Один раз на странице: панель создаётся при каждом открытии, а хук в первом кадре даёт false
-  const compact = useMediaQuery('(max-width: 979.98px)');
+  // Один раз на странице: панель создаётся при каждом открытии; null — ширина ещё неизвестна
+  const compact = useMediaMatch(BELOW_MD);
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
   // Новое открытие — новый экземпляр панели со свежим черновиком
   const [allFiltersSession, setAllFiltersSession] = useState(0);
@@ -50,8 +54,7 @@ export default function CatalogListing({
   const openPage = useCallback(
     (page: number) => {
       goToPage(page);
-      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      scrollToTop();
     },
     [goToPage],
   );
@@ -66,7 +69,12 @@ export default function CatalogListing({
       <div
         className={`${PAGE_CONTAINER} pb-16 pt-6 max-md:pb-12 max-md:pt-5 max-vsm:pb-10 max-vsm:pt-4`}
       >
-        <CatalogHeader category={category} title={displayName} total={shownTotal} />
+        <CatalogHeader
+          category={category}
+          title={displayName}
+          total={shownTotal}
+          inCatalog={scope.scope !== 'room'}
+        />
 
         {category?.children && category.children.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2 md:gap-3">
@@ -90,7 +98,7 @@ export default function CatalogListing({
             query={query}
             onQueryChange={setQuery}
             meta={listing.filtersMeta}
-            total={listing.total}
+            total={settledTotal}
             countProducts={countProducts}
             onOpenAllFilters={openAllFilters}
           />
@@ -111,12 +119,12 @@ export default function CatalogListing({
         <AllFiltersPanel
           key={allFiltersSession}
           open={allFiltersOpen}
-          compact={compact}
+          compact={compact === true}
           query={query}
           onQueryChange={setQuery}
           onClose={() => setAllFiltersOpen(false)}
           meta={listing.filtersMeta}
-          total={listing.total}
+          total={settledTotal}
           countProducts={countProducts}
           subcategories={subcategories}
         />
@@ -127,6 +135,7 @@ export default function CatalogListing({
               query={query}
               sectionTotal={category?.products_count || null}
               onReset={() => setQuery(resetFilters(query))}
+              onFirstPage={() => setQuery({ ...query, page: 1 })}
             />
           ) : (
             <ProductGrid

@@ -1,8 +1,9 @@
 import type { Category, Product } from '../../../lib/api';
 import { PAGE_CONTAINER } from '../../../lib/layout';
-import CategoryBreadcrumbs from './CategoryBreadcrumbs';
+import CategoryBreadcrumbs from '../../../components/catalog/CategoryBreadcrumbs';
 import CategoryDescription from './CategoryDescription';
 import CategoryTiles from './CategoryTiles';
+import EmptyState from '../../../components/catalog/EmptyState';
 import ProductCardConnected from '../../../components/ui/ProductCardConnected';
 import ProductCardSkeleton from '../../../components/ui/ProductCardSkeleton';
 
@@ -20,7 +21,8 @@ export default function CategoryLandingV2({
   onPrefetchCategory,
 }: CategoryLandingV2Props) {
   const children = category.children ?? [];
-  const sectionName = category.name.toLocaleLowerCase('ru-RU');
+  // Название раздела не склоняем: «Популярные хранение» (market-docs/50)
+  const popularTitle = category.popular_title?.trim() || 'Популярные товары';
 
   return (
     <main className="bg-surface">
@@ -42,7 +44,7 @@ export default function CategoryLandingV2({
 
         <section className="mt-11 max-md:mt-10 max-vsm:mt-8">
           <h2 className="mb-7 font-display text-32 font-bold leading-none text-ink max-md:mb-6 max-vsm:mb-4 max-vsm:text-24">
-            Популярные {sectionName}
+            {popularTitle}
           </h2>
 
           {isLoadingProducts ? (
@@ -59,9 +61,11 @@ export default function CategoryLandingV2({
               ))}
             </div>
           ) : (
-            <div className="rounded-card bg-surface-grey px-6 py-10 text-center text-16 text-ink-secondary max-vsm:px-4 max-vsm:py-8 max-vsm:text-14">
-              В этой категории пока нет товаров.
-            </div>
+            // Тот же блок, что при пустой выдаче по фильтрам (market-docs/50)
+            <EmptyState
+              title="В этой категории пока нет товаров"
+              hint={children.length ? 'Посмотрите подкатегории выше.' : undefined}
+            />
           )}
         </section>
 

@@ -1,16 +1,15 @@
 import type { Category } from '../../../lib/api';
-import { plural } from '../../../lib/plural';
-import { formatNumber } from '../../../components/ui/primitives/digits';
-import CategoryBreadcrumbs from '../components/CategoryBreadcrumbs';
+import CategoryBreadcrumbs from '../../../components/catalog/CategoryBreadcrumbs';
+import ProductCount from '../../../components/catalog/ProductCount';
 
 interface CatalogHeaderProps {
   category: Category | null;
   title: string;
   /** null — ещё не загружено */
   total: number | null;
+  /** false — комната: «Главная › Гостиная», без «Каталога» */
+  inCatalog?: boolean;
 }
-
-const PRODUCTS = ['товар', 'товара', 'товаров'] as const;
 
 /** Родители из category.parent: API отдаёт цепочку вложенными объектами */
 function parentTrail(category: Category | null) {
@@ -21,10 +20,15 @@ function parentTrail(category: Category | null) {
   return trail;
 }
 
-export default function CatalogHeader({ category, title, total }: CatalogHeaderProps) {
+export default function CatalogHeader({
+  category,
+  title,
+  total,
+  inCatalog = true,
+}: CatalogHeaderProps) {
   return (
     <header>
-      <CategoryBreadcrumbs name={title} trail={parentTrail(category)} />
+      <CategoryBreadcrumbs name={title} trail={parentTrail(category)} inCatalog={inCatalog} />
       {/* Ниже 980 заголовка на макетах нет — остаётся для поисковиков и экранного диктора */}
       <div className="mt-7 flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:mt-0">
         <h1 className="text-24 font-bold text-ink max-md:sr-only">
@@ -34,15 +38,5 @@ export default function CatalogHeader({ category, title, total }: CatalogHeaderP
         <ProductCount total={total} className="font-medium md:text-14 max-md:hidden" />
       </div>
     </header>
-  );
-}
-
-/** «226 товаров»; null — ещё не загружено */
-export function ProductCount({ total, className }: { total: number | null; className?: string }) {
-  if (total === null) return null;
-  return (
-    <span className={`text-16 text-ink-secondary max-vsm:text-14 ${className ?? ''}`}>
-      {formatNumber(total)} {plural(total, PRODUCTS)}
-    </span>
   );
 }
