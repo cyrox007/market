@@ -1,10 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
-import { focusableIn } from './focusable';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 import PresencePortal from './PresencePortal';
 import { transitionMs, useCloseUnlessLeaving } from './usePresence';
-import { HISTORY_KEY, isSheetHistoryEntry } from './sheetHistory';
+import { useDialog } from './useDialog';
 
 /** center — окно посередине; его выбирает Modal по ширине экрана */
 export type SheetSide = 'left' | 'bottom' | 'center';
@@ -29,8 +28,6 @@ interface SheetProps {
 const PULL_TO_CLOSE = 80;
 
 const MOTION = { enterMs: 300, leaveMs: 200 };
-
-let openSheets = 0;
 
 /** Модальная панель: слева или шторкой снизу; «Назад» телефона её закрывает (market-docs/45, 54) */
 export default function Sheet(props: SheetProps) {
@@ -73,63 +70,7 @@ function SheetPanel({
   const padX = isBottom ? 16 : isCenter ? 24 : 32;
   const onCloseRef = useCloseUnlessLeaving(onClose, leaving);
 
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus({ preventScroll: true });
-
-    // overflow на <html>, не position: fixed на body — тот увёл бы липкую шапку за экран
-    const root = document.documentElement;
-    const previousOverflow = root.style.overflow;
-    root.style.overflow = 'hidden';
-
-    const handleKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current();
-    };
-    document.addEventListener('keydown', handleKey);
-
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      root.style.overflow = previousOverflow;
-      opener?.focus({ preventScroll: true });
-    };
-  }, [onCloseRef]);
-
-  // Своя запись в истории: «Назад» снимает её и закрывает шторку, а не уводит со страницы
-  useEffect(() => {
-    openSheets += 1;
-    if (!isSheetHistoryEntry()) {
-      window.history.pushState({ ...window.history.state, [HISTORY_KEY]: true }, '');
-    }
-    const handlePop = () => onCloseRef.current();
-    window.addEventListener('popstate', handlePop);
-    return () => {
-      openSheets -= 1;
-      window.removeEventListener('popstate', handlePop);
-      // Отложено: при повторном монтировании (StrictMode) запись остаётся за новой шторкой
-      setTimeout(() => {
-        if (openSheets === 0 && isSheetHistoryEntry()) window.history.back();
-      });
-    };
-  }, [onCloseRef]);
-
-  const trapTab = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab' || !panelRef.current) return;
-    const items = focusableIn(panelRef.current);
-    if (items.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    const first = items[0];
-    const last = items[items.length - 1];
-    const active = document.activeElement;
-    if (event.shiftKey && (active === first || active === panelRef.current)) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && (active === last || active === panelRef.current)) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
+  const trapTab = useDialog(panelRef, onCloseRef);
 
   const setPull = (dy: number) => {
     const panel = panelRef.current;

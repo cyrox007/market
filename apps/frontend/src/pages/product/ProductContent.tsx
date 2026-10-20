@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import ProductGallery from '../../components/product/ProductGallery';
+import { prefersReducedMotion } from '../../lib/motion';
 import type { Product, ProductDetail } from '../../lib/api';
-import BuyPanel from './components/BuyPanel';
+import { useRegion } from '../../hooks/useRegion';
+import BuyBlock from './components/BuyBlock';
+import DeliveryInfo from './components/DeliveryInfo';
+import Gallery from './components/Gallery';
+import PhotoViewer from './components/PhotoViewer';
 import ProductBreadcrumbs from './components/ProductBreadcrumbs';
-import ProductSummary from './components/ProductSummary';
 import ProductTabs, { PRODUCT_DETAILS_ID, type ProductTabId } from './components/ProductTabs';
 import RelatedProducts from './components/RelatedProducts';
 import WishlistCompareButtons from './components/WishlistCompareButtons';
+import { useDeliveryQuote } from './hooks/useDeliveryQuote';
 import { useProductCartActions } from './hooks/useProductCartActions';
 import { useVariantSelection } from './hooks/useVariantSelection';
 import {
@@ -24,21 +28,23 @@ interface Props {
 /** Страница одного товара; на другой товар — новый экземпляр (key), состояние не переносится */
 export default function ProductContent({ product, related, isRefreshing }: Props) {
   const variants = useVariantSelection(product);
-  const { selectedVariant, matchedVariant } = variants;
+  const { selectedVariant } = variants;
   const cart = useProductCartActions({
     product,
-    matchedVariant,
     selectedVariant,
     cartAttributes: variants.cartAttributes,
   });
+  const { locality, region } = useRegion();
+  const city = locality?.name ?? region?.name ?? null;
+  const delivery = useDeliveryQuote(product, selectedVariant, cart.quantity);
 
   const hasDescription = productHasAnyDescription(product);
   const [tab, setTab] = useState<ProductTabId>(hasDescription ? 'description' : 'specs');
   const activeTab = !hasDescription && tab === 'description' ? 'specs' : tab;
 
   // Фото варианта, если они есть; иначе — товара
-  const images = matchedVariant?.images?.length
-    ? matchedVariant.images
+  const images = selectedVariant?.images?.length
+    ? selectedVariant.images
     : product.images?.length
       ? product.images
       : product.image_hd
@@ -47,6 +53,7 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           ? [product.image]
           : [];
   const [image, setImage] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [prevVariantId, setPrevVariantId] = useState(selectedVariant?.id);
   if (prevVariantId !== selectedVariant?.id) {
     setPrevVariantId(selectedVariant?.id);
@@ -68,11 +75,11 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           (product as { specification_names?: Record<string, string> }).specification_names,
         );
 
-  const goToDetails = () => {
-    setTab(hasDescription ? 'description' : 'specs');
+  // Вкладка «Отзывы» появится в задаче 08; пока — к блоку описания
+  const goToReviews = () => {
     document
       .getElementById(PRODUCT_DETAILS_ID)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      ?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
   };
 
   return (
@@ -80,35 +87,42 @@ export default function ProductContent({ product, related, isRefreshing }: Props
       <div className="max-w-[1280px] mx-auto px-4 py-6">
         <ProductBreadcrumbs product={product} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 mb-12">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex flex-col flex-1 w-full md:max-w-[500px] order-1 md:order-2 min-w-0">
-              <ProductGallery
-                images={images}
-                productName={product.name ?? 'Товар'}
-                selectedIndex={image}
-                onSelectIndex={setImage}
-              />
-              <WishlistCompareButtons product={product} matchedVariant={matchedVariant} />
-            </div>
-
-            <ProductSummary
-              product={product}
-              selectedVariant={selectedVariant}
-              attributes={variants.attributes}
-              onSelectValue={variants.selectValue}
-              disabled={isRefreshing}
-              hasDescription={hasDescription}
-              onGoToDetails={goToDetails}
+        <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_441.5px]">
+          <div className="min-w-0">
+            <Gallery
+              images={images}
+              productName={product.name ?? 'Товар'}
+              selectedIndex={image}
+              onSelectIndex={setImage}
+              onOpen={(i) => {
+                setImage(i);
+                setViewerOpen(true);
+              }}
+            />
+            <PhotoViewer
+              open={viewerOpen}
+              images={images}
+              productName={product.name ?? 'Товар'}
+              index={image}
+              onIndexChange={setImage}
+              onClose={() => setViewerOpen(false)}
             />
           </div>
 
-          <BuyPanel
+          <BuyBlock
             product={product}
             selectedVariant={selectedVariant}
-            sku={matchedVariant?.sku || product.sku}
-            isAvailable={variants.isAvailable}
+            attributes={variants.attributes}
+            onSelectValue={variants.selectValue}
+            disabled={isRefreshing}
+            city={city}
             cart={cart}
+            onGoToReviews={goToReviews}
+            onOneClick={() => {}}
+            delivery={<DeliveryInfo city={city} {...delivery} />}
+            titleActions={
+              <WishlistCompareButtons product={product} matchedVariant={selectedVariant} />
+            }
           />
         </div>
 

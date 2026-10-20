@@ -88,6 +88,24 @@ export interface CustomerLocality {
   kladrCode?: string | null;
 }
 
+/** Ответ `POST /shipping/quote` — то, что нужно странице товара (market-docs/frontend-fulfillment-contract.md) */
+export interface ReadyRange {
+  days_min: number;
+  days_max: number;
+  date_min?: string;
+  date_max?: string;
+  /** «Сегодня» / «Завтра» — бэк ставит только при точном сроке 0 / 1 */
+  label?: string | null;
+}
+
+export interface ShippingQuote {
+  /** false — доставки нет, самовывоз при этом может быть */
+  available: boolean;
+  selected: { delivery: ReadyRange } | null;
+  options: { delivery: ReadyRange }[];
+  pickup: { ready: ReadyRange }[];
+}
+
 export const api = {
   localities: {
     search: (q: string, signal?: AbortSignal) =>
@@ -151,6 +169,16 @@ export const api = {
       floor?: number;
     }) =>
       fetchAPI('/shipping/shipping-methods/calculate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    /** Сроки по складам: доставка и самовывоз (market-docs/frontend-fulfillment-contract.md) */
+    quote: (data: {
+      directory_external_id: string;
+      region_id?: number;
+      items: { product_id: number; variant_id?: number; quantity: number }[];
+    }) =>
+      fetchAPI<ShippingQuote>('/shipping/quote', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

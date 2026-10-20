@@ -1,5 +1,6 @@
 import { ArrowLeftRight, Heart } from 'lucide-react';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import { cn } from '../../../lib/cn';
 import {
   productIdForCompare,
   productIdForWishlist,
@@ -11,6 +12,10 @@ interface Props {
   matchedVariant: ProductVariant | null;
 }
 
+const ICON =
+  'rounded-badge transition-[color,transform] duration-200 hover:text-brand-green active:scale-90 motion-reduce:transition-none';
+
+/** «Сравнить» и «Избранное» у названия (Figma 669:43401) */
 export default function WishlistCompareButtons({ product, matchedVariant }: Props) {
   const { wishlistProductIds, compareProductIds, toggleWishlist, toggleCompare } =
     useWishlistAndCompare();
@@ -23,29 +28,17 @@ export default function WishlistCompareButtons({ product, matchedVariant }: Prop
       ? (matchedVariant?.id ?? product.variants?.[0]?.id ?? product.id)
       : product.id;
 
+  // Тексты — как у карточки каталога, они же подпись для читалки
+  const compareLabel = isInCompare ? 'Удалить из сравнения' : 'Добавить в сравнение';
+  const favoriteLabel = isInWishlist ? 'Удалить из избранного' : 'Добавить в избранное';
+
   return (
-    <div className="flex items-center gap-2 mt-2">
+    <div className="flex shrink-0 items-center gap-4 py-0.5">
       <button
-        onClick={async () => {
-          try {
-            await toggleWishlist(targetId);
-          } catch (error) {
-            console.error('Failed to toggle wishlist:', error);
-          }
-        }}
-        className={`flex-1 flex items-center justify-center gap-2 border-2 rounded-lg py-2.5 cursor-pointer transition-colors ${
-          isInWishlist
-            ? 'border-red-600 bg-red-50'
-            : 'border-gray-300 hover:border-red-600 hover:bg-red-50'
-        }`}
-      >
-        <Heart
-          className="size-[1em] text-xl text-red-600"
-          fill={isInWishlist ? 'currentColor' : 'none'}
-        />
-        <span className="text-sm font-medium">{isInWishlist ? 'В избранном' : 'В избранное'}</span>
-      </button>
-      <button
+        type="button"
+        aria-label={compareLabel}
+        aria-pressed={isInCompare}
+        title={compareLabel}
         onClick={async () => {
           try {
             await toggleCompare(targetId);
@@ -56,16 +49,25 @@ export default function WishlistCompareButtons({ product, matchedVariant }: Prop
             }
           }
         }}
-        className={`flex-1 flex items-center justify-center gap-2 border-2 rounded-lg py-2.5 cursor-pointer transition-colors ${
-          isInCompare
-            ? 'border-red-600 bg-red-50'
-            : 'border-gray-300 hover:border-red-600 hover:bg-red-50'
-        }`}
+        className={cn(ICON, isInCompare ? 'text-brand-green' : 'text-ink')}
       >
-        <ArrowLeftRight
-          className={`size-[1em] text-xl ${isInCompare ? 'text-red-600' : 'text-gray-700'}`}
-        />
-        <span className="text-sm font-medium">{isInCompare ? 'В сравнении' : 'Сравнить'}</span>
+        <ArrowLeftRight className="size-6" />
+      </button>
+      <button
+        type="button"
+        aria-label={favoriteLabel}
+        aria-pressed={isInWishlist}
+        title={favoriteLabel}
+        onClick={async () => {
+          try {
+            await toggleWishlist(targetId);
+          } catch (error) {
+            console.error('Failed to toggle wishlist:', error);
+          }
+        }}
+        className={cn(ICON, isInWishlist ? 'text-brand-red' : 'text-ink')}
+      >
+        <Heart className="size-6" fill={isInWishlist ? 'currentColor' : 'none'} />
       </button>
     </div>
   );
