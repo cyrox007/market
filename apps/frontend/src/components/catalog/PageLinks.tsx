@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { cn } from '../../../../lib/cn';
+import { cn } from '../../lib/cn';
 import { pageNumbers } from './pageNumbers';
 
 interface PageLinksProps {

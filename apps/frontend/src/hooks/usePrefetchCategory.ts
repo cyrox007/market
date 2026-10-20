@@ -3,7 +3,7 @@ import { mutate } from 'swr';
 import { api } from '../lib/api';
 import { setCategoryFragmentFromCategory } from '../lib/category-fragment-cache';
 import { parseCatalogQuery, type CatalogScope } from '../lib/catalog-query';
-import { preloadCatalogPage } from '../pages/catalog-category/listing/preloadPage';
+import { preloadCatalogPage } from '../lib/catalog-listing/preloadPage';
 import { useRegion } from './useRegion';
 
 /**

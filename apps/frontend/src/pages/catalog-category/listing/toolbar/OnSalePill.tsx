@@ -1,5 +1,5 @@
 import { SwitchTrack } from '../../../../components/ui/primitives';
-import FilterPill from './FilterPill';
+import FilterPill from '../../../../components/catalog/FilterPill';
 
 interface OnSalePillProps {
   checked: boolean;

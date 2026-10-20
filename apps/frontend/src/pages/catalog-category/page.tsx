@@ -4,7 +4,7 @@ import CategoryLandingV2 from './components/CategoryLandingV2';
 import CatalogListing from './listing/CatalogListing';
 import CatalogPageSkeleton from './components/CatalogPageSkeleton';
 import { pageView } from './pageView';
-import { preloadCatalogPage } from './listing/preloadPage';
+import { preloadCatalogPage } from '../../lib/catalog-listing/preloadPage';
 import { useUrlCatalogQuery } from './listing/useUrlCatalogQuery';
 import { getCategoryFragment } from '../../lib/category-fragment-cache';
 import { useCatalogCategory } from './hooks/useCatalogCategory';
@@ -32,14 +32,20 @@ export default function CatalogCategory() {
   usePageSeo(seo);
 
   const view = pageView({ slug, category, isRooms, notFound });
-  // Лендинг — только у родительских категорий с подкатегориями
-  const isLanding = view === 'landing';
-  const landing = useLandingProducts(isLanding && slug ? slug : null, region?.id);
-
   const scope = useMemo<CatalogScope>(
     () => ({ scope: isRooms ? 'room' : 'category', slug: slug ?? '', regionId: region?.id }),
     [isRooms, slug, region?.id],
   );
+
+  const ssrListing = ssrData?.category;
+  const initial =
+    ssrListing?.products && ssrListing.productsParams
+      ? { params: ssrListing.productsParams, response: ssrListing.products }
+      : null;
+
+  // Лендинг — только у родительских категорий с подкатегориями
+  const isLanding = view === 'landing';
+  const landing = useLandingProducts(isLanding && slug ? scope : null, initial);
 
   // Пока раздел грузится, товары — параллельно: у конечного раздела список возьмёт их из кэша
   const [query] = useUrlCatalogQuery();
@@ -47,12 +53,6 @@ export default function CatalogCategory() {
   useEffect(() => {
     if (loading) preloadCatalogPage(scope, query);
   }, [loading, scope, query]);
-
-  const ssrListing = ssrData?.category;
-  const initial =
-    ssrListing?.products && ssrListing.productsParams
-      ? { params: ssrListing.productsParams, response: ssrListing.products }
-      : null;
 
   if (view === 'notFound') {
     return (
@@ -66,7 +66,12 @@ export default function CatalogCategory() {
 
   // Название — только из фрагментного кэша: displayName до ответа — «Каталог» или прежний раздел
   if (view === 'loading') {
-    return <CatalogPageSkeleton name={slug ? getCategoryFragment(slug)?.name : undefined} />;
+    return (
+      <CatalogPageSkeleton
+        name={slug ? getCategoryFragment(slug)?.name : undefined}
+        inCatalog={!isRooms}
+      />
+    );
   }
 
   if (isLanding && category) {

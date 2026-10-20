@@ -17,16 +17,12 @@ interface AllFiltersPanelProps {
   /** Закрыть: и после «Показать», и без применения */
   onClose: () => void;
   meta: FiltersMeta | null;
-  total: number;
+  total: number | null;
   countProducts: (query: CatalogQuery) => Promise<number>;
   subcategories: CheckboxOption[];
 }
 
-/**
- * «Все фильтры» (market-docs/44, 48): от 980 — панель слева 400, ниже — шторка снизу
- * (планшет — две колонки). Закрытие без «Показать» — выбор отменён. Каждое открытие — новый
- * экземпляр (key у страницы): выбор начинается с применённых фильтров.
- */
+/** «Все фильтры»: закрытие без «Показать» отменяет выбор (market-docs/44, 48) */
 export default function AllFiltersPanel({
   open,
   compact,

@@ -83,4 +83,44 @@ describe('CategoryLandingV2', () => {
     expect(await screen.findByRole('button', { name: 'Увеличить количество' })).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
   });
+
+  it('без товаров — общий блок «пусто» с заголовком, подсказка ведёт в подкатегории', () => {
+    const withChildren = {
+      ...category,
+      children: [{ id: 2, name: 'Прямые', slug: 'pryamye' }],
+    } as unknown as Category;
+    render(<CategoryLandingV2 category={withChildren} products={[]} isLoadingProducts={false} />, {
+      wrapper,
+    });
+
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'В этой категории пока нет товаров' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Посмотрите подкатегории выше.')).toBeInTheDocument();
+  });
+
+  it('заголовок популярных — из popular_title, без него — «Популярные товары»', () => {
+    const { unmount } = render(
+      <CategoryLandingV2
+        category={{ ...category, popular_title: 'Популярные системы хранения' } as Category}
+        products={[]}
+        isLoadingProducts={false}
+      />,
+      { wrapper },
+    );
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Популярные системы хранения' }),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(
+      <CategoryLandingV2
+        category={{ ...category, popular_title: '  ' } as Category}
+        products={[]}
+        isLoadingProducts={false}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'Популярные товары' })).toBeInTheDocument();
+  });
 });

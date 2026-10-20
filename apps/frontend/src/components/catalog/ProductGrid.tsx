@@ -1,8 +1,8 @@
-import type { Product } from '../../../lib/api';
-import { CATALOG_PER_PAGE } from '../../../lib/catalog-query';
-import { cn } from '../../../lib/cn';
-import ProductCardConnected from '../../../components/ui/ProductCardConnected';
-import ProductCardSkeleton from '../../../components/ui/ProductCardSkeleton';
+import type { Product } from '../../lib/api';
+import { CATALOG_PER_PAGE } from '../../lib/catalog-query';
+import { cn } from '../../lib/cn';
+import ProductCardConnected from '../ui/ProductCardConnected';
+import ProductCardSkeleton from '../ui/ProductCardSkeleton';
 
 interface ProductGridProps {
   products: Product[];

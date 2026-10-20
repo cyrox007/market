@@ -7,14 +7,19 @@ import {
   type ProductListResponse,
 } from '../../../lib/api';
 import {
+  filtersSignature,
   toApiParams,
-  toCatalogSearch,
   type CatalogQuery,
   type CatalogScope,
 } from '../../../lib/catalog-query';
 import { normalizeListProduct } from '../../../utils/cartProduct';
 import { resolvePageRange, type PageRange } from './pageRange';
-import { pageKey, sectionOf, type LoadedPage, type PageKey } from './pageKey';
+import {
+  pageKey,
+  sectionOf,
+  type LoadedPage,
+  type PageKey,
+} from '../../../lib/catalog-listing/pageKey';
 import { sameParams } from './sameParams';
 
 export interface CatalogListingOptions {
@@ -36,10 +41,7 @@ export function useCatalogListing({
   initial,
 }: CatalogListingOptions) {
   const base = useMemo(() => toApiParams(query, scope), [query, scope]);
-  const filters = useMemo(
-    () => JSON.stringify([scope, toCatalogSearch({ ...query, page: 1 })]),
-    [scope, query],
-  );
+  const filters = useMemo(() => JSON.stringify([scope, filtersSignature(query)]), [scope, query]);
 
   const section = sectionOf(scope);
   const [appending, setAppending] = useState<number | null>(null);

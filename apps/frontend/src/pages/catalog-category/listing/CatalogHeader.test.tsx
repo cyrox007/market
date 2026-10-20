@@ -42,4 +42,15 @@ describe('верх списка', () => {
     );
     expect(screen.queryByText(/товар/)).not.toBeInTheDocument();
   });
+
+  it('комната — без шага «Каталог»: «Главная › Гостиная»', () => {
+    const room = { id: 19, name: 'Гостиная', slug: 'gostinaya' } as unknown as Category;
+    render(
+      <MemoryRouter>
+        <CatalogHeader category={room} title="Гостиная" total={65} inCatalog={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('link', { name: 'Каталог' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Главная' })).toBeInTheDocument();
+  });
 });

@@ -1,18 +1,24 @@
 import { PAGE_CONTAINER } from '../../../lib/layout';
 import ProductCardSkeleton from '../../../components/ui/ProductCardSkeleton';
-import CategoryBreadcrumbs from './CategoryBreadcrumbs';
+import CategoryBreadcrumbs from '../../../components/catalog/CategoryBreadcrumbs';
 
 const BAR = 'animate-pulse rounded bg-surface-grey motion-reduce:animate-none';
 
 /** Раздел ещё не загружен: лендинг это или список — неизвестно, поэтому нейтральная заглушка */
-export default function CatalogPageSkeleton({ name }: { name?: string }) {
+export default function CatalogPageSkeleton({
+  name,
+  inCatalog = true,
+}: {
+  name?: string;
+  inCatalog?: boolean;
+}) {
   return (
     <main className="bg-surface" aria-busy>
       <div
         className={`${PAGE_CONTAINER} pb-16 pt-6 max-md:pb-12 max-md:pt-5 max-vsm:pb-10 max-vsm:pt-4`}
       >
         {name ? (
-          <CategoryBreadcrumbs name={name} />
+          <CategoryBreadcrumbs name={name} inCatalog={inCatalog} />
         ) : (
           <div className={`${BAR} h-4 w-56 max-vsm:h-3.5`} />
         )}

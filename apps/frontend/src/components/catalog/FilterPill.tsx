@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { cn } from '../../../../lib/cn';
+import { cn } from '../../lib/cn';
 
 interface FilterPillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: Ref<HTMLButtonElement>;

@@ -1,6 +1,6 @@
 import { RangeInputs } from '../../../../components/ui/primitives';
-import type { CatalogQuery, Range } from '../../../../lib/catalog-query';
-import type { Bounds, DimensionKey } from './availability';
+import type { CatalogQuery, DimensionKey, Range } from '../../../../lib/catalog-query';
+import type { Bounds } from './availability';
 
 interface DimensionFieldsProps {
   dimensions: { key: DimensionKey; title: string; bounds: Bounds }[];

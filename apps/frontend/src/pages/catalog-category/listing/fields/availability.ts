@@ -1,13 +1,16 @@
 import type { FiltersMeta } from '../../../../lib/api';
-import { manufacturerOptions, type CatalogQuery, type Range } from '../../../../lib/catalog-query';
+import {
+  manufacturerOptions,
+  type CatalogQuery,
+  type DimensionKey,
+  type Range,
+} from '../../../../lib/catalog-query';
 
-export const DIMENSIONS = [
+export const DIMENSIONS: readonly { key: DimensionKey; title: string }[] = [
   { key: 'width', title: 'Ширина' },
   { key: 'depth', title: 'Глубина' },
   { key: 'height', title: 'Высота' },
-] as const;
-
-export type DimensionKey = (typeof DIMENSIONS)[number]['key'];
+];
 export type Bounds = { min: number; max: number };
 
 const isSet = (r: Range) => r.min !== undefined || r.max !== undefined;

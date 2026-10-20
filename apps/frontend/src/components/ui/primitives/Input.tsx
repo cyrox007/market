@@ -9,10 +9,7 @@ export type InputTone = 'grey' | 'white' | 'outline';
 interface InputOwnProps {
   inputSize?: InputSize;
   shape?: InputShape;
-  /**
-   * Тон подложки: серая как в шапке, белая как в формах,
-   * `outline` — белая с заметной рамкой, как поля «от / до» в фильтрах (market-docs/45)
-   */
+  /** Подложка: серая (шапка), белая (формы), `outline` — поля «от / до» (market-docs/45) */
   tone?: InputTone;
   leftIcon?: ReactNode;
   /** Слот справа внутри поля — кнопка отправки, счётчик, крестик очистки */

@@ -1,7 +1,5 @@
 import { DEFAULT_SORT, type CatalogSort } from './types';
 
-const SORTS: readonly CatalogSort[] = ['popular', 'rating', 'cheap', 'expensive'];
-
 /** Старые ссылки: sort=<поле API>&order=asc|desc */
 function readLegacySort(field: string, order: string | null): CatalogSort | null {
   if (field !== 'price') return null;
@@ -14,6 +12,8 @@ export const SORT_TO_API: Record<CatalogSort, { sort_by: string; sort_order: 'as
   cheap: { sort_by: 'price', sort_order: 'asc' },
   expensive: { sort_by: 'price', sort_order: 'desc' },
 };
+
+const SORTS = Object.keys(SORT_TO_API) as CatalogSort[];
 
 /** Подписи — в порядке показа в списке сортировки */
 export const CATALOG_SORT_OPTIONS: { value: CatalogSort; label: string }[] = [
@@ -28,4 +28,20 @@ export function readSort(params: URLSearchParams): CatalogSort {
   if (!value) return DEFAULT_SORT;
   if (SORTS.includes(value as CatalogSort)) return value as CatalogSort;
   return readLegacySort(value, params.get('order')) ?? DEFAULT_SORT;
+}
+
+/** Поиск сортирует так же, как каталог: адрес sort=cheap, в API — sort_by / sort_order */
+export function searchSort(params: URLSearchParams) {
+  const sort = readSort(params);
+  return { sort, ...SORT_TO_API[sort] };
+}
+
+/** Адрес поиска с новой сортировкой — с первой страницы */
+export function withSort(params: URLSearchParams, sort: CatalogSort): URLSearchParams {
+  const next = new URLSearchParams(params);
+  next.delete('order');
+  next.delete('page');
+  if (sort === DEFAULT_SORT) next.delete('sort');
+  else next.set('sort', sort);
+  return next;
 }
