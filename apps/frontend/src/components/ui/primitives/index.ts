@@ -34,3 +34,6 @@ export { default as Popover } from './Popover';
 export { default as Sheet } from './Sheet';
 export { isSheetHistoryEntry } from './sheetHistory';
 export type { SheetSide } from './Sheet';
+
+// Страница товара: market-docs/57
+export { default as Modal } from './Modal';

@@ -47,9 +47,9 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           ? [product.image]
           : [];
   const [image, setImage] = useState(0);
-  const [prevSelection, setPrevSelection] = useState(variants.selection);
-  if (prevSelection !== variants.selection) {
-    setPrevSelection(variants.selection);
+  const [prevVariantId, setPrevVariantId] = useState(selectedVariant?.id);
+  if (prevVariantId !== selectedVariant?.id) {
+    setPrevVariantId(selectedVariant?.id);
     setImage(0);
   }
 
@@ -95,10 +95,8 @@ export default function ProductContent({ product, related, isRefreshing }: Props
             <ProductSummary
               product={product}
               selectedVariant={selectedVariant}
-              selection={variants.selection}
-              isValueAvailable={variants.isValueAvailable}
+              attributes={variants.attributes}
               onSelectValue={variants.selectValue}
-              onPickVariant={variants.pickVariant}
               disabled={isRefreshing}
               hasDescription={hasDescription}
               onGoToDetails={goToDetails}

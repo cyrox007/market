@@ -16,6 +16,7 @@ import { QuantityStepper, Price, ColorSwatches } from '../../components/ui/compo
 import { Header, UserActions } from '../../components/layout/Header';
 import { CATALOG_SECTIONS, ROOMS_SECTIONS } from './header-demo-data';
 import FiltersDemo from './filters-demo';
+import ModalDemo from './modal-demo';
 import { cn } from '../../lib/cn';
 
 /**
@@ -664,6 +665,7 @@ export default function UiSandbox() {
           </Section>
 
           <FiltersDemo />
+          <ModalDemo />
         </div>
       </div>
     </div>

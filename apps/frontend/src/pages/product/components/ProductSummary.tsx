@@ -1,15 +1,13 @@
 import { FileText, ListChecks, Star } from 'lucide-react';
-import VariantAttributeSelector from '../../../components/product/VariantAttributeSelector';
-import VariantColorSelector from '../../../components/product/VariantColorSelector';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import type { VariantAttributeView } from '../hooks/useVariantSelection';
+import VariantPicker from './VariantPicker';
 
 interface Props {
   product: ProductDetail;
   selectedVariant: ProductVariant | null;
-  selection: Record<string, string>;
-  isValueAvailable: (attributeSlug: string, valueSlug: string) => boolean;
-  onSelectValue: (attributeSlug: string, valueSlug: string, isDisabledClick?: boolean) => void;
-  onPickVariant: (variantId: number) => void;
+  attributes: VariantAttributeView[];
+  onSelectValue: (attributeSlug: string, valueSlug: string) => void;
   /** Пока перезагружается товар (смена региона) — выбор недоступен */
   disabled: boolean;
   hasDescription: boolean;
@@ -20,10 +18,8 @@ interface Props {
 export default function ProductSummary({
   product,
   selectedVariant,
-  selection,
-  isValueAvailable,
+  attributes,
   onSelectValue,
-  onPickVariant,
   disabled,
   hasDescription,
   onGoToDetails,
@@ -75,32 +71,7 @@ export default function ProductSummary({
         </div>
       </div>
 
-      {product.variation_attributes
-        ?.filter((a) => a.attribute_slug !== 'color' && a.values?.length)
-        .map((attr) => (
-          <VariantAttributeSelector
-            key={attr.attribute_slug}
-            attribute={attr}
-            selectedValues={
-              selectedVariant && selection[attr.attribute_slug]
-                ? new Set([selection[attr.attribute_slug]])
-                : undefined
-            }
-            isValueAvailable={(valueSlug) => isValueAvailable(attr.attribute_slug, valueSlug)}
-            onSelect={(valueSlug, isDisabledClick) =>
-              onSelectValue(attr.attribute_slug, valueSlug, isDisabledClick)
-            }
-            isDisabled={disabled}
-          />
-        ))}
-
-      {product.variants && product.variants.length > 0 && (
-        <VariantColorSelector
-          variants={product.variants}
-          selectedVariantId={selectedVariant?.id ?? null}
-          onSelect={onPickVariant}
-        />
-      )}
+      <VariantPicker attributes={attributes} onSelect={onSelectValue} disabled={disabled} />
 
       <button
         onClick={onGoToDetails}

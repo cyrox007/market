@@ -267,33 +267,29 @@ async function createServer() {
           try {
             // Главная: stale-while-revalidate — следующий пользователь сразу получает кэш, в фоне кэш обновляется
             // Ключи без region_id: бэкенд отдаёт один и тот же список товаров (регион только для корзины), кэш общий для всех
-            const [
-              categoriesResponse,
-              featuredResponse,
-              slidersResponse,
-              interiorIdeasResponse,
-            ] = await Promise.allSettled([
-              withCacheSWR(
-                createCacheKey('/categories', undefined, undefined),
-                () => ssrApi.categories.list(),
-                { ttl: 300 }, // 5 минут для категорий
-              ),
-              withCacheSWR(
-                createCacheKey('/products/featured', undefined, undefined),
-                () => ssrApi.products.featured({ region_id: regionId }),
-                { ttl: 120 }, // 2 минуты для товаров
-              ),
-              withCacheSWR(
-                createCacheKey('/sliders', undefined, undefined),
-                () => ssrApi.sliders.list(),
-                { ttl: 120 },
-              ),
-              withCacheSWR(
-                createCacheKey('/interior-ideas', { page: 1, per_page: 6 }),
-                () => ssrApi.interiorIdeas.list({ page: 1, per_page: 6 }),
-                { ttl: 300 }, // 5 минут для идей интерьера
-              ),
-            ]);
+            const [categoriesResponse, featuredResponse, slidersResponse, interiorIdeasResponse] =
+              await Promise.allSettled([
+                withCacheSWR(
+                  createCacheKey('/categories', undefined, undefined),
+                  () => ssrApi.categories.list(),
+                  { ttl: 300 }, // 5 минут для категорий
+                ),
+                withCacheSWR(
+                  createCacheKey('/products/featured', undefined, undefined),
+                  () => ssrApi.products.featured({ region_id: regionId }),
+                  { ttl: 120 }, // 2 минуты для товаров
+                ),
+                withCacheSWR(
+                  createCacheKey('/sliders', undefined, undefined),
+                  () => ssrApi.sliders.list(),
+                  { ttl: 120 },
+                ),
+                withCacheSWR(
+                  createCacheKey('/interior-ideas', { page: 1, per_page: 6 }),
+                  () => ssrApi.interiorIdeas.list({ page: 1, per_page: 6 }),
+                  { ttl: 300 }, // 5 минут для идей интерьера
+                ),
+              ]);
 
             ssrContext.home = {};
             if (categoriesResponse.status === 'fulfilled') {
@@ -554,10 +550,12 @@ async function createServer() {
 
       // SEO в <head>; нет canonical — адрес страницы (market-docs/55)
       const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
+      // У товара canonical без ?variant — один адрес на все варианты (market-docs/57)
+      const pagePath = ssrContext.product ? req.path : req.originalUrl;
       template = applySeoToHead(
         template,
         ssrContext.seo,
-        `${proto}://${req.get('host')}${req.originalUrl}`,
+        `${proto}://${req.get('host')}${pagePath}`,
       );
 
       // Вставляем рендеренный HTML и initial state
