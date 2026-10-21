@@ -1,5 +1,5 @@
 import type { DimensionKey } from './catalog-query';
-import { toProductListSearch } from './product-list-search';
+import { retryWithoutDirectory, toProductListSearch } from './product-list-search';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
@@ -53,7 +53,26 @@ function productList(endpoint: string, params?: { region_id?: number }) {
 
 export interface CustomerLocality { externalId: string; name: string; label: string; source: string; kladrCode?: string | null }
 
+/** Регион справочника адресов (ГАР) — первый шаг выбора пункта */
+export interface DirectoryRegion { externalId: string; name: string; label: string }
+
 export const api = {
+  /** Справочник адресов: регион, затем пункт внутри него (бэкендер, 21.10) */
+  addressDirectory: {
+    regions: (signal?: AbortSignal) =>
+      fetchAPI<{ data: DirectoryRegion[] }>('/address-directory/regions', { signal }),
+    localities: (
+      params: { parentExternalId: string; q?: string; limit?: number },
+      signal?: AbortSignal,
+    ) => {
+      const query = new URLSearchParams({ parentExternalId: params.parentExternalId });
+      if (params.q) query.append('q', params.q);
+      if (params.limit) query.append('limit', String(params.limit));
+      return fetchAPI<{ data: CustomerLocality[] }>(`/address-directory/localities?${query}`, {
+        signal,
+      });
+    },
+  },
   localities: {
     search: (q: string, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>(`/localities?q=${encodeURIComponent(q)}`, { signal }),
     detect: (latitude: number, longitude: number, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>('/localities/detect', { method: 'POST', body: JSON.stringify({ latitude, longitude }), signal }),
@@ -265,11 +284,16 @@ export const api = {
     tree: () => fetchAPI<{ tree: Category[] }>('/rooms/tree'),
   },
   products: {
-    list: (params?: ProductListParams) =>
-      fetchAPI<ProductListResponse>(`/products?${toProductListSearch(params)}`),
+    /** Справочник адресов ответил 503 — повтор без пункта (market-docs/15) */
+    list: (params: ProductListParams = {}) =>
+      retryWithoutDirectory((p) =>
+        fetchAPI<ProductListResponse>(`/products?${toProductListSearch(p)}`),
+      )(params),
     /** Только число карточек — те же фильтры, без товаров и meta.filters */
-    count: (params?: ProductListParams) =>
-      fetchAPI<{ total: number }>(`/products/count?${toProductListSearch(params)}`),
+    count: (params: ProductListParams = {}) =>
+      retryWithoutDirectory((p) =>
+        fetchAPI<{ total: number }>(`/products/count?${toProductListSearch(p)}`),
+      )(params),
     get: (slug: string, params?: { color?: string; size?: string; region_id?: number }) => {
       const query = new URLSearchParams();
       if (params?.color) query.append('color', params.color);
@@ -309,6 +333,7 @@ export const api = {
         sort_by?: string;
         sort_order?: 'asc' | 'desc';
         region_id?: number;
+        directory_external_id?: string;
       },
     ) => {
       const searchParams = new URLSearchParams();
@@ -318,6 +343,8 @@ export const api = {
       if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
       if (params?.sort_order) searchParams.append('sort_order', params.sort_order);
       if (params?.region_id) searchParams.append('region_id', params.region_id.toString());
+      if (params?.directory_external_id)
+        searchParams.append('directory_external_id', params.directory_external_id);
       return fetchAPI<{
         data: Product[];
         meta: {
@@ -787,6 +814,8 @@ export interface ProductListParams {
   sizes?: string[];
   attributes?: Record<string, string[]>;
   region_id?: number;
+  /** Пункт справочника адресов — покрытие складов и «по расстоянию» */
+  directory_external_id?: string;
   manufacturer_slug?: string;
   /** Ниже — ждут бэкенд (market-docs/44, вопросы 1–3, 6) */
   manufacturers?: string[];

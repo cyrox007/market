@@ -39,6 +39,7 @@ function fakeApi() {
 interface ListingProps {
   query: CatalogQuery;
   scope?: CatalogScope;
+  paused?: boolean;
 }
 
 function renderListing(search: string, options: Partial<CatalogListingOptions> = {}) {
@@ -119,6 +120,25 @@ describe('useCatalogListing', () => {
     const { ids, fetchPage } = renderListing('', { initial });
     await waitFor(() => expect(ids()).toEqual([101, 102]));
     expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('пока выбор пункта не прочитан — не запрашивает; потом один запрос сразу с пунктом', async () => {
+    const { fetchPage, rerender, ids } = renderListing('', { paused: true });
+    await act(() => Promise.resolve());
+    expect(fetchPage).not.toHaveBeenCalled();
+
+    rerender({ query: parseCatalogQuery(''), scope: { ...scope, localityId: 'eacb5f15' }, paused: false });
+    await waitFor(() => expect(ids()).toEqual([101, 102]));
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+    expect(fetchPage).toHaveBeenCalledWith(
+      expect.objectContaining({ directory_external_id: 'eacb5f15' }),
+    );
+  });
+
+  it('пауза не прячет данные серверного рендеринга', () => {
+    const initial = { params: toApiParams(parseCatalogQuery(''), scope), response: pageResponse(1) };
+    const { ids } = renderListing('', { initial, paused: true });
+    expect(ids()).toEqual([101, 102]);
   });
 
   it('при смене фильтров прежний список и фильтры на экране, пока грузится новый', async () => {

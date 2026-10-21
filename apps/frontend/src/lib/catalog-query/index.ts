@@ -12,4 +12,4 @@ export {
   type ChipNames,
   type FilterChip,
 } from './chips';
-export { CATALOG_SORT_OPTIONS, searchSort, SORT_TO_API, withSort } from './sort';
+export { CATALOG_SORT_OPTIONS, catalogSortOptions, searchSort, SORT_TO_API, withSort } from './sort';

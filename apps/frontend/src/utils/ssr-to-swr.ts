@@ -151,6 +151,7 @@ export function getSearchKey(
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
     region_id?: number;
+    directory_external_id?: string;
   },
 ): string {
   const params = new URLSearchParams();
@@ -159,6 +160,8 @@ export function getSearchKey(
   if (options?.sort_by) params.append('sort_by', options.sort_by);
   if (options?.sort_order) params.append('sort_order', options.sort_order);
   if (options?.region_id) params.append('region_id', options.region_id.toString());
+  if (options?.directory_external_id)
+    params.append('directory_external_id', options.directory_external_id);
   return `/api/products/search?${params.toString()}`;
 }
 

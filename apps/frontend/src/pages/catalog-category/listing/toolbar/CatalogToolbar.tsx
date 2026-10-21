@@ -2,7 +2,8 @@ import type { FiltersMeta } from '../../../../lib/api';
 import { cn } from '../../../../lib/cn';
 import {
   activeFilterCount,
-  CATALOG_SORT_OPTIONS,
+  catalogSortOptions,
+  DEFAULT_SORT,
   type CatalogQuery,
 } from '../../../../lib/catalog-query';
 import { useFilterDraft } from '../useFilterDraft';
@@ -24,6 +25,8 @@ export interface CatalogToolbarProps {
   total: number | null;
   countProducts: (query: CatalogQuery) => Promise<number>;
   onOpenAllFilters: () => void;
+  /** Выбран пункт — есть «Сначала ближе» */
+  nearby: boolean;
 }
 
 const DROPDOWNS: Record<BasicFilterKey, { label: string; className: string }> = {
@@ -44,6 +47,7 @@ export default function CatalogToolbar({
   total,
   countProducts,
   onOpenAllFilters,
+  nearby,
 }: CatalogToolbarProps) {
   const draft = useFilterDraft({
     applied: query,
@@ -56,8 +60,9 @@ export default function CatalogToolbar({
 
   const sort = (
     <SortControl
-      options={CATALOG_SORT_OPTIONS}
-      value={query.sort}
+      options={catalogSortOptions(nearby)}
+      // Пункт сбросили — по расстоянию уже не сортируется (toApiParams), показываем как есть
+      value={query.sort === 'nearest' && !nearby ? DEFAULT_SORT : query.sort}
       asSheet={compact === true}
       onChange={(s) => applyNow({ sort: s })}
     />

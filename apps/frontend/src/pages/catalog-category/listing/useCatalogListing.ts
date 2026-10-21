@@ -31,6 +31,8 @@ export interface CatalogListingOptions {
   fetchPage?: (params: ProductListParams) => Promise<ProductListResponse>;
   /** Ответ серверного рендеринга и запрос, которым он получен */
   initial?: { params: ProductListParams; response: ProductListResponse } | null;
+  /** Сохранённый пункт ещё не прочитан — не запрашивать, иначе лишний запрос без него */
+  paused?: boolean;
 }
 
 export function useCatalogListing({
@@ -39,6 +41,7 @@ export function useCatalogListing({
   onQueryChange,
   fetchPage = api.products.list,
   initial,
+  paused = false,
 }: CatalogListingOptions) {
   const base = useMemo(() => toApiParams(query, scope), [query, scope]);
   const filters = useMemo(() => JSON.stringify([scope, filtersSignature(query)]), [scope, query]);
@@ -65,7 +68,10 @@ export function useCatalogListing({
     setSize,
     isValidating,
   } = useSWRInfinite<LoadedPage, Error, (i: number) => PageKey | null>(
-    (i) => (range.from + i > range.to ? null : pageKey(scope, { ...base, page: range.from + i })),
+    (i) =>
+      (paused && !fromServer) || range.from + i > range.to
+        ? null
+        : pageKey(scope, { ...base, page: range.from + i }),
     async ([, pageSection, params]) => ({
       section: pageSection,
       response: await fetchPage(params),

@@ -31,7 +31,7 @@ import ProductGrid from '../../components/catalog/ProductGrid';
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const ssrData = useSSR();
-  const { region } = useRegion();
+  const { region, locality, locationReady } = useRegion();
   // Сортировка ниже 980 — шторкой снизу, как в каталоге
   const compact = useMediaQuery(BELOW_MD);
 
@@ -74,8 +74,16 @@ export default function Search() {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const { sort, sort_by, sort_order } = searchSort(searchParams);
 
-    return { query: q, page, sort, sort_by, sort_order, region_id: region?.id };
-  }, [searchParams, region?.id]);
+    return {
+      query: q,
+      page,
+      sort,
+      sort_by,
+      sort_order,
+      region_id: region?.id,
+      directory_external_id: locality?.externalId,
+    };
+  }, [searchParams, region?.id, locality?.externalId]);
 
   // Используем SWR для загрузки результатов поиска
   const swrKey = searchParamsForSWR
@@ -90,8 +98,9 @@ export default function Search() {
 
   // Всегда передаём ключ SWR при наличии searchParamsForSWR, чтобы кэш обновлялся (revalidateInterval/revalidateOnFocus).
   // При SSR используем fallbackData — данные показываются сразу, SWR ревалидирует в фоне.
+  // Пока сохранённый пункт не прочитан — без запроса (ответ сервера, если есть, уже на экране)
   const { data: searchData, isLoading: isLoadingSearch } = useSWR(
-    swrKey ? swrKey : null,
+    swrKey && (locationReady || shouldUseSSRSearch) ? swrKey : null,
     swrKey
       ? () =>
           api.products.search(searchParamsForSWR!.query, {
@@ -100,6 +109,7 @@ export default function Search() {
             sort_by: searchParamsForSWR!.sort_by,
             sort_order: searchParamsForSWR!.sort_order,
             region_id: searchParamsForSWR!.region_id,
+            directory_external_id: searchParamsForSWR!.directory_external_id,
           })
       : null,
     {
