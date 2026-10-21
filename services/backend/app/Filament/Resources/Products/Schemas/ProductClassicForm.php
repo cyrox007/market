@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Filament\Resources\Products\Attributes\AttributeQuickCreate;
 use App\Models\Product\Attribute;
+use App\Models\Product\AttributeTemplate;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
 use App\Models\Product\ProductDocument;
+use Filament\Actions\Action;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
@@ -14,9 +17,12 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
 use RalphJSmit\Filament\SEO\SEO;
@@ -196,6 +202,8 @@ class ProductClassicForm extends ProductForm
     {
         return Section::make('Характеристики товара')
             ->description('Габариты для фильтров: «Ширина (мм)», «Глубина (мм)», «Высота (мм)» — только числа без «мм». Цвет и торговый размер вариативного товара задавайте у предложений; общие свойства наследуются, если у предложения нет своего значения.')
+            ->key('product_attributes_section')
+            ->headerActions([self::applyAttributeTemplateAction()])
             ->schema([
                 Repeater::make('product_attributes')
                     ->label('Характеристики')
@@ -207,15 +215,11 @@ class ProductClassicForm extends ProductForm
                     ->schema([
                         Select::make('attribute_id')
                             ->label('Характеристика')
-                            ->options(function (?Product $record) {
-                                $query = Attribute::query()->where('slug', '!=', Attribute::SLUG_MANUFACTURER)->orderBy('sort_order')->orderBy('name');
-
-                                if ($record?->is_variable) {
-                                    $query->where('is_use_in_variations', false);
-                                }
-
-                                return $query->pluck('name', 'id');
-                            })
+                            ->options(fn (?Product $record) => Attribute::query()
+                                ->assignableToProduct($record)
+                                ->orderBy('sort_order')
+                                ->orderBy('name')
+                                ->pluck('name', 'id'))
                             ->searchable()
                             ->preload()
                             ->required()
@@ -224,40 +228,8 @@ class ProductClassicForm extends ProductForm
                                 $set('attribute_value_id', null);
                                 $set('custom_value', null);
                             })
-                            ->createOptionForm([
-                                TextInput::make('name')->label('Название')->required()->maxLength(255),
-                                Select::make('type')
-                                    ->label('Тип')
-                                    ->options([
-                                        'text' => 'Текст',
-                                        'select' => 'Список',
-                                        'color' => 'Цвет',
-                                        'number' => 'Число',
-                                    ])
-                                    ->default('text')
-                                    ->required(),
-                                Toggle::make('is_use_in_variations')->label('Участвует в вариациях')->default(false),
-                                Toggle::make('is_filterable')->label('Показывать в фильтрах')->default(false),
-                                Toggle::make('is_multiple')->label('Множественный выбор')->default(false),
-                                Toggle::make('allow_custom_value')->label('Разрешить ручной ввод')->default(false),
-                            ])
-                            ->createOptionUsing(function (array $data) {
-                                $slug = Str::slug($data['name']);
-                                $base = $slug;
-                                $i = 2;
-                                while (Attribute::where('slug', $slug)->exists()) {
-                                    $slug = $base . '-' . $i++;
-                                }
-                                return Attribute::create([
-                                    'name' => $data['name'],
-                                    'slug' => $slug,
-                                    'type' => $data['type'] ?? 'text',
-                                    'is_use_in_variations' => (bool) ($data['is_use_in_variations'] ?? false),
-                                    'is_filterable' => (bool) ($data['is_filterable'] ?? false),
-                                    'is_multiple' => (bool) ($data['is_multiple'] ?? false),
-                                    'allow_custom_value' => (bool) ($data['allow_custom_value'] ?? false),
-                                ])->id;
-                            }),
+                            ->createOptionForm(AttributeQuickCreate::form())
+                            ->createOptionUsing(fn (array $data) => AttributeQuickCreate::create($data)),
 
                         Select::make('attribute_value_id')
                             ->label('Значение')
@@ -333,5 +305,47 @@ class ProductClassicForm extends ProductForm
             ])
             ->collapsible()
             ->collapsed(false);
+    }
+
+    protected static function applyAttributeTemplateAction(): Action
+    {
+        return Action::make('applyAttributeTemplate')
+            ->label('Применить шаблон')
+            ->icon('heroicon-o-queue-list')
+            ->color('gray')
+            ->modalHeading('Применить шаблон характеристик')
+            ->modalSubmitActionLabel('Добавить характеристики')
+            ->schema([
+                Select::make('template_id')
+                    ->label('Шаблон')
+                    ->hiddenLabel()
+                    ->placeholder('Шаблон')
+                    ->options(fn () => AttributeTemplate::query()->orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->required(),
+            ])
+            ->action(function (array $data, Get $get, Set $set, ?Product $record): void {
+                $rows = $get('product_attributes') ?? [];
+                $template = AttributeTemplate::query()->findOrFail($data['template_id']);
+                $template->increment('applied_count');
+                $attributeIds = $template->attributeIdsToAdd(array_column($rows, 'attribute_id'), $record);
+
+                foreach ($attributeIds as $attributeId) {
+                    $rows[(string) Str::uuid()] = [
+                        'attribute_id' => $attributeId,
+                        'attribute_value_id' => null,
+                        'custom_value' => null,
+                    ];
+                }
+
+                $set('product_attributes', $rows);
+
+                Notification::make()
+                    ->title($attributeIds === []
+                        ? 'Все характеристики шаблона уже есть у товара'
+                        : 'Добавлено характеристик: ' . count($attributeIds))
+                    ->success()
+                    ->send();
+            });
     }
 }
