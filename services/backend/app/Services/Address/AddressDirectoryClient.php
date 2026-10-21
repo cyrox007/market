@@ -6,6 +6,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Illuminate\Validation\ValidationException;
 
 class AddressDirectoryClient
 {
@@ -28,11 +29,19 @@ class AddressDirectoryClient
             throw new RuntimeException('Unsupported directory level');
         }
 
+        $cacheKey = 'address-directory:options:'.sha1($level.':'.json_encode($query));
         $items = Cache::remember(
-            'address-directory:options:'.sha1($level.':'.json_encode($query)),
+            $cacheKey,
             min(300, (int) config('address_directory.cache_ttl')),
-            fn (): array => $this->get(rtrim(config('address_directory.directory_path'), '/').'/'.$level, $query)
+            fn (): array => $this->get(rtrim(config('address_directory.directory_path'), '/').'/'.$level, $query,
+                invalidSelectionField: isset($query['parentExternalId']) ? 'parentExternalId' : null)
         );
+
+        // Houses are arriving incrementally: an empty result is not stable
+        // absence and must not conceal a newly transferred building for 5 minutes.
+        if ($level === 'buildings' && $items === []) {
+            Cache::forget($cacheKey);
+        }
 
         if ($level !== 'localities') {
             return $items;
@@ -113,7 +122,7 @@ class AddressDirectoryClient
                 '{externalId}',
                 rawurlencode($externalId),
                 config('address_directory.hierarchy_path')
-            ))
+            ), invalidSelectionField: 'directory_external_id')
         );
     }
 
@@ -126,7 +135,7 @@ class AddressDirectoryClient
             ->retry(1, 150, throw: false);
     }
 
-    private function get(string $path, array $query = [], bool $unwrap = true): array
+    private function get(string $path, array $query = [], bool $unwrap = true, ?string $invalidSelectionField = null): array
     {
         try {
             $response = $this->request()->get($path, $query);
@@ -134,6 +143,9 @@ class AddressDirectoryClient
             throw new RuntimeException('Address directory connection failed', previous: $error);
         }
 
+        if ($invalidSelectionField !== null && in_array($response->status(), [400, 404, 422], true)) {
+            throw ValidationException::withMessages([$invalidSelectionField => 'Адрес не найден или больше недоступен. Выберите пункт из справочника заново.']);
+        }
         if (! $response->successful()) {
             throw new RuntimeException("Address directory unavailable: HTTP {$response->status()}");
         }

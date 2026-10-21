@@ -7,9 +7,26 @@ use App\Services\Address\AddressDirectoryClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
+use Illuminate\Validation\ValidationException;
 
 class AddressDirectoryController extends Controller
 {
+    public function detect(Request $request, AddressDirectoryClient $directory): JsonResponse
+    {
+        $input = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+        try {
+            // Candidates only. Browser coordinates are not persisted or used to
+            // silently select a settlement on behalf of the customer.
+            return response()->json($directory->nearby((float) $input['latitude'], (float) $input['longitude']));
+        } catch (\RuntimeException $error) {
+            report($error);
+            return response()->json(['message' => 'Адресный справочник временно недоступен.'], 503);
+        }
+    }
+
     public function status(AddressDirectoryClient $directory): JsonResponse
     {
         try {
@@ -25,6 +42,8 @@ class AddressDirectoryController extends Controller
         abort_unless(preg_match('/^(?:\d{13,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i', $externalId), 422);
         try {
             return response()->json(['data' => $directory->hierarchy($externalId)]);
+        } catch (ValidationException $error) {
+            throw $error;
         } catch (Throwable $error) {
             report($error);
             return response()->json(['message' => 'Не удалось получить адрес из справочника.'], 503);
@@ -43,6 +62,8 @@ class AddressDirectoryController extends Controller
         }
         try {
             return response()->json(['data' => $directory->options($level, array_filter($query, fn ($v) => $v !== null && $v !== ''))]);
+        } catch (ValidationException $error) {
+            throw $error;
         } catch (Throwable $error) {
             report($error);
             return response()->json(['message' => 'Адресный справочник временно недоступен. Попробуйте ещё раз.'], 503);

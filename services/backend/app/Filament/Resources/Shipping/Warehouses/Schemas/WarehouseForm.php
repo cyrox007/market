@@ -32,13 +32,14 @@ class WarehouseForm
                             TextInput::make('name')
                                 ->label('Название склада')
                                 ->required()
-                                ->maxLength(255),
+                                ->maxLength(255)
+                                ->helperText('Обязательно. Название источника товаров для сотрудников и вариантов доставки.'),
 
                             TextInput::make('external_id')
                                 ->label('Внешний ID склада (1С, stockId)')
                                 ->maxLength(36)
                                 ->unique(ignoreRecord: true)
-                                ->helperText('Для склада из 1С. Для ручного источника будет создан автоматически.'),
+                                ->helperText('Необязательно для ручного создания: ID появится автоматически. Для склада из 1С используйте его stockId; изменение нарушит сопоставление остатков.'),
 
                             Select::make('source_type')
                                 ->label('Тип источника')
@@ -49,14 +50,16 @@ class WarehouseForm
                                 ])
                                 ->default('physical')
                                 ->live()
-                                ->required(),
+                                ->required()
+                                ->helperText('Обязательно. Собственный склад хранит товары; фабрика или поставщик могут обеспечивать товары под заказ.'),
 
                             Select::make('manufacturer_id')
                                 ->label('Производитель')
                                 ->relationship('manufacturer', 'name')
                                 ->searchable()
                                 ->preload()
-                                ->visible(fn ($get) => $get('source_type') === 'manufacturer'),
+                                ->visible(fn ($get) => $get('source_type') === 'manufacturer')
+                                ->helperText('Необязательно. Связывает источник с производителем каталога; само по себе не создаёт остатки и условия доставки.'),
 
                             Select::make('stock_mode')
                                 ->label('Как учитывать товары')
@@ -65,13 +68,15 @@ class WarehouseForm
                                     'availability' => 'Доступность под заказ',
                                 ])
                                 ->default('quantity')
-                                ->required(),
+                                ->required()
+                                ->helperText('Обязательно. Фактические остатки — количество товара на складе. Под заказ — признак доступности и срок подготовки у источника.'),
 
                             Toggle::make('is_active')
                                 ->label('Активен')
-                                ->default(true),
+                                ->default(true)
+                                ->helperText('Выключите, чтобы исключить источник из новых расчётов. Существующие заказы не удаляются.'),
                             Toggle::make('pickup_enabled')->label('Разрешить самовывоз со склада')->default(false)
-                                ->helperText('Для физического склада с фактическими остатками. Связанный магазин настраивает выдачу отдельно.'),
+                                ->helperText('Необязательно, по умолчанию выключено. Разрешает выдачу с физического склада с фактическими остатками. Самовывоз через связанный магазин настраивается отдельно.'),
                         ])
                         ->columns(2),
 
@@ -89,6 +94,7 @@ class WarehouseForm
                                 ])->columnSpanFull(),
                             \App\Filament\Forms\DirectorySelectLoading::apply(Select::make('directory_region'), 'регионы')
                                 ->label('1. Регион')->searchable()->live()->dehydrated(false)
+                                ->helperText('Шаг выбора адреса: сначала выберите регион, затем населённый пункт. При смене региона нижние поля сбрасываются.')
                                 ->visible(fn (Get $get): bool => blank($get('physical_site_id')))
                                 ->options(fn (): array => app(WarehouseAddressOptions::class)->initial('regions', null))
                                 ->getSearchResultsUsing(fn (string $search): array => app(WarehouseAddressOptions::class)->search('regions', null, $search))
@@ -110,7 +116,7 @@ class WarehouseForm
                                     foreach (['directory_street', 'address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude', 'map_centre'] as $field) {
                                         $set($field, null);
                                     }
-                                })->helperText('Населённые пункты выбранного региона.'),
+                                })->helperText('Нужно для поиска здания. Показаны пункты выбранного региона; для остальных введите начало названия.'),
                             \App\Filament\Forms\DirectorySelectLoading::apply(Select::make('directory_street'), 'улицы', ['directory_locality'])
                                 ->options(fn (Get $get): array => app(WarehouseAddressOptions::class)->initial('streets', $get('directory_locality'), compact: true))
                                 ->visible(fn (Get $get): bool => blank($get('physical_site_id')))
@@ -126,17 +132,19 @@ class WarehouseForm
                                         return $short;
                                     }
                                     $street = collect($record?->address_snapshot['path'] ?? [])->last(fn (array $item): bool => ($item['kind'] ?? null) === 'street' && ($item['externalId'] ?? null) === (string) $value);
+
                                     return filled($street['name'] ?? null) ? trim(($street['type'] ?? 'ул.').' '.$street['name']) : (string) $value;
                                 })
                                 ->afterStateUpdated(function (Set $set): void {
                                     foreach (['address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude'] as $field) {
                                         $set($field, null);
                                     }
-                                })->helperText('Нет улицы — ищите здание без неё.'),
+                                })->helperText('Необязательно, если здание относится прямо к населённому пункту. Иначе выберите улицу, чтобы не перепутать одинаковые номера домов.'),
                             \App\Filament\Forms\DirectorySelectLoading::apply(Select::make('address_external_id'), 'здания', ['directory_locality', 'directory_street'])
                                 ->options(fn (Get $get): array => app(WarehouseAddressOptions::class)->initial('buildings', $get('directory_street') ?: $get('directory_locality'), compact: true))
                                 ->visible(fn (Get $get): bool => blank($get('physical_site_id')))
                                 ->label('4. Дом / корпус / строение')
+                                ->helperText('Обязательно для собственного склада без выбранной площадки. Выберите конкретное здание из справочника. Если его ещё нет в выдаче, адрес не подставляется автоматически.')
                                 ->required(fn ($get) => $get('source_type') === 'physical' && blank($get('physical_site_id')))
                                 ->searchable()
                                 ->live()
@@ -204,27 +212,17 @@ class WarehouseForm
                             \Filament\Forms\Components\ViewField::make('_warehouse_map')->view('filament.forms.warehouse-map')->dehydrated(false)->columnSpanFull(),
                         ])->columns(2),
                     Tab::make('Доставка')->schema([
-                        Section::make('Подготовка заказа')->schema([
-                            TextInput::make('processing_days_min')->label('От')->numeric()->minValue(0)->default(0)->suffix('дн.'),
-                            TextInput::make('processing_days_max')->label('До')->numeric()->minValue(0)->gte('processing_days_min')->default(0)->suffix('дн.'),
+                        Section::make('Подготовка заказа')->description('Время до отправки. При расчёте прибавляется к сроку перевозки из профиля доставки.')->schema([
+                            TextInput::make('processing_days_min')->label('Подготовка от')->numeric()->minValue(0)->default(0)->suffix('дн.')
+                                ->helperText('Необязательно менять: по умолчанию 0 дней. Минимальное время на подготовку товара к отправке.'),
+                            TextInput::make('processing_days_max')->label('Подготовка до')->numeric()->minValue(0)->gte('processing_days_min')->default(0)->suffix('дн.')
+                                ->helperText('Необязательно менять: по умолчанию 0 дней. Максимум не может быть меньше значения «от».'),
                         ])->columns(2),
                         Text::make('Сначала сохраните склад — затем здесь можно будет настроить территории, цены и сроки.')
                             ->visible(fn (?Warehouse $record): bool => ! $record?->exists),
                         Livewire::make(DeliveryProfilesRelationManager::class, fn (?Warehouse $record): array => [
                             'ownerRecord' => $record, 'pageClass' => EditWarehouse::class,
                         ])->key('warehouse-delivery-profiles')->visible(fn (?Warehouse $record): bool => (bool) $record?->exists),
-                        Section::make('Старая привязка к локациям')
-                            ->description('Оставлена временно для совместимости. Новые условия создавайте после сохранения склада во вкладке «Зоны, цены и сроки».')
-                            ->collapsed()
-                            ->schema([
-                                Select::make('shippingLocations')
-                                    ->label('Локации')
-                                    ->relationship('shippingLocations', 'name')
-                                    ->multiple()
-                                    ->searchable()
-                                    ->preload()
-                                    ->helperText('Если склад привязан к родительской локации, он доступен и в дочерних локациях.'),
-                            ]),
                     ]),
                 ]),
 

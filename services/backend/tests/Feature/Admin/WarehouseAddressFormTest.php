@@ -82,10 +82,13 @@ class WarehouseAddressFormTest extends TestCase
             'directory_territories' => [['region_id' => 'region48', 'locality_id' => null]],
             'base_price' => 1500, 'delivery_days_min' => 2, 'delivery_days_max' => 4,
             'priority' => 100, 'is_active' => true, 'price_per_km' => 0,
+            'service_tariffs' => ['requires_assembly' => true, 'assembly_price' => 450, 'assembly_days' => 2],
         ])->assertHasNoTableActionErrors();
         $profile = $warehouse->deliveryProfiles()->firstOrFail();
         $this->assertSame('region48', $profile->directory_territories[0]['externalId']);
         $this->assertSame('1500.00', $profile->base_price);
+        $this->assertSame(450, (int) $profile->service_tariffs['assembly_price']);
+        $this->assertTrue((bool) $profile->service_tariffs['requires_assembly']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), '/address/localities')
             && $request['parentExternalId'] === 'region48');
     }

@@ -16,11 +16,9 @@ use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RaiffeisenCallbackController;
 use App\Http\Controllers\Api\RaiffeisenEcomCallbackController;
-use App\Http\Controllers\Api\RegionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\SberbankCallbackController;
-use App\Http\Controllers\Api\ShippingController;
 use App\Http\Controllers\Api\SliderController;
 use App\Http\Controllers\Api\StockSettingsController;
 use App\Http\Controllers\Api\StoreController;
@@ -40,6 +38,7 @@ use Illuminate\Support\Facades\Route;
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
+    Route::post('/address-directory/detect', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'detect'])->middleware('throttle:address-geo');
     Route::get('/address-directory/status', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'status'])->middleware('throttle:address-read');
     Route::get('/address-directory/hierarchy/{externalId}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'hierarchy'])->middleware('throttle:address-read');
     Route::get('/address-directory/{level}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'index'])
@@ -103,20 +102,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/{slug}', [StoreController::class, 'show']);
     });
 
-    // Regions (public)
-    Route::prefix('localities')->group(function () {
-        Route::get('/regions', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'regions'])->middleware('throttle:address-read');
-        Route::post('/detect', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'detect'])->middleware('throttle:address-geo');
-        Route::get('/', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'index'])->middleware('throttle:address-read');
-        Route::get('/{id}', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'show'])->middleware('throttle:address-read');
-    });
-
-    Route::prefix('regions')->group(function () {
-        Route::get('/', [RegionController::class, 'list']);
-        Route::get('/tree', [RegionController::class, 'tree']);
-        Route::get('/detect', [RegionController::class, 'detect']);
-    });
-
     // Contact (public)
     Route::get('/contact', [ContactController::class, 'show']);
 
@@ -139,15 +124,6 @@ Route::prefix('v1')->group(function () {
     // Shipping (public)
     Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('shipping')->group(function () {
         Route::post('/quote', \App\Http\Controllers\Api\WarehouseDeliveryQuoteController::class)->middleware('api-session');
-        Route::get('/locations', [ShippingController::class, 'getLocations']);
-        Route::get('/locations/tree', [ShippingController::class, 'getLocationTree']);
-        Route::get('/locations/{locationId}', [ShippingController::class, 'getLocationInfo']);
-        Route::get('/delivery-handling-types', [ShippingController::class, 'getDeliveryHandlingTypes']);
-        Route::post('/calculate', [ShippingController::class, 'calculateShipping']);
-        Route::get('/carriers', [ShippingController::class, 'getCarriers']);
-        Route::get('/shipping-methods', [ShippingController::class, 'getShippingMethods']);
-        Route::post('/shipping-methods/calculate', [ShippingController::class, 'calculateShippingMethod']);
-        Route::get('/additional-services', [ShippingController::class, 'getAdditionalServices']);
     });
 
     // Payment Methods (public)

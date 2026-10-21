@@ -68,7 +68,7 @@ class WarehouseDeliveryQuote
         }
         $options = [];
         $warehouses = Warehouse::where('is_active', true)->with([
-            'physicalSite', 'deliveryProfiles' => fn ($query) => $query->active()->with(['locations', 'servicesLocation'])->orderBy('priority')->orderBy('id'),
+            'physicalSite', 'deliveryProfiles' => fn ($query) => $query->active()->with('locations')->orderBy('priority')->orderBy('id'),
             'productStocks' => fn ($query) => $query->whereIn('product_id', array_keys($quantities)),
             'productAvailabilities' => fn ($query) => $query->whereIn('product_id', array_keys($quantities)),
         ])->get();
@@ -105,7 +105,7 @@ class WarehouseDeliveryQuote
                     $price = 0.0;
                 }
                 try {
-                    $services = app(WarehouseServices::class)->calculate($profile->servicesLocation, $selection);
+                    $services = app(WarehouseServices::class)->calculate($profile, $selection);
                 } catch (ValidationException $error) {
                     $serviceErrors = $error;
                     continue;
@@ -117,7 +117,8 @@ class WarehouseDeliveryQuote
                     'profile_fingerprint' => hash('sha256', json_encode($profile->getAttributes())),
                     'warehouse_fingerprint' => hash('sha256', json_encode([$warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes()])),
                     'delivery_cost' => round($price + $services['handling_cost'], 2), 'transport_cost' => $price,
-                    ...$services, 'services_location_id' => $profile->services_location_id,
+                    ...$services,
+                    'service_options' => app(WarehouseServices::class)->options($profile),
                     'total_fulfillment_cost' => round($price + $services['handling_cost'] + $services['assembly_cost'] + $services['additional_services_cost'], 2),
                     'base_price' => (float) $profile->base_price,
                     'free_delivery_threshold' => $profile->free_delivery_threshold === null ? null : (float) $profile->free_delivery_threshold,
