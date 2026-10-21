@@ -58,13 +58,15 @@ export function toProductListSearch(params: ProductListParams = {}): string {
  * а «по расстоянию» без него невозможно: по популярности
  */
 export const retryWithoutDirectory =
-  <T>(fetch: (params: ProductListParams) => Promise<T>) =>
-  async (params: ProductListParams): Promise<T> => {
+  <T, P extends Pick<ProductListParams, 'directory_external_id' | 'sort_by'> = ProductListParams>(
+    fetch: (params: P) => Promise<T>,
+  ) =>
+  async (params: P): Promise<T> => {
     try {
       return await fetch(params);
     } catch (error) {
       if (!params.directory_external_id || (error as { status?: number }).status !== 503) throw error;
       const { directory_external_id: _, ...rest } = params;
-      return fetch(rest.sort_by === 'distance' ? { ...rest, ...SORT_TO_API[DEFAULT_SORT] } : rest);
+      return fetch((rest.sort_by === 'distance' ? { ...rest, ...SORT_TO_API[DEFAULT_SORT] } : rest) as P);
     }
   };

@@ -109,7 +109,7 @@ export default function CatalogListing({
             total={settledTotal}
             countProducts={countProducts}
             onOpenAllFilters={openAllFilters}
-            nearby={Boolean(scope.localityId)}
+            nearby={Boolean(scope.localityId && scope.nearby)}
           />
         </div>
 

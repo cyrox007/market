@@ -14,6 +14,8 @@ export interface CatalogScope {
   regionId?: number;
   /** externalId выбранного пункта справочника: бэк фильтрует по покрытию складов */
   localityId?: string;
+  /** У пункта есть точка — бэк может сортировать по расстоянию (hasSettlementPoint) */
+  nearby?: boolean;
 }
 
 /** Подкатегория — параметрами, которые API уже понимает (market-docs/46); производители — характеристикой */
@@ -22,7 +24,7 @@ export function toApiParams(query: CatalogQuery, scope: CatalogScope): ProductLi
     ...(scope.scope === 'room' ? { room_slug: scope.slug } : { category_slug: scope.slug }),
     page: query.page,
     per_page: CATALOG_PER_PAGE,
-    ...SORT_TO_API[query.sort === 'nearest' && !scope.localityId ? DEFAULT_SORT : query.sort],
+    ...SORT_TO_API[query.sort === 'nearest' && !(scope.localityId && scope.nearby) ? DEFAULT_SORT : query.sort],
   };
   if (scope.regionId) params.region_id = scope.regionId;
   if (scope.localityId) params.directory_external_id = scope.localityId;

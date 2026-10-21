@@ -6,9 +6,12 @@ import { api, type CustomerLocality, type DirectoryRegion } from '../lib/api';
 interface LocationModalProps { isOpen: boolean; onClose: () => void; isFirstVisit?: boolean }
 
 const LOCALITY_LIMIT = 50;
-/** Подпись пункта начинается с подписи региона: «обл. Липецкая, г. Липецк» */
-const regionOf = (locality: CustomerLocality | null, regions: DirectoryRegion[]) =>
-  locality ? regions.find((r) => locality.label === r.label || locality.label.startsWith(`${r.label},`)) ?? null : null;
+/** Регион пункта — regionExternalId из /localities/{id}; у старых сохранённых — по началу подписи */
+const regionOf = (locality: CustomerLocality | null, regions: DirectoryRegion[]) => {
+  if (!locality) return null;
+  const byId = locality.regionExternalId && regions.find((r) => r.externalId === locality.regionExternalId);
+  return byId || (regions.find((r) => locality.label === r.label || locality.label.startsWith(`${r.label},`)) ?? null);
+};
 
 export default function LocationModal({ isOpen, onClose, isFirstVisit = false }: LocationModalProps) {
   const { locality, selectLocality } = useRegion();

@@ -64,6 +64,13 @@ describe('LocationModal locality selection', () => {
     expect(screen.getByText('обл. Липецкая')).toBeInTheDocument();
   });
 
+  it('регион текущего пункта — по regionExternalId из справочника', async () => {
+    saved.locality = { ...city, label: 'Липецк', regionExternalId: lipetskaya.externalId } as typeof city;
+    render(<LocationModal isOpen onClose={vi.fn()} />);
+    expect(await screen.findByRole('button', { name: 'Изменить регион' })).toBeInTheDocument();
+    expect(screen.getByText('обл. Липецкая')).toBeInTheDocument();
+  });
+
   it('регион текущего пункта подставляется сам', async () => {
     saved.locality = city;
     render(<LocationModal isOpen onClose={vi.fn()} />);

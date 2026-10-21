@@ -47,6 +47,8 @@ vi.mock('../../hooks/useRegion', () => ({
   useRegion: () => ({
     region: { id: 1 },
     getRegionId: () => 1,
+    locality: null,
+    locationReady: true,
   }),
 }));
 

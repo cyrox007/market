@@ -14,6 +14,7 @@ import { useRegion } from '../../hooks/useRegion';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
 import type { CatalogScope } from '../../lib/catalog-query';
+import { hasSettlementPoint } from '../../lib/locality-point';
 
 export default function CatalogCategory() {
   // Адрес может быть вложенным (/catalog/gostinaia/gotovye-stenki) — категория в последнем сегменте
@@ -38,8 +39,9 @@ export default function CatalogCategory() {
       slug: slug ?? '',
       regionId: region?.id,
       localityId: locality?.externalId,
+      nearby: hasSettlementPoint(locality),
     }),
-    [isRooms, slug, region?.id, locality?.externalId],
+    [isRooms, slug, region?.id, locality],
   );
 
   const ssrListing = ssrData?.category;

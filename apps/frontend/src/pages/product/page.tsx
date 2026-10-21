@@ -18,6 +18,7 @@ import {
 import { useSSR } from '../../contexts/ssr-context';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { getProductKey } from '../../utils/ssr-to-swr';
+import { useLocationParams } from '../../hooks/useLocationParams';
 import { resolveProductStockBadge } from '../../utils/productUtils';
 import type {
   ProductDetail,
@@ -294,10 +295,10 @@ export default function Product() {
   const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
   const { getRegionId } = useRegion();
   const regionId = getRegionId();
+  const { params: locationParams, ready: locationReady } = useLocationParams();
 
   const [showAllStocks, setShowAllStocks] = useState(false);
 
-  const productKey = slug ? getProductKey(slug, { region_id: regionId ?? undefined }) : null;
 
   const ssrProductPayload =
     hasSSRProduct && initialProduct && initialProduct.slug === slug
@@ -308,15 +309,17 @@ export default function Product() {
           related: ssrData?.product?.related,
         }
       : undefined;
+  const productKey =
+    slug && (locationReady || ssrProductPayload) ? getProductKey(slug, locationParams) : null;
 
   const {
     data: productPayload,
     error: productLoadError,
     isLoading: isProductFetching,
     mutate: mutateProduct,
-  } = useSWR(productKey, () => api.products.get(slug!, { region_id: regionId ?? undefined }), {
+  } = useSWR(productKey, () => api.products.get(slug!, locationParams), {
     fallbackData: ssrProductPayload,
-    revalidateOnMount: !ssrProductPayload,
+    revalidateOnMount: !ssrProductPayload || Boolean(locationParams.directory_external_id),
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
     keepPreviousData: true,

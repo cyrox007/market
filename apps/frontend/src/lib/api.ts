@@ -46,12 +46,35 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
   return response.json();
 }
 
-function productList(endpoint: string, params?: { region_id?: number }) {
-  const suffix = params?.region_id ? `?region_id=${params.region_id}` : '';
-  return fetchAPI<{ data: Product[] }>(`${endpoint}${suffix}`);
+/** Местоположение покупателя: регион цен и пункт справочника для складов (market-docs/44) */
+export interface LocationParams {
+  region_id?: number;
+  directory_external_id?: string;
 }
 
-export interface CustomerLocality { externalId: string; name: string; label: string; source: string; kladrCode?: string | null }
+const locationSearch = (params?: LocationParams, query = new URLSearchParams()) => {
+  if (params?.region_id) query.append('region_id', params.region_id.toString());
+  if (params?.directory_external_id) query.append('directory_external_id', params.directory_external_id);
+  return query.toString() ? `?${query}` : '';
+};
+
+const productList = (endpoint: string, params?: LocationParams) =>
+  retryWithoutDirectory((p: LocationParams) =>
+    fetchAPI<{ data: Product[] }>(`${endpoint}${locationSearch(p)}`),
+  )(params ?? {});
+
+export interface CustomerLocality {
+  externalId: string;
+  name: string;
+  label: string;
+  source: string;
+  kladrCode?: string | null;
+  /** Отдаёт GET /localities/{id}; в поиске справочника нет */
+  regionExternalId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinatePrecision?: string | null;
+}
 
 /** Регион справочника адресов (ГАР) — первый шаг выбора пункта */
 export interface DirectoryRegion { externalId: string; name: string; label: string }
@@ -294,17 +317,16 @@ export const api = {
       retryWithoutDirectory((p) =>
         fetchAPI<{ total: number }>(`/products/count?${toProductListSearch(p)}`),
       )(params),
-    get: (slug: string, params?: { color?: string; size?: string; region_id?: number }) => {
-      const query = new URLSearchParams();
-      if (params?.color) query.append('color', params.color);
-      if (params?.size) query.append('size', params.size);
-      if (params?.region_id) query.append('region_id', params.region_id.toString());
-      const suffix = query.toString() ? `?${query.toString()}` : '';
-      return fetchAPI<ProductPagePayload>(`/products/${slug}${suffix}`);
-    },
-    featured: (params?: { region_id?: number }) => productList('/products/featured', params),
-    new: (params?: { region_id?: number }) => productList('/products/new', params),
-    sale: (params?: { region_id?: number }) => productList('/products/sale', params),
+    get: (slug: string, params?: { color?: string; size?: string } & LocationParams) =>
+      retryWithoutDirectory((p: typeof params = {}) => {
+        const query = new URLSearchParams();
+        if (p.color) query.append('color', p.color);
+        if (p.size) query.append('size', p.size);
+        return fetchAPI<ProductPagePayload>(`/products/${slug}${locationSearch(p, query)}`);
+      })(params ?? {}),
+    featured: (params?: LocationParams) => productList('/products/featured', params),
+    new: (params?: LocationParams) => productList('/products/new', params),
+    sale: (params?: LocationParams) => productList('/products/sale', params),
     collection: (slug: string, params?: { region_id?: number }) => {
       const query = new URLSearchParams();
       if (params?.region_id) query.append('region_id', params.region_id.toString());

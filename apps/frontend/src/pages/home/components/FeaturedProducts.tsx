@@ -2,7 +2,7 @@ import useSWR from 'swr';
 import { api } from '../../../lib/api';
 import { useSSR } from '../../../contexts/ssr-context';
 import ProductCardConnected from '../../../components/ui/ProductCardConnected';
-import { useRegion } from '../../../hooks/useRegion';
+import { useLocationParams } from '../../../hooks/useLocationParams';
 import { getHomeProductsKey } from '../../../utils/ssr-to-swr';
 import { cn } from '../../../lib/cn';
 import { PAGE_CONTAINER } from '../../../lib/layout';
@@ -11,17 +11,18 @@ export default function FeaturedProducts() {
   const ssrData = useSSR();
   const initialFeaturedProducts = ssrData?.home?.featuredProducts || [];
 
-  const { getRegionId } = useRegion();
-  const regionId = getRegionId();
+  const { params, ready } = useLocationParams();
+  const fromServer = initialFeaturedProducts.length > 0;
 
-  // Используем SWR для загрузки данных с fallback из SSR
+  // SSR не знает пункт покупателя: с пунктом ответ сервера перезапрашиваем
   const { data: featuredProductsData, isLoading: isLoadingFeatured } = useSWR(
-    getHomeProductsKey('featured', regionId),
-    () => api.products.featured(regionId ? { region_id: regionId } : undefined),
+    ready || fromServer
+      ? getHomeProductsKey('featured', params.region_id, params.directory_external_id)
+      : null,
+    () => api.products.featured(params),
     {
-      fallbackData:
-        initialFeaturedProducts.length > 0 ? { data: initialFeaturedProducts } : undefined,
-      revalidateOnMount: initialFeaturedProducts.length === 0,
+      fallbackData: fromServer ? { data: initialFeaturedProducts } : undefined,
+      revalidateOnMount: !fromServer || Boolean(params.directory_external_id),
       revalidateIfStale: true,
     },
   );
