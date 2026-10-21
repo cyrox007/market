@@ -29,13 +29,4 @@ export function hasMeaningfulProductText(value: string | null | undefined): bool
   );
 }
 
-/** Описание есть у товара или хотя бы у одного варианта — вкладку не прячем при смене варианта */
-export function productHasAnyDescription(product: ProductDetail): boolean {
-  if (hasMeaningfulProductText(product.description)) return true;
-  return (product.variants ?? []).some(
-    (variant) =>
-      hasMeaningfulProductText(variant.description) || hasMeaningfulProductText(variant.excerpt),
-  );
-}
-
 export const formatPrice = (price: number) => new Intl.NumberFormat('ru-RU').format(price) + ' ₽';

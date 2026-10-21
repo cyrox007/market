@@ -7,17 +7,14 @@ import DeliveryInfo from './components/DeliveryInfo';
 import Gallery from './components/Gallery';
 import PhotoViewer from './components/PhotoViewer';
 import ProductBreadcrumbs from './components/ProductBreadcrumbs';
+import { ReviewsEmpty } from './components/ProductEmptyState';
 import ProductTabs, { PRODUCT_DETAILS_ID, type ProductTabId } from './components/ProductTabs';
 import RelatedProducts from './components/RelatedProducts';
 import WishlistCompareButtons from './components/WishlistCompareButtons';
 import { useDeliveryQuote } from './hooks/useDeliveryQuote';
 import { useProductCartActions } from './hooks/useProductCartActions';
 import { useVariantSelection } from './hooks/useVariantSelection';
-import {
-  getSpecificationsArray,
-  hasMeaningfulProductText,
-  productHasAnyDescription,
-} from './lib/productText';
+import { getSpecificationsArray, hasMeaningfulProductText } from './lib/productText';
 
 interface Props {
   product: ProductDetail;
@@ -38,9 +35,7 @@ export default function ProductContent({ product, related, isRefreshing }: Props
   const city = locality?.name ?? region?.name ?? null;
   const delivery = useDeliveryQuote(product, selectedVariant, cart.quantity);
 
-  const hasDescription = productHasAnyDescription(product);
-  const [tab, setTab] = useState<ProductTabId>(hasDescription ? 'description' : 'specs');
-  const activeTab = !hasDescription && tab === 'description' ? 'specs' : tab;
+  const [tab, setTab] = useState<ProductTabId>('description');
 
   // Фото варианта, если они есть; иначе — товара
   const images = selectedVariant?.images?.length
@@ -75,8 +70,8 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           (product as { specification_names?: Record<string, string> }).specification_names,
         );
 
-  // Вкладка «Отзывы» появится в задаче 08; пока — к блоку описания
   const goToReviews = () => {
+    setTab('reviews');
     document
       .getElementById(PRODUCT_DETAILS_ID)
       ?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -127,11 +122,14 @@ export default function ProductContent({ product, related, isRefreshing }: Props
         </div>
 
         <ProductTabs
-          activeTab={activeTab}
+          activeTab={tab}
           onTabChange={setTab}
-          showDescription={hasDescription}
           description={description}
           specifications={specifications}
+          reviewsCount={product.reviews_count ?? 0}
+          // Список и сводка — задача 10
+          // Окно отзыва — задача 11
+          reviews={!product.reviews_count && <ReviewsEmpty onWriteReview={() => {}} />}
         />
 
         <div className="space-y-16">
