@@ -23,6 +23,7 @@ interface CatalogListingProps {
   displayName: string;
   scope: CatalogScope;
   initial: CatalogListingOptions['initial'];
+  paused: boolean;
   onPrefetchCategory: (slug: string) => void;
 }
 
@@ -32,10 +33,17 @@ export default function CatalogListing({
   displayName,
   scope,
   initial,
+  paused,
   onPrefetchCategory,
 }: CatalogListingProps) {
   const [query, setQuery] = useUrlCatalogQuery();
-  const listing = useCatalogListing({ scope, query, onQueryChange: setQuery, initial });
+  const listing = useCatalogListing({
+    scope,
+    query,
+    onQueryChange: setQuery,
+    initial,
+    paused,
+  });
   const shownTotal = listing.isLoading ? null : listing.total;
   // Пока новый список не пришёл, на экране прежний — его число для «Показать N» уже неверно
   const settledTotal = listing.isLoading || listing.isRefreshing ? null : listing.total;
@@ -101,6 +109,7 @@ export default function CatalogListing({
             total={settledTotal}
             countProducts={countProducts}
             onOpenAllFilters={openAllFilters}
+            nearby={Boolean(scope.localityId && scope.nearby)}
           />
         </div>
 

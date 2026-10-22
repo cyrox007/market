@@ -15,12 +15,14 @@ const LANDING_PRODUCTS = 4;
 export function useLandingProducts(
   scope: CatalogScope | null,
   initial?: { params: ProductListParams; response: ProductListResponse } | null,
+  /** Сохранённый пункт ещё не прочитан — как у списка (useCatalogListing) */
+  paused = false,
 ) {
   const params = useMemo(() => (scope ? toApiParams(parseCatalogQuery(''), scope) : null), [scope]);
   const fromServer = params && initial && sameParams(initial.params, params) ? initial : null;
 
   const { data, isLoading } = useSWR<LoadedPage>(
-    scope && params ? pageKey(scope, params) : null,
+    scope && params && (!paused || fromServer) ? pageKey(scope, params) : null,
     async () => ({ section: sectionOf(scope!), response: await api.products.list(params!) }),
     {
       fallbackData: fromServer

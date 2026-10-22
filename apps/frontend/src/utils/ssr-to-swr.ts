@@ -117,12 +117,13 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
  */
 export function getProductKey(
   slug: string,
-  options?: { color?: string; size?: string; region_id?: number },
+  options?: { color?: string; size?: string; region_id?: number; directory_external_id?: string },
 ): string {
   const params = new URLSearchParams();
   if (options?.color) params.append('color', options.color);
   if (options?.size) params.append('size', options.size);
   if (options?.region_id) params.append('region_id', options.region_id.toString());
+  if (options?.directory_external_id) params.append('directory_external_id', options.directory_external_id);
   const query = params.toString();
   return `/api/products/${slug}${query ? `?${query}` : ''}`;
 }
@@ -151,6 +152,7 @@ export function getSearchKey(
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
     region_id?: number;
+    directory_external_id?: string;
   },
 ): string {
   const params = new URLSearchParams();
@@ -159,12 +161,19 @@ export function getSearchKey(
   if (options?.sort_by) params.append('sort_by', options.sort_by);
   if (options?.sort_order) params.append('sort_order', options.sort_order);
   if (options?.region_id) params.append('region_id', options.region_id.toString());
+  if (options?.directory_external_id)
+    params.append('directory_external_id', options.directory_external_id);
   return `/api/products/search?${params.toString()}`;
 }
 
-export function getHomeProductsKey(type: 'featured' | 'new' | 'sale', regionId?: number): string {
+export function getHomeProductsKey(
+  type: 'featured' | 'new' | 'sale',
+  regionId?: number,
+  localityId?: string,
+): string {
   const params = new URLSearchParams();
   if (regionId) params.append('region_id', String(regionId));
+  if (localityId) params.append('directory_external_id', localityId);
   const query = params.toString();
   return `/api/products/${type}${query ? `?${query}` : ''}`;
 }

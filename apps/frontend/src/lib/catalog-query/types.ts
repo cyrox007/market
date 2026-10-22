@@ -1,4 +1,5 @@
-export type CatalogSort = 'popular' | 'rating' | 'cheap' | 'expensive';
+/** nearest — по расстоянию до складов, только при выбранном пункте */
+export type CatalogSort = 'popular' | 'rating' | 'cheap' | 'expensive' | 'nearest';
 
 export interface Range {
   min?: number;

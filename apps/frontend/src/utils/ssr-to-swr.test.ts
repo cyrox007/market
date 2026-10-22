@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getHomeProductsKey,
+  getProductKey,
   getSearchKey,
   ssrToSwrFallback,
 } from './ssr-to-swr';
@@ -9,6 +10,15 @@ describe('ssr-to-swr utilities', () => {
   it('builds home key with region', () => {
     expect(getHomeProductsKey('featured', 77)).toBe('/api/products/featured?region_id=77');
     expect(getHomeProductsKey('new')).toBe('/api/products/new');
+  });
+
+  it('пункт справочника — в ключах главной и карточки', () => {
+    expect(getHomeProductsKey('featured', 77, 'eacb5f15')).toBe(
+      '/api/products/featured?region_id=77&directory_external_id=eacb5f15',
+    );
+    expect(getProductKey('divan', { region_id: 7, directory_external_id: 'eacb5f15' })).toBe(
+      '/api/products/divan?region_id=7&directory_external_id=eacb5f15',
+    );
   });
 
   it('builds search key with sort and region', () => {

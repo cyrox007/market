@@ -53,6 +53,23 @@ describe('популярные товары лендинга', () => {
     expect(result.current.products.map((p) => p.id)).toEqual([1, 3]);
   });
 
+  it('пока выбор пункта не прочитан — не запрашивает, потом сразу с пунктом', async () => {
+    api.products.list.mockResolvedValue({ data: [product(1)] });
+    const { result, rerender } = renderHook(
+      ({ scope, paused }: { scope: CatalogScope; paused: boolean }) =>
+        useLandingProducts(scope, null, paused),
+      { wrapper, initialProps: { scope: kuhni, paused: true } },
+    );
+    expect(api.products.list).not.toHaveBeenCalled();
+    rerender({ scope: { ...kuhni, localityId: 'eacb5f15' }, paused: false });
+    await waitFor(() => expect(result.current.products).toHaveLength(1));
+    expect(api.products.list).toHaveBeenCalledTimes(1);
+    expect(api.products.list).toHaveBeenCalledWith({
+      ...firstPage,
+      directory_external_id: 'eacb5f15',
+    });
+  });
+
   it('пришли с сервера по тому же запросу — сразу, без запроса', () => {
     const initial = { params: firstPage, response: response(product(8), product(9)) };
     const { result } = renderHook(() => useLandingProducts(kuhni, initial), { wrapper });
