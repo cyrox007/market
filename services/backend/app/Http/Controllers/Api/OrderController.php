@@ -29,6 +29,7 @@ use App\Events\OrderCreated;
 use App\Events\UserAutoRegistered;
 use App\Jobs\CancelUnpaidOrderJob;
 use App\Models\User;
+use App\Models\Settings\PublicAuthSettings;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -322,10 +323,11 @@ class OrderController extends Controller
             $autoRegisteredPassword = null;
 
             if (!$user) {
+                $publicAccess = PublicAuthSettings::current();
                 // Проверяем, существует ли пользователь с таким email
                 $existingUser = User::where('email', $validated['contact_email'])->first();
 
-                if (!$existingUser) {
+                if (!$existingUser && $publicAccess->registration_enabled) {
                     // Телефон уникален: если он уже за другим аккаунтом (иной email) — новому юзеру
                     // не присваиваем (иначе коллизия), но в заказе contact_phone сохраняется и уходит в 1С.
                     $phone = $validated['contact_phone'] ?? null;
@@ -343,7 +345,9 @@ class OrderController extends Controller
                     ]);
 
                     // Автоматически авторизуем пользователя
-                    Auth::login($user);
+                    if ($publicAccess->login_enabled) {
+                        Auth::guard('web')->login($user);
+                    }
                     $autoRegistered = true;
 
                     // Отправляем событие автоматической регистрации
@@ -905,6 +909,7 @@ class OrderController extends Controller
             // Добавляем информацию об автоматической регистрации, если она произошла
             if ($autoRegistered) {
                 $responseData['user_registered'] = true;
+                $responseData['user_authenticated'] = $publicAccess->login_enabled;
                 $responseData['message'] = 'Заказ успешно создан. Для вас автоматически создан аккаунт. Данные для входа отправлены на email.';
             }
 

@@ -16,7 +16,10 @@
 /public/build
 /public/hot
 /public/storage
-/public
+/public/*
+!/public/js/
+/public/js/*
+!/public/js/admin-workspace.js
 /storage/*.key
 /storage/pail
 /storage/media-library
