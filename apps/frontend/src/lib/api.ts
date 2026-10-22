@@ -510,7 +510,7 @@ export const api = {
       password_confirmation: string;
       phone?: string;
     }) =>
-      fetchAPI<{ user: User }>('/auth/register', {
+      fetchAPI<{ user: User; authenticated?: boolean }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

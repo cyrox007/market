@@ -80,7 +80,7 @@ export function AuthProvider({
       phone?: string;
     }) => {
       const response = await api.auth.register(data);
-      setUser(response.user);
+      setUser(response.authenticated === false ? null : response.user);
     },
     [],
   );

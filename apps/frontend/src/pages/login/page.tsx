@@ -4,10 +4,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import { ChevronRight } from 'lucide-react';
+import { usePublicAuthSettings } from '../../hooks/usePublicAuthSettings';
+import PublicAuthNotice from '../../components/auth/PublicAuthNotice';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
+  const access = usePublicAuthSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +34,7 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!access.ready || !access.loginEnabled) return;
     setError(null);
     setIsLoading(true);
 
@@ -43,6 +47,10 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
+  if (access.error) return <PublicAuthNotice title="Не удалось проверить доступность входа. Попробуйте ещё раз." retry={access.reload} />;
+  if (!access.ready) return <PublicAuthNotice title="Проверяем доступность входа…" />;
+  if (!access.loginEnabled) return <PublicAuthNotice title="Вход на сайт временно отключён." />;
 
   return (
     <div className="min-h-screen bg-white">
@@ -106,12 +114,12 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center space-y-2">
-            <p className="text-sm text-gray-600">
+            {access.registrationEnabled && <p className="text-sm text-gray-600">
               Нет аккаунта?{' '}
               <Link to="/register" className="text-red-600 hover:text-red-700 font-medium">
                 Зарегистрироваться
               </Link>
-            </p>
+            </p>}
             <p className="text-sm">
               <Link to="/forgot-password" className="text-gray-600 hover:text-red-600">
                 Забыли пароль?

@@ -45,6 +45,7 @@ Route::prefix('v1')->group(function () {
         ->where('level', 'regions|localities|streets|buildings')->middleware('throttle:address-read');
     // Public routes - auth endpoints require session middleware for cookie-based auth
     Route::middleware(['api-session'])->prefix('auth')->group(function () {
+        Route::get('/settings', \App\Http\Controllers\Api\PublicAuthSettingsController::class)->middleware('throttle:auth-settings');
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-strict');
         Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth-strict');

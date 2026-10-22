@@ -20,7 +20,7 @@ use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\Session\Middleware\StartSession;
+use App\Http\Middleware\StartBlockingSession as StartSession;
 use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use SpyApp\ThemeEdinburgh\ThemeEdinburghPlugin;
@@ -46,6 +46,10 @@ class AdminSvPanelProvider extends PanelProvider
             ->brandLogo(fn () => new HtmlString('Основной экран'))
             ->favicon(asset('favicon.ico').'?v=2')
             ->sidebarCollapsibleOnDesktop()
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.session-recovery')->render(),
+            )
             // В конце body: у Livewire-компонента страницы допустим один корневой элемент
             ->renderHook(
                 PanelsRenderHook::BODY_END,

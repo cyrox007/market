@@ -34,6 +34,9 @@ return [
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
+    // Tolerate sleep / browser suspension during an operator's working day.
+    'operator_lifetime' => (int) env('OPERATOR_SESSION_LIFETIME', 720),
+
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
     /*

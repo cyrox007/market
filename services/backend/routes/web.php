@@ -4,6 +4,15 @@ use App\Http\Controllers\Admin\OrderPrintController;
 use App\Http\Controllers\Api\ApiMetricsController;
 use Illuminate\Support\Facades\Route;
 
+// Read-only heartbeat for an open operator workspace, including idle/background tabs.
+Route::get('/admin_sv/session-status', function (\Illuminate\Http\Request $request) {
+    abort_unless($request->user('web')?->canAccessPanel(\Filament\Facades\Filament::getPanel('admin_sv')), 403);
+    return response()->json([
+        'user_id' => (string) $request->user('web')->getAuthIdentifier(),
+        'csrf_token' => $request->session()->token(),
+    ])->header('Cache-Control', 'no-store, private');
+})->middleware('auth:web')->name('admin.session-status');
+
 Route::get('api-docs/metrics', ApiMetricsController::class)
     ->name('api-docs.metrics');
 
