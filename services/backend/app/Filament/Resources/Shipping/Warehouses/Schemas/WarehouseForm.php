@@ -164,7 +164,10 @@ class WarehouseForm
 
                                     return (string) $value;
                                 })
-                                ->afterStateUpdated(function ($state, Set $set): void {
+                                ->afterStateUpdated(function ($state, Set $set, \Livewire\Component $livewire, Select $component): void {
+                                    if (filled($state)) {
+                                        $livewire->resetValidation($component->getStatePath());
+                                    }
                                     $set('latitude', null);
                                     $set('longitude', null);
                                     $set('gar_guid', $state && preg_match('/^[0-9a-f-]{36}$/i', $state) ? $state : null);
