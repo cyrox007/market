@@ -19,6 +19,16 @@ use Throwable;
  */
 class StartBlockingSession extends StartSession
 {
+    protected function getCookieExpirationDate(): \DateTimeInterface|int
+    {
+        if (! config('session.expire_on_close')
+            && request()->user('web')?->hasAnyRole(['super_admin', 'admin', 'manager', 'editor', 'viewer'])) {
+            return now()->addMinutes(max((int) config('session.lifetime'), (int) config('session.operator_lifetime', 720)));
+        }
+
+        return parent::getCookieExpirationDate();
+    }
+
     /** Запись в сессию длится миллисекунды; ожидание ограничено, чтобы зависший запрос держал соседние недолго. */
     private const WAIT_SECONDS = 3;
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Settings\PublicAuthSettings;
 use App\Rules\PhoneNumberRule;
 use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +66,10 @@ class AuthController extends Controller
      */
     public function register(Request $request): JsonResponse
     {
+        $access = PublicAuthSettings::current();
+        if (! $access->registration_enabled) {
+            return response()->json(['message' => 'Регистрация временно отключена.', 'code' => 'public_registration_disabled'], 403);
+        }
         // Нормализуем до валидации: уникальность и проверка формата — по каноничному виду.
         $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
 
@@ -83,9 +88,12 @@ class AuthController extends Controller
         ]);
 
         // Используем session-based аутентификацию для cookie-based auth
-        Auth::login($user);
+        if ($access->login_enabled) {
+            Auth::guard('web')->login($user);
+        }
 
         return response()->json([
+            'authenticated' => $access->login_enabled,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -136,6 +144,9 @@ class AuthController extends Controller
      */
     public function login(Request $request): JsonResponse
     {
+        if (! PublicAuthSettings::current()->login_enabled) {
+            return response()->json(['message' => 'Вход на сайт временно отключён.', 'code' => 'public_login_disabled'], 403);
+        }
         $validated = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
@@ -151,7 +162,7 @@ class AuthController extends Controller
         }
 
         // Используем session-based аутентификацию для cookie-based auth
-        Auth::login($user);
+        Auth::guard('web')->login($user);
 
         return response()->json([
             'user' => [

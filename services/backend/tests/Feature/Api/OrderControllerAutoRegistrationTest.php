@@ -34,6 +34,33 @@ class OrderControllerAutoRegistrationTest extends TestCase
         ])->assertStatus(201);
     }
 
+    public function test_guest_checkout_does_not_create_account_when_registration_is_disabled(): void
+    {
+        \App\Models\Settings\PublicAuthSettings::current()->update(['registration_enabled' => false]);
+        $product = Product::factory()->create(['state' => 'active', 'price' => 1000, 'stock' => 10, 'backorder' => false]);
+        $this->addProductToCart($product);
+        $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Гость', 'contact_phone' => '+79991234567', 'contact_email' => 'guest-off@example.com',
+            'payment_method' => 'card', 'delivery_type' => 'pickup',
+        ])->assertCreated()->assertJsonMissing(['user_registered' => true]);
+        $this->assertDatabaseMissing('users', ['email' => 'guest-off@example.com']);
+        $this->assertDatabaseHas('orders', ['contact_email' => 'guest-off@example.com', 'user_id' => null]);
+        $this->assertFalse(Auth::check());
+    }
+
+    public function test_guest_auto_registration_does_not_bypass_disabled_login(): void
+    {
+        \App\Models\Settings\PublicAuthSettings::current()->update(['login_enabled' => false]);
+        $product = Product::factory()->create(['state' => 'active', 'price' => 1000, 'stock' => 10, 'backorder' => false]);
+        $this->addProductToCart($product);
+        $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Гость', 'contact_phone' => '+79991234567', 'contact_email' => 'guest-login-off@example.com',
+            'payment_method' => 'card', 'delivery_type' => 'pickup',
+        ])->assertCreated()->assertJsonPath('user_registered', true)->assertJsonPath('user_authenticated', false);
+        $this->assertDatabaseHas('users', ['email' => 'guest-login-off@example.com']);
+        $this->assertFalse(Auth::check());
+    }
+
     public function test_guest_order_creates_user_and_logs_in(): void
     {
         // Создаем почтовые события для теста
