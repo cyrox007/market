@@ -132,6 +132,16 @@ class AttributeTemplatesTest extends TestCase
         $this->assertSame([$material->id], array_map('intval', array_column(array_values($rows), 'attribute_id')));
     }
 
+    public function test_product_attribute_table_has_scoped_dropdown_overflow_override(): void
+    {
+        $product = Product::factory()->create();
+        Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()])
+            ->assertSee('product-attributes-table');
+
+        $css = file_get_contents(resource_path('css/filament/admin_sv/theme.css'));
+        $this->assertMatchesRegularExpression('/\.fi-fo-table-repeater\.product-attributes-table\s*>\s*table\s*\{\s*overflow:\s*visible;\s*\}/', $css);
+    }
+
     private function attribute(string $name, array $overrides = []): Attribute
     {
         return Attribute::query()->create(array_merge([

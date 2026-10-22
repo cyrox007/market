@@ -207,6 +207,7 @@ class ProductClassicForm extends ProductForm
             ->schema([
                 Repeater::make('product_attributes')
                     ->label('Характеристики')
+                    ->extraAttributes(['class' => 'product-attributes-table'])
                     ->table([
                         TableColumn::make('Характеристика')->markAsRequired(),
                         TableColumn::make('Значение'),
