@@ -43,6 +43,29 @@ class CatalogDimensionsFacetsTest extends TestCase
         return $p;
     }
 
+    public function test_attribute_discovery_uses_two_membership_queries_instead_of_union_inside_in(): void
+    {
+        $cat = Category::factory()->create();
+        $simple = $this->root($cat);
+        $parent = $this->root($cat, ['is_variable' => true]);
+        $offer = Product::factory()->create(['parent_product_id' => $parent->id, 'state' => 'active']);
+        $this->value($simple, $this->attr('fabric'), 'cotton');
+        $this->value($offer, $this->attr('mechanism', true), 'book', true);
+        DB::enableQueryLog();
+        try {
+            $response = $this->getJson('/api/v1/products?category_slug='.$cat->slug)->assertOk();
+            $slugs = collect($response->json('meta.filters.attributes'))->pluck('slug')->all();
+            $this->assertContains('fabric', $slugs);
+            $this->assertContains('mechanism', $slugs);
+            $discovery = collect(DB::getQueryLog())->pluck('query')->first(fn ($sql) => str_contains($sql, 'select * from "product_attributes" where ("id" in'));
+            $this->assertNotNull($discovery);
+            $this->assertStringContainsString('or "id" in', $discovery);
+            $this->assertStringNotContainsString('union', strtolower($discovery));
+        } finally {
+            DB::disableQueryLog();
+        }
+    }
+
     public function test_dimensions_use_mm_attributes_not_shipping_columns_and_share_count_logic(): void
     {
         $cat = Category::factory()->create();
