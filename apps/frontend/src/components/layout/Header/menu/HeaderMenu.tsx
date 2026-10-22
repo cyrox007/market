@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { MenuGroup, MenuLink, MenuSection } from '../lib/menu-types';
@@ -25,6 +25,9 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
 
   // Хук, а не CSS: раскладки слишком разные. Мигания нет — меню закрыто до клика
   const isAccordion = useMediaQuery('(max-width: 549.98px)');
+
+  // Панель одна: в колонках — правая, в гармошке — раскрытая под пунктом
+  const panelId = `${useId()}panel`;
 
   const explicit = sections.find((section) => section.id === activeId);
 
@@ -70,7 +73,7 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
                   >
                     {section.label}
                   </span>
-                ) : section.to && !expandable ? (
+                ) : !expandable && section.to ? (
                   <Link
                     to={section.to}
                     onClick={onClose}
@@ -81,30 +84,61 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
                   >
                     {section.label}
                   </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setActiveId(isActive && isAccordion ? '' : section.id)}
-                    aria-expanded={isAccordion ? isActive : undefined}
+                ) : !expandable ? (
+                  <span
                     className={cn(
-                      'flex w-full items-center justify-between gap-2 rounded-btn px-3 py-2 text-left outline-none',
-                      'hover:bg-surface-grey focus-visible:bg-surface-grey',
-                      isActive && !isAccordion && 'bg-surface-grey',
+                      'block rounded-btn px-3 py-2',
                       section.emphasized ? 'text-15 font-semibold text-ink' : 'text-14 text-ink',
                     )}
                   >
                     {section.label}
-                    {isAccordion && isActive ? (
-                      <ChevronDown className="size-4 shrink-0 text-ink-secondary" />
-                    ) : (
-                      <ChevronRight className="size-4 shrink-0 text-ink-secondary" />
+                  </span>
+                ) : (
+                  // Раздел с подразделами: подпись ведёт на сам раздел, шеврон раскрывает.
+                  // В колонках хватает наведения, шеврон остаётся для касания и клавиатуры.
+                  <div
+                    onMouseEnter={() => !isAccordion && setActiveId(section.id)}
+                    className={cn(
+                      'flex items-center rounded-btn hover:bg-surface-grey',
+                      isActive && !isAccordion && 'bg-surface-grey',
+                      section.emphasized ? 'text-15 font-semibold text-ink' : 'text-14 text-ink',
                     )}
-                  </button>
+                  >
+                    {section.to ? (
+                      <Link
+                        to={section.to}
+                        onClick={onClose}
+                        onFocus={() => !isAccordion && setActiveId(section.id)}
+                        className="min-w-0 flex-1 truncate px-3 py-2 outline-none focus-visible:underline"
+                      >
+                        {section.label}
+                      </Link>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate px-3 py-2">{section.label}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveId(isActive && isAccordion ? '' : section.id)}
+                      onFocus={() => !isAccordion && setActiveId(section.id)}
+                      aria-expanded={isActive}
+                      aria-controls={isActive ? panelId : undefined}
+                      aria-label={`Подразделы: ${section.label}`}
+                      className="shrink-0 px-3 py-2 outline-none focus-visible:rounded-btn focus-visible:bg-surface-stroke/[0.08]"
+                    >
+                      {isAccordion && isActive ? (
+                        <ChevronDown className="size-4 text-ink-secondary" />
+                      ) : (
+                        <ChevronRight className="size-4 text-ink-secondary" />
+                      )}
+                    </button>
+                  </div>
                 )}
 
                 {/* В гармошке раздел раскрывается прямо под своим пунктом */}
                 {isAccordion && isActive && section.groups?.length ? (
-                  <MenuPanelGroups groups={section.groups} onNavigate={onClose} inset />
+                  <div id={panelId}>
+                    <MenuPanelGroups groups={section.groups} onNavigate={onClose} inset />
+                  </div>
                 ) : null}
               </li>
             );
@@ -112,9 +146,15 @@ export default function HeaderMenu({ sections, label, onClose, className }: Head
         </ul>
 
         {!isAccordion && active?.groups?.length ? (
-          <div className="min-w-0 flex-1">
+          <div id={panelId} className="min-w-0 flex-1">
             <h2 className="mb-6 text-20 font-semibold text-ink">
-              {active.heading ?? active.label}
+              {active.to ? (
+                <Link to={active.to} onClick={onClose} className="outline-none hover:text-primary">
+                  {active.heading ?? active.label}
+                </Link>
+              ) : (
+                (active.heading ?? active.label)
+              )}
             </h2>
             <MenuPanelGroups groups={active.groups} onNavigate={onClose} />
             {active.promo}
