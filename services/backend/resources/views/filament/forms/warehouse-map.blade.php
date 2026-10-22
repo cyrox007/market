@@ -3,7 +3,7 @@
     lat: $wire.entangle('{{ $prefix }}latitude'),
     lon: $wire.entangle('{{ $prefix }}longitude'),
     centre: $wire.entangle('{{ $prefix }}map_centre'),
-    map: null, marker: null, observer: null,
+    map: null, marker: null, observer: null, timer: null, attempts: 0, failed: false, disposed: false,
     sync() {
         if (!this.map) return;
         const valid = this.lat !== null && this.lat !== '' && this.lon !== null && this.lon !== '';
@@ -22,7 +22,13 @@
     },
     init() {
         this.$nextTick(() => {
-            if (!window.L) return;
+            if (this.disposed || this.map) return;
+            if (!window.L) {
+                if (++this.attempts < 40) this.timer = setTimeout(() => this.init(), 250);
+                else this.failed = true;
+                return;
+            }
+            this.failed = false;
             this.map = L.map(this.$refs.canvas).setView([55.75, 37.62], 5);
             this.map.attributionControl.setPrefix(false);
             L.tileLayer(@js(config('address_directory.map_tiles')), {maxZoom: 19, attribution: '© OpenStreetMap contributors'}).addTo(this.map);
@@ -35,8 +41,10 @@
             this.sync();
         });
     },
-    destroy() { this.observer?.disconnect(); this.map?.remove(); }
+    retry() { this.attempts = 0; this.failed = false; this.init(); },
+    destroy() { this.disposed = true; clearTimeout(this.timer); this.observer?.disconnect(); this.map?.remove(); }
 }">
+    <p x-cloak x-show="failed" role="alert">Не удалось загрузить карту. Проверьте соединение. <button type="button" x-on:click="retry()">Повторить</button></p>
     <p style="margin-bottom: 8px" x-text="lat !== null && lat !== '' ? 'Точка склада найдена. При необходимости перетащите метку к въезду.' : 'Точных координат нет. Укажите склад щелчком на карте — вводить числа не нужно.'"></p>
     <div wire:ignore x-ref="canvas" style="height: 320px; border-radius: 8px; z-index: 0"></div>
     <p style="margin-top: 8px; font-size: 12px">Подложка карты загружается из OpenStreetMap. Центр населённого пункта не сохраняется как точка склада.</p>
