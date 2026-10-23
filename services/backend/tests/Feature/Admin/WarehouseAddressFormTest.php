@@ -14,6 +14,17 @@ use Tests\TestCase;
 
 class WarehouseAddressFormTest extends TestCase
 {
+    public function test_selecting_building_clears_previous_required_error_only_for_that_field(): void
+    {
+        Http::fake(['*' => Http::response([])]);
+        $form = Livewire::test(CreateWarehouse::class)
+            ->fillForm(['name' => 'Test', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'directory_locality' => 'city'])
+            ->call('create')
+            ->assertHasFormErrors(['address_external_id' => 'required']);
+        $form->set('data.address_external_id', '123')
+            ->assertHasNoFormErrors(['address_external_id']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
