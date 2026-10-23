@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
-export type IconButtonVariant = 'white' | 'card' | 'yellow' | 'grey' | 'danger';
+export type IconButtonVariant = 'white' | 'card' | 'yellow' | 'grey' | 'danger' | 'glass';
 
 /** Ховер только у мыши: после тапа на телефоне он залипает и перекрыл бы нажатое состояние */
 const CARD_HOVER =
@@ -37,6 +37,8 @@ const VARIANT: Record<IconButtonVariant, string> = {
   yellow: 'bg-brand-yellow text-ink hover:bg-brand-green hover:text-ink-inverse',
   grey: 'bg-surface-grey text-ink hover:bg-surface-border',
   danger: 'bg-brand-red text-ink-inverse hover:opacity-90',
+  // «Стекло» поверх фото: стрелки «Похожих» (Figma 919:75821)
+  glass: 'bg-surface/[0.56] text-ink backdrop-blur-[6px] hover:bg-surface',
 };
 
 /** Нажатое состояние: у белой кнопки становится красным, у остальных — зелёным */
@@ -46,6 +48,7 @@ const ACTIVE: Record<IconButtonVariant, string> = {
   yellow: 'bg-brand-green text-ink-inverse',
   grey: 'bg-brand-green text-ink-inverse',
   danger: 'bg-brand-red text-ink-inverse',
+  glass: 'bg-surface text-ink',
 };
 
 export default function IconButton({

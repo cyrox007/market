@@ -173,7 +173,7 @@ export function RegionProvider({
   }, [saveRegion]);
 
   const value: RegionContextType = {
-    locality, selectLocality, region, regions, loading, selectRegion,
+    locality, locationReady: localityRestored, selectLocality, region, regions, loading, selectRegion,
     reloadRegions: loadRegions, getRegionId,
   };
   return <RegionContext.Provider value={value}>{children}</RegionContext.Provider>;

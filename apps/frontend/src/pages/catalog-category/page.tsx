@@ -14,6 +14,7 @@ import { useRegion } from '../../hooks/useRegion';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { usePrefetchCategory } from '../../hooks/usePrefetchCategory';
 import type { CatalogScope } from '../../lib/catalog-query';
+import { hasSettlementPoint } from '../../lib/locality-point';
 
 export default function CatalogCategory() {
   // Адрес может быть вложенным (/catalog/gostinaia/gotovye-stenki) — категория в последнем сегменте
@@ -26,15 +27,21 @@ export default function CatalogCategory() {
   const isRooms = useLocation().pathname.startsWith('/rooms');
 
   const ssrData = useSSR();
-  const { region } = useRegion();
+  const { region, locality, locationReady } = useRegion();
   const prefetchCategory = usePrefetchCategory();
   const { category, displayName, seo, notFound } = useCatalogCategory(slug, isRooms);
   usePageSeo(seo);
 
   const view = pageView({ slug, category, isRooms, notFound });
   const scope = useMemo<CatalogScope>(
-    () => ({ scope: isRooms ? 'room' : 'category', slug: slug ?? '', regionId: region?.id }),
-    [isRooms, slug, region?.id],
+    () => ({
+      scope: isRooms ? 'room' : 'category',
+      slug: slug ?? '',
+      regionId: region?.id,
+      localityId: locality?.externalId,
+      nearby: hasSettlementPoint(locality),
+    }),
+    [isRooms, slug, region?.id, locality],
   );
 
   const ssrListing = ssrData?.category;
@@ -45,14 +52,14 @@ export default function CatalogCategory() {
 
   // Лендинг — только у родительских категорий с подкатегориями
   const isLanding = view === 'landing';
-  const landing = useLandingProducts(isLanding && slug ? scope : null, initial);
+  const landing = useLandingProducts(isLanding && slug ? scope : null, initial, !locationReady);
 
   // Пока раздел грузится, товары — параллельно: у конечного раздела список возьмёт их из кэша
   const [query] = useUrlCatalogQuery();
   const loading = view === 'loading';
   useEffect(() => {
-    if (loading) preloadCatalogPage(scope, query);
-  }, [loading, scope, query]);
+    if (loading && locationReady) preloadCatalogPage(scope, query);
+  }, [loading, locationReady, scope, query]);
 
   if (view === 'notFound') {
     return (
@@ -91,6 +98,7 @@ export default function CatalogCategory() {
       displayName={displayName}
       scope={scope}
       initial={initial}
+      paused={!locationReady}
       onPrefetchCategory={prefetchCategory}
     />
   );

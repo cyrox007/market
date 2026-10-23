@@ -50,4 +50,6 @@ export const FOOTER_CONTACTS = {
   phone: '8 (800) 222-85-86',
   email: 'info@svetofor-mebel.ru',
   hours: ['c 09.00 до 21.00', '(Без перерыва и выходных)'],
+  vk: 'https://vk.com',
+  whatsapp: 'https://wa.me/78002228586',
 };

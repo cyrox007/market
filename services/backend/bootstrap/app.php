@@ -26,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         // CORS middleware применяется глобально для всех API запросов
+        $middleware->web(replace: [
+            \Illuminate\Session\Middleware\StartSession::class => \App\Http\Middleware\StartBlockingSession::class,
+        ]);
+
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\MeasureApiTiming::class,

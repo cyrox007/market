@@ -25,6 +25,7 @@ class ClearAttributesService
             'product_variant_attributes',
             'product_variation_attribute_selection',
             'category_variation_attributes',
+            'attribute_template_items',
         ];
 
         foreach ($tablesToClear as $table) {

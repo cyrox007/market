@@ -27,7 +27,10 @@ const meta: FiltersMeta = {
   attributes: [],
 };
 
-function renderToolbar(search = '', options: { meta?: FiltersMeta; count?: number } = {}) {
+function renderToolbar(
+  search = '',
+  options: { meta?: FiltersMeta; count?: number; nearby?: boolean } = {},
+) {
   const onQueryChange = vi.fn<(next: CatalogQuery) => void>();
   const onOpenAllFilters = vi.fn();
   const countProducts = vi.fn(() => Promise.resolve(options.count ?? 42));
@@ -40,6 +43,7 @@ function renderToolbar(search = '', options: { meta?: FiltersMeta; count?: numbe
       total={226}
       countProducts={countProducts}
       onOpenAllFilters={onOpenAllFilters}
+      nearby={options.nearby ?? false}
     />,
   );
   return { onQueryChange, onOpenAllFilters, countProducts };
@@ -57,6 +61,7 @@ describe('строка фильтров', () => {
         total={226}
         countProducts={() => Promise.resolve(1)}
         onOpenAllFilters={vi.fn()}
+        nearby={false}
       />,
     );
     const phone = container.querySelector<HTMLElement>('[class~="md:hidden"]');
@@ -80,6 +85,24 @@ describe('строка фильтров', () => {
 
     expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?sort=cheap'));
     await waitFor(() => expect(screen.queryByRole('radio')).not.toBeInTheDocument());
+  });
+
+  it('«Сначала ближе» — только при выбранном пункте', () => {
+    renderToolbar('', { nearby: false });
+    fireEvent.click(screen.getByRole('button', { name: 'По популярности' }));
+    expect(screen.queryByRole('radio', { name: 'Сначала ближе' })).not.toBeInTheDocument();
+  });
+
+  it('пункт выбран — можно сортировать по расстоянию', () => {
+    const { onQueryChange } = renderToolbar('', { nearby: true });
+    fireEvent.click(screen.getByRole('button', { name: 'По популярности' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Сначала ближе' }));
+    expect(onQueryChange).toHaveBeenCalledWith(parseCatalogQuery('?sort=nearest'));
+  });
+
+  it('пункт сбросили, в адресе осталось sort=nearest — показано «По популярности»', () => {
+    renderToolbar('?sort=nearest', { nearby: false });
+    expect(screen.getByRole('button', { name: 'По популярности' })).toBeInTheDocument();
   });
 
   describe('окно «Цена»', () => {

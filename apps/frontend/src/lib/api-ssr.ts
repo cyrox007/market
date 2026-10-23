@@ -3,7 +3,7 @@
  * Передает cookies из Express request в Laravel API
  */
 
-import type { ProductListParams, ProductListResponse } from './api';
+import type { ProductListParams, ProductListResponse, Review } from './api';
 import { toProductListSearch } from './product-list-search';
 import type { IncomingMessage } from 'http';
 
@@ -115,6 +115,9 @@ export function createSSRApi(req: IncomingMessage) {
     },
     cart: {
       count: () => fetchAPI<{ count: number }>('/cart/count'),
+    },
+    reviews: {
+      list: (productId: number) => fetchAPI<{ data: Review[] }>(`/products/${productId}/reviews`),
     },
     wishlist: {
       count: () => fetchAPI<{ count: number }>('/wishlist/count'),

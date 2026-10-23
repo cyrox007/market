@@ -9,7 +9,7 @@ import { cn } from '../../../lib/cn';
 import { plural } from '../../../lib/plural';
 import type { VariantAttributeView } from '../hooks/useVariantSelection';
 import { availabilityOf } from '../lib/availability';
-import { formatPrice } from '../lib/productText';
+import { formatPrice, formatRating } from '../lib/productText';
 import VariantPicker from './VariantPicker';
 
 export interface BuyBlockCart {
@@ -40,9 +40,6 @@ interface Props {
 }
 
 const COPIED_MS = 2000;
-
-const formatRating = (rating: number) =>
-  rating.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** Колонка покупки справа от галереи (Figma 669:43396, 919:75723) */
 export default function BuyBlock({

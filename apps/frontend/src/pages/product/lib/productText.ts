@@ -29,4 +29,7 @@ export function hasMeaningfulProductText(value: string | null | undefined): bool
   );
 }
 
+export const formatRating = (rating: number) =>
+  rating.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 export const formatPrice = (price: number) => new Intl.NumberFormat('ru-RU').format(price) + ' ₽';

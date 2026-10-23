@@ -83,7 +83,7 @@ export default function ProductTabs({
   };
 
   return (
-    <div id={PRODUCT_DETAILS_ID} className="mb-12 scroll-mt-20">
+    <div id={PRODUCT_DETAILS_ID} className="mb-8 scroll-mt-20">
       <div
         role="tablist"
         aria-label="О товаре"

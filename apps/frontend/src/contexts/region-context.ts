@@ -3,6 +3,8 @@ import type { ShippingLocation, CustomerLocality } from '../lib/api';
 
 export interface RegionContextType {
   locality: CustomerLocality | null;
+  /** Сохранённый выбор прочитан: до этого locality ещё null, хотя пункт может быть выбран */
+  locationReady: boolean;
   selectLocality: (locality: CustomerLocality, shippingLocation: ShippingLocation | null) => void;
   region: ShippingLocation | null;
   regions: ShippingLocation[];

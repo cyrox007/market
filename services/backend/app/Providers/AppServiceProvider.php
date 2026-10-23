@@ -92,6 +92,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Support\Facades\Session::extend('database', fn ($app) => new \App\Session\OperatorDatabaseSessionHandler(
+            $app['db']->connection(config('session.connection')),
+            config('session.table'),
+            (int) config('session.lifetime'),
+            $app,
+        ));
+
+        // Delivered only in a successful Livewire response, never on validation failure.
+        \Illuminate\Support\Facades\Event::listen(\Filament\Resources\Events\RecordSaved::class, function (\Illuminate\Database\Eloquent\Model $record, array $data, \Filament\Resources\Pages\Page $page): void {
+            $page->dispatch('admin-form-saved', componentId: $page->getId());
+        });
+
         foreach ([\App\Models\Pricing\PricingRule::class, \App\Models\Pricing\PricingProductGroup::class, \App\Models\Pricing\PricingCustomerGroup::class] as $pricingModel) {
             \Illuminate\Support\Facades\Gate::policy($pricingModel, \App\Policies\PricingRulePolicy::class);
         }
@@ -109,6 +121,7 @@ class AppServiceProvider extends ServiceProvider
         // Р-4: лимиты частоты на чувствительных эндпоинтах (login — по IP и email).
         RateLimiter::for('auth-strict', fn (Request $r) => Limit::perMinute(10)->by($r->ip() . '|' . mb_strtolower(trim((string) $r->input('email')))));
         RateLimiter::for('auth', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
+        RateLimiter::for('auth-settings', fn (Request $r) => Limit::perMinute(120)->by($r->ip()));
         RateLimiter::for('orders', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
         RateLimiter::for('writes', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
 

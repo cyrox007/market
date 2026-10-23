@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { safeNext, withNext } from '../../lib/safe-next';
 import { useAuth } from '../../hooks/useAuth';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import { ChevronRight } from 'lucide-react';
+import { usePublicAuthSettings } from '../../hooks/usePublicAuthSettings';
+import PublicAuthNotice from '../../components/auth/PublicAuthNotice';
 
 export default function Login() {
   const navigate = useNavigate();
+  // Вернуть туда, откуда пришли (товар с окном отзыва, market-docs/57-задачи/11)
+  const next = safeNext(useSearchParams()[0].get('next'));
   const { login, isAuthenticated } = useAuth();
+  const access = usePublicAuthSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +22,7 @@ export default function Login() {
   // Редирект, если уже авторизован
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/account');
+      navigate(next ?? '/account');
     }
   }, [isAuthenticated, navigate]);
 
@@ -31,18 +37,23 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!access.ready || !access.loginEnabled) return;
     setError(null);
     setIsLoading(true);
 
     try {
       await login(email, password);
-      navigate('/account');
+      navigate(next ?? '/account');
     } catch (err: any) {
       setError(err?.data?.message || err?.message || 'Ошибка входа. Проверьте email и пароль.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (access.error) return <PublicAuthNotice title="Не удалось проверить доступность входа. Попробуйте ещё раз." retry={access.reload} />;
+  if (!access.ready) return <PublicAuthNotice title="Проверяем доступность входа…" />;
+  if (!access.loginEnabled) return <PublicAuthNotice title="Вход на сайт временно отключён." />;
 
   return (
     <div className="min-h-screen bg-white">
@@ -106,12 +117,12 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center space-y-2">
-            <p className="text-sm text-gray-600">
+            {access.registrationEnabled && <p className="text-sm text-gray-600">
               Нет аккаунта?{' '}
-              <Link to="/register" className="text-red-600 hover:text-red-700 font-medium">
+              <Link to={withNext('/register', next)} className="text-red-600 hover:text-red-700 font-medium">
                 Зарегистрироваться
               </Link>
-            </p>
+            </p>}
             <p className="text-sm">
               <Link to="/forgot-password" className="text-gray-600 hover:text-red-600">
                 Забыли пароль?

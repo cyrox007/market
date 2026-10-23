@@ -27,10 +27,16 @@ const visibleCount = (total: number, limit: number) => (total > limit ? limit - 
  * классами `max-sm:`, без JS — нет мигания и рассинхрона с сервером. Правила карточки —
  * market-docs/09, 38.
  */
-export default function ColorSwatches({ colors, limit = 4, mobileLimit = limit, className }: ColorSwatchesProps) {
+export default function ColorSwatches({
+  colors,
+  limit = 4,
+  mobileLimit = limit,
+  className,
+}: ColorSwatchesProps) {
   const desktopVisible = visibleCount(colors.length, limit);
   const mobileVisible = visibleCount(colors.length, mobileLimit);
-  const counter = 'h-6 min-w-6 shrink-0 items-center justify-center rounded-swatch bg-surface-grey px-1 text-8 text-ink-secondary';
+  const counter =
+    'h-6 min-w-6 shrink-0 items-center justify-center rounded-swatch bg-surface-grey px-1 text-8 text-ink-secondary';
 
   return (
     <div

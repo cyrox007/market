@@ -11,6 +11,7 @@ export const SORT_TO_API: Record<CatalogSort, { sort_by: string; sort_order: 'as
   rating: { sort_by: 'rating', sort_order: 'desc' },
   cheap: { sort_by: 'price', sort_order: 'asc' },
   expensive: { sort_by: 'price', sort_order: 'desc' },
+  nearest: { sort_by: 'distance', sort_order: 'asc' },
 };
 
 const SORTS = Object.keys(SORT_TO_API) as CatalogSort[];
@@ -23,6 +24,12 @@ export const CATALOG_SORT_OPTIONS: { value: CatalogSort; label: string }[] = [
   { value: 'expensive', label: 'Сначала дороже' },
 ];
 
+/** «Сначала ближе» — только когда выбран пункт: без него бэк по расстоянию не сортирует */
+export const catalogSortOptions = (nearby: boolean) =>
+  nearby
+    ? [...CATALOG_SORT_OPTIONS, { value: 'nearest' as const, label: 'Сначала ближе' }]
+    : CATALOG_SORT_OPTIONS;
+
 export function readSort(params: URLSearchParams): CatalogSort {
   const value = params.get('sort');
   if (!value) return DEFAULT_SORT;
@@ -32,7 +39,9 @@ export function readSort(params: URLSearchParams): CatalogSort {
 
 /** Поиск сортирует так же, как каталог: адрес sort=cheap, в API — sort_by / sort_order */
 export function searchSort(params: URLSearchParams) {
-  const sort = readSort(params);
+  // Поиск по расстоянию не сортирует (market-docs/15)
+  const read = readSort(params);
+  const sort = read === 'nearest' ? DEFAULT_SORT : read;
   return { sort, ...SORT_TO_API[sort] };
 }
 

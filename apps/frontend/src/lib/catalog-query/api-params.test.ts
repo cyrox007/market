@@ -84,4 +84,30 @@ describe('запрос каталога → параметры API', () => {
       category_slugs: ['a', 'b'],
     });
   });
+
+  it('выбран пункт — directory_external_id: бэк фильтрует по покрытию складов', () => {
+    const params = toApiParams(parseCatalogQuery(''), { ...category, localityId: 'eacb5f15' });
+    expect(params).toMatchObject({ directory_external_id: 'eacb5f15' });
+    expect(toApiParams(parseCatalogQuery(''), category)).not.toHaveProperty('directory_external_id');
+  });
+
+  it('у пункта нет координат — по расстоянию бэк не сортирует: по популярности', () => {
+    const noPoint = { ...category, localityId: 'eacb5f15', nearby: false };
+    expect(toApiParams(parseCatalogQuery('?sort=nearest'), noPoint)).toMatchObject({
+      sort_by: 'units_sold',
+      directory_external_id: 'eacb5f15',
+    });
+  });
+
+  it('«Сначала ближе» — по расстоянию; без пункта — по популярности (бэк ответил бы 422)', () => {
+    const withPlace = { ...category, localityId: 'eacb5f15', nearby: true };
+    expect(toApiParams(parseCatalogQuery('?sort=nearest'), withPlace)).toMatchObject({
+      sort_by: 'distance',
+      sort_order: 'asc',
+    });
+    expect(toApiParams(parseCatalogQuery('?sort=nearest'), category)).toMatchObject({
+      sort_by: 'units_sold',
+      sort_order: 'desc',
+    });
+  });
 });

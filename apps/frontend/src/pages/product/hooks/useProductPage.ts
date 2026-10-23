@@ -3,7 +3,7 @@ import useSWR from 'swr';
 import { api } from '../../../lib/api';
 import type { ProductPagePayload } from '../../../lib/api';
 import { useSSR } from '../../../contexts/ssr-context';
-import { useRegion } from '../../../hooks/useRegion';
+import { useLocationParams } from '../../../hooks/useLocationParams';
 import { getProductKey } from '../../../utils/ssr-to-swr';
 
 export type ProductPageStatus = 'ready' | 'loading' | 'not-found' | 'error';
@@ -11,7 +11,7 @@ export type ProductPageStatus = 'ready' | 'loading' | 'not-found' | 'error';
 /** Товар по адресу: с сервера, если он прислал этот же товар, иначе из API; при смене региона — перезапрос */
 export function useProductPage(slug: string | undefined) {
   const ssr = useSSR()?.product;
-  const regionId = useRegion().getRegionId();
+  const { params, ready } = useLocationParams();
 
   const ssrPayload: ProductPagePayload | undefined =
     ssr?.product && ssr.product.slug === slug
@@ -23,18 +23,16 @@ export function useProductPage(slug: string | undefined) {
         }
       : undefined;
 
-  const key = slug ? getProductKey(slug, { region_id: regionId ?? undefined }) : null;
-  const { data, error, isLoading, mutate } = useSWR(
-    key,
-    () => api.products.get(slug!, { region_id: regionId ?? undefined }),
-    {
-      fallbackData: ssrPayload,
-      revalidateOnMount: !ssrPayload,
-      revalidateOnFocus: false,
-      dedupingInterval: 60_000,
-      keepPreviousData: true,
-    },
-  );
+  // Без SSR ждём сохранённый пункт, иначе первый запрос уйдёт без него (market-docs/44)
+  const key = slug && (ready || ssrPayload) ? getProductKey(slug, params) : null;
+  const { data, error, isLoading, mutate } = useSWR(key, () => api.products.get(slug!, params), {
+    fallbackData: ssrPayload,
+    // SSR пункт не знает (он в localStorage): с пунктом ответ сервера перезапрашиваем
+    revalidateOnMount: !ssrPayload || Boolean(params.directory_external_id),
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    keepPreviousData: true,
+  });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   useEffect(() => {

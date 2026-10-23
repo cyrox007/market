@@ -1,4 +1,6 @@
 import type { ProductListParams } from './api';
+import { SORT_TO_API } from './catalog-query/sort';
+import { DEFAULT_SORT } from './catalog-query/types';
 
 const SCALARS = [
   'category_id',
@@ -27,6 +29,7 @@ const AFTER_ATTRIBUTES = [
   'height_min',
   'height_max',
   'region_id',
+  'directory_external_id',
 ] as const;
 
 function append(query: URLSearchParams, name: string, value: unknown) {
@@ -49,3 +52,21 @@ export function toProductListSearch(params: ProductListParams = {}): string {
   for (const name of AFTER_ATTRIBUTES) append(query, name, params[name]);
   return query.toString();
 }
+
+/**
+ * Справочник адресов пока пилотный и отвечает 503 — тогда список без пункта,
+ * а «по расстоянию» без него невозможно: по популярности
+ */
+export const retryWithoutDirectory =
+  <T, P extends Pick<ProductListParams, 'directory_external_id' | 'sort_by'> = ProductListParams>(
+    fetch: (params: P) => Promise<T>,
+  ) =>
+  async (params: P): Promise<T> => {
+    try {
+      return await fetch(params);
+    } catch (error) {
+      if (!params.directory_external_id || (error as { status?: number }).status !== 503) throw error;
+      const { directory_external_id: _, ...rest } = params;
+      return fetch((rest.sort_by === 'distance' ? { ...rest, ...SORT_TO_API[DEFAULT_SORT] } : rest) as P);
+    }
+  };

@@ -30,7 +30,12 @@ vi.mock('../../hooks/useCounters', () => ({
   useCounters: () => ({ refreshWishlistCount: vi.fn(), refreshCompareCount: vi.fn() }),
 }));
 vi.mock('../../hooks/useRegion', () => ({
-  useRegion: () => ({ region: { id: 1 }, getRegionId: () => 1 }),
+  useRegion: () => ({
+    region: { id: 1 },
+    getRegionId: () => 1,
+    locality: null,
+    locationReady: true,
+  }),
 }));
 vi.mock('../../hooks/useWishlistAndCompare', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../hooks/useWishlistAndCompare')>()),

@@ -766,13 +766,14 @@ export default function Checkout() {
         order?: Order;
         message?: string;
         user_registered?: boolean;
+        user_authenticated?: boolean;
         gateway_client_config?:
           | { publicId: string; url: string; useSdk?: boolean }
           | { payformUrl: string; useEcomApi: true };
       };
 
       // Если была автоматическая регистрация, обновляем пользователя и показываем модалку
-      if (response.user_registered && response.order) {
+      if (response.user_registered && response.user_authenticated !== false && response.order) {
         closePaymentTab(paymentTab);
         // Обновляем данные пользователя в контексте
         await refreshUser();

@@ -109,7 +109,10 @@ function ViewerPanel({
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => (swipeStart.current = null)}
-        className={cn('relative flex aspect-square touch-pan-y select-none items-center justify-center', AREA_WIDTH)}
+        className={cn(
+          'relative flex aspect-square touch-pan-y select-none items-center justify-center',
+          AREA_WIDTH,
+        )}
       >
         <StagePhoto
           key={images[current]}

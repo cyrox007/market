@@ -319,6 +319,20 @@ async function createServer() {
               () => ssrApi.products.get(productSlug, { region_id: regionId }),
               { ttl: 300 },
             );
+            // Отзывы — в HTML вместе с товаром (market-docs/57-задачи/10)
+            const productId = ssrContext.product?.product?.id;
+            if (productId && ssrContext.product.product.reviews_count > 0) {
+              try {
+                const reviews = await withCacheSWR(
+                  createCacheKey(`/products/${productId}/reviews`),
+                  () => ssrApi.reviews.list(productId),
+                  { ttl: 300 },
+                );
+                ssrContext.productReviews = { productId, data: reviews.data ?? [] };
+              } catch (reviewsError) {
+                console.error('SSR reviews loading error:', reviewsError);
+              }
+            }
           } catch (productError: any) {
             if (productError.status !== 404) {
               console.error('SSR product loading error:', productError);

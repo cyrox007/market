@@ -1,18 +1,25 @@
 import { useState } from 'react';
 import { prefersReducedMotion } from '../../lib/motion';
 import type { Product, ProductDetail } from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 import { useRegion } from '../../hooks/useRegion';
 import BuyBlock from './components/BuyBlock';
 import DeliveryInfo from './components/DeliveryInfo';
 import Gallery from './components/Gallery';
 import PhotoViewer from './components/PhotoViewer';
+import ProductContacts from './components/ProductContacts';
 import ProductBreadcrumbs from './components/ProductBreadcrumbs';
 import { ReviewsEmpty } from './components/ProductEmptyState';
+import ReviewModal from './components/ReviewModal';
+import ReviewsSection from './components/ReviewsSection';
 import ProductTabs, { PRODUCT_DETAILS_ID, type ProductTabId } from './components/ProductTabs';
 import RelatedProducts from './components/RelatedProducts';
 import WishlistCompareButtons from './components/WishlistCompareButtons';
 import { useDeliveryQuote } from './hooks/useDeliveryQuote';
+import { useProductContacts } from './hooks/useProductContacts';
 import { useProductCartActions } from './hooks/useProductCartActions';
+import { useProductReviews } from './hooks/useProductReviews';
+import { useWriteReview } from './hooks/useWriteReview';
 import { useVariantSelection } from './hooks/useVariantSelection';
 import { getSpecificationsArray, hasMeaningfulProductText } from './lib/productText';
 
@@ -34,6 +41,12 @@ export default function ProductContent({ product, related, isRefreshing }: Props
   const { locality, region } = useRegion();
   const city = locality?.name ?? region?.name ?? null;
   const delivery = useDeliveryQuote(product, selectedVariant, cart.quantity);
+  const reviewsCount = product.reviews_count ?? 0;
+  const reviews = useProductReviews(product.id, reviewsCount);
+  const contacts = useProductContacts(city);
+  const auth = useAuth();
+  const review = useWriteReview(auth);
+  const writeReview = review.start;
 
   const [tab, setTab] = useState<ProductTabId>('description');
 
@@ -78,7 +91,8 @@ export default function ProductContent({ product, related, isRefreshing }: Props
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    // overflow-x-clip: «Похожие» выходят за колонку до края экрана, а полоса прокрутки входит в 100vw
+    <div className="min-h-screen overflow-x-clip bg-white">
       <div className="max-w-[1280px] mx-auto px-4 py-6">
         <ProductBreadcrumbs product={product} />
 
@@ -126,11 +140,34 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           onTabChange={setTab}
           description={description}
           specifications={specifications}
-          reviewsCount={product.reviews_count ?? 0}
+          reviewsCount={reviewsCount}
           // Список и сводка — задача 10
-          // Окно отзыва — задача 11
-          reviews={!product.reviews_count && <ReviewsEmpty onWriteReview={() => {}} />}
+          reviews={
+            reviewsCount > 0 ? (
+              <ReviewsSection
+                rating={product.rating ?? 0}
+                count={reviewsCount}
+                reviews={reviews.reviews}
+                status={reviews.status}
+                onWriteReview={writeReview}
+                onRetry={reviews.retry}
+              />
+            ) : (
+              <ReviewsEmpty onWriteReview={writeReview} />
+            )
+          }
         />
+
+        <ProductContacts contacts={contacts} />
+
+        {auth.user && (
+          <ReviewModal
+            open={review.open}
+            onClose={review.close}
+            productId={product.id}
+            authorName={auth.user.name}
+          />
+        )}
 
         <div className="space-y-16">
           <RelatedProducts products={related} />

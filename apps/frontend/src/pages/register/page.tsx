@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { safeNext, withNext } from '../../lib/safe-next';
 import { useAuth } from '../../hooks/useAuth';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import { ChevronRight } from 'lucide-react';
+import { usePublicAuthSettings } from '../../hooks/usePublicAuthSettings';
+import PublicAuthNotice from '../../components/auth/PublicAuthNotice';
 
 export default function Register() {
   const navigate = useNavigate();
+  // Вернуть туда, откуда пришли (товар с окном отзыва, market-docs/57-задачи/11)
+  const next = safeNext(useSearchParams()[0].get('next'));
   const { register, isAuthenticated } = useAuth();
+  const access = usePublicAuthSettings();
+  const [registrationComplete, setRegistrationComplete] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,7 +29,7 @@ export default function Register() {
   // Редирект, если уже авторизован
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/account');
+      navigate(next ?? '/account');
     }
   }, [isAuthenticated, navigate]);
 
@@ -44,6 +51,7 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!access.ready || !access.registrationEnabled) return;
     setError(null);
 
     // Валидация на клиенте
@@ -75,19 +83,25 @@ export default function Register() {
       };
 
       await register(registerData);
-      navigate('/account');
+      if (access.loginEnabled) navigate(next ?? '/account');
+      else setRegistrationComplete(true);
     } catch (err: any) {
-      const errorMessage =
-        err?.data?.message || err?.data?.errors
-          ? Object.values(err.data.errors || {})
+      const errorMessage = err?.data?.message || (
+        err?.data?.errors
+          ? Object.values(err.data.errors)
               .flat()
               .join(', ')
-          : err?.message || 'Ошибка регистрации. Попробуйте еще раз.';
+          : err?.message || 'Ошибка регистрации. Попробуйте еще раз.');
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (registrationComplete) return <PublicAuthNotice title="Аккаунт создан. Вход на сайт временно отключён — войти можно будет после его включения." />;
+  if (access.error) return <PublicAuthNotice title="Не удалось проверить доступность регистрации. Попробуйте ещё раз." retry={access.reload} />;
+  if (!access.ready) return <PublicAuthNotice title="Проверяем доступность регистрации…" />;
+  if (!access.registrationEnabled) return <PublicAuthNotice title="Регистрация временно отключена." />;
 
   return (
     <div className="min-h-screen bg-white">
@@ -201,14 +215,14 @@ export default function Register() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          {access.loginEnabled && <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Уже есть аккаунт?{' '}
-              <Link to="/login" className="text-red-600 hover:text-red-700 font-medium">
+              <Link to={withNext('/login', next)} className="text-red-600 hover:text-red-700 font-medium">
                 Войти
               </Link>
             </p>
-          </div>
+          </div>}
         </div>
       </div>
     </div>
