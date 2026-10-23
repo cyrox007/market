@@ -56,8 +56,8 @@ class ProductVariantGroupAdminActionsTest extends TestCase
         $this->assertNotNull($parent);
         $this->assertSame($parent->id, $white->fresh()->parent_product_id);
         $this->assertSame($parent->id, $oak->fresh()->parent_product_id);
-        $this->assertDatabaseHas('product_variant_attributes', ['product_id' => $white->id, 'custom_value' => 'Белый']);
-        $this->assertDatabaseHas('product_variant_attributes', ['product_id' => $oak->id, 'custom_value' => 'Венге']);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $white->id, 'custom_value' => 'Белый']);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $oak->id, 'custom_value' => 'Венге']);
     }
 
     public function test_merge_bulk_action_prefills_auto_name_and_labels(): void
@@ -71,8 +71,8 @@ class ProductVariantGroupAdminActionsTest extends TestCase
 
         $parent = Product::query()->where('name', 'Стенка МАРТА-11')->first();
         $this->assertNotNull($parent);
-        $this->assertDatabaseHas('product_variant_attributes', ['product_id' => $white->id, 'custom_value' => 'Белый гладкий']);
-        $this->assertDatabaseHas('product_variant_attributes', ['product_id' => $oak->id, 'custom_value' => 'Венге/Лоредо']);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $white->id, 'custom_value' => 'Белый гладкий']);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $oak->id, 'custom_value' => 'Венге/Лоредо']);
     }
 
     public function test_detach_action_unlinks_variant_and_reloads_page(): void
@@ -119,7 +119,7 @@ class ProductVariantGroupAdminActionsTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame($parent->id, $forgotten->fresh()->parent_product_id);
-        $this->assertDatabaseHas('product_variant_attributes', ['product_id' => $forgotten->id, 'custom_value' => 'Серый матовый']);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $forgotten->id, 'custom_value' => 'Серый матовый']);
     }
 
     public function test_attach_action_is_hidden_for_simple_product(): void
@@ -160,6 +160,34 @@ class ProductVariantGroupAdminActionsTest extends TestCase
     /**
      * @return array{0: Product, 1: Product, 2: Product}
      */
+    public function test_offer_full_page_redirects_to_parent_instead_of_second_editor(): void
+    {
+        [$parent, $offer] = $this->mergedGroup();
+        Livewire::test(EditProduct::class, ['record' => $offer->id])
+            ->assertRedirect(\App\Filament\Resources\Products\ProductResource::getUrl('edit', ['record' => $parent]));
+    }
+
+    public function test_modal_saves_own_properties_and_variation_values_in_the_same_pivot(): void
+    {
+        [$parent, $offer] = $this->mergedGroup();
+        $material = Attribute::create(['name' => 'Материал', 'slug' => 'test-material', 'type' => 'string', 'allow_custom_value' => true]);
+        $variantAttribute = Attribute::ensureVariantAttribute();
+        Livewire::test(ProductVariantsRelationManager::class, ['ownerRecord' => $parent, 'pageClass' => EditProduct::class])
+            ->callTableAction('edit', $offer, data: [
+                'name' => $offer->name,
+                'sku' => $offer->sku,
+                'price' => 1234,
+                'stock' => 3,
+                'state' => 'active',
+                'variation_custom_'.$variantAttribute->id => 'Белый новый',
+                'offer_attributes' => [['attribute_id' => $material->id, 'custom_value' => 'Металл']],
+            ])->assertHasNoTableActionErrors();
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $offer->id, 'attribute_id' => $material->id, 'custom_value' => 'Металл']);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $offer->id, 'attribute_id' => $variantAttribute->id, 'custom_value' => 'Белый новый']);
+        $this->assertDatabaseCount('product_variant_attributes', 0);
+        $this->assertSame(1234.0, (float) $offer->fresh()->price);
+    }
+
     protected function mergedGroup(): array
     {
         $a = Product::factory()->create(['name' => 'Стол белый']);

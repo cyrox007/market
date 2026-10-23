@@ -66,7 +66,7 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
             $this->assertFalse((bool) $product->is_variable);
         }
 
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $products[0]->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Белый',
@@ -91,12 +91,12 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         $this->assertNotSame('', (string) $parent->slug);
         $this->assertStringNotContainsString('dub', (string) $parent->slug);
 
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $white->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Белый',
         ]);
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $oak->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Дуб сонома/ясень шимо',
@@ -129,7 +129,7 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         $parent = $this->merge([$sofa->id, $chair->id]);
 
         $this->assertSame('Диван Лион', $parent->name);
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $chair->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Кресло Лион',
@@ -146,12 +146,12 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         $parent = $this->merge([$a->id, $b->id], [$a->id => 'Левый'], 'Шкаф «Комфорт»');
 
         $this->assertSame('Шкаф «Комфорт»', $parent->name);
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $a->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Левый',
         ]);
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $b->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Б',
@@ -170,7 +170,7 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->first();
         $this->assertNotNull($variantAttr);
 
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $a->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Серый',
@@ -200,12 +200,12 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
 
         $this->merge([$a->id, $b->id]);
 
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $a->id,
             'attribute_id' => $colorAttr->id,
             'attribute_value_id' => $gray->id,
         ]);
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $b->id,
             'attribute_id' => $colorAttr->id,
             'attribute_value_id' => $blue->id,
@@ -269,7 +269,8 @@ class MergeProductsIntoVariableProductActionTest extends TestCase
         $this->assertSame('900', $parentAttributes[$width->id]->pivot->custom_value);
         $this->assertSame('560', $parentAttributes[$height->id]->pivot->custom_value);
         $this->assertFalse($parentAttributes->has($color->id));
-        $this->assertSame(3, $a->fresh()->attributes()->count());
+        $this->assertSame(3, $a->fresh()->attributes()->where('slug', '!=', 'variant')->count());
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $a->id, 'attribute_id' => Attribute::ensureVariantAttribute()->id]);
     }
 
     public function test_merge_takes_longest_description_and_warns_when_descriptions_differ(): void

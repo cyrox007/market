@@ -41,7 +41,26 @@ class DetachVariantFromParentAction
         $parent = $variant->parentProduct;
 
         DB::transaction(function () use ($variant, $parent): void {
-            DB::table('product_variant_attributes')->where('product_id', $variant->id)->delete();
+            // Materialize inherited shared attributes before removing the parent link.
+            $ownIds = $variant->attributes()->pluck('product_attributes.id')->all();
+            foreach ($parent->attributes()->whereNotIn('product_attributes.id', $ownIds)
+                ->where('is_use_in_variations', false)->get() as $attribute) {
+                $variant->attributes()->attach($attribute->id, [
+                    'attribute_value_id' => $attribute->pivot->attribute_value_id,
+                    'custom_value' => $attribute->pivot->custom_value,
+                ]);
+            }
+            if ($variant->taxons()->doesntExist()) {
+                $variant->taxons()->sync($parent->taxons()->pluck('taxons.id')->all());
+            }
+            if (blank($variant->description)) {
+                $variant->description = $parent->description;
+            }
+            foreach (['length', 'width', 'height', 'weight'] as $field) {
+                if ($variant->{$field} === null) {
+                    $variant->{$field} = $parent->{$field};
+                }
+            }
 
             $variant->updateQuietly([
                 'parent_product_id' => null,

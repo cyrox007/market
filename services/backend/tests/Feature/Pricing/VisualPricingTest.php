@@ -92,6 +92,21 @@ class VisualPricingTest extends TestCase
         $this->assertEquals(900, $this->price($sku)['price']);
     }
 
+    public function test_room_rule_filters_individual_offers_in_parent_category(): void
+    {
+        $category = Category::factory()->create();
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $parent->taxons()->attach($category);
+        $cheap = Product::factory()->create(['parent_product_id' => $parent->id, 'price' => 1000]);
+        $expensive = Product::factory()->create(['parent_product_id' => $parent->id, 'price' => 2000]);
+        $room = Room::create(['name' => 'Комната предложений', 'filters' => ['price_max' => 1500]]);
+        $room->productCategories()->attach($category);
+        $this->rule(['target_type' => 'rooms', 'room_ids' => [$room->id]]);
+
+        $this->assertEquals(900, $this->price($cheap)['price']);
+        $this->assertEquals(2000, $this->price($expensive)['price']);
+    }
+
     public function test_empty_targets_fail_closed(): void
     {
         $this->expectException(\Illuminate\Validation\ValidationException::class);

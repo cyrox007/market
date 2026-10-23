@@ -22,6 +22,14 @@ class EditProduct extends EditRecord
     protected array $productAttributesData = [];
     protected ?string $manufacturerName = null;
 
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+        if ($this->getRecord()->isVariant()) {
+            $this->redirect(ProductResource::getUrl('edit', ['record' => $this->getRecord()->parent_product_id]));
+        }
+    }
+
     protected function getFormActions(): array
     {
         return [
@@ -192,6 +200,11 @@ class EditProduct extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $product = $this->record;
+        if ($product?->isVariant()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'data.name' => 'Предложение редактируется через «Изменить» в родительской карточке. Откройте её заново.',
+            ]);
+        }
         if ($product && $product->variants()->count() > 0) {
             $data['is_variable'] = true;
         }
