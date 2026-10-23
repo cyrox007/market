@@ -161,6 +161,24 @@ class AttributeTemplatesTest extends TestCase
         ])->mountTableAction('edit', $variant)->assertStatus(200);
     }
 
+    public function test_multiple_product_values_load_in_one_row_and_survive_save(): void
+    {
+        $attribute = $this->attribute('Материалы', ['type' => 'select', 'is_multiple' => true]);
+        $first = $attribute->values()->create(['value' => 'Дерево', 'slug' => 'wood']);
+        $second = $attribute->values()->create(['value' => 'Металл', 'slug' => 'metal']);
+        $product = Product::factory()->create();
+        app(\App\Services\Product\ProductAttributeSyncService::class)->sync($product, [
+            ['attribute_id' => $attribute->id, 'attribute_value_id' => [$first->id, $second->id]],
+        ]);
+        $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()]);
+        $rows = array_values($page->get('data.product_attributes'));
+        $this->assertCount(1, $rows);
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], $rows[0]['attribute_value_id']);
+        $page->call('save', false)->assertHasNoFormErrors();
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], DB::table('product_product_attributes')
+            ->where('product_id', $product->id)->where('attribute_id', $attribute->id)->pluck('attribute_value_id')->all());
+    }
+
     private function attribute(string $name, array $overrides = []): Attribute
     {
         return Attribute::query()->create(array_merge([
