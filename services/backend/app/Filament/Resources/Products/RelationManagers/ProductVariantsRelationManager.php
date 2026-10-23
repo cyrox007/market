@@ -633,12 +633,6 @@ class ProductVariantsRelationManager extends RelationManager
                         }
                         return $record;
                     }),
-                Action::make('fullProductCard')
-                    ->label('Полная карточка')
-                    ->icon('heroicon-o-document-text')
-                    ->color('gray')
-                    ->tooltip('Описание и обычные характеристики предложения. Цвет, размер и другие параметры варианта редактируйте через «Изменить».')
-                    ->url(fn (Product $record): string => ProductResource::getUrl('edit', ['record' => $record])),
                 Action::make('detach')
                     ->label('Отвязать')
                     ->icon('heroicon-o-link-slash')
