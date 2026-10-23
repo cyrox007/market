@@ -134,133 +134,152 @@ function ProductCard({
 
   return (
     <div
-      className={cn('group relative isolate flex flex-col gap-3', className)}
+      className={cn(
+        'group relative isolate',
+        // Приподнятая карточка идёт поверх соседних — иначе её тень подрезает следующая
+        '[@media(hover:hover)]:hover:z-10',
+        className,
+      )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Наведение: тень на фото и лёгкий зум картинки (market-docs/53) */}
-      <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-btn border border-surface-stroke/[0.08] p-3 transition-shadow duration-slow ease-out motion-reduce:transition-none [@media(hover:hover)]:group-hover:shadow-card">
-        {image ? (
-          <img
-            src={image}
-            alt=""
-            className="absolute inset-0 size-full object-cover transition-transform duration-slow ease-out [@media(hover:hover)_and_(prefers-reduced-motion:no-preference)]:group-hover:scale-[1.02]"
-            loading={priority ? 'eager' : 'lazy'}
-            decoding="async"
-            fetchPriority={priority ? 'high' : undefined}
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-surface-grey">
-            <ImageIcon className="size-8 text-ink-secondary" />
-          </div>
+      {/* Под курсором карточка приподнимается целиком — вместе с названием и ценой.
+          Двигаем обёртку, а не корень: место карточки в сетке остаётся на месте, соседние
+          не разъезжаются, и курсор у нижней кромки не выпадает из неё (иначе дрожь). */}
+      <div
+        className={cn(
+          'flex flex-col gap-3 transition-transform duration-slow ease-out motion-reduce:transition-none',
+          '[@media(hover:hover)_and_(prefers-reduced-motion:no-preference)]:group-hover:-translate-y-1.5',
         )}
-
-        <div className={cn(OVERLAY, 'flex items-start justify-between')}>
-          {product.stock_label ? (
-            <Badge variant="info" size="sm">
-              {product.stock_label}
-            </Badge>
-          ) : (
-            <span />
-          )}
-
-          {/* relative: обе подсказки встают по правому краю пары кнопок — иначе на узкой
-              карточке подсказка сравнения уходит за левый край фото */}
-          <div className="relative flex items-center gap-2">
-            {onToggleCompare && (
-              <Tooltip text={compareLabel} alignToParent>
-                {/* Нажатое сравнение по макету не красится — состояние видно по подписи */}
-                <IconButton
-                  label={compareLabel}
-                  variant="card"
-                  elevated
-                  onClick={handleCompareClick}
-                >
-                  <ArrowLeftRight className="size-5" />
-                </IconButton>
-              </Tooltip>
-            )}
-            {onToggleFavorite && (
-              <Tooltip text={favoriteLabel} alignToParent>
-                <IconButton
-                  label={favoriteLabel}
-                  variant="card"
-                  isActive={isFavorite}
-                  elevated
-                  onClick={handleFavoriteClick}
-                >
-                  <Heart className="size-5" />
-                </IconButton>
-              </Tooltip>
-            )}
-          </div>
-        </div>
-
-        <div className={cn(OVERLAY, 'flex items-center justify-between gap-1')}>
-          {inCart ? (
-            <QuantityStepper
-              value={cartQuantity}
-              min={0}
-              max={product.backorder ? undefined : (product.stock ?? undefined)}
-              onChange={handleQuantityChange}
+      >
+        {/* Наведение: тень глубже обычной — карточка поднялась над страницей (market-docs/53) */}
+        <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-btn border border-surface-stroke/[0.08] p-3 transition-shadow duration-slow ease-out motion-reduce:transition-none [@media(hover:hover)]:group-hover:shadow-lifted">
+          {image ? (
+            <img
+              src={image}
+              alt=""
+              className="absolute inset-0 size-full object-cover transition-transform duration-slow ease-out [@media(hover:hover)_and_(prefers-reduced-motion:no-preference)]:group-hover:scale-[1.02]"
+              loading={priority ? 'eager' : 'lazy'}
+              decoding="async"
+              fetchPriority={priority ? 'high' : undefined}
             />
           ) : (
-            <span />
+            <div className="absolute inset-0 flex items-center justify-center bg-surface-grey">
+              <ImageIcon className="size-8 text-ink-secondary" />
+            </div>
           )}
 
-          {inCart ? (
-            <button
-              type="button"
-              aria-label="Перейти в корзину"
-              onClick={handleCartClick}
-              className={IN_CART_BUTTON}
-            >
-              <ShoppingCart className="size-5" aria-hidden="true" />
-              <ChevronsRight className="size-5" aria-hidden="true" />
-            </button>
-          ) : (
-            (onAddToCart || choiceRequired) && (
-              <IconButton
-                label={choiceRequired ? 'Выбрать вариант' : 'В корзину'}
-                variant="yellow"
-                elevated
-                disabled={unavailable}
+          <div className={cn(OVERLAY, 'flex items-start justify-between')}>
+            {product.stock_label ? (
+              <Badge variant="info" size="sm">
+                {product.stock_label}
+              </Badge>
+            ) : (
+              <span />
+            )}
+
+            {/* relative: обе подсказки встают по правому краю пары кнопок — иначе на узкой
+                карточке подсказка сравнения уходит за левый край фото */}
+            <div className="relative flex items-center gap-2">
+              {onToggleCompare && (
+                <Tooltip text={compareLabel} alignToParent>
+                  {/* Нажатое сравнение по макету не красится — состояние видно по подписи */}
+                  <IconButton
+                    label={compareLabel}
+                    variant="card"
+                    elevated
+                    onClick={handleCompareClick}
+                  >
+                    <ArrowLeftRight className="size-5" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {onToggleFavorite && (
+                <Tooltip text={favoriteLabel} alignToParent>
+                  <IconButton
+                    label={favoriteLabel}
+                    variant="card"
+                    isActive={isFavorite}
+                    elevated
+                    onClick={handleFavoriteClick}
+                  >
+                    <Heart className="size-5" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+
+          <div className={cn(OVERLAY, 'flex items-center justify-between gap-1')}>
+            {inCart ? (
+              <QuantityStepper
+                value={cartQuantity}
+                min={0}
+                max={product.backorder ? undefined : (product.stock ?? undefined)}
+                onChange={handleQuantityChange}
+              />
+            ) : (
+              <span />
+            )}
+
+            {inCart ? (
+              <button
+                type="button"
+                aria-label="Перейти в корзину"
                 onClick={handleCartClick}
+                className={IN_CART_BUTTON}
               >
-                <ShoppingCart className="size-5" />
-              </IconButton>
-            )
+                <ShoppingCart className="size-5" aria-hidden="true" />
+                <ChevronsRight className="size-5" aria-hidden="true" />
+              </button>
+            ) : (
+              (onAddToCart || choiceRequired) && (
+                <IconButton
+                  label={choiceRequired ? 'Выбрать вариант' : 'В корзину'}
+                  variant="yellow"
+                  elevated
+                  disabled={unavailable}
+                  onClick={handleCartClick}
+                >
+                  <ShoppingCart className="size-5" />
+                </IconButton>
+              )
+            )}
+          </div>
+
+          {showNavigationLoader && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface/45">
+              <div className="size-8 animate-spin rounded-full border-2 border-surface-border border-t-brand-green" />
+            </div>
           )}
         </div>
 
-        {showNavigationLoader && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface/45">
-            <div className="size-8 animate-spin rounded-full border-2 border-surface-border border-t-brand-green" />
+        <div className="flex flex-col gap-1.5 px-0.5">
+          {/* after:inset-0 растягивает ссылку на всю карточку, не вкладывая в неё кнопки */}
+          <ProductLink
+            to={`/product/${product.slug}`}
+            onClick={handleProductLinkClick}
+            className="truncate text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
+          >
+            {product.name}
+          </ProductLink>
+
+          <div className="flex items-end justify-between gap-2">
+            <Price
+              value={product.price}
+              oldValue={product.old_price ?? undefined}
+              from={variableParent}
+              shrinkOnNarrowDesktop
+            />
+            {swatches.length > 0 && (
+              // По акции рядом две цены — цветам остаётся два кубика, иначе цена не влезает в строку
+              <ColorSwatches
+                colors={swatches}
+                limit={onSale ? 2 : 4}
+                mobileLimit={onSale ? 2 : 3}
+              />
+            )}
           </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1.5 px-0.5">
-        {/* after:inset-0 растягивает ссылку на всю карточку, не вкладывая в неё кнопки */}
-        <ProductLink
-          to={`/product/${product.slug}`}
-          onClick={handleProductLinkClick}
-          className="truncate text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
-        >
-          {product.name}
-        </ProductLink>
-
-        <div className="flex items-end justify-between gap-2">
-          <Price
-            value={product.price}
-            oldValue={product.old_price ?? undefined}
-            from={variableParent}
-            shrinkOnNarrowDesktop
-          />
-          {swatches.length > 0 && (
-            // По акции рядом две цены — цветам остаётся два кубика, иначе цена не влезает в строку
-            <ColorSwatches colors={swatches} limit={onSale ? 2 : 4} mobileLimit={onSale ? 2 : 3} />
-          )}
         </div>
       </div>
     </div>
