@@ -109,13 +109,11 @@ class ProductDetailResource extends JsonResource
         // Источник данных для вариаций на карточке: родитель (опции, категория)
         $sourceProduct = $isVariant && $parentProduct ? $parentProduct : $this->resource;
 
-        $this->resource->loadMissing(['attributes']);
-        $specifications = $this->resource->buildSpecificationsForApi();
+        // Общие характеристики принадлежат корневой карточке, а не предложению.
+        $sourceProduct->loadMissing(['attributes']);
+        $specifications = $sourceProduct->buildSpecificationsForApi();
 
-        if ($specifications === [] && $isVariant && $parentProduct) {
-            $parentProduct->loadMissing(['attributes']);
-            $specifications = $parentProduct->buildSpecificationsForApi();
-        } elseif ($specifications === [] && ! $isVariant) {
+        if ($specifications === [] && ! $isVariant) {
             $attributes = $sourceProduct->relationLoaded('attributeValues')
                 ? $sourceProduct->attributeValues
                 : $sourceProduct->attributeValues()->with('attribute')->get();
@@ -205,11 +203,11 @@ class ProductDetailResource extends JsonResource
             $allVariants = $allVariants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active');
             app(\App\Services\Pricing\PricingEngine::class)->preload($allVariants->pluck('id')->all(), $region);
 
-            $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver) {
+            $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver, $specifications, $sourceProduct) {
                 $variantPrice = (float) $variant->price;
                 $variantPrice = $regionRuleService->getPriceForRegion($this->resource, $region, $variant);
 
-                $variantSpecs = $variant->buildSpecificationsForApi();
+                $variantSpecs = $specifications;
                 $rawVariantStock = $warehouseStockResolver->resolveForProduct($variant, $region);
                 $variantStock = $rawVariantStock === null ? null : (int) round((float) $rawVariantStock);
 
@@ -246,7 +244,7 @@ class ProductDetailResource extends JsonResource
                     'available_to_order' => $warehouseStockResolver->availableToOrder($variant, $region),
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
                     'images' => $variant->images_urls ?: ($variant->main_image_url ? [$variant->main_image_url] : []),
-                    'description' => $variant->description,
+                    'description' => $sourceProduct->description,
                     //'excerpt' => $variant->excerpt,
                     'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
                     'colors' => $colors,
@@ -471,7 +469,7 @@ class ProductDetailResource extends JsonResource
             'backorder' => (bool) $this->backorder,
             'rating' => $this->rating ?? 4.8,
             'reviews_count' => $this->reviews_count ?? 0,
-            'description' => $this->description,
+            'description' => $sourceProduct->description,
             //'excerpt' => $this->excerpt,
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,

@@ -22,6 +22,20 @@ class EditProduct extends EditRecord
     protected array $productAttributesData = [];
     protected ?string $manufacturerName = null;
 
+    /**
+     * Offers are edited only through the parent's compact relation-manager modal.
+     * Do not expose the general product form for a child SKU via a direct URL.
+     */
+    public function mount(int | string $record): void
+    {
+        // Filament needs to initialize the record and page schema before it can redirect.
+        parent::mount($record);
+
+        if ($this->getRecord()->isVariant()) {
+            $this->redirect(ProductResource::getUrl('edit', ['record' => $this->getRecord()->parent_product_id]));
+        }
+    }
+
     protected function getFormActions(): array
     {
         return [
@@ -58,18 +72,6 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('openParentProduct')
-                ->label('Корневой товар')
-                ->icon('heroicon-o-arrow-uturn-left')
-                ->color('info')
-                ->tooltip(fn (): ?string => $this->record?->parentProduct
-                    ? 'Открыть: '.(string) $this->record->parentProduct->name
-                    : null)
-                ->url(fn (): ?string => $this->record?->parent_product_id
-                    ? ProductResource::getUrl('edit', ['record' => $this->record->parent_product_id])
-                    : null)
-                ->visible(fn (): bool => (bool) $this->record?->parent_product_id),
-
             ActionGroup::make([
                 Action::make('viewOnSite')
                     ->label('Просмотр на сайте')
