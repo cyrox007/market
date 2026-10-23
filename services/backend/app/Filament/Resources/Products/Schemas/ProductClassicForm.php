@@ -232,7 +232,7 @@ class ProductClassicForm extends ProductForm
                             ->createOptionForm(AttributeQuickCreate::form())
                             ->createOptionUsing(fn (array $data) => AttributeQuickCreate::create($data)),
 
-                        Select::make('attribute_value_id')
+                        \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')
                             ->label('Значение')
                             ->options(function ($get) {
                                 $attributeId = $get('attribute_id');

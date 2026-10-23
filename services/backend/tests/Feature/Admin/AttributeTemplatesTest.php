@@ -179,6 +179,49 @@ class AttributeTemplatesTest extends TestCase
             ->where('product_id', $product->id)->where('attribute_id', $attribute->id)->pluck('attribute_value_id')->all());
     }
 
+    public function test_multiple_filling_attribute_survives_stale_single_label_request(): void
+    {
+        $attribute = $this->attribute('Внутреннее наполнение', ['type' => 'select', 'is_multiple' => true]);
+        $first = $attribute->values()->create(['value' => 'Полки', 'slug' => 'shelves']);
+        $second = $attribute->values()->create(['value' => 'Штанга', 'slug' => 'rail']);
+        $product = Product::factory()->create(['name' => 'Шкаф-купе Бруно']);
+        app(\App\Services\Product\ProductAttributeSyncService::class)->sync($product, [
+            ['attribute_id' => $attribute->id, 'attribute_value_id' => [$first->id, $second->id]],
+        ]);
+        $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()]);
+        $field = collect($page->instance()->getSchema('form')->getFlatComponents())
+            ->first(fn ($component): bool => $component instanceof \Filament\Forms\Components\Select && $component->getName() === 'attribute_value_id');
+        $this->assertNotNull($field);
+        $this->assertNotEmpty((new \ReflectionMethod($field, 'getOptionLabel'))->getAttributes(\Filament\Support\Components\Attributes\ExposedLivewireMethod::class));
+        // This is the same exposed component method as in the reported stack.
+        $this->assertNull($page->instance()->callSchemaComponentMethod($field->getKey(), 'getOptionLabel'));
+        $labels = $page->instance()->callSchemaComponentMethod($field->getKey(), 'getOptionLabelsForJs');
+        $this->assertCount(2, $labels);
+        $page->call('save', false)->assertHasNoFormErrors();
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], DB::table('product_product_attributes')
+            ->where('product_id', $product->id)->where('attribute_id', $attribute->id)->pluck('attribute_value_id')->all());
+    }
+
+    public function test_switching_attribute_recreates_picker_for_the_new_selection_mode(): void
+    {
+        $single = $this->attribute('Материал', ['type' => 'select', 'is_multiple' => false]);
+        $multiple = $this->attribute('Внутреннее наполнение', ['type' => 'select', 'is_multiple' => true]);
+        $value = $single->values()->create(['value' => 'ЛДСП', 'slug' => 'ldsp']);
+        $product = Product::factory()->create();
+        app(\App\Services\Product\ProductAttributeSyncService::class)->sync($product, [
+            ['attribute_id' => $single->id, 'attribute_value_id' => $value->id],
+        ]);
+        $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()]);
+        $findField = fn () => collect($page->instance()->getSchema('form')->getFlatComponents())
+            ->first(fn ($component): bool => $component instanceof \Filament\Forms\Components\Select && $component->getName() === 'attribute_value_id');
+        $singleKey = $findField()->getLivewireKey();
+        $this->assertSame('ЛДСП', $page->instance()->callSchemaComponentMethod($findField()->getKey(), 'getOptionLabel'));
+        $rowKey = array_key_first($page->get('data.product_attributes'));
+        $page->set('data.product_attributes.'.$rowKey.'.attribute_id', $multiple->id);
+        $this->assertNotSame($singleKey, $findField()->getLivewireKey());
+        $this->assertNull($page->instance()->callSchemaComponentMethod($findField()->getKey(), 'getOptionLabel'));
+    }
+
     private function attribute(string $name, array $overrides = []): Attribute
     {
         return Attribute::query()->create(array_merge([
