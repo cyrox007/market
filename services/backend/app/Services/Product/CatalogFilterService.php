@@ -264,9 +264,11 @@ class CatalogFilterService
         $rootIds = (clone $roots)->reorder()->select('products.id');
         $scopeIds = Product::query()->active()->where(fn ($q) => $q->whereIn('id', clone $rootIds)
             ->orWhereIn('parent_product_id', clone $rootIds))->select('id');
-        $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id')
-            ->union(DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id'));
-        foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
+        $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
+        $usedVariantAttributes = DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
+        // MySQL versions used on hosting reject Laravel's parenthesized UNION inside IN.
+        // Two membership predicates have the same set semantics without that syntax.
+        foreach (Attribute::where(fn ($q) => $q->whereIn('id', $usedAttributes)->orWhereIn('id', $usedVariantAttributes))->where(fn ($q) => $q->where('is_filterable', true)
             ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {

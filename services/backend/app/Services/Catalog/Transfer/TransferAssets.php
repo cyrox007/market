@@ -25,18 +25,27 @@ class TransferAssets
             return 0;
         }
         $source = json_decode($row->source ?? '{}', true);
+        $grouped = isset($source['variant_group']) && $source['variant_group'] !== '';
+        if ($grouped && $product->parent_product_id) {
+            $product = Product::findOrFail($product->parent_product_id);
+        }
         $client = app(TransferSources::class);
         try {
             if (! ($state['initialized'] ?? false)) {
-                $state['images'] = array_values(array_unique($source['images'] ?? []));
+                $state['images'] = $grouped ? [] : array_values(array_unique($source['images'] ?? []));
                 $state['completed'] = [];
                 $state['warnings'] = [];
+                if ($grouped) {
+                    $state['warnings'][] = 'Фотографии вариантов проверяются вручную; существующие сохранены.';
+                }
                 $state['category_index'] = 0;
                 if ($row->old_id) {
                     try {
                         $card = $client->card((int) $row->old_id);
                         $state['navigation'] = $card['category_navigation'] ?? [];
-                        $state['images'] = array_values(array_unique(array_merge($state['images'], $card['images'])));
+                        if (! $grouped) {
+                            $state['images'] = array_values(array_unique(array_merge($state['images'], $card['images'])));
+                        }
                     } catch (TransferRetry $exception) {
                         throw $exception;
                     } catch (\Throwable) {

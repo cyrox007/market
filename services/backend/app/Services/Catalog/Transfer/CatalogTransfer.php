@@ -112,6 +112,15 @@ class CatalogTransfer
             }
             $oldId = $row->old_id ?? (clone $siblings)->whereNotNull('old_id')->value('old_id');
             $price = $row->price ?? (clone $siblings)->whereNotNull('price')->value('price');
+            $variantSource = json_decode($row->source ?? '{}', true);
+            $groupMemberships = (clone $siblings)->get(['file_id', 'source'])->map(fn ($item) => [
+                $item->file_id, json_decode($item->source ?? '{}', true)['variant_group'] ?? null,
+            ])->unique(fn ($item) => json_encode($item));
+            if ($groupMemberships->count() > 1 && $groupMemberships->contains(fn ($item) => $item[1] !== null)) {
+                $this->finish($row->id, 'conflict', 'Код 1С повторён с разной принадлежностью к группе. Требуется проверка.');
+
+                return 1;
+            }
             $sourceRows = (clone $siblings)->whereNotNull('source')->pluck('source');
             $originals = [];
             $categoryPaths = [];
@@ -138,6 +147,10 @@ class CatalogTransfer
                 $products->isEmpty() ? 'Данные источников проверены. На новом сайте код 1С не найден; создание отключено.' : 'Сопоставлено по коду 1С. Требуется проверка, изменения не применены.', [
                     'product' => $products->first()?->toArray(), 'proposed_price' => $price,
                     'old_product_id' => $oldId, 'old_card' => $card, 'api' => $api,
+                    'variant_group' => $variantSource['variant_group'] ?? null,
+                    'variant_group_scope' => $variantSource['variant_group_scope'] ?? null,
+                    'variant_group_rows' => $variantSource['variant_group_rows'] ?? [],
+                    'variant_action' => ($variantSource['variant_group'] ?? null) === null ? 'none' : 'merge_or_attach_by_1c_code',
                     'category_action' => 'manual_review', 'image_action' => 'preview_only',
                     'category_candidates' => $candidates, 'category_trails' => $trails,
                     'original_images_from_files' => array_values(array_unique($originals)),
@@ -175,6 +188,10 @@ class CatalogTransfer
 
     private function finish(int $id, string $status, string $message, ?array $result = null): void
     {
+        $existing = json_decode(DB::table('catalog_transfer_rows')->where('id', $id)->value('result') ?? '{}', true);
+        if (isset($existing['variant_group_applied'])) {
+            $result = ($result ?? []) + ['variant_group_applied' => $existing['variant_group_applied']];
+        }
         DB::table('catalog_transfer_rows')->where('id', $id)->update([
             'status' => $status, 'message' => $message,
             'result' => $result === null ? null : json_encode($result, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'updated_at' => now(),
@@ -249,13 +266,34 @@ class CatalogTransfer
             $headerBook = $headerReader->load($path);
             foreach ($headerBook->getSheetByName($sheet['worksheetName'])->getRowIterator((int) $mapping['header'], (int) $mapping['header']) as $headerRow) {
                 foreach ($headerRow->getCellIterator() as $cell) {
-                    $key = preg_replace('/\(ru[-_]ru\)/', '', strtolower(trim((string) $cell->getValue())));
+                    $key = preg_replace('/\(ru[-_]ru\)/', '', mb_strtolower(trim((string) $cell->getValue())));
                     $headers[$key] = $cell->getColumn();
                 }
             }
             $headerBook->disconnectWorksheets();
+            $groupColumn = TransferVariantGroups::column($headers);
+            $variantGroups = [];
+            if ($groupColumn) {
+                $groupReader = IOFactory::createReader($type);
+                $groupReader->setLoadSheetsOnly($sheet['worksheetName']);
+                $sharedColumns = array_intersect_key($headers, array_flip(['status', 'manufacturer', 'description', 'excerpt']));
+                $columns = array_filter(array_merge([$groupColumn, $mapping['old_id'] ?? null, $headers['name'] ?? null], array_values($sharedColumns)));
+                $groupReader->setReadFilter(new class($columns) implements IReadFilter {
+                    public function __construct(private array $columns) {}
+                    public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+                    {
+                        return in_array($columnAddress, $this->columns, true);
+                    }
+                });
+                $groupBook = $groupReader->load($path);
+                try {
+                    $variantGroups = app(TransferVariantGroups::class)->index($groupBook->getSheetByName($sheet['worksheetName']), (int) $mapping['header'], $groupColumn, $mapping['old_id'] ?? null, $headers['name'] ?? null, $sharedColumns);
+                } finally {
+                    $groupBook->disconnectWorksheets();
+                }
+            }
             $additionalImages = $this->additionalImages($path, $type, $sheets);
-            DB::transaction(function () use ($file, $mapping, $start, $end, $worksheet, $sheet, $additionalImages, $headers): void {
+            DB::transaction(function () use ($file, $mapping, $start, $end, $worksheet, $sheet, $additionalImages, $headers, $groupColumn, $variantGroups): void {
                 for ($number = $start; $number <= $end; $number++) {
                     $formula = false;
                     $read = function (string $field) use ($mapping, $worksheet, $number, &$formula): string {
@@ -285,6 +323,28 @@ class CatalogTransfer
                         }
                     }
                     $old = $read('old_id');
+                    $group = '';
+                    $groupError = null;
+                    $inheritedName = false;
+                    if ($groupColumn) {
+                        $groupCell = $worksheet->getCell($groupColumn.$number);
+                        $formula = $formula || $groupCell->getDataType() === 'f';
+                        $group = $groupCell->getDataType() === 'f' ? '' : trim((string) $groupCell->getValue());
+                        if ($group !== '') {
+                            $anchors = $variantGroups[$group]['anchors'] ?? [];
+                            if ($old === '' && count($anchors) === 1) {
+                                $anchor = reset($anchors);
+                                $old = $anchor['old_id'];
+                                $productData += $anchor['shared'] ?? [];
+                                if (! isset($productData['name']) && $anchor['name'] !== '') {
+                                    $productData['name'] = $anchor['name'];
+                                    $inheritedName = true;
+                                }
+                            } elseif ($old === '') {
+                                $groupError = 'У группы нет единственной исходной карточки: заполните product_id для этой строки.';
+                            }
+                        }
+                    }
                     $priceText = str_replace(["\xc2\xa0", ' ', ','], ['', '', '.'], $read('price'));
                     $categoryPaths = array_values(array_filter(array_map('trim', preg_split('/[,;\r\n]+/', $read('categories'))), fn ($value) => $value !== '' && $value !== '0'));
                     $validCategories = count($categoryPaths) <= 20 && collect($categoryPaths)->every(fn ($path) => (bool) preg_match('/^\d+(?:_\d+)*$/', $path));
@@ -296,10 +356,10 @@ class CatalogTransfer
                         }
                     }
                     $images = array_values(array_unique(array_merge($images, $additionalImages[$old] ?? [])));
-                    if ($code === '' && $old === '' && $priceText === '' && ! $formula) {
+                    if ($code === '' && $old === '' && $priceText === '' && $group === '' && ! $formula) {
                         continue;
                     }
-                    $valid = ! $formula && $validCategories && $code !== '' && mb_strlen($code) <= 255
+                    $valid = ! $formula && $groupError === null && $validCategories && $code !== '' && mb_strlen($code) <= 255
                         && ($old === '' || (ctype_digit($old) && (int) $old > 0 && strlen($old) <= 10))
                         && ($priceText === '' || (preg_match('/^\d{1,12}(?:\.\d{1,2})?$/', $priceText)));
                     DB::table('catalog_transfer_rows')->insertOrIgnore([
@@ -307,8 +367,8 @@ class CatalogTransfer
                         'code' => mb_substr($code, 0, 255), 'old_id' => $valid && $old !== '' ? (int) $old : null,
                         'price' => $valid && $priceText !== '' ? $priceText : null,
                         'status' => $code === '' && ! $formula ? 'skipped' : ($valid ? 'pending' : 'error'),
-                        'source' => json_encode(['sheet' => $sheet['worksheetName'], 'product_data' => $productData, 'images' => $images, 'category_paths' => $validCategories ? $categoryPaths : []], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-                        'message' => $code === '' && ! $formula ? 'Пропущено: в sku нет кода 1С.' : ($formula ? 'Формулы не поддерживаются: сохраните значения.' : ($valid ? 'Прочитано с листа '.$sheet['worksheetName'] : 'Проверьте код 1С, ID и цену.')),
+                        'source' => json_encode(['sheet' => $sheet['worksheetName'], 'inherited_name' => $inheritedName, 'variant_group' => $group === '' ? null : $group, 'variant_group_scope' => $group === '' ? null : $file->id, 'variant_group_rows' => $variantGroups[$group]['rows'] ?? [], 'product_data' => $productData, 'images' => $group === '' ? $images : [], 'category_paths' => $validCategories ? $categoryPaths : []], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                        'message' => $groupError ?? ($code === '' && ! $formula ? 'Пропущено: в sku нет кода 1С.' : ($formula ? 'Формулы не поддерживаются: сохраните значения.' : ($valid ? 'Прочитано с листа '.$sheet['worksheetName'] : 'Проверьте код 1С, ID и цену.'))),
                         'created_at' => now(), 'updated_at' => now(),
                     ]);
                 }

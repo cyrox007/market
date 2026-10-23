@@ -246,10 +246,7 @@ class ProductTabbedForm extends ProductForm
                         Select::make('attribute_id')
                             ->label('Характеристика')
                             ->options(function (?Product $record) {
-                                $query = Attribute::query()->where('slug', '!=', Attribute::SLUG_MANUFACTURER)->orderBy('name');
-                                if ($record?->is_variable) {
-                                    $query->where('is_use_in_variations', false);
-                                }
+                                $query = Attribute::query()->assignableToProduct($record)->orderBy('name');
 
                                 return $query->pluck('name', 'id');
                             })
@@ -262,7 +259,7 @@ class ProductTabbedForm extends ProductForm
                                 $set('custom_value', null);
                             }),
 
-                        Select::make('attribute_value_id')
+                        \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')
                             ->label('Значение')
                             ->options(function ($get) {
                                 $attributeId = $get('attribute_id');

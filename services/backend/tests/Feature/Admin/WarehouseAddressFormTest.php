@@ -14,6 +14,17 @@ use Tests\TestCase;
 
 class WarehouseAddressFormTest extends TestCase
 {
+    public function test_selecting_building_clears_previous_required_error_only_for_that_field(): void
+    {
+        Http::fake(['*' => Http::response([])]);
+        $form = Livewire::test(CreateWarehouse::class)
+            ->fillForm(['name' => 'Test', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'directory_locality' => 'city'])
+            ->call('create')
+            ->assertHasFormErrors(['address_external_id' => 'required']);
+        $form->set('data.address_external_id', '123')
+            ->assertHasNoFormErrors(['address_external_id']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -64,6 +75,31 @@ class WarehouseAddressFormTest extends TestCase
         Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/hierarchy/'));
     }
 
+    public function test_editing_profile_preserves_tariff_mode_and_legacy_link(): void
+    {
+        Http::fake(['*' => Http::response([])]);
+        $location = \App\Models\Shipping\ShippingLocation::factory()->create(['is_active' => true]);
+        $warehouse = Warehouse::create(['name' => 'Склад']);
+        $profile = $warehouse->deliveryProfiles()->create([
+            'name' => 'Legacy', 'coverage_type' => 'radius', 'radius_km' => 10,
+            'services_location_id' => $location->id, 'base_price' => 100,
+            'delivery_days_min' => 1, 'delivery_days_max' => 2, 'priority' => 100, 'is_active' => true,
+        ]);
+        $manager = Livewire::test(\App\Filament\Resources\Shipping\Warehouses\RelationManagers\DeliveryProfilesRelationManager::class, [
+            'ownerRecord' => $warehouse, 'pageClass' => EditWarehouse::class,
+        ]);
+        $manager->callTableAction('edit', $profile, data: ['name' => 'Renamed'])->assertHasNoTableActionErrors();
+        $this->assertNull($profile->fresh()->service_tariffs);
+        $this->assertSame($location->id, $profile->fresh()->services_location_id);
+
+        $profile->update(['service_tariffs' => ['assembly_price' => 650]]);
+        $manager->callTableAction('edit', $profile->fresh(), data: ['name' => 'New tariffs'])->assertHasNoTableActionErrors();
+        $this->assertSame(650, (int) $profile->fresh()->service_tariffs['assembly_price']);
+        $manager->callTableAction('edit', $profile->fresh(), data: ['use_profile_tariffs' => false])->assertHasNoTableActionErrors();
+        $this->assertNull($profile->fresh()->service_tariffs);
+        $this->assertSame($location->id, $profile->fresh()->services_location_id);
+    }
+
     public function test_operator_can_create_a_directory_delivery_profile(): void
     {
         Http::fake(['*/address/regions*' => Http::response([
@@ -82,10 +118,14 @@ class WarehouseAddressFormTest extends TestCase
             'directory_territories' => [['region_id' => 'region48', 'locality_id' => null]],
             'base_price' => 1500, 'delivery_days_min' => 2, 'delivery_days_max' => 4,
             'priority' => 100, 'is_active' => true, 'price_per_km' => 0,
+            'use_profile_tariffs' => true,
+            'service_tariffs' => ['requires_assembly' => true, 'assembly_price' => 450, 'assembly_days' => 2],
         ])->assertHasNoTableActionErrors();
         $profile = $warehouse->deliveryProfiles()->firstOrFail();
         $this->assertSame('region48', $profile->directory_territories[0]['externalId']);
         $this->assertSame('1500.00', $profile->base_price);
+        $this->assertSame(450, (int) $profile->service_tariffs['assembly_price']);
+        $this->assertTrue((bool) $profile->service_tariffs['requires_assembly']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), '/address/localities')
             && $request['parentExternalId'] === 'region48');
     }

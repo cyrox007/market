@@ -105,18 +105,20 @@ class WarehouseDeliveryQuote
                     $price = 0.0;
                 }
                 try {
-                    $services = app(WarehouseServices::class)->calculate($profile->servicesLocation, $selection);
+                    $services = app(WarehouseServices::class)->calculate($profile, $selection);
                 } catch (ValidationException $error) {
                     $serviceErrors = $error;
                     continue;
                 }
                 $options[] = [
                     'warehouse_id' => $warehouse->id, 'warehouse_name' => $warehouse->name,
+                    'warehouse_external_id' => $warehouse->external_id,
                     'stock_mode' => $warehouse->stock_mode, 'profile_id' => $profile->id, 'profile_name' => $profile->name,
                     'profile_fingerprint' => hash('sha256', json_encode($profile->getAttributes())),
                     'warehouse_fingerprint' => hash('sha256', json_encode([$warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes()])),
                     'delivery_cost' => round($price + $services['handling_cost'], 2), 'transport_cost' => $price,
-                    ...$services, 'services_location_id' => $profile->services_location_id,
+                    ...$services,
+                    'service_options' => app(WarehouseServices::class)->options($profile),
                     'total_fulfillment_cost' => round($price + $services['handling_cost'] + $services['assembly_cost'] + $services['additional_services_cost'], 2),
                     'base_price' => (float) $profile->base_price,
                     'free_delivery_threshold' => $profile->free_delivery_threshold === null ? null : (float) $profile->free_delivery_threshold,

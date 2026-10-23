@@ -26,7 +26,7 @@ class CategoryRegionalText
 
                 return ['text' => null, 'city' => null, 'delivery_cities_count' => null, 'count_source' => 'address_directory_unavailable'];
             }
-            $city = collect($snapshot['path'] ?? [])->last(fn ($node) => ($node['kind'] ?? null) === 'locality');
+            $city = \App\Services\Address\AddressHierarchy::locality($snapshot);
         } elseif ($id = $request->input('shipping_location_id', $request->input('region_id'))) {
             $location = ShippingLocation::where('is_active', true)->where('type', 'locality')->find($id);
             $city = $location ? ['name' => $location->name, 'externalId' => $location->code, 'kladrCode' => $location->code] : null;

@@ -364,8 +364,8 @@ class ProductVariantsRelationManager extends RelationManager
                     ->sortable()
                     ->weight('bold')
                     ->description(fn(Product $record): string => 'Торговое предложение')
-                    ->url(fn(Product $record): string => ProductResource::getUrl('edit', ['record' => $record]))
-                    ->openUrlInNewTab(false),
+                    ->action(fn (Product $record, RelationManager $livewire) => $livewire->mountTableAction('edit', $record->getKey()))
+                    ->tooltip('Редактировать торговое предложение'),
 
                 TextColumn::make('sku')
                     ->label('SKU')
@@ -575,6 +575,9 @@ class ProductVariantsRelationManager extends RelationManager
             ])
             ->actions([
                 EditAction::make()
+                    ->label('Изменить')
+                    ->modalHeading('Редактирование торгового предложения')
+                    ->modalDescription('Здесь задаются цена, фото и параметры конкретного предложения. Общие характеристики для всех предложений задавайте в родительской карточке товара.')
                     ->fillForm(function (Product $record): array {
                         $data = $record->toArray();
                         $parent = $record->parentProduct;
@@ -609,7 +612,9 @@ class ProductVariantsRelationManager extends RelationManager
                                     ->toArray();
 
                                 if (!empty($valueIds)) {
-                                    $data['variation_attr_' . $attr->id] = $valueIds;
+                                    $data['variation_attr_' . $attr->id] = $attr->is_multiple
+                                        ? $valueIds
+                                        : $valueIds[0];
                                 }
                             }
                         }
@@ -628,6 +633,12 @@ class ProductVariantsRelationManager extends RelationManager
                         }
                         return $record;
                     }),
+                Action::make('fullProductCard')
+                    ->label('Полная карточка')
+                    ->icon('heroicon-o-document-text')
+                    ->color('gray')
+                    ->tooltip('Описание и обычные характеристики предложения. Цвет, размер и другие параметры варианта редактируйте через «Изменить».')
+                    ->url(fn (Product $record): string => ProductResource::getUrl('edit', ['record' => $record])),
                 Action::make('detach')
                     ->label('Отвязать')
                     ->icon('heroicon-o-link-slash')

@@ -12,7 +12,7 @@ class PhysicalSiteSetup
     public function create(array $data): PhysicalSite
     {
         $resolved = app(WarehouseAddressResolver::class)->prepare($data + ['source_type' => 'physical']);
-        $city = collect($resolved['address_snapshot']['path'])->last(fn (array $row): bool => ($row['kind'] ?? null) === 'locality');
+        $city = AddressHierarchy::locality($resolved['address_snapshot'] ?? []);
 
         return PhysicalSite::create(array_merge($resolved, ['city' => $city['name'] ?? null]));
     }
@@ -23,8 +23,7 @@ class PhysicalSiteSetup
             $previous = new Warehouse($site->only(['address_external_id', 'address_snapshot', 'address', 'latitude', 'longitude']));
             $resolved = app(WarehouseAddressResolver::class)->prepare($data + ['source_type' => 'physical'], $previous);
             // Unchanged addresses preserve authoritative identifiers as well.
-            $city = collect($resolved['address_snapshot']['path'] ?? $site->address_snapshot['path'] ?? [])
-                ->last(fn (array $row): bool => ($row['kind'] ?? null) === 'locality');
+            $city = AddressHierarchy::locality($resolved['address_snapshot'] ?? $site->address_snapshot ?? []);
             $oldSelection = $site->address_snapshot['selectionId'] ?? $site->address_external_id;
             $newSelection = $resolved['address_snapshot']['selectionId'] ?? $oldSelection;
             $site->fill($resolved + ['city' => $city['name'] ?? $site->city])->save();

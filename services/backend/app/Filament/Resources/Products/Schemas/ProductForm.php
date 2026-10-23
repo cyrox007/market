@@ -7,6 +7,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\Textarea;
+use App\Filament\Forms\ProductDescriptionEditor;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
@@ -78,8 +79,7 @@ class ProductForm
                             ->helperText('Краткий подзаголовок товара (опционально)')
                             ->columnSpanFull(), */
 
-                // Описания: Textarea вместо RichEditor из-за бага в Filament 4.3 (TipTap init "length"/getEditor undefined).
-                // HTML в description/excerpt на фронте рендерится как есть; при желании вернуть RichEditor — обновить Filament.
+                // Краткое описание пока не редактируется; полное хранится совместимым HTML.
                 /* Textarea::make('excerpt')
                             ->label(__('filament/admin_sv/product_resource.excerpt'))
                             ->default('')
@@ -88,11 +88,20 @@ class ProductForm
                             ->helperText('Краткое описание для карточек и списков (до 500 символов). Поддерживается HTML.')
                             ->columnSpanFull(), */
 
-                Textarea::make('description')
+                ProductDescriptionEditor::make('description')
                     ->label(__('filament/admin_sv/product_resource.description'))
                     ->default('')
-                    ->rows(12)
-                    ->helperText('Подробное описание товара. Поддерживается HTML (теги, списки, ссылки).')
+                    ->toolbarButtons([
+                        ['bold', 'italic', 'underline'],
+                        ['h2', 'h3'],
+                        ['bulletList', 'orderedList', 'blockquote'],
+                        ['link'],
+                        ['undo', 'redo'],
+                    ])
+                    ->fileAttachments(false)
+                    ->formatStateUsing(fn (?string $state): string => app(\App\Services\Product\ProductDescriptionHtml::class)->forEditor($state))
+                    ->dehydrateStateUsing(fn (?string $state): string => app(\App\Services\Product\ProductDescriptionHtml::class)->sanitize($state))
+                    ->helperText('Пишите как в текстовом редакторе: Enter — новый абзац, Shift+Enter — перенос строки. Теги <br> вводить не нужно.')
                     ->columnSpanFull(),
 
                 Section::make('Артикулы')
@@ -584,7 +593,7 @@ class ProductForm
                                 ])->id;
                             }),
 
-                        Select::make('attribute_value_id')
+                        \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')
                             ->label('Значение')
                             ->options(function ($get) {
                                 $attributeId = $get('attribute_id');
