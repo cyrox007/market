@@ -17,6 +17,23 @@ class TransferProductWriter
         if (! app()->environment(['local', 'testing'])) {
             throw new \DomainException('Применение разрешено только локально.');
         }
+        $row = DB::table('catalog_transfer_rows')->find($rowId);
+        if (! $row) {
+            throw new \DomainException('Строка переноса не найдена.');
+        }
+        $source = json_decode($row->source ?? '{}', true);
+        if (isset($source['variant_group']) && $source['variant_group'] !== '') {
+            return app(TransferVariantWriter::class)->apply($rowId, fn (int $id) => $this->applySingle($id));
+        }
+
+        return $this->applySingle($rowId);
+    }
+
+    private function applySingle(int $rowId): Product
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \DomainException('Применение разрешено только локально.');
+        }
 
         return DB::transaction(function () use ($rowId): Product {
             $row = DB::table('catalog_transfer_rows')->where('id', $rowId)->lockForUpdate()->first();
@@ -45,6 +62,11 @@ class TransferProductWriter
             }
             $product = $matches->first();
             $created = $product === null;
+            $source = json_decode($row->source ?? '{}', true);
+            $grouped = isset($source['variant_group']) && $source['variant_group'] !== '';
+            if (! $created && ($source['inherited_name'] ?? false)) {
+                unset($data['name']);
+            }
             $oldId = $row->old_id ?? (clone $siblings)->whereNotNull('old_id')->value('old_id');
             if ($product && filled($product->external_id) && $product->external_id !== $row->code && (string) $product->external_id !== (string) $oldId) {
                 throw new \DomainException('У найденного SKU уже указан другой код 1С.');
@@ -74,14 +96,21 @@ class TransferProductWriter
             }
             validator(['name' => $product->name], ['name' => 'required|string|max:255'])->validate();
             $price = $row->price ?? (clone $siblings)->whereNotNull('price')->value('price');
-            if ($created && $price === null) {
+            if ($created && $price === null && ! $grouped) {
                 throw new \DomainException('Для создания товара требуется цена из таблицы.');
+            }
+            if ($created && $price === null && $grouped) {
+                $product->price = 0;
+                $product->state = 'draft';
             }
             if ($price !== null) {
                 $product->price = $price;
             }
             if (isset($data['status'])) {
                 $product->state = in_array(strtolower((string) $data['status']), ['true', '1', 'active', 'yes'], true) ? 'active' : 'inactive';
+            }
+            if ($created && $price === null && $grouped) {
+                $product->state = 'draft';
             }
             $product->save();
             if (! empty($data['manufacturer'])) {
@@ -115,6 +144,24 @@ class TransferProductWriter
                 return;
             }
             $product = Product::whereKey($row->applied_product_id)->lockForUpdate()->firstOrFail();
+            $source = json_decode($row->source ?? '{}', true);
+            $grouped = isset($source['variant_group']) && $source['variant_group'] !== '';
+            $payload = is_array($data['payload'] ?? null) ? $data['payload'] : [];
+            if ($grouped) {
+                if (isset($data['external_id']) && (string) $data['external_id'] !== (string) $row->code) {
+                    throw new \DomainException('Ответ API относится к другому коду 1С.');
+                }
+                if (is_string($payload['name'] ?? null) && trim($payload['name']) !== '') {
+                    $product->name = html_entity_decode(strip_tags(trim($payload['name'])), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    validator(['name' => $product->name], ['name' => 'required|string|max:255'])->validate();
+                }
+                if (is_numeric($payload['weight'] ?? null) && is_finite((float) $payload['weight']) && (float) $payload['weight'] >= 0) {
+                    $product->weight = $payload['weight'];
+                }
+                if (is_string($payload['manufacturer'] ?? null) && trim($payload['manufacturer']) !== '') {
+                    app(ProductManufacturer::class)->save($product, trim($payload['manufacturer']));
+                }
+            }
             $protected = [];
             foreach (DB::table('catalog_transfer_rows')->where('run_id', $row->run_id)->where('code', $row->code)->pluck('source') as $source) {
                 $protected += json_decode($source ?? '{}', true)['product_data'] ?? [];
@@ -122,21 +169,48 @@ class TransferProductWriter
             foreach ($data['characteristics'] as $item) {
                 $name = trim((string) ($item['name'] ?? ''));
                 $values = $item['values'] ?? [];
-                $value = trim((string) (is_array($values) ? ($values[0] ?? '') : $values));
+                $value = $grouped && is_array($values)
+                    ? implode(' / ', array_values(array_unique(array_filter(array_map(fn ($value) => is_scalar($value) ? trim((string) $value) : '', $values), fn ($value) => $value !== ''))))
+                    : trim((string) (is_array($values) ? ($values[0] ?? '') : $values));
                 if ($name === '' || $value === '') {
                     continue;
                 }
                 $slug = Attribute::canonicalSlugForName($name);
-                if ($slug === Attribute::SLUG_MANUFACTURER && ! empty($protected['manufacturer'])) {
+                if (! $grouped && $slug === Attribute::SLUG_MANUFACTURER && ! empty($protected['manufacturer'])) {
                     continue;
                 }
                 $protectedSlugs = array_map(fn ($label) => Attribute::canonicalSlugForName($label), array_keys($this->tableCharacteristics($protected)));
-                if (! in_array($slug, $protectedSlugs, true)) {
+                if ($grouped || ! in_array($slug, $protectedSlugs, true)) {
                     $this->characteristic($product, $name, $value);
                 }
             }
             // Existing inventory action creates missing warehouses by 1C ID and applies a complete stock snapshot.
+            if ($grouped) {
+                $apiPrice = $data['price'] ?? null;
+                if (is_numeric($apiPrice) && is_finite((float) $apiPrice) && (float) $apiPrice >= 0) {
+                    $product->price = $apiPrice;
+                    if ((string) $product->state === 'draft') {
+                        $tableStatus = strtolower((string) ($protected['status'] ?? 'true'));
+                        $product->state = in_array($tableStatus, ['true', '1', 'active', 'yes'], true) ? 'active' : 'inactive';
+                    }
+                }
+                $product->save();
+            }
             app(ApplyOneCStockSnapshotAction::class)->execute($product, $data['stocks']);
+            if ($product->parent_product_id) {
+                $parent = Product::findOrFail($product->parent_product_id);
+                if ((string) $parent->state === 'draft' && (string) $product->state === 'active') {
+                    $parent->state = 'active';
+                    $parent->save();
+                }
+                $attributeIds = app(\App\Actions\Product\GetVariationAttributesForProductAction::class)->execute($parent)->pluck('id')->all();
+                $dimensionSlugs = array_map(fn ($name) => Attribute::canonicalSlugForName($name), ['Цвет', 'Размер', 'Ширина', 'Высота', 'Длина', 'Глубина', 'Ширина (мм)', 'Высота (мм)', 'Глубина (мм)']);
+                $apiAttributeIds = $product->attributes()->where(fn ($query) => $query->where('is_use_in_variations', true)->orWhereIn('product_attributes.slug', $dimensionSlugs))->pluck('product_attributes.id')->all();
+                $parent->variationAttributeSelection()->syncWithoutDetaching(array_unique(array_merge($attributeIds, $apiAttributeIds)));
+                $label = mb_substr((string) $product->name, 0, max(0, 250 - mb_strlen((string) $product->sku))).' — '.$product->sku;
+                $form = app(\App\Actions\Product\BuildMergeVariantFormDataAction::class)->execute($parent, $product, $label);
+                app(\App\Actions\Product\SyncVariantVariationAttributesAction::class)->execute($product, $form, $parent);
+            }
             $product->flushCache();
             DB::table('catalog_transfer_rows')->where('id', $rowId)->update(['api_applied_at' => now(), 'updated_at' => now()]);
         }, 3);

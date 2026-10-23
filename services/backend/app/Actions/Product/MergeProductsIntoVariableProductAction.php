@@ -30,7 +30,7 @@ class MergeProductsIntoVariableProductAction
     ) {
     }
 
-    public function execute(MergeProductsIntoVariableProductData $data): Product
+    public function execute(MergeProductsIntoVariableProductData $data, bool $copyMainImage = true): Product
     {
         Log::info('[MergeProductsIntoVariableProduct] start', [
             'product_ids' => $data->productIds,
@@ -86,7 +86,9 @@ class MergeProductsIntoVariableProductAction
         });
 
         // Копия файла — только после успешной фиксации объединения
-        $this->copyMainImage($parent, $products, $draft);
+        if ($copyMainImage) {
+            $this->copyMainImage($parent, $products, $draft);
+        }
 
         return $parent->fresh(['variants']);
     }

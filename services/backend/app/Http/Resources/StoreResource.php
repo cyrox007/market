@@ -19,6 +19,9 @@ class StoreResource extends JsonResource
         $latitude = $site ? $site->latitude : $this->latitude;
         $longitude = $site ? $site->longitude : $this->longitude;
         $warehouse = $this->warehouse;
+        $hasOwnStock = $warehouse && $warehouse->is_active && $warehouse->source_type === 'physical' && $warehouse->stock_mode === 'quantity'
+            && $site && (int) $warehouse->physical_site_id === (int) $site->id;
+        $pickupReady = $this->is_active && $this->pickup_enabled && $hasOwnStock && filled($site?->address);
 
         return [
             'id' => $this->id,
@@ -28,15 +31,15 @@ class StoreResource extends JsonResource
             'city' => $site?->city ?? $this->city,
             'physical_site_id' => $this->physical_site_id,
             'warehouse_id' => $this->warehouse_id,
-            'has_own_stock' => $warehouse && $warehouse->is_active && $warehouse->source_type === 'physical' && $warehouse->stock_mode === 'quantity'
-                && $site && (int) $warehouse->physical_site_id === (int) $site->id,
+            'has_own_stock' => (bool) $hasOwnStock,
             'gar_guid' => $site?->gar_guid,
             'kladr_code' => $site?->kladr_code,
             'phone' => $this->phone,
             'hours' => $this->hours,
             'opening_hours' => $this->opening_hours,
             'timezone' => $this->timezone ?? 'Europe/Moscow',
-            'pickup_enabled' => (bool) $this->pickup_enabled,
+            // Configuration alone does not establish an actual pickup point.
+            'pickup_enabled' => (bool) $pickupReady,
             'coordinates' => $site ? ($latitude !== null && $longitude !== null ? $latitude.','.$longitude : null) : $this->coordinates,
             'latitude' => $latitude !== null ? (float) $latitude : null,
             'longitude' => $longitude !== null ? (float) $longitude : null,

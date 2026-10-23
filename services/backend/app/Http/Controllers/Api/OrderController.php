@@ -599,6 +599,12 @@ class OrderController extends Controller
             );
             if ($directoryDelivery) {
                 $addressSnapshot = $savedDestination?->full_address ?? $warehouseQuote['address']['address_snapshot']['label'];
+                $warehouseQuote['selected']['address_directory'] = app(\App\Services\Address\FulfillmentAddress::class)->snapshot(
+                    $warehouseQuote['address']['address_snapshot'],
+                    $savedDestination ? $savedDestination->only(['apartment', 'room', 'entrance', 'floor', 'intercom', 'comment']) : ($validated['delivery_details'] ?? [])
+                );
+            } elseif ($warehousePickup) {
+                $addressSnapshot = $warehouseQuote['selected']['address_directory']['label'] ?? $warehouseQuote['selected']['address'] ?? null;
             }
 
             // Самовывоз всегда бесплатный; для доставки клиент не может подменить расчёт через delivery_cost без согласования
