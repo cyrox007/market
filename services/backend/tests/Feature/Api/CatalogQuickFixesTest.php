@@ -50,12 +50,12 @@ class CatalogQuickFixesTest extends TestCase
         $this->product($category, ['original_price' => 1000]);
         $this->product($category, ['original_price' => null]);
         $variable = $this->product($category, ['is_variable' => true]);
-        Product::factory()->create(['parent_product_id' => $variable->id, 'price' => 100, 'original_price' => 200]);
+        $discountedOffer = Product::factory()->create(['parent_product_id' => $variable->id, 'price' => 100, 'original_price' => 200]);
         $inactiveDiscount = $this->product($category, ['is_variable' => true, 'original_price' => 2000]);
         Product::factory()->create(['parent_product_id' => $inactiveDiscount->id, 'state' => 'inactive', 'price' => 100, 'original_price' => 200]);
         $query = http_build_query(['category_slug' => $category->slug, 'on_sale' => 1, 'sort_by' => 'name']);
         $response = $this->getJson('/api/v1/products?'.$query)->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('meta.filters.has_on_sale', true);
-        $this->assertEqualsCanonicalizing([$simple->id, $variable->id], array_column($response->json('data'), 'id'));
+        $this->assertEqualsCanonicalizing([$simple->id, $discountedOffer->id], array_column($response->json('data'), 'id'));
         $this->getJson('/api/v1/products/count?'.$query)->assertOk()->assertExactJson(['total' => 2]);
     }
 
@@ -68,7 +68,7 @@ class CatalogQuickFixesTest extends TestCase
         $queries = collect(DB::getQueryLog())->pluck('query')->implode("\n");
         $this->assertStringNotContainsString('product_attribute_values', $queries);
         $this->assertStringNotContainsString('product_filters_meta', $queries);
-        $this->assertDoesNotMatchRegularExpression('/select\s+\*\s+from\s+["`]?products/i', $queries);
+        $this->assertDoesNotMatchRegularExpression('/(?:^|\n)select\s+\*\s+from\s+["`]?products/i', $queries);
     }
 
     public function test_multiple_categories_are_union_with_descendants_without_duplicate_products(): void

@@ -977,15 +977,28 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             ->whereNotNull('price');
     }
 
-    /**
-     * Scope a query to filter by category (taxon) including all descendant categories.
-     */
+    /** Public catalog positions: simple products and individual active offers. */
+    public function scopeCatalogItems(Builder $query): Builder
+    {
+        return $query->active()->where(function (Builder $items): void {
+            $items->where(function (Builder $simple): void {
+                $simple->whereNull('parent_product_id')
+                    ->where(fn (Builder $flag) => $flag->whereNull('is_variable')->orWhere('is_variable', false))
+                    ->whereDoesntHave('variants');
+            })->orWhere(function (Builder $offer): void {
+                $offer->whereNotNull('parent_product_id')->whereHas('parentProduct', fn (Builder $parent) => $parent->active()->whereNull('parent_product_id'));
+            });
+        });
+    }
+
+    /** Filter by own or inherited category, including descendant categories. */
     public function scopeInCategory(Builder $query, $taxonId): Builder
     {
         $categoryIds = Category::getAllDescendantIdsFor($taxonId);
 
-        return $query->whereHas('taxons', function ($q) use ($categoryIds) {
-            $q->whereIn('taxons.id', $categoryIds);
+        return $query->where(function (Builder $scope) use ($categoryIds): void {
+            $scope->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $categoryIds))
+                ->orWhereHas('parentProduct.taxons', fn ($q) => $q->whereIn('taxons.id', $categoryIds));
         });
     }
 
@@ -999,7 +1012,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $q->where('name', 'like', $searchTerm)
                 ->orWhere('description', 'like', $searchTerm)
                 //->orWhere('excerpt', 'like', $searchTerm)
-                ->orWhere('sku', 'like', $searchTerm);
+                ->orWhere('sku', 'like', $searchTerm)
+                ->orWhereHas('parentProduct', fn (Builder $parent) => $parent->where(fn (Builder $text) => $text
+                    ->where('name', 'like', $searchTerm)->orWhere('description', 'like', $searchTerm)));
         });
     }
 

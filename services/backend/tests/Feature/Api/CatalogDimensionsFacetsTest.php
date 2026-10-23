@@ -122,7 +122,7 @@ class CatalogDimensionsFacetsTest extends TestCase
         $response = $this->getJson('/api/v1/products?category_slug='.$cat->slug.'&colors=blue&sizes=small')->assertOk();
         $response->assertJsonCount(0, 'data')->assertJsonPath('meta.filters.facet_mode', 'excluding_self');
         $this->assertSame(['red'], array_column($response->json('meta.filters.colors'), 'slug'));
-        $this->assertSame(1, $response->json('meta.filters.colors.0.count')); // Two SKUs, one card.
+        $this->assertSame(2, $response->json('meta.filters.colors.0.count')); // Two independent catalog positions.
         $this->assertSame(['large'], array_column($response->json('meta.filters.sizes'), 'slug'));
     }
 

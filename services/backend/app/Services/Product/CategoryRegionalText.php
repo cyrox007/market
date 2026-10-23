@@ -31,7 +31,7 @@ class CategoryRegionalText
             $location = ShippingLocation::where('is_active', true)->where('type', 'locality')->find($id);
             $city = $location ? ['name' => $location->name, 'externalId' => $location->code, 'kladrCode' => $location->code] : null;
         }
-        $roots = Product::active()->whereNull('parent_product_id')->inCategory($category->id);
+        $roots = Product::query()->catalogItems()->inCategory($category->id);
         $skuIds = app(CatalogFilterService::class)->skus($roots, [])->select('products.id');
         $warehouses = Warehouse::where('is_active', true)->where(fn ($q) => $q
             ->where(fn ($quantity) => $quantity->where('stock_mode', 'quantity')->whereHas('productStocks', fn ($s) => $s->where('quantity', '>', 0)->whereIn('product_id', clone $skuIds)))

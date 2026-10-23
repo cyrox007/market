@@ -63,7 +63,7 @@ class ProductCanonicalAttributeFiltersTest extends TestCase
 
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $this->assertSame([$expected->id], $ids);
+        $this->assertSame([$expectedVariant->id], $ids);
     }
 
     public function test_physical_dimensions_alone_never_match_commercial_size_filter(): void
@@ -181,7 +181,7 @@ class ProductCanonicalAttributeFiltersTest extends TestCase
 
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id);
-        $this->assertTrue($ids->contains($parent->id));
+        $this->assertTrue($ids->contains($variant->id));
     }
 
     /**

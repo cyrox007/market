@@ -33,6 +33,8 @@ class ProductResource extends JsonResource
         $regionRuleService = app(ProductRegionRuleService::class);
         $variationAttributeService = app(ProductVariationAttributeService::class);
         $warehouseStockResolver = app(WarehouseStockResolver::class);
+        $ruleProduct = $this->isVariant() ? ($this->resource->parentProduct ?? $this->resource) : $this->resource;
+        $ruleVariant = $this->isVariant() ? $this->resource : null;
 
         // Для вариативных товаров получаем минимальную цену из вариаций
         $price = (float) $this->price;
@@ -125,15 +127,15 @@ class ProductResource extends JsonResource
 
         // Применяем правила для невариативных товаров
         if (!$this->isVariable()) {
-            $price = $regionRuleService->getPriceForRegion($this->resource, $region);
+            $price = $regionRuleService->getPriceForRegion($ruleProduct, $region, $ruleVariant);
             $oldPrice = app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $price);
-            $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($this->resource, $region);
+            $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($ruleProduct, $region, $ruleVariant);
         }
 
         // Проверяем видимость товара в регионе
         $isVisibleInRegion = true;
         if ($region) {
-            $isVisibleInRegion = $regionRuleService->isVisibleInRegion($this->resource, $region);
+            $isVisibleInRegion = $regionRuleService->isVisibleInRegion($ruleProduct, $region, $ruleVariant);
         }
 
         // Физические характеристики — в списке не включаем для уменьшения payload
@@ -152,7 +154,8 @@ class ProductResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'slug' => $this->slug,
-            'sku' => $isListView ? null : $this->sku,
+            'sku' => $this->sku,
+            'parent_id' => $this->isVariant() ? $this->parent_product_id : null,
             'manufacturer' => app(\App\Services\Product\ProductManufacturer::class)->value($this->resource),
             'price' => $price,
             'delivery_days' => $deliveryDays,

@@ -59,7 +59,7 @@ class MergedProductApiTest extends TestCase
         $this->assertCount(2, $variationAttribute['values']);
     }
 
-    public function test_catalog_lists_only_merged_card(): void
+    public function test_catalog_lists_each_offer_instead_of_merged_parent(): void
     {
         $a = Product::factory()->create(['name' => 'Комод К800 Белый', 'state' => 'active']);
         $b = Product::factory()->create(['name' => 'Комод К800 Венге', 'state' => 'active']);
@@ -70,8 +70,8 @@ class MergedProductApiTest extends TestCase
 
         $ids = collect($this->getJson('/api/v1/products?per_page=100')->assertOk()->json('data'))->pluck('id')->all();
 
-        $this->assertContains($parent->id, $ids);
-        $this->assertNotContains($a->id, $ids);
-        $this->assertNotContains($b->id, $ids);
+        $this->assertNotContains($parent->id, $ids);
+        $this->assertContains($a->id, $ids);
+        $this->assertContains($b->id, $ids);
     }
 }
