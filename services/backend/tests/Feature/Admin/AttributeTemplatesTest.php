@@ -236,12 +236,23 @@ class AttributeTemplatesTest extends TestCase
         $page->callTableColumnAction('name', $offer);
         $this->assertSame('edit', $page->instance()->getMountedTableAction()->getName());
         $this->assertSame($offer->id, $page->instance()->getMountedTableActionRecord()->id);
-        $fullCard = $table->getAction('fullProductCard')->record($offer);
-        $this->assertSame('Полная карточка', $fullCard->getLabel());
-        $this->assertSame(\App\Filament\Resources\Products\ProductResource::getUrl('edit', ['record' => $offer]), $fullCard->getUrl());
+        $this->assertNull($table->getAction('fullProductCard'));
         $this->assertSame('Редактирование торгового предложения', $page->instance()->getMountedTableAction()->getModalHeading());
         $this->assertStringContainsString('Общие характеристики для всех предложений задавайте в родительской карточке товара.', $page->instance()->getMountedTableAction()->getModalDescription());
         $page->assertStatus(200);
+    }
+
+    public function test_direct_offer_edit_redirects_to_root_product(): void
+    {
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $offer = Product::factory()->create(['parent_product_id' => $parent->id]);
+
+        Livewire::test(EditProduct::class, ['record' => $offer->getRouteKey()])
+            ->assertRedirect(\App\Filament\Resources\Products\ProductResource::getUrl('edit', ['record' => $parent]));
+
+        // The full product editor remains available for the root product.
+        Livewire::test(EditProduct::class, ['record' => $parent->getRouteKey()])
+            ->assertStatus(200);
     }
 
     private function attribute(string $name, array $overrides = []): Attribute
