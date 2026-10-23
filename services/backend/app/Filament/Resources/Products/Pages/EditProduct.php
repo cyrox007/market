@@ -209,7 +209,10 @@ class EditProduct extends EditRecord
         $product = $this->record;
 
         $data['excerpt'] = is_string($data['excerpt'] ?? null) ? $data['excerpt'] : '';
-        $data['description'] = is_string($data['description'] ?? null) ? $data['description'] : '';
+        // Convert plain-text breaks before RichEditor casts HTML into its document.
+        $data['description'] = app(\App\Services\Product\ProductDescriptionHtml::class)->forEditor(
+            is_string($data['description'] ?? null) ? $data['description'] : '',
+        );
 
         if ($product) {
             $attributes = $product->attributes()->withPivot('attribute_value_id', 'custom_value')->get();
