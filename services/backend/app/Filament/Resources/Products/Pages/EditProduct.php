@@ -28,15 +28,12 @@ class EditProduct extends EditRecord
      */
     public function mount(int | string $record): void
     {
-        $product = Product::query()->findOrFail($record);
-
-        if ($product->isVariant()) {
-            $this->redirect(ProductResource::getUrl('edit', ['record' => $product->parent_product_id]));
-
-            return;
-        }
-
+        // Filament needs to initialize the record and page schema before it can redirect.
         parent::mount($record);
+
+        if ($this->getRecord()->isVariant()) {
+            $this->redirect(ProductResource::getUrl('edit', ['record' => $this->getRecord()->parent_product_id]));
+        }
     }
 
     protected function getFormActions(): array
