@@ -7,7 +7,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\RichEditor;
+use App\Filament\Forms\ProductDescriptionEditor;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
@@ -88,7 +88,7 @@ class ProductForm
                             ->helperText('Краткое описание для карточек и списков (до 500 символов). Поддерживается HTML.')
                             ->columnSpanFull(), */
 
-                RichEditor::make('description')
+                ProductDescriptionEditor::make('description')
                     ->label(__('filament/admin_sv/product_resource.description'))
                     ->default('')
                     ->toolbarButtons([
@@ -98,6 +98,7 @@ class ProductForm
                         ['link'],
                         ['undo', 'redo'],
                     ])
+                    ->fileAttachments(false)
                     ->formatStateUsing(fn (?string $state): string => app(\App\Services\Product\ProductDescriptionHtml::class)->forEditor($state))
                     ->dehydrateStateUsing(fn (?string $state): string => app(\App\Services\Product\ProductDescriptionHtml::class)->sanitize($state))
                     ->helperText('Пишите как в текстовом редакторе: Enter — новый абзац, Shift+Enter — перенос строки. Теги <br> вводить не нужно.')
