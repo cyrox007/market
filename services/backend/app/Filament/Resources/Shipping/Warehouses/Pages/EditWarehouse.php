@@ -36,7 +36,7 @@ class EditWarehouse extends EditRecord
             $level = filled($data['address_external_id'] ?? null) ? 'building'
                 : (filled($data['directory_street'] ?? null) ? 'street' : (filled($data['directory_locality'] ?? null) ? 'locality' : 'region'));
             $id = $data['address_external_id'] ?? $data['directory_street'] ?? $data['directory_locality'] ?? $data['directory_region'] ?? null;
-            $data['map_centre'] = app(\App\Services\Address\WarehouseMapContext::class)->focus($level, $id);
+            $data['map_centre'] = app(\App\Services\Address\WarehouseMapContext::class)->focus($level, $id, snapshot: is_array($snapshot) ? $snapshot : null);
         }
 
         return $data;

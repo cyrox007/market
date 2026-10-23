@@ -7,13 +7,13 @@ class WarehouseMapContext
     public function __construct(private readonly AddressDirectoryClient $directory) {}
 
     /** Viewport only: never used as warehouse coordinates or delivery origin. */
-    public function focus(string $level, ?string $id, ?array $fallback = null): ?array
+    public function focus(string $level, ?string $id, ?array $fallback = null, ?array $snapshot = null): ?array
     {
         if (blank($id)) {
             return $fallback;
         }
         try {
-            $hierarchy = $this->directory->hierarchy(explode('::', $id, 2)[0]);
+            $hierarchy = $snapshot ?? $this->directory->hierarchy(explode('::', $id, 2)[0]);
             $target = $hierarchy['target'] ?? [];
             if ($level === 'region') {
                 return $this->bounds($this->directory->options('localities', ['parentExternalId' => $id, 'limit' => 200]), 'region', 9,
