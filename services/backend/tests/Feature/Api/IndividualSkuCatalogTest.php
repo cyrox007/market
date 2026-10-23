@@ -25,7 +25,7 @@ class IndividualSkuCatalogTest extends TestCase
         $color = Attribute::create(['name' => 'Цвет', 'slug' => 'color', 'type' => 'color', 'is_use_in_variations' => true, 'is_filterable' => true]);
         foreach ([[$red, 'red'], [$blue, 'blue']] as [$product, $name]) {
             $value = $color->values()->create(['value' => $name, 'slug' => $name]);
-            DB::table('product_variant_attributes')->insert(['product_id' => $product->id, 'attribute_id' => $color->id, 'attribute_value_id' => $value->id]);
+            DB::table('product_product_attributes')->insert(['product_id' => $product->id, 'attribute_id' => $color->id, 'attribute_value_id' => $value->id]);
         }
 
         return [$category, $parent, $red, $blue, $simple];
@@ -57,7 +57,7 @@ class IndividualSkuCatalogTest extends TestCase
         [$category, $parent, $red, $blue] = $this->items();
         $color = Attribute::where('slug', 'color')->firstOrFail();
         $redValue = $color->values()->where('slug', 'red')->firstOrFail();
-        DB::table('product_variant_attributes')->where('product_id', $blue->id)->update(['attribute_value_id' => $redValue->id]);
+        DB::table('product_product_attributes')->where('product_id', $blue->id)->update(['attribute_value_id' => $redValue->id]);
         $response = $this->getJson('/api/v1/products?category_slug='.$category->slug.'&colors=red')->assertOk()->assertJsonCount(2, 'data');
         $this->assertSame(2, $response->json('meta.filters.colors.0.count'));
         $response->assertJsonPath('meta.total', 2);

@@ -661,7 +661,7 @@ class ProductController extends Controller
             }
         }
 
-        $cacheKey = "show_{$slug}" . (empty($attributesParam) ? '' : '_' . json_encode($attributesParam)) . ($region ? "_region_{$region->id}" : '');
+        $cacheKey = "show_sku_v2_{$slug}" . (empty($attributesParam) ? '' : '_' . json_encode($attributesParam)) . ($region ? "_region_{$region->id}" : '');
         $productId = $this->resolveProductShowCacheId($slug);
         $loadProductCallback = function () use ($slug, $attributesParam) {
             return $this->loadProductForShow($slug, $attributesParam);

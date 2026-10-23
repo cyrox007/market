@@ -165,7 +165,7 @@ class ProductResource extends JsonResource
             'discount_percent' => $oldPrice !== null && $oldPrice > $price ? (int) round((1 - $price / $oldPrice) * 100) : null,
             // Для списков: image — основное изображение (оригинал), thumbnail — миниатюра,
             // дополнительные сжатые варианты: image_hd и image_fullhd
-            'image' => $this->main_image_url,
+            'image' => $this->main_image_url ?: $this->parentProduct?->main_image_url,
             'image_hd' => $isListView ? null : $this->image_hd_url,
             'image_fullhd' => $isListView ? null : $this->image_fullhd_url,
             'thumbnail' => $this->thumbnail_url,

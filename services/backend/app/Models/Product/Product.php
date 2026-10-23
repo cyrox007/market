@@ -213,8 +213,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
 
     public function variantManufacturerAttributes(): BelongsToMany
     {
-        return $this->belongsToMany(Attribute::class, 'product_variant_attributes', 'product_id', 'attribute_id')
-            ->where('product_attributes.slug', Attribute::SLUG_MANUFACTURER)->withPivot('attribute_value_id', 'custom_value');
+        return $this->manufacturerAttributes();
     }
 
     public function attributeValues(): BelongsToMany
@@ -309,22 +308,44 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             ];
         }
 
-        if ($this->length || $this->width || $this->height || $this->weight) {
+        $parent = $this->isVariant() ? $this->parentProduct : null;
+        $length = $this->length ?? $parent?->length;
+        $width = $this->width ?? $parent?->width;
+        $height = $this->height ?? $parent?->height;
+        $weight = $this->weight ?? $parent?->weight;
+        if ($length || $width || $height || $weight) {
             $specifications[] = [
                 'name' => 'Размеры (ДxШxВ)',
-                'value' => ($this->length ?? '-') . ' x ' . ($this->width ?? '-') . ' x ' . ($this->height ?? '-') . ' см',
+                'value' => ($length ?? '-') . ' x ' . ($width ?? '-') . ' x ' . ($height ?? '-') . ' см',
                 'slug' => 'dimensions',
             ];
-            if ($this->weight) {
+            if ($weight) {
                 $specifications[] = [
                     'name' => 'Вес',
-                    'value' => $this->weight . ' кг',
+                    'value' => $weight . ' кг',
                     'slug' => 'weight',
                 ];
             }
         }
 
         return $specifications;
+    }
+
+    /** Shared properties are inherited by attribute, never instead of all own properties. */
+    public function buildEffectiveSpecificationsForApi(): array
+    {
+        $own = $this->buildSpecificationsForApi();
+        if (! $this->isVariant() || ! $this->parentProduct) {
+            return $own;
+        }
+        $this->loadMissing('attributes', 'parentProduct.attributes');
+        $ownSlugs = $this->getRelation('attributes')->pluck('slug')->merge(collect($own)->pluck('slug'));
+        $variantSlugs = $this->parentProduct->getRelation('attributes')->where('is_use_in_variations', true)->pluck('slug')
+            ->merge([Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, 'variant']);
+        $inherited = collect($this->parentProduct->buildSpecificationsForApi())
+            ->reject(fn (array $spec) => $ownSlugs->contains($spec['slug']) || $variantSlugs->contains($spec['slug']));
+
+        return $inherited->concat($own)->values()->all();
     }
 
     /**
@@ -390,31 +411,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public function getColorsArray(): array
     {
-        $colors = [];
-        
-        // Ищем характеристику "Цвет"
-        $colorAttribute = Attribute::where('slug', 'color')->first();
-        if (!$colorAttribute) {
-            return $colors;
-        }
-        
-        // Получаем значения цвета через характеристики
-        $colorValues = $this->attributeValues()
-            ->whereHas('attribute', function ($q) use ($colorAttribute) {
-                $q->where('id', $colorAttribute->id);
-            })
-            ->get();
-        
-        foreach ($colorValues as $value) {
-            $colors[] = [
+        return app(ProductVariationAttributeService::class)->valuesForSimpleProduct($this, Attribute::SLUG_COLOR)
+            ->map(fn ($value) => [
                 'id' => $value->id,
                 'value' => $value->value,
                 'slug' => $value->slug,
                 'color_code' => $value->color_code,
-            ];
-        }
-        
-        return $colors;
+            ])->values()->all();
     }
 
     /**
@@ -589,13 +592,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
-     * Получить характеристики вариации (через product_variant_attributes)
+     * Получить характеристики вариации (через product_product_attributes)
      */
     public function variantAttributes(): BelongsToMany
     {
         return $this->belongsToMany(
             Attribute::class,
-            'product_variant_attributes',
+            'product_product_attributes',
             'product_id',
             'attribute_id'
         )->withPivot('attribute_value_id', 'custom_value')->withTimestamps();
@@ -608,7 +611,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     {
         return $this->belongsToMany(
             AttributeValue::class,
-            'product_variant_attributes',
+            'product_product_attributes',
             'product_id',
             'attribute_value_id'
         )->withPivot('attribute_id', 'custom_value')->withTimestamps();
@@ -655,12 +658,12 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             return collect();
         }
 
-        $rows = \DB::table('product_variant_attributes')
-            ->join('products', 'products.id', '=', 'product_variant_attributes.product_id')
-            ->where('product_variant_attributes.attribute_id', $attribute->id)
+        $rows = \DB::table('product_product_attributes')
+            ->join('products', 'products.id', '=', 'product_product_attributes.product_id')
+            ->where('product_product_attributes.attribute_id', $attribute->id)
             ->where('products.parent_product_id', $this->id)
             ->where('products.state', self::ACTIVE)
-            ->select('product_variant_attributes.attribute_value_id', 'product_variant_attributes.custom_value')
+            ->select('product_product_attributes.attribute_value_id', 'product_product_attributes.custom_value')
             ->distinct()
             ->get();
 
@@ -730,7 +733,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             // Сопоставление custom_value в PHP: в БД только текст, slug считаем здесь.
             $matchingCustomValues = collect();
             if (($input !== '' || $inputSlug !== '') && $variantIds->isNotEmpty()) {
-                $customValues = \DB::table('product_variant_attributes')
+                $customValues = \DB::table('product_product_attributes')
                     ->whereIn('product_id', $variantIds)
                     ->where('attribute_id', $attr->id)
                     ->whereNotNull('custom_value')
@@ -753,7 +756,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             }
 
             $query->whereExists(function ($q) use ($attr, $valueIds, $matchingCustomValues) {
-                $q->from('product_variant_attributes as pva')
+                $q->from('product_product_attributes as pva')
                     ->whereColumn('pva.product_id', 'products.id')
                     ->where('pva.attribute_id', $attr->id)
                     ->where(function ($q2) use ($valueIds, $matchingCustomValues) {
@@ -778,13 +781,12 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         if (!$this->isVariant()) {
             return [];
         }
-        $rows = \DB::table('product_variant_attributes')
-            ->where('product_id', $this->id)
-            ->get();
+        $this->loadMissing('attributes.values');
+        $rows = $this->getRelation('attributes');
         $out = [];
-        foreach ($rows as $row) {
-            $attr = Attribute::find($row->attribute_id);
-            if (!$attr || !$attr->is_use_in_variations) {
+        foreach ($rows as $attr) {
+            $row = $attr->pivot;
+            if (!$attr->is_use_in_variations && $attr->slug !== 'variant') {
                 continue;
             }
             if (!empty($row->custom_value)) {
@@ -799,7 +801,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             if (empty($row->attribute_value_id)) {
                 continue;
             }
-            $av = AttributeValue::find($row->attribute_value_id);
+            $av = $attr->values->firstWhere('id', $row->attribute_value_id);
             if (!$av) {
                 continue;
             }

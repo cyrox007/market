@@ -38,21 +38,33 @@ class SyncVariantVariationAttributesAction
             return;
         }
 
+        // Omitted fields must not clear values edited elsewhere or absent from this form.
+        $attributes = $attributes->filter(fn (Attribute $attr) => array_key_exists('variation_attr_'.$attr->id, $data)
+            || array_key_exists('variation_custom_'.$attr->id, $data));
         $attributeIds = $attributes->pluck('id')->all();
-
-        DB::table('product_variant_attributes')
-            ->where('product_id', $variant->id)
-            ->whereIn('attribute_id', $attributeIds)
-            ->delete();
-
-        $inserted = 0;
-        $now = now();
-
-        foreach ($attributes as $attr) {
-            if ($this->insertAttributePivot($variant, $attr, $data, $now)) {
-                $inserted++;
+        $inserted = DB::transaction(function () use ($variant, $attributes, $attributeIds, $data): int {
+            DB::table('products')->where('id', $variant->id)->lockForUpdate()->first();
+            foreach ($attributes as $attr) {
+                $key = 'variation_attr_'.$attr->id;
+                $rules = [
+                    'variation_custom_'.$attr->id => 'nullable|string',
+                    $key => $attr->is_multiple ? 'nullable|array' : 'nullable|integer',
+                ];
+                $valueRule = \Illuminate\Validation\Rule::exists('product_attribute_values', 'id')->where('attribute_id', $attr->id);
+                $rules[$attr->is_multiple ? $key.'.*' : $key] = $attr->is_multiple
+                    ? ['integer', $valueRule] : ['nullable', 'integer', $valueRule];
+                validator($data, $rules)->validate();
             }
-        }
+            DB::table('product_product_attributes')->where('product_id', $variant->id)->whereIn('attribute_id', $attributeIds)->delete();
+            $inserted = 0;
+            foreach ($attributes as $attr) {
+                $inserted += (int) $this->insertAttributePivot($variant, $attr, $data, now());
+            }
+
+            return $inserted;
+        });
+        $variant->unsetRelation('attributes')->unsetRelation('variantAttributes')->unsetRelation('attributeValues')->unsetRelation('variantAttributeValues');
+        Product::flushAllProductCaches();
 
         Log::info('[SyncVariantVariationAttributesAction] synced', [
             'variant_id' => $variant->getKey(),
@@ -81,7 +93,7 @@ class SyncVariantVariationAttributesAction
             
             foreach ($valueIds as $valueId) {
                 if ($valueId !== null && $valueId !== '') {
-                    DB::table('product_variant_attributes')->insert([
+                    DB::table('product_product_attributes')->insert([
                         'product_id' => $variant->id,
                         'attribute_id' => $attr->id,
                         'attribute_value_id' => $valueId,
@@ -95,7 +107,7 @@ class SyncVariantVariationAttributesAction
             
             // Если есть кастомное значение — добавляем отдельно
             if ($attr->allow_custom_value && $customStr !== null) {
-                DB::table('product_variant_attributes')->insert([
+                DB::table('product_product_attributes')->insert([
                     'product_id' => $variant->id,
                     'attribute_id' => $attr->id,
                     'attribute_value_id' => null,
@@ -111,7 +123,7 @@ class SyncVariantVariationAttributesAction
         
         // Старая логика для одиночных атрибутов
         if ($isStringType && $customStr !== null) {
-            DB::table('product_variant_attributes')->insert([
+            DB::table('product_product_attributes')->insert([
                 'product_id' => $variant->id,
                 'attribute_id' => $attr->id,
                 'attribute_value_id' => null,
@@ -123,7 +135,7 @@ class SyncVariantVariationAttributesAction
         }
 
         if ($valueData !== null && $valueData !== '') {
-            DB::table('product_variant_attributes')->insert([
+            DB::table('product_product_attributes')->insert([
                 'product_id' => $variant->id,
                 'attribute_id' => $attr->id,
                 'attribute_value_id' => $valueData,
@@ -135,7 +147,7 @@ class SyncVariantVariationAttributesAction
         }
 
         if ($attr->allow_custom_value && $customStr !== null) {
-            DB::table('product_variant_attributes')->insert([
+            DB::table('product_product_attributes')->insert([
                 'product_id' => $variant->id,
                 'attribute_id' => $attr->id,
                 'attribute_value_id' => null,

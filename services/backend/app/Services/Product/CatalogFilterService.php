@@ -188,15 +188,11 @@ class CatalogFilterService
             is_array($values) ? $values : explode(',', (string) $values)), fn ($v) => $v !== '')));
     }
 
-    /** Both storage pivots are valid; a SKU's own attribute overrides an inherited root attribute. */
+    /** One storage pivot; a SKU's own attribute overrides an inherited root attribute. */
     private function rows(Attribute $attribute): \Illuminate\Database\Query\Builder
     {
-        $regular = DB::table('product_product_attributes')->where('attribute_id', $attribute->id)
-            ->select('product_id', 'attribute_value_id', 'custom_value');
-        $variant = DB::table('product_variant_attributes')->where('attribute_id', $attribute->id)
-            ->select('product_id', 'attribute_value_id', 'custom_value');
-
-        return DB::query()->fromSub($regular->unionAll($variant), 'stored');
+        return DB::query()->fromSub(DB::table('product_product_attributes')->where('attribute_id', $attribute->id)
+            ->select('product_id', 'attribute_value_id', 'custom_value'), 'stored');
     }
 
     private function effectiveRows(Attribute $attribute): \Illuminate\Database\Query\Builder
@@ -259,10 +255,7 @@ class CatalogFilterService
         $scopeIds = Product::query()->active()->where(fn ($q) => $q->whereIn('id', clone $rootIds)
             ->orWhereIn('id', clone $parentIds))->select('id');
         $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
-        $usedVariantAttributes = DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
-        // MySQL versions used on hosting reject Laravel's parenthesized UNION inside IN.
-        // Two membership predicates have the same set semantics without that syntax.
-        foreach (Attribute::where(fn ($q) => $q->whereIn('id', $usedAttributes)->orWhereIn('id', $usedVariantAttributes))->where(fn ($q) => $q->where('is_filterable', true)
+        foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
             ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {

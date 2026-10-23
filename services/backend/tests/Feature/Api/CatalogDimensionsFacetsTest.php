@@ -29,7 +29,7 @@ class CatalogDimensionsFacetsTest extends TestCase
     private function value(Product $product, Attribute $attr, string $value, bool $variant = false): void
     {
         $v = AttributeValue::firstOrCreate(['attribute_id' => $attr->id, 'slug' => $value], ['value' => $value]);
-        DB::table($variant ? 'product_variant_attributes' : 'product_product_attributes')->insert([
+        DB::table('product_product_attributes')->insert([
             'product_id' => $product->id, 'attribute_id' => $attr->id, 'attribute_value_id' => $v->id,
             'created_at' => now(), 'updated_at' => now(),
         ]);
@@ -43,7 +43,7 @@ class CatalogDimensionsFacetsTest extends TestCase
         return $p;
     }
 
-    public function test_attribute_discovery_uses_two_membership_queries_instead_of_union_inside_in(): void
+    public function test_attribute_discovery_uses_single_storage_without_union_inside_in(): void
     {
         $cat = Category::factory()->create();
         $simple = $this->root($cat);
@@ -57,9 +57,9 @@ class CatalogDimensionsFacetsTest extends TestCase
             $slugs = collect($response->json('meta.filters.attributes'))->pluck('slug')->all();
             $this->assertContains('fabric', $slugs);
             $this->assertContains('mechanism', $slugs);
-            $discovery = collect(DB::getQueryLog())->pluck('query')->first(fn ($sql) => str_contains($sql, 'select * from "product_attributes" where ("id" in'));
+            $discovery = collect(DB::getQueryLog())->pluck('query')->first(fn ($sql) => str_contains($sql, 'select * from "product_attributes" where "id" in'));
             $this->assertNotNull($discovery);
-            $this->assertStringContainsString('or "id" in', $discovery);
+            $this->assertStringContainsString('product_product_attributes', $discovery);
             $this->assertStringNotContainsString('union', strtolower($discovery));
         } finally {
             DB::disableQueryLog();

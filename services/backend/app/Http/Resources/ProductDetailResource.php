@@ -108,14 +108,14 @@ class ProductDetailResource extends JsonResource
 
         // Источник данных для вариаций на карточке: родитель (опции, категория)
         $sourceProduct = $isVariant && $parentProduct ? $parentProduct : $this->resource;
+        if ($sourceProduct->isVariable()) {
+            $sourceProduct->loadMissing(['attributes.values', 'variants.attributes.values', 'variants.media']);
+        }
 
         $this->resource->loadMissing(['attributes']);
-        $specifications = $this->resource->buildSpecificationsForApi();
+        $specifications = $this->resource->buildEffectiveSpecificationsForApi();
 
-        if ($specifications === [] && $isVariant && $parentProduct) {
-            $parentProduct->loadMissing(['attributes']);
-            $specifications = $parentProduct->buildSpecificationsForApi();
-        } elseif ($specifications === [] && ! $isVariant) {
+        if ($specifications === [] && ! $isVariant) {
             $attributes = $sourceProduct->relationLoaded('attributeValues')
                 ? $sourceProduct->attributeValues
                 : $sourceProduct->attributeValues()->with('attribute')->get();
@@ -155,7 +155,8 @@ class ProductDetailResource extends JsonResource
                 $allValues = collect();
 
                 // Проходим по всем вариациям
-                foreach ($this->variants as $variant) {
+                foreach ($sourceProduct->variants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active'
+                    && (! $region || $regionRuleService->isVisibleInRegion($sourceProduct, $region, $variant))) as $variant) {
                     $variantAttrs = $variant->getVariationAttributesForApi();
                     foreach ($variantAttrs as $va) {
                         if ($va['attribute_slug'] === $attrSlug) {
@@ -197,45 +198,31 @@ class ProductDetailResource extends JsonResource
         $productPriceFromCheapestVariant = null;
         $skuFromCheapestVariant = null;
 
-        if ($isVariable && !$isVariant) {
-            // Загружаем все вариации (только активные), если они не загружены
-            $allVariants = $this->relationLoaded('variants')
-                ? $this->variants
-                : $this->variants()->active()->orderBy('id')->get();
+        if ($sourceProduct->isVariable()) {
+            $sourceProduct->loadMissing(['variants.attributes.values', 'variants.media', 'media', 'taxons']);
+            $allVariants = $sourceProduct->variants;
             $allVariants = $allVariants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active');
+            if ($region) {
+                $allVariants = $allVariants->filter(fn ($variant) => $regionRuleService->isVisibleInRegion($sourceProduct, $region, $variant));
+            }
             app(\App\Services\Pricing\PricingEngine::class)->preload($allVariants->pluck('id')->all(), $region);
 
-            $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver) {
+            $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver, $sourceProduct) {
                 $variantPrice = (float) $variant->price;
-                $variantPrice = $regionRuleService->getPriceForRegion($this->resource, $region, $variant);
+                $variantPrice = $regionRuleService->getPriceForRegion($sourceProduct, $region, $variant);
 
-                $variantSpecs = $variant->buildSpecificationsForApi();
+                $variant->setRelation('parentProduct', (clone $sourceProduct)->unsetRelation('variants'));
+                $variantSpecs = $variant->buildEffectiveSpecificationsForApi();
                 $rawVariantStock = $warehouseStockResolver->resolveForProduct($variant, $region);
                 $variantStock = $rawVariantStock === null ? null : (int) round((float) $rawVariantStock);
 
-                $colorAttr = \App\Models\Product\Attribute::where('slug', 'color')->first();
-                $colorValues = $colorAttr
-                    ? $variant->variantAttributes()->wherePivot('attribute_id', $colorAttr->id)->get()
-                    : collect();
-
-                $colors = [];
-                foreach ($colorValues as $attr) {
-                    $pivot = $attr->pivot;
-                    $valueId = $pivot->attribute_value_id;
-                    if ($valueId) {
-                        $value = \App\Models\Product\AttributeValue::find($valueId);
-                        if ($value) {
-                            $colors[] = [
-                                'id' => $value->id,
-                                'value' => $value->value,
-                                'slug' => $value->slug,
-                                'color_code' => $value->color_code,
-                            ];
-                        }
-                    }
-                }
+                $colors = $variant->getColorsArray();
                 return [
                     'id' => $variant->id,
+                    'name' => $variant->name,
+                    'slug' => $variant->slug,
+                    'parent_id' => $sourceProduct->id,
+                    'url' => '/product/'.$variant->slug,
                     'sku' => $variant->sku,
                     'price' => $variantPrice,
                     'old_price' => app(\App\Services\Pricing\PricingEngine::class)->oldPrice($variant, $region, $variantPrice),
@@ -245,15 +232,15 @@ class ProductDetailResource extends JsonResource
                     'in_stock' => $variantStock > 0,
                     'available_to_order' => $warehouseStockResolver->availableToOrder($variant, $region),
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
-                    'images' => $variant->images_urls ?: ($variant->main_image_url ? [$variant->main_image_url] : []),
-                    'description' => $variant->description,
+                    'images' => $variant->images_urls ?: $sourceProduct->images_urls,
+                    'description' => filled($variant->description) ? $variant->description : $sourceProduct->description,
                     //'excerpt' => $variant->excerpt,
                     'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
                     'colors' => $colors,
                 ];
             })->values()->toArray();
 
-            if (!empty($variants)) {
+            if (!$isVariant && !empty($variants)) {
                 $cheapest = collect($variants)->sortBy('price')->first();
                 if ($cheapest) {
                     $productPriceFromCheapestVariant = (float) $cheapest['price'];
@@ -342,7 +329,7 @@ class ProductDetailResource extends JsonResource
 
         // Получаем блоки фич и доставки для товара (с учетом переопределения)
         // Используем eager loaded данные если доступны для оптимизации
-        $featureBlocks = ProductFeatureBlock::getForProduct($this->resource)
+        $featureBlocks = ProductFeatureBlock::getForProduct($sourceProduct)
             ->map(function ($block) {
                 return [
                     'id' => $block->id,
@@ -357,7 +344,7 @@ class ProductDetailResource extends JsonResource
             ->values()
             ->toArray();
 
-        $deliveryBlocks = ProductDeliveryBlock::getForProduct($this->resource)
+        $deliveryBlocks = ProductDeliveryBlock::getForProduct($sourceProduct)
             ->map(function ($block) {
                 return [
                     'id' => $block->id,
@@ -440,6 +427,7 @@ class ProductDetailResource extends JsonResource
 
         $priority = app(WarehousePriorityResolver::class)->resolve($this->resource, $region);
         $effectiveOldPrice = isset($cheapest) ? ($cheapest['old_price'] ?? null) : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $productPrice);
+        $displayCategories = $this->taxons->isNotEmpty() ? $this->taxons : $sourceProduct->taxons;
 
         return [
             'id' => $this->id,
@@ -454,10 +442,10 @@ class ProductDetailResource extends JsonResource
             'delivery_quote_endpoint' => '/api/v1/shipping/quote',
             'discount_percent' => $effectiveOldPrice !== null && $effectiveOldPrice > $productPrice ? (int) round((1 - $productPrice / $effectiveOldPrice) * 100) : null,
             // Для детальной карточки: изображения по умолчанию в HD, с fallback на оригиналы
-            'images' => $this->images_hd_urls ?: ($this->images_urls ?: ($this->main_image_url ? [$this->main_image_url] : [])),
-            'main_image' => $this->image_hd_url ?: $this->main_image_url,
-            'main_image_fullhd' => $this->image_fullhd_url ?: $this->main_image_url,
-            'thumbnail' => $this->thumbnail_url,
+            'images' => $this->images_hd_urls ?: ($this->images_urls ?: $sourceProduct->images_hd_urls ?: $sourceProduct->images_urls),
+            'main_image' => $this->image_hd_url ?: $this->main_image_url ?: $sourceProduct->image_hd_url ?: $sourceProduct->main_image_url,
+            'main_image_fullhd' => $this->image_fullhd_url ?: $this->main_image_url ?: $sourceProduct->image_fullhd_url ?: $sourceProduct->main_image_url,
+            'thumbnail' => $this->thumbnail_url ?: $sourceProduct->thumbnail_url,
             'in_stock' => $inStock,
             'stock' => $rawStock === null ? null : $resolvedStock,
             'stock_known' => $rawStock !== null,
@@ -471,21 +459,21 @@ class ProductDetailResource extends JsonResource
             'backorder' => (bool) $this->backorder,
             'rating' => $this->rating ?? 4.8,
             'reviews_count' => $this->reviews_count ?? 0,
-            'description' => $this->description,
+            'description' => filled($this->description) ? $this->description : $sourceProduct->description,
             //'excerpt' => $this->excerpt,
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
             'parent_id' => $this->when($isVariant, $this->parent_product_id),
             'variants' => $variants, // ВАЖНО: Все вариации для сравнения на фронтенде
             'category' => $this->when(
-                $this->relationLoaded('taxons') && $this->taxons->isNotEmpty(),
-                fn() => $this->taxons->first() ? [
-                    'id' => $this->taxons->first()->id,
-                    'name' => $this->taxons->first()->name,
-                    'slug' => $this->taxons->first()->slug ?? Str::slug($this->taxons->first()->name),
+                $displayCategories->isNotEmpty(),
+                fn() => $displayCategories->first() ? [
+                    'id' => $displayCategories->first()->id,
+                    'name' => $displayCategories->first()->name,
+                    'slug' => $displayCategories->first()->slug ?? Str::slug($displayCategories->first()->name),
                 ] : null
             ),
-            'categories' => CategoryResource::collection($this->whenLoaded('taxons')),
+            'categories' => CategoryResource::collection($displayCategories),
             'specifications' => $specifications,
             'variation_attributes' => $variationAttributes,
             'selected_variation' => $selectedVariation,
