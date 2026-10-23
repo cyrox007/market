@@ -115,13 +115,13 @@ class Attribute extends Model
 
     /**
      * Scope: характеристики, которые задаются в секции «Характеристики товара».
-     * Производитель — своим полем, характеристики вариаций вариативного товара — у предложений.
+     * Производитель — своим полем. Общие значения доступны и у вариативного товара;
+     * собственное значение предложения имеет приоритет при наследовании.
      */
     public function scopeAssignableToProduct($query, ?Product $product)
     {
         return $query
-            ->where('slug', '!=', self::SLUG_MANUFACTURER)
-            ->when($product?->is_variable, fn ($query) => $query->where('is_use_in_variations', false));
+            ->where('slug', '!=', self::SLUG_MANUFACTURER);
     }
 
     /**

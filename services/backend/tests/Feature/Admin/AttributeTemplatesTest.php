@@ -114,7 +114,7 @@ class AttributeTemplatesTest extends TestCase
         $this->assertSame(2, $template->fresh()->applied_count);
     }
 
-    public function test_variable_product_skips_variation_attributes(): void
+    public function test_variable_product_accepts_shared_variation_attribute_defaults(): void
     {
         $material = $this->attribute('Материал');
         $color = $this->attribute('Цвет', ['slug' => Attribute::SLUG_COLOR, 'is_use_in_variations' => true]);
@@ -129,7 +129,7 @@ class AttributeTemplatesTest extends TestCase
             )
             ->get('data.product_attributes');
 
-        $this->assertSame([$material->id], array_map('intval', array_column(array_values($rows), 'attribute_id')));
+        $this->assertSame([$color->id, $material->id], array_map('intval', array_column(array_values($rows), 'attribute_id')));
     }
 
     public function test_product_attribute_table_has_scoped_dropdown_overflow_override(): void
@@ -140,6 +140,25 @@ class AttributeTemplatesTest extends TestCase
 
         $css = file_get_contents(resource_path('css/filament/admin_sv/theme.css'));
         $this->assertMatchesRegularExpression('/\.fi-fo-table-repeater\.product-attributes-table\s*>\s*table\s*\{\s*overflow:\s*visible;\s*\}/', $css);
+    }
+
+    public function test_offer_edit_opens_with_single_and_multiple_selected_values(): void
+    {
+        $single = $this->attribute('Материал', ['type' => 'select', 'is_use_in_variations' => true, 'is_multiple' => false]);
+        $multiple = $this->attribute('Оттенки', ['type' => 'select', 'is_use_in_variations' => true, 'is_multiple' => true]);
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $variant = Product::factory()->create(['parent_product_id' => $parent->id]);
+        $parent->variationAttributeSelection()->sync([$single->id, $multiple->id]);
+        foreach ([$single, $multiple] as $attribute) {
+            $value = $attribute->values()->create(['value' => 'Тест', 'slug' => 'test']);
+            DB::table('product_variant_attributes')->insert([
+                'product_id' => $variant->id, 'attribute_id' => $attribute->id,
+                'attribute_value_id' => $value->id,
+            ]);
+        }
+        Livewire::test(\App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager::class, [
+            'ownerRecord' => $parent, 'pageClass' => EditProduct::class,
+        ])->mountTableAction('edit', $variant)->assertStatus(200);
     }
 
     private function attribute(string $name, array $overrides = []): Attribute

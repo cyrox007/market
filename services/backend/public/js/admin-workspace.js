@@ -9,6 +9,9 @@
 })(typeof window === 'undefined' ? globalThis : window, function () {
     'use strict';
     const secret = /password|passwd|secret|token|api_key|private_key|credit_card|card_number|cvv/i;
+    function shouldWarnBeforeUnload(dirty, storageFailed, ready, effects) {
+        return !effects?.redirect && dirty && (storageFailed || !ready);
+    }
     function clean(value, key = '') {
         if (secret.test(key)) return undefined;
         if (typeof value === 'string' && (value.startsWith('livewire-file:') || value.startsWith('livewire-files:'))) return undefined;
@@ -144,7 +147,9 @@
             let dirty = false, ready = false, protectedDraft = false, editingStarted = false;
             let pending = Promise.resolve(), generation = 0, storageFailed = !store;
             const entry = {
-                unsafe: () => dirty && (storageFailed || !ready),
+                // A successful Livewire redirect is not an abandoned edit.
+                // Validation failures have no redirect effect and remain protected.
+                unsafe: () => shouldWarnBeforeUnload(dirty, storageFailed, ready, component.effects),
                 saved() {
                     generation++; dirty = false;
                     base = clean(JSON.parse(JSON.stringify(component.$wire.$get('data')))); current = stable(base);
@@ -204,5 +209,5 @@
             if (event.target?.action?.includes('/logout')) { store?.clear(); tracked.forEach(entry => entry.clear()); }
         }, true);
     }
-    return { clean, stable, mergePresent, DraftStore, start };
+    return { clean, stable, mergePresent, DraftStore, start, shouldWarnBeforeUnload };
 });
