@@ -259,7 +259,7 @@ class ProductTabbedForm extends ProductForm
                                 $set('custom_value', null);
                             }),
 
-                        Select::make('attribute_value_id')
+                        \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')
                             ->label('Значение')
                             ->options(function ($get) {
                                 $attributeId = $get('attribute_id');
