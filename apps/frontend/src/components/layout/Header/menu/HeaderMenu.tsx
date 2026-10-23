@@ -229,7 +229,7 @@ function MenuPanelGroups({
           {group.title &&
             (group.titleTo ? (
               <h3 className="mb-2 text-14 font-semibold text-ink">
-                <Link to={group.titleTo} className="hover:text-primary">
+                <Link to={group.titleTo} className="hover:text-primary" onClick={onNavigate}>
                   {group.title}
                 </Link>
               </h3>

@@ -57,6 +57,14 @@ function renderHeader() {
 }
 
 describe('Header menu', () => {
+  it('closes after following a group title and unlocks mobile scroll', () => {
+    mobile = true;
+    const catalog = renderHeader();
+    const menu = within(screen.getByRole('region', { name: 'Каталог' }));
+    fireEvent.click(menu.getByRole('link', { name: 'Диваны' }));
+    expect(catalog).toHaveAttribute('aria-expanded', 'false');
+    expect(document.documentElement.style.overflow).toBe('');
+  });
   it('closes when tapping outside the menu, but not inside it', () => {
     const catalog = renderHeader();
 
