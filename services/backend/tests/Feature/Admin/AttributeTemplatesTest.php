@@ -222,6 +222,28 @@ class AttributeTemplatesTest extends TestCase
         $this->assertNull($page->instance()->callSchemaComponentMethod($findField()->getKey(), 'getOptionLabel'));
     }
 
+    public function test_offer_name_and_edit_button_open_the_same_editor(): void
+    {
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $offer = Product::factory()->create(['parent_product_id' => $parent->id]);
+        $page = Livewire::test(\App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager::class, [
+            'ownerRecord' => $parent, 'pageClass' => EditProduct::class,
+        ]);
+        $table = $page->instance()->getTable();
+        $name = $table->getColumn('name')->record($offer);
+        $this->assertNull($name->getUrl());
+        $this->assertNotNull($name->getAction());
+        $page->callTableColumnAction('name', $offer);
+        $this->assertSame('edit', $page->instance()->getMountedTableAction()->getName());
+        $this->assertSame($offer->id, $page->instance()->getMountedTableActionRecord()->id);
+        $fullCard = $table->getAction('fullProductCard')->record($offer);
+        $this->assertSame('Полная карточка', $fullCard->getLabel());
+        $this->assertSame(\App\Filament\Resources\Products\ProductResource::getUrl('edit', ['record' => $offer]), $fullCard->getUrl());
+        $this->assertSame('Редактирование торгового предложения', $page->instance()->getMountedTableAction()->getModalHeading());
+        $this->assertStringContainsString('Общие характеристики для всех предложений задавайте в родительской карточке товара.', $page->instance()->getMountedTableAction()->getModalDescription());
+        $page->assertStatus(200);
+    }
+
     private function attribute(string $name, array $overrides = []): Attribute
     {
         return Attribute::query()->create(array_merge([
