@@ -112,6 +112,7 @@ class WarehouseDeliveryQuote
                 }
                 $options[] = [
                     'warehouse_id' => $warehouse->id, 'warehouse_name' => $warehouse->name,
+                    'warehouse_external_id' => $warehouse->external_id,
                     'stock_mode' => $warehouse->stock_mode, 'profile_id' => $profile->id, 'profile_name' => $profile->name,
                     'profile_fingerprint' => hash('sha256', json_encode($profile->getAttributes())),
                     'warehouse_fingerprint' => hash('sha256', json_encode([$warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes()])),

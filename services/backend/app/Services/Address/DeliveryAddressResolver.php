@@ -31,7 +31,7 @@ class DeliveryAddressResolver
         }
         $snapshot['selectionId'] = $selectionId;
         $path = collect($snapshot['path'] ?? []);
-        $city = $path->last(fn ($item) => ($item['kind'] ?? null) === 'locality');
+        $city = AddressHierarchy::locality($snapshot);
         $street = $path->last(fn ($item) => ($item['kind'] ?? null) === 'street');
         if (! $city || empty($target['name']) || empty($snapshot['label'])) {
             throw ValidationException::withMessages(['directory_external_id' => 'У здания нет полной адресной иерархии.']);
