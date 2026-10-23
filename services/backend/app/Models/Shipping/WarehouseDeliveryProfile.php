@@ -14,7 +14,7 @@ class WarehouseDeliveryProfile extends Model
     protected $fillable = [
         'warehouse_id', 'name', 'coverage_type', 'radius_km', 'base_price', 'price_per_km',
         'free_delivery_threshold', 'delivery_days_min', 'delivery_days_max', 'priority',
-        'is_active', 'constraints', 'directory_territories', 'services_location_id',
+        'is_active', 'constraints', 'directory_territories', 'service_tariffs', 'services_location_id',
     ];
 
     protected function casts(): array
@@ -30,12 +30,16 @@ class WarehouseDeliveryProfile extends Model
             'is_active' => 'boolean',
             'constraints' => 'array',
             'directory_territories' => 'array',
+            'service_tariffs' => 'array',
         ];
     }
 
     protected static function booted(): void
     {
         static::saving(function (self $profile): void {
+            if ($profile->isDirty('service_tariffs') && $profile->service_tariffs !== null) {
+                $profile->service_tariffs = app(\App\Services\Shipping\WarehouseServices::class)->validateTariffs($profile->service_tariffs ?? []);
+            }
             if ($profile->isDirty('directory_territories') && $profile->directory_territories) {
                 $profile->directory_territories = app(\App\Services\Shipping\DirectoryCoverage::class)->verify($profile->directory_territories);
             }

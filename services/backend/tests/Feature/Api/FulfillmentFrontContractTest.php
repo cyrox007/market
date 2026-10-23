@@ -119,12 +119,11 @@ class FulfillmentFrontContractTest extends TestCase
     public function test_fixed_services_are_server_priced_and_client_prices_rejected(): void
     {
         $sku = Product::factory()->create();
-        $tariffs = ShippingLocation::factory()->create(['assembly_price' => 400]);
         $service = AdditionalService::create(['name' => 'Упаковка', 'slug' => 'packing', 'code' => 'packing', 'price_type' => 'fixed', 'base_price' => 200, 'is_active' => true]);
-        $tariffs->additionalServices()->attach($service, ['price' => 300, 'is_active' => true]);
-        $this->warehouse($sku, profile: ['services_location_id' => $tariffs->id]);
+        $this->warehouse($sku, profile: ['service_tariffs' => ['assembly_price' => 400, 'additional' => [['id' => $service->id, 'price' => 300]]]]);
         $data = ['directory_external_id' => 'house', 'items' => [['product_id' => $sku->id, 'quantity' => 1]], 'requires_assembly' => true, 'additional_services' => [['id' => $service->id]]];
-        $this->postJson('/api/v1/shipping/quote', $data)->assertOk()->assertJsonPath('selected.assembly_cost', 400)->assertJsonPath('selected.additional_services_cost', 300)->assertJsonPath('selected.total_fulfillment_cost', 1700);
+        $this->postJson('/api/v1/shipping/quote', $data)->assertOk()->assertJsonPath('selected.assembly_cost', 400)->assertJsonPath('selected.additional_services_cost', 300)->assertJsonPath('selected.total_fulfillment_cost', 1700)
+            ->assertJsonPath('selected.service_options.assembly.price', 400)->assertJsonPath('selected.service_options.additional.0.price', 300);
         $data['additional_services'][0]['price'] = 1;
         $this->postJson('/api/v1/shipping/quote', $data)->assertUnprocessable()->assertJsonValidationErrors('additional_services.0.price');
     }
@@ -132,10 +131,8 @@ class FulfillmentFrontContractTest extends TestCase
     public function test_delivery_order_recalculates_services_and_reserves_the_selected_stock(): void
     {
         $sku = Product::factory()->create(['stock' => 20]);
-        $tariffs = ShippingLocation::factory()->create(['assembly_price' => 400]);
         $service = AdditionalService::create(['name' => 'Упаковка', 'slug' => 'packing-order', 'code' => 'packing-order', 'price_type' => 'fixed', 'base_price' => 200, 'is_active' => true]);
-        $tariffs->additionalServices()->attach($service, ['price' => 300, 'is_active' => true]);
-        $warehouse = $this->warehouse($sku, profile: ['services_location_id' => $tariffs->id]);
+        $warehouse = $this->warehouse($sku, profile: ['service_tariffs' => ['assembly_price' => 400, 'additional' => [['id' => $service->id, 'price' => 300]]]]);
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
         $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 2])->assertCreated();
         $this->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'delivery-services@example.test',
@@ -162,7 +159,10 @@ class FulfillmentFrontContractTest extends TestCase
     public function test_selected_pickup_reserves_only_its_warehouse_and_ignores_client_assembly_price(): void
     {
         $sku = Product::factory()->create(['stock' => 20]);
-        $warehouse = $this->warehouse($sku, ['pickup_enabled' => true]);
+        $warehouse = $this->warehouse($sku, ['pickup_enabled' => true, 'external_id' => 'warehouse-code', 'address_snapshot' => [
+            'label' => 'Адрес точки самовывоза', 'target' => ['externalId' => 'house-guid', 'source' => 'gar', 'objectId' => '123', 'kladrCode' => '480000010000001'],
+            'path' => [['kind' => 'locality', 'externalId' => 'city48', 'kladrCode' => '4800000100000']],
+        ]]);
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
         $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 2])->assertCreated();
         $response = $this->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'pickup@example.test',
@@ -170,6 +170,12 @@ class FulfillmentFrontContractTest extends TestCase
             ->assertJsonPath('order.fulfillment.mode', 'pickup')->assertJsonPath('order.fulfillment.warehouse_id', $warehouse->id)->assertJsonPath('order.assembly_cost', 0);
         $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
         $order = \App\Models\Order\Order::findOrFail($response->json('order.id'));
+        $this->assertSame('house-guid', $response->json('order.address_directory.gar_guid'));
+        $warehouse->update(['external_id' => 'changed', 'address_snapshot' => null]);
+        $payload = app(\App\Actions\Integration\Integration1C\BuildOrderSyncPayloadAction::class)->execute($order->fresh());
+        $this->assertSame('house-guid', $payload['addressExternalId']);
+        $this->assertSame('warehouse-code', $payload['warehouseExternalId']);
+        $this->assertSame('Адрес точки самовывоза', $payload['address']);
         app(\App\Services\Shipping\WarehouseOrderStock::class)->release($order);
         app(\App\Services\Shipping\WarehouseOrderStock::class)->release($order);
         $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
