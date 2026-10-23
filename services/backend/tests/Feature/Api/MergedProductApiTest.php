@@ -59,6 +59,42 @@ class MergedProductApiTest extends TestCase
         $this->assertCount(2, $variationAttribute['values']);
     }
 
+    public function test_offer_description_and_shared_specs_follow_the_root_product(): void
+    {
+        $parent = Product::factory()->create([
+            'name' => 'Диван',
+            'is_variable' => true,
+            'state' => 'active',
+            'description' => 'Старое описание дивана',
+            'length' => 200,
+            'width' => 90,
+            'height' => 80,
+        ]);
+        $variant = Product::factory()->create([
+            'parent_product_id' => $parent->id,
+            'name' => 'Диван, синий',
+            'state' => 'active',
+            'description' => 'Устаревшая копия текста',
+            'length' => 150,
+            'width' => 70,
+            'height' => 60,
+        ]);
+
+        $parent->update([
+            'description' => 'Актуальное описание корневого товара',
+            'length' => 220,
+        ]);
+
+        $response = $this->getJson('/api/v1/products/' . $parent->slug)->assertOk();
+        $this->assertSame('Актуальное описание корневого товара', $response->json('product.description'));
+
+        $offer = collect($response->json('product.variants'))->firstWhere('id', $variant->id);
+        $this->assertNotNull($offer);
+        $this->assertSame('Актуальное описание корневого товара', $offer['description']);
+        $dimensions = collect($offer['specifications'])->firstWhere('slug', 'dimensions');
+        $this->assertSame('220 x 90 x 80 см', $dimensions['value']);
+    }
+
     public function test_catalog_lists_only_merged_card(): void
     {
         $a = Product::factory()->create(['name' => 'Комод К800 Белый', 'state' => 'active']);
