@@ -26,12 +26,12 @@ class CatalogDestination
                 throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json(['message' => 'Адресный справочник временно недоступен.'], 503));
             }
             $target = $snapshot['target'] ?? [];
-            if (! in_array($target['kind'] ?? null, ['region', 'locality', 'building'], true)) {
+            if (! in_array($target['kind'] ?? null, ['region', 'locality', 'building'], true) && ! \App\Services\Address\AddressHierarchy::isLocality($target)) {
                 throw ValidationException::withMessages(['directory_external_id' => 'Выберите регион, населённый пункт или здание.']);
             }
             if (($target['kind'] ?? null) === 'building') {
                 $point ??= app(BuildingCoordinates::class)->find($snapshot);
-            } elseif (($target['kind'] ?? null) === 'locality' && isset($target['latitude'], $target['longitude'])) {
+            } elseif (\App\Services\Address\AddressHierarchy::isLocality($target) && isset($target['latitude'], $target['longitude']) && ($target['coordinatePrecision'] ?? null) === 'settlement_centre') {
                 $point ??= ['latitude' => (float) $target['latitude'], 'longitude' => (float) $target['longitude']];
             }
         }

@@ -42,6 +42,7 @@ class OrderResource extends JsonResource
             'contact_phone' => $this->contact_phone,
             'contact_email' => $this->contact_email,
             'address' => new AddressResource($this->whenLoaded('address')),
+            'address_directory' => $this->fulfillment_snapshot['address_directory'] ?? null,
             'shipping_location' => $this->when($this->shipping_location_id && $this->relationLoaded('shippingLocation'), [
                 'id' => $this->shippingLocation?->id,
                 'name' => $this->shippingLocation?->name,
