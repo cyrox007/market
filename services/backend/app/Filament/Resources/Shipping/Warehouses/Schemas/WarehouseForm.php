@@ -93,10 +93,11 @@ class WarehouseForm
                                 ->options(fn (): array => app(WarehouseAddressOptions::class)->initial('regions', null))
                                 ->getSearchResultsUsing(fn (string $search): array => app(WarehouseAddressOptions::class)->search('regions', null, $search))
                                 ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
-                                ->afterStateUpdated(function (Set $set): void {
+                                ->afterStateUpdated(function ($state, Set $set): void {
                                     foreach (['directory_locality', 'directory_street', 'address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude', 'map_centre'] as $field) {
                                         $set($field, null);
                                     }
+                                    $set('map_centre', app(\App\Services\Address\WarehouseMapContext::class)->focus('region', $state));
                                 }),
                             \App\Filament\Forms\DirectorySelectLoading::apply(Select::make('directory_locality'), 'населённые пункты', ['directory_region'])
                                 ->options(fn (Get $get): array => $get('directory_region') ? app(WarehouseAddressOptions::class)->initial('localities', $get('directory_region')) : [])
@@ -106,10 +107,11 @@ class WarehouseForm
                                 ->searchPrompt('Введите минимум две буквы города, посёлка или села')
                                 ->getSearchResultsUsing(fn (string $search, Get $get): array => $get('directory_region') ? app(WarehouseAddressOptions::class)->search('localities', $get('directory_region'), $search) : [])
                                 ->getOptionLabelUsing(fn ($value): ?string => $value ? app(AddressDirectoryClient::class)->cachedLabel($value) ?? $value : null)
-                                ->afterStateUpdated(function (Set $set): void {
+                                ->afterStateUpdated(function ($state, Set $set, Get $get): void {
                                     foreach (['directory_street', 'address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude', 'map_centre'] as $field) {
                                         $set($field, null);
                                     }
+                                    $set('map_centre', app(\App\Services\Address\WarehouseMapContext::class)->focus($state ? 'locality' : 'region', $state ?: $get('directory_region')));
                                 })->helperText('Населённые пункты выбранного региона.'),
                             \App\Filament\Forms\DirectorySelectLoading::apply(Select::make('directory_street'), 'улицы', ['directory_locality'])
                                 ->options(fn (Get $get): array => app(WarehouseAddressOptions::class)->initial('streets', $get('directory_locality'), compact: true))
@@ -128,10 +130,11 @@ class WarehouseForm
                                     $street = collect($record?->address_snapshot['path'] ?? [])->last(fn (array $item): bool => ($item['kind'] ?? null) === 'street' && ($item['externalId'] ?? null) === (string) $value);
                                     return filled($street['name'] ?? null) ? trim(($street['type'] ?? 'ул.').' '.$street['name']) : (string) $value;
                                 })
-                                ->afterStateUpdated(function (Set $set): void {
+                                ->afterStateUpdated(function ($state, Set $set, Get $get): void {
                                     foreach (['address_external_id', 'address', 'gar_guid', 'kladr_code', 'latitude', 'longitude'] as $field) {
                                         $set($field, null);
                                     }
+                                    $set('map_centre', app(\App\Services\Address\WarehouseMapContext::class)->focus($state ? 'street' : 'locality', $state ?: $get('directory_locality')));
                                 })->helperText('Нет улицы — ищите здание без неё.'),
                             \App\Filament\Forms\DirectorySelectLoading::apply(Select::make('address_external_id'), 'здания', ['directory_locality', 'directory_street'])
                                 ->options(fn (Get $get): array => app(WarehouseAddressOptions::class)->initial('buildings', $get('directory_street') ?: $get('directory_locality'), compact: true))
@@ -164,7 +167,7 @@ class WarehouseForm
 
                                     return (string) $value;
                                 })
-                                ->afterStateUpdated(function ($state, Set $set, \Livewire\Component $livewire, Select $component): void {
+                                ->afterStateUpdated(function ($state, Set $set, Get $get, \Livewire\Component $livewire, Select $component): void {
                                     if (filled($state)) {
                                         $livewire->resetValidation($component->getStatePath());
                                     }
@@ -173,6 +176,7 @@ class WarehouseForm
                                     $set('gar_guid', $state && preg_match('/^[0-9a-f-]{36}$/i', $state) ? $state : null);
                                     $set('kladr_code', null);
                                     if (blank($state)) {
+                                        $set('map_centre', app(\App\Services\Address\WarehouseMapContext::class)->focus($get('directory_street') ? 'street' : 'locality', $get('directory_street') ?: $get('directory_locality')));
                                         $set('address', null);
                                         $set('gar_guid', null);
                                         $set('kladr_code', null);
@@ -188,9 +192,7 @@ class WarehouseForm
                                     try {
                                         $resolved = app(\App\Services\Address\WarehouseAddressResolver::class)->resolve((string) $state);
                                         $point = app(\App\Services\Address\BuildingCoordinates::class)->find($resolved['address_snapshot']);
-                                        $city = collect($resolved['address_snapshot']['path'] ?? [])->last(fn (array $row): bool => ($row['kind'] ?? null) === 'locality');
-                                        $centre = $city ? app(\App\Services\Address\BuildingCoordinates::class)->centre($city) : null;
-                                        $set('map_centre', $centre);
+                                        $set('map_centre', app(\App\Services\Address\WarehouseMapContext::class)->focus('building', (string) $state, $get('map_centre')));
                                         $set('address', $resolved['address']);
                                         $set('latitude', $point['latitude'] ?? null);
                                         $set('longitude', $point['longitude'] ?? null);

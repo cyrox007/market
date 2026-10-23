@@ -17,7 +17,10 @@
             this.map.setView(point, 17);
         } else {
             if (this.marker) { this.map.removeLayer(this.marker); this.marker = null; }
-            if (this.centre) this.map.setView(this.centre, 12);
+            if (this.centre?.bounds) this.map.fitBounds(this.centre.bounds, {padding: [24, 24], maxZoom: this.centre.zoom ?? 16});
+            else if (this.centre?.point) this.map.setView(this.centre.point, this.centre.zoom ?? 12);
+            else if (Array.isArray(this.centre)) this.map.setView(this.centre, 12);
+            else this.map.setView([55.75, 37.62], 5);
         }
     },
     init() {
@@ -45,7 +48,7 @@
     destroy() { this.disposed = true; clearTimeout(this.timer); this.observer?.disconnect(); this.map?.remove(); }
 }">
     <p x-cloak x-show="failed" role="alert">Не удалось загрузить карту. Проверьте соединение. <button type="button" x-on:click="retry()">Повторить</button></p>
-    <p style="margin-bottom: 8px" x-text="lat !== null && lat !== '' ? 'Точка склада найдена. При необходимости перетащите метку к въезду.' : 'Точных координат нет. Укажите склад щелчком на карте — вводить числа не нужно.'"></p>
+    <p style="margin-bottom: 8px" x-text="lat !== null && lat !== '' ? 'Точка склада задана. При необходимости перетащите метку к въезду.' : (centre?.message ?? 'Выберите регион, населённый пункт, улицу и дом. Если точных координат нет, укажите склад на карте.')"></p>
     <div wire:ignore x-ref="canvas" style="height: 320px; border-radius: 8px; z-index: 0"></div>
     <p style="margin-top: 8px; font-size: 12px">Подложка карты загружается из OpenStreetMap. Центр населённого пункта не сохраняется как точка склада.</p>
 </div>
