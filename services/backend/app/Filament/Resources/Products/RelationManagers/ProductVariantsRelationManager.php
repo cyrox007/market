@@ -609,7 +609,9 @@ class ProductVariantsRelationManager extends RelationManager
                                     ->toArray();
 
                                 if (!empty($valueIds)) {
-                                    $data['variation_attr_' . $attr->id] = $valueIds;
+                                    $data['variation_attr_' . $attr->id] = $attr->is_multiple
+                                        ? $valueIds
+                                        : $valueIds[0];
                                 }
                             }
                         }

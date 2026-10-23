@@ -214,13 +214,15 @@ class EditProduct extends EditRecord
         if ($product) {
             $attributes = $product->attributes()->withPivot('attribute_value_id', 'custom_value')->get();
             $data['manufacturer_name'] = app(\App\Services\Product\ProductManufacturer::class)->value($product);
-            $data['product_attributes'] = $attributes->where('slug', '!=', \App\Models\Product\Attribute::SLUG_MANUFACTURER)->map(function ($attribute) {
+            $data['product_attributes'] = $attributes->where('slug', '!=', \App\Models\Product\Attribute::SLUG_MANUFACTURER)->groupBy('id')->map(function ($items) {
+                $attribute = $items->first();
+                $valueIds = $items->pluck('pivot.attribute_value_id')->filter()->unique()->values()->all();
                 return [
                     'attribute_id' => $attribute->id,
-                    'attribute_value_id' => $attribute->pivot->attribute_value_id,
+                    'attribute_value_id' => $attribute->is_multiple ? $valueIds : ($valueIds[0] ?? null),
                     'custom_value' => $attribute->pivot->custom_value,
                 ];
-            })->toArray();
+            })->values()->toArray();
         } else {
             $data['product_attributes'] = [];
         }
