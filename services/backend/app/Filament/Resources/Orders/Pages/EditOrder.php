@@ -27,6 +27,7 @@ class EditOrder extends EditRecord
         $paymentModel = \Vanilo\Payment\Models\PaymentProxy::modelClass();
         $latestPayment = $paymentModel::where('payable_type', 'order')
             ->where('payable_id', $order->id)
+            ->orderByRaw('CASE WHEN amount_paid > 0 THEN 0 ELSE 1 END')
             ->orderByDesc('id')
             ->first();
 
@@ -37,6 +38,15 @@ class EditOrder extends EditRecord
         $canRefund = $latestPayment && $refundService->canRefund($latestPayment);
 
         return [
+            Action::make('retry_integration')->label('Повторить передачу заказа')
+                ->visible(fn () => $order->cooling_until && now()->gte($order->cooling_until)
+                    && $order->status !== 'manager_processing' && $order->integration_state !== 'sent'
+                    && ($order->status !== 'cancelled' || $order->integration_sent_at))
+                ->requiresConfirmation()->action(function () use ($order): void {
+                    OrderOneCSyncDispatcher::dispatch($order->id);
+                    $this->record->refresh();
+                    Notification::make()->title('Состояние передачи обновлено')->success()->send();
+                }),
             Action::make('cancel_order')
                 ->label('Отменить заказ')
                 ->icon('heroicon-o-x-circle')

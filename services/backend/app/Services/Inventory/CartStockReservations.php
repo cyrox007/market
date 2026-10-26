@@ -31,8 +31,16 @@ class CartStockReservations
         $q = DB::table('cart_stock_reservations')->where('warehouse_id', $warehouseId)->where('product_id', $productId)
             ->where('expires_at', '>', now());
         if ($excludeOwn && ($owner = $this->owner())) { $q->where('owner_hash', '!=', $owner); }
-        $orders = (float) DB::table('product_warehouse_stocks')->where('warehouse_id', $warehouseId)->where('product_id', $productId)->value('reserved_quantity');
-        return max(0, $physical - $orders - (float) $q->sum('quantity'));
+        $stock = DB::table('product_warehouse_stocks')->where('warehouse_id', $warehouseId)->where('product_id', $productId);
+        // InnoDB current reads: a snapshot taken before waiting for a stock lock must not hide another buyer's reservation.
+        if (DB::transactionLevel() > 0) {
+            $orders = (float) $stock->lockForUpdate()->value('reserved_quantity');
+            $cartQuantity = (float) $q->lockForUpdate()->get(['quantity'])->sum('quantity');
+        } else {
+            $orders = (float) $stock->value('reserved_quantity');
+            $cartQuantity = (float) $q->sum('quantity');
+        }
+        return max(0, $physical - $orders - $cartQuantity);
     }
 
     public function reserve(Product $sku, int $quantity): void

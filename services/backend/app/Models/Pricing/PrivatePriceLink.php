@@ -7,8 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 class PrivatePriceLink extends Model
 {
     protected $guarded = ['id'];
-    protected $hidden = ['token_hash'];
-    protected $casts = ['price' => 'decimal:2', 'is_active' => 'boolean', 'starts_at' => 'datetime', 'expires_at' => 'datetime'];
+    protected $hidden = ['token_hash', 'token_ciphertext'];
+    protected $casts = ['token_ciphertext' => 'encrypted', 'price' => 'decimal:2', 'is_active' => 'boolean', 'starts_at' => 'datetime', 'expires_at' => 'datetime'];
+
+    public function shareUrl(): ?string
+    {
+        return $this->token_ciphertext ? url('/offer/'.$this->token_ciphertext) : null;
+    }
 
     public function product(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
@@ -24,6 +29,7 @@ class PrivatePriceLink extends Model
     {
         $token = bin2hex(random_bytes(32));
         $this->token_hash = hash('sha256', $token);
+        $this->token_ciphertext = $token;
         $this->save();
         return $token;
     }

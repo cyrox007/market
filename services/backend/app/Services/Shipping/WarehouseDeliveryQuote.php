@@ -67,6 +67,7 @@ class WarehouseDeliveryQuote
             $amount += (float) ($price ?? $product->price) * $quantities[$product->id];
         }
         $options = [];
+        if (array_key_exists('_cart_subtotal', $selection)) { $amount = (float) $selection['_cart_subtotal']; }
         $warehouses = Warehouse::where('is_active', true)->with([
             'physicalSite', 'deliveryProfiles' => fn ($query) => $query->active()->orderBy('priority')->orderBy('id'),
             'productStocks' => fn ($query) => $query->whereIn('product_id', array_keys($quantities)),

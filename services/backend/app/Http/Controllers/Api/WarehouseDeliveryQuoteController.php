@@ -44,6 +44,10 @@ class WarehouseDeliveryQuoteController extends Controller
         }
         try {
             $lines = isset($data['items']) ? app(\App\Services\Shipping\FulfillmentLines::class)->resolve($data['items']) : $quotes->cartLines(Cart::getItems());
+            if (!isset($data['items'])) {
+                $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems(Cart::getItems(), isset($data['region_id']) ? ShippingLocation::find($data['region_id']) : null);
+                $data['_cart_subtotal'] = collect($pricedItems)->sum(fn ($line) => $line['price'] * $line['quantity']);
+            }
             $result = $quotes->calculate($id, $lines, isset($data['region_id']) ? ShippingLocation::find($data['region_id']) : null,
                 array_merge($data, ['preview' => isset($data['items'])]));
         } catch (\Illuminate\Validation\ValidationException $error) {

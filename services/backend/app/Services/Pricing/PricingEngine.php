@@ -135,7 +135,7 @@ class PricingEngine
 
     private function priceKey(?ShippingLocation $location): string
     {
-        return 'pricing:sku_prices:'.sha1(json_encode([$location?->id, $this->customer()?->id, Cache::get('fulfillment_revision', '0'), now()->format('Y-m-d H:i:s')]));
+        return 'pricing:sku_prices:'.sha1(json_encode([app(PrivateOfferAccess::class)->grants()->pluck('id'), $location?->id, $this->customer()?->id, Cache::get('fulfillment_revision', '0'), now()->format('Y-m-d H:i:s')]));
     }
 
     public function preload(array $skuIds, ?ShippingLocation $location): void

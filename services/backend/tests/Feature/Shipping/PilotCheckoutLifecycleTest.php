@@ -57,6 +57,7 @@ class PilotCheckoutLifecycleTest extends TestCase
         [$sku, $w, $body] = $this->scenario();
         $link = PrivatePriceLink::create(['name' => 'Avito', 'product_id' => $sku->id, 'price' => 1000, 'expires_at' => now()->addMinute()]);
         $this->postJson('/api/v1/private-offers/activate', ['token' => $link->rotateToken()])->assertOk()->assertCookie('has_private_offer', '1', false);
+        $this->withHeader('X-Private-Price-Context', (string) $link->id);
         $this->postJson('/api/v1/orders', $body + ['expected_subtotal' => 1000])->assertCreated()->assertJsonPath('order.subtotal', 1000);
         $this->travel(1)->minutes();
         $this->postJson('/api/v1/orders', $body + ['expected_subtotal' => 1000])->assertConflict();

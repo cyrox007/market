@@ -1,5 +1,6 @@
 import type { DimensionKey } from './catalog-query';
 import { checkoutIdempotencyKey } from './checkout-idempotency';
+import { guestOrderHeaders, saveGuestOrderToken } from './guest-order-access';
 import { retryWithoutDirectory, toProductListSearch } from './product-list-search';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -15,8 +16,8 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      ...(typeof document !== 'undefined' && document.cookie.split(';').some((c) => c.trim() === 'has_private_offer=1')
-        ? { 'X-Private-Price-Context': '1' } : {}),
+      ...(typeof window !== 'undefined' && /^\d+$/.test(new URLSearchParams(window.location.search).get('offer') || '')
+        ? { 'X-Private-Price-Context': new URLSearchParams(window.location.search).get('offer')! } : {}),
       ...options?.headers,
     },
     credentials: 'include', // Для поддержки Sanctum cookie-based auth
@@ -85,6 +86,11 @@ export interface DirectoryRegion { externalId: string; name: string; label: stri
 export const api = {
   /** Справочник адресов: регион, затем пункт внутри него (бэкендер, 21.10) */
   addressDirectory: {
+    options: (level: 'localities' | 'streets' | 'buildings', parentExternalId: string | null, q: string, signal?: AbortSignal) => {
+      const query = new URLSearchParams({ q, limit: '50' });
+      if (parentExternalId) query.set('parentExternalId', parentExternalId);
+      return fetchAPI<{ data: Array<{ externalId: string; label: string; name: string }> }>(`/address-directory/${level}?${query}`, { signal });
+    },
     regions: (signal?: AbortSignal) =>
       fetchAPI<{ data: DirectoryRegion[] }>('/localities/regions', { signal }),
     localities: (
@@ -105,6 +111,8 @@ export const api = {
     get: (id: string) => fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(`/localities/${encodeURIComponent(id)}`),
   },
   shipping: {
+    quote: (data: unknown) => fetchAPI<WarehouseQuote>('/shipping/quote', { method: 'POST', body: JSON.stringify(data) }),
+    pickupOptions: (items: Array<{ product_id: number; quantity: number }>) => fetchAPI<{ pickup: PickupOption[] }>('/shipping/pickup-options', { method: 'POST', body: JSON.stringify({ items }) }),
     getLocations: (params?: { type?: string; parent_id?: number; search?: string }) => {
       const query = new URLSearchParams();
       if (params?.type) query.append('type', params.type);
@@ -202,15 +210,18 @@ export const api = {
     count: () => fetchAPI<{ count: number }>('/cart/count'),
   },
   orders: {
+    prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
-    get: (id: number) => fetchAPI<{ order: Order }>(`/orders/${id}`),
+    get: (id: number) => fetchAPI<{ order: Order }>(`/order-access/${id}`, { headers: guestOrderHeaders(id) }),
     create: async (data: any) => {
       const body = JSON.stringify(data);
-      return fetchAPI('/orders', {
+      const response = await fetchAPI<{ order?: Order; guest_order_token?: string }>('/orders', {
         method: 'POST',
         headers: { 'Idempotency-Key': await checkoutIdempotencyKey(body) },
         body,
       });
+      if (response.order && response.guest_order_token) saveGuestOrderToken(response.order.id, response.guest_order_token);
+      return response;
     },
     getPaymentConfig: (id: number) =>
       fetchAPI<{
@@ -221,12 +232,16 @@ export const api = {
         gateway_client_config:
           | { publicId: string; url: string; useSdk?: boolean }
           | { payformUrl: string; useEcomApi: true };
-      }>(`/orders/${id}/payment-config`),
+      }>(`/orders/${id}/payment-config`, { headers: guestOrderHeaders(id) }),
     cancel: (id: number, data?: { comment?: string }) =>
-      fetchAPI<{ order: Order; message: string }>(`/orders/${id}/cancel`, {
+      fetchAPI<{ order: Order; message: string }>(`/order-access/${id}/cancel`, {
         method: 'POST',
-        body: data ? JSON.stringify(data) : undefined,
+        headers: guestOrderHeaders(id),
+        body: data ? JSON.stringify({ reason: data.comment }) : undefined,
       }),
+    requestCancellation: (id: number, reason: string) => fetchAPI(`/order-access/${id}/cancellation-request`, {
+      method: 'POST', headers: guestOrderHeaders(id), body: JSON.stringify({ reason }),
+    }),
     repeat: (id: number) =>
       fetchAPI<{
         message: string;
@@ -892,6 +907,7 @@ export interface Store {
 }
 
 export interface CartItem {
+  price_source?: 'private_link' | 'catalog';
   id: number;
   product_id: number;
   name: string;
@@ -1056,10 +1072,28 @@ export interface Order {
   status_history?: OrderStatusHistory[];
   created_at: string;
   can_be_cancelled: boolean;
+  can_pay?: boolean;
+  cooling_until?: string | null;
+  server_time?: string;
+  payment_status?: 'paid' | 'unpaid';
+  can_request_cancellation?: boolean;
+  cancellation_request?: { status: string; reason: string } | null;
+  refund_task?: { status: string; amount: number } | null;
   payment_deadline_at?: string | null;
   payment_seconds_left?: number | null;
   cancelled_due_to_unpaid_timeout?: boolean;
 }
+
+export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null }
+export interface WarehouseOption {
+  warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
+  total_fulfillment_cost: number; service_options: {
+    assembly: { available: boolean; required: boolean; price: number | null };
+    handling: Array<{ id: number; name: string; requires_floor: boolean; max_floor?: number }>;
+    additional: Array<{ id: number; name: string; price: number }>;
+  };
+}
+export interface WarehouseQuote { available: boolean; subtotal: number; selected: WarehouseOption | null; options: WarehouseOption[] }
 
 export interface OrderItem {
   id: number;

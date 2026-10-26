@@ -225,13 +225,10 @@ class OrderController extends Controller
 
             // Проверка остатков
             $subtotal = 0;
-            foreach (app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems) as $pricingLine) {
-                $pricingProduct = Product::findOrFail($pricingLine['product_id']);
-                $subtotal += $this->regionRuleService->getPriceForRegion($pricingProduct->parentProduct ?? $pricingProduct, $region, $pricingProduct->isVariant() ? $pricingProduct : null) * $pricingLine['quantity'];
-                $storedGrants = session('private_offer_grants', []);
-                if (isset($storedGrants[$pricingProduct->id])
-                    && ! app(\App\Services\Pricing\PrivateOfferAccess::class)->grants()->has($pricingProduct->id)
-                    && ! array_key_exists('expected_subtotal', $validated)) {
+            $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($cartItems, $region);
+            foreach ($pricedItems as $pricingLine) {
+                $subtotal += $pricingLine['price'] * $pricingLine['quantity'];
+                if ($pricingLine['expired_offer'] && ! array_key_exists('expected_subtotal', $validated)) {
                     return response()->json(['message' => 'Цена по ссылке больше недоступна. Подтвердите актуальную стоимость.', 'code' => 'price_changed'], 409);
                 }
             }
@@ -241,7 +238,7 @@ class OrderController extends Controller
             if ($directoryDelivery) {
                 $quotes = app(\App\Services\Shipping\WarehouseDeliveryQuote::class);
                 try {
-                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, $validated);
+                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, ['_cart_subtotal' => $subtotal]));
                 } catch (\RuntimeException $error) {
                     report($error);
                     return response()->json(['message' => 'Не удалось проверить адрес и тариф доставки. Повторите позже.'], 503);
@@ -389,16 +386,14 @@ class OrderController extends Controller
             }
 
             $calculatedSubtotal = 0;
-            foreach (app(\App\Services\Shipping\FulfillmentLines::class)->resolve(
-                app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems)
-            ) as $line) {
+            foreach ($pricedItems as $line) {
                 $product = Product::with('parentProduct')->findOrFail($line['product_id']);
-                $price = $this->regionRuleService->getPriceForRegion($product->parentProduct ?? $product, $region, $product->isVariant() ? $product : null);
+                $price = $line['price'];
                 $lineTotal = $price * $line['quantity'];
                 OrderItem::create([
                     'order_id' => $order->id, 'product_id' => $product->id,
                     'quantity' => $line['quantity'], 'price' => $price, 'total' => $lineTotal,
-                    'pricing_snapshot' => app(\App\Services\Pricing\PricingEngine::class)->explain($product, $region),
+                    'pricing_snapshot' => $line['pricing_snapshot'],
                 ]);
                 $calculatedSubtotal += $lineTotal;
             }

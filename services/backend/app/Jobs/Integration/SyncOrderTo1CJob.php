@@ -71,6 +71,7 @@ class SyncOrderTo1CJob implements ShouldQueue, \Illuminate\Contracts\Queue\Shoul
 
     public function failed(\Throwable $e): void
     {
+        Order::whereKey($this->orderId)->update(['integration_state' => 'failed']);
         Log::error('SyncOrderTo1CJob failed', [
             'order_id' => $this->orderId,
             'error' => $e->getMessage(),

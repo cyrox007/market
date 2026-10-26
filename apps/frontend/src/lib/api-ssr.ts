@@ -54,7 +54,8 @@ export function createSSRFetch(req: IncomingMessage) {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           Cookie: cookieHeader, // Передаем cookies в Laravel API
-          ...(cookieHeader.split(';').some((c) => c.trim() === 'has_private_offer=1') ? { 'X-Private-Price-Context': '1' } : {}),
+          ...(/^\d+$/.test(new URL(req.url || '/', 'http://ssr.local').searchParams.get('offer') || '')
+            ? { 'X-Private-Price-Context': new URL(req.url || '/', 'http://ssr.local').searchParams.get('offer')! } : {}),
           ...options?.headers,
         },
         signal: controller.signal,

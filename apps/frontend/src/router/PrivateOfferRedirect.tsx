@@ -17,7 +17,7 @@ export default function PrivateOfferRedirect() {
       if (!response.ok) throw new Error('Offer unavailable');
       const data = await response.json();
       if (active && typeof data.slug === 'string') {
-        window.location.replace(`/product/${encodeURIComponent(data.slug)}`);
+        window.location.replace(`/product/${encodeURIComponent(data.slug)}?offer=${encodeURIComponent(data.offer_id)}`);
       }
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };

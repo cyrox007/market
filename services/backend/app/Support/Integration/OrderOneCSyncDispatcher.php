@@ -33,6 +33,16 @@ final class OrderOneCSyncDispatcher
             return;
         }
 
-        SyncOrderTo1CJob::dispatch($orderId);
+        $record?->update(['integration_state' => 'queued']);
+        \Illuminate\Support\Facades\DB::afterCommit(function () use ($orderId): void {
+            try {
+                $pending = SyncOrderTo1CJob::dispatch($orderId);
+                unset($pending); // Execute PendingDispatch inside this catch, including unique-job locking.
+            }
+            catch (\Throwable $error) {
+                Order::whereKey($orderId)->update(['integration_state' => 'failed']);
+                report($error);
+            }
+        });
     }
 }

@@ -1,5 +1,8 @@
 <?php
 
+\Illuminate\Support\Facades\Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
+\Illuminate\Support\Facades\Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
+
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;

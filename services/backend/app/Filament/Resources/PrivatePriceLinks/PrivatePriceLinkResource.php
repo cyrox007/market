@@ -27,6 +27,9 @@ class PrivatePriceLinkResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
+            \Filament\Infolists\Components\TextEntry::make('share_url')->label('Ссылка для объявления')
+                ->state(fn (?PrivatePriceLink $record) => $record?->shareUrl() ?? 'После создания ссылка появится здесь. Для старой записи нажмите «Выпустить новую ссылку».')
+                ->copyable(fn (?PrivatePriceLink $record) => filled($record?->shareUrl()))->columnSpanFull(),
             TextInput::make('name')->label('Название объявления')->required()->maxLength(255),
             Select::make('product_id')->label('Товар / торговое предложение')->relationship('product', 'name',
                 modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('state', 'active')

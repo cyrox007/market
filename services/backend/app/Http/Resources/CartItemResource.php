@@ -81,7 +81,8 @@ class CartItemResource extends JsonResource
 
             // ВАЖНО: Проверяем, что parentProduct не null перед вызовом getPriceForRegion
             if ($parentProduct) {
-                $calculatedPrice = $regionRuleService->getPriceForRegion($parentProduct, $region, $variant);
+                $calculatedPrice = app(\App\Services\Pricing\PrivateOfferAccess::class)->withItem($this->resource,
+                    fn () => $regionRuleService->getPriceForRegion($parentProduct, $region, $variant));
                 if ($calculatedPrice !== null) {
                     $regionalPrice = $calculatedPrice;
                 }
@@ -102,6 +103,7 @@ class CartItemResource extends JsonResource
             'slug' => $productForSlug->slug ?? null, // Slug для ссылки на товар (родительский, если это вариация)
             'price' => $regionalPrice,
             'quantity' => $quantity,
+            'price_source' => filled(($this->configuration ?? [])['private_offer_hash'] ?? null) ? 'private_link' : 'catalog',
             'reservation' => $product ? app(\App\Services\Inventory\CartStockReservations::class)->forProduct($product->id) : null,
             'total' => $total,
             // В корзине используем миниатюру, чтобы не тянуть большие изображения

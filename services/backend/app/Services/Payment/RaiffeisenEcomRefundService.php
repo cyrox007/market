@@ -38,6 +38,14 @@ class RaiffeisenEcomRefundService
     public function refund($payment, float $amount, ?string $comment = null, ?int $userId = null): PaymentRefund
     {
         $payment = $this->resolvePayment($payment);
+        if (! $payment) { throw new \RuntimeException('Платёж не найден'); }
+        return \Illuminate\Support\Facades\Cache::lock('order-refund:'.$payment->payable_id, 180)->block(5,
+            fn () => $this->refundLocked($payment, $amount, $comment, $userId));
+    }
+
+    private function refundLocked($payment, float $amount, ?string $comment, ?int $userId): PaymentRefund
+    {
+        $payment = $this->resolvePayment($payment);
         if (!$payment) {
             throw new \RuntimeException('Платёж не найден');
         }
@@ -47,7 +55,7 @@ class RaiffeisenEcomRefundService
             throw new \RuntimeException('Возврат через Raiffeisen e-commerce доступен только для платежей card_ecom');
         }
 
-        if (!$payment->getStatus()->equals(PaymentStatusProxy::PAID())) {
+        if (!$payment->getStatus()->equals(PaymentStatusProxy::PAID()) && !$payment->getStatus()->equals(PaymentStatusProxy::PARTIALLY_REFUNDED())) {
             throw new \RuntimeException('Возврат возможен только для оплаченных платежей');
         }
 
@@ -57,7 +65,10 @@ class RaiffeisenEcomRefundService
         }
 
         $orderNumber = (string) $order->getNumber();
-        $maxRefundable = (float) $payment->amount_paid;
+        if (PaymentRefund::where('payment_id', $payment->id)->whereIn('status', ['pending', 'in_progress'])->exists()) {
+            throw new \RuntimeException('Предыдущий возврат ещё проверяется банком. Сначала дождитесь подтверждения.');
+        }
+        $maxRefundable = $this->getRefundableAmount($payment);
         if ($amount <= 0 || $amount > $maxRefundable) {
             throw new \RuntimeException("Сумма возврата должна быть от 0.01 до {$maxRefundable}");
         }
@@ -79,11 +90,12 @@ class RaiffeisenEcomRefundService
         try {
             $apiResponse = $client->createRefund($orderNumber, $refundId, $amount);
 
+            $confirmed = strtoupper((string) ($apiResponse['refundStatus'] ?? $apiResponse['status'] ?? '')) === 'COMPLETED';
             $refundRecord->update([
-                'status' => PaymentRefund::STATUS_COMPLETED,
+                'status' => $confirmed ? PaymentRefund::STATUS_COMPLETED : PaymentRefund::STATUS_IN_PROGRESS,
                 'meta' => array_merge($refundRecord->meta ?? [], [
                     'api_response' => $apiResponse,
-                    'refund_status' => $apiResponse['refundStatus'] ?? 'COMPLETED',
+                    'refund_status' => $apiResponse['refundStatus'] ?? $apiResponse['status'] ?? 'PENDING',
                 ]),
             ]);
 
@@ -94,7 +106,7 @@ class RaiffeisenEcomRefundService
             $payment->status_message = ($comment ? $comment . '. ' : '') . 'Возврат ' . number_format($amount, 2) . ' ₽ через Raif e-commerce';
             if ($totalRefunded >= (float) $payment->amount_paid) {
                 $payment->status = PaymentStatusProxy::REFUNDED();
-            } else {
+            } elseif ($totalRefunded > 0) {
                 $payment->status = PaymentStatusProxy::PARTIALLY_REFUNDED();
             }
             $payment->save();
@@ -112,7 +124,7 @@ class RaiffeisenEcomRefundService
             return $refundRecord;
         } catch (\Throwable $e) {
             $refundRecord->update([
-                'status' => PaymentRefund::STATUS_FAILED,
+                'status' => PaymentRefund::STATUS_IN_PROGRESS,
                 'meta' => array_merge($refundRecord->meta ?? [], [
                     'error' => $e->getMessage(),
                 ]),
@@ -211,6 +223,7 @@ class RaiffeisenEcomRefundService
             return false;
         }
 
+        if (PaymentRefund::where('payment_id', $payment->id)->whereIn('status', ['pending', 'in_progress'])->exists()) { return false; }
         $totalRefunded = (float) PaymentRefund::where('payment_id', $payment->id)
             ->where('status', PaymentRefund::STATUS_COMPLETED)
             ->sum('amount');

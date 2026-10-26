@@ -87,7 +87,7 @@ async function createServer() {
   // Обработка всех маршрутов
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
     // Never put session-specific private-offer prices into the shared SSR cache.
-    const privateOffer = req.cookies?.has_private_offer === '1';
+    const privateOffer = /^\d+$/.test(new URL(req.originalUrl, 'http://ssr.local').searchParams.get('offer') || '');
     if (privateOffer || /\/offer\//.test(req.path)) {
       res.setHeader('Cache-Control', 'private, no-store');
       res.setHeader('Referrer-Policy', 'no-referrer');
@@ -117,7 +117,7 @@ async function createServer() {
 
     try {
       // Создаем SSR контекст с данными пользователя и счетчиков
-      const ssrContext: SSRContext = {};
+      const ssrContext: SSRContext = { privateOfferContext: new URL(req.originalUrl, 'http://ssr.local').searchParams.get('offer') };
 
       try {
         // Загружаем API клиент для SSR
@@ -302,7 +302,7 @@ async function createServer() {
         }
 
         // Страница товара /product/:slug — один запрос (товар + набор + сопутствующие)
-        const productMatch = url.match(/^\/product\/([^/]+)/);
+        const productMatch = url.match(/^\/product\/([^/?#]+)/);
         if (productMatch) {
           const productSlug = decodeURIComponent(productMatch[1]);
           try {

@@ -114,20 +114,19 @@ class Order extends Model implements Payable
      */
     protected static function generateNumber(): string
     {
-        $prefix = 'ORD';
-        $date = date('Ymd');
-        $lastOrder = static::whereDate('created_at', today())
-            ->orderBy('id', 'desc')
-            ->first();
-
-        if ($lastOrder) {
-            $lastNumber = (int) substr($lastOrder->number, -6);
-            $newNumber = str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
-        } else {
-            $newNumber = '000001';
-        }
-
-        return $prefix . $date . $newNumber;
+        return \Illuminate\Support\Facades\DB::transaction(function (): string {
+            $day = now()->format('Ymd');
+            $db = \Illuminate\Support\Facades\DB::table('order_number_sequences');
+            $db->insertOrIgnore(['day' => $day, 'last_number' => 0]);
+            $sequence = (clone $db)->where('day', $day)->lockForUpdate()->first();
+            $last = (int) $sequence->last_number;
+            if ($last === 0) {
+                $existing = static::where('number', 'like', 'ORD'.$day.'%')->orderByDesc('number')->value('number');
+                $last = $existing ? (int) substr($existing, 11) : 0;
+            }
+            (clone $db)->where('day', $day)->update(['last_number' => $last + 1]);
+            return 'ORD'.$day.str_pad((string) ($last + 1), 6, '0', STR_PAD_LEFT);
+        }, 3);
     }
 
     /**

@@ -60,8 +60,12 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
     const regionId = ssrContext.region?.id;
     if (productSlug) {
       const productKey = getProductKey(productSlug, { region_id: regionId });
-      fallback[productKey] = ssrContext.product;
-      fallback[`/api/products/${productSlug}`] = ssrContext.product;
+      if (ssrContext.privateOfferContext) {
+        fallback[`${productKey}|offer:${ssrContext.privateOfferContext}`] = ssrContext.product;
+      } else {
+        fallback[productKey] = ssrContext.product;
+        fallback[`/api/products/${productSlug}`] = ssrContext.product;
+      }
     }
   }
 

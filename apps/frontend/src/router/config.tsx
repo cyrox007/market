@@ -22,7 +22,7 @@ const Cookies = lazy(() => import('../pages/cookies/page'));
 const About = lazy(() => import('../pages/about/page'));
 const Contacts = lazy(() => import('../pages/contacts/page'));
 const Cart = lazy(() => import('../pages/cart/page'));
-const Checkout = lazy(() => import('../pages/checkout/page'));
+const Checkout = lazy(() => import('../pages/checkout/warehouse-page'));
 const Account = lazy(() => import('../pages/account/page'));
 const Login = lazy(() => import('../pages/login/page'));
 const Register = lazy(() => import('../pages/register/page'));
@@ -105,11 +105,7 @@ const routes: RouteObject[] = [
       },
       {
         path: 'orders/:id',
-        element: (
-          <ProtectedRoute>
-            <OrderDetail />
-          </ProtectedRoute>
-        ),
+        element: <OrderDetail />,
       },
       { path: 'search', element: <Search /> },
       { path: '*', element: <NotFound /> },
