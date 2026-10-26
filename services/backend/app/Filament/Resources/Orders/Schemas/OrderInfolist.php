@@ -276,7 +276,7 @@ class OrderInfolist
                             ->placeholder('0,00 ₽')
                             ->helperText(function ($record) {
                                 if ($record->delivery_type === 'delivery') {
-                                    return $record->shippingLocation ? 'Локация: ' . $record->shippingLocation->name : '';
+                                    return isset($record->fulfillment_snapshot['warehouse_external_id']) ? 'Склад: '.$record->fulfillment_snapshot['warehouse_external_id'] : '';
                                 }
                                 return 'Самовывоз';
                             }),
@@ -292,6 +292,9 @@ class OrderInfolist
                             ->label('Дополнительные услуги')
                             ->money('RUB')
                             ->state(function ($record) {
+                                if (array_key_exists('additional_services_cost', $record->fulfillment_snapshot ?? [])) {
+                                    return (float) $record->fulfillment_snapshot['additional_services_cost'];
+                                }
                                 if (!$record->relationLoaded('additionalServices') || !$record->additionalServices) {
                                     return 0;
                                 }
@@ -306,6 +309,9 @@ class OrderInfolist
                             ->numeric()
                             ->placeholder('0,00 ₽')
                             ->helperText(function ($record) {
+                                if (isset($record->fulfillment_snapshot['additional_services'])) {
+                                    return 'Добавлено услуг: '.count($record->fulfillment_snapshot['additional_services']);
+                                }
                                 if (!$record->relationLoaded('additionalServices') || !$record->additionalServices) {
                                     return 'Дополнительные услуги не добавлены';
                                 }

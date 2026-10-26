@@ -89,9 +89,9 @@ class OrderAuditRegressionTest extends TestCase
 
     public function test_delivery_lift_is_not_charged_twice_and_pickup_contains_warehouse(): void
     {
-        $order = Order::factory()->create(['delivery_type' => 'delivery', 'delivery_cost' => 800,
+        $order = Order::factory()->create(['delivery_type' => 'delivery', 'delivery_cost' => 800, 'assembly_cost' => 200, 'subtotal' => 1000, 'total' => 2050,
             'address_snapshot' => 'Адрес выдачи', 'fulfillment_snapshot' => [
-                'warehouse_external_id' => 'LP00001', 'handling_cost' => 300,
+                'warehouse_external_id' => 'LP00001', 'handling_cost' => 300, 'additional_services_cost' => 50,
                 'address_directory' => ['external_id' => 'building', 'kladr_code' => '4800000100000', 'gar_guid' => 'gar-id'],
             ]]);
         $p = app(\App\Actions\Integration\Integration1C\BuildOrderSyncPayloadAction::class)->execute($order);
@@ -101,6 +101,7 @@ class OrderAuditRegressionTest extends TestCase
         $this->assertSame(300.0, $p['liftCost']);
         $this->assertSame(500.0, $p['deliveryCost']);
         $this->assertSame(800.0, $p['liftCost'] + $p['deliveryCost']);
+        $this->assertSame(2050.0, $p['subtotal'] + $p['deliveryCost'] + $p['liftCost'] + $p['assemblyCost'] + $p['additionalServicesCost']);
         $order->update(['delivery_type' => 'pickup', 'delivery_cost' => 0,
             'fulfillment_snapshot' => ['warehouse_external_id' => 'LP00001']]);
         $p = app(\App\Actions\Integration\Integration1C\BuildOrderSyncPayloadAction::class)->execute($order);

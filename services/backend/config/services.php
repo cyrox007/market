@@ -44,7 +44,7 @@ return [
         'api_key' => env('ONEC_API_KEY', ''),
         'timeout' => env('ONEC_API_TIMEOUT', 30),
         'enabled' => env('ONEC_API_ENABLED', false),
-        'orders_path' => env('ONEC_ORDERS_PATH', '/api/v1/integration/1c/orders'),
+        'orders_path' => env('ONEC_ORDERS_PATH', '/api/v2/orders/sync'),
         'orders_queue' => env('ONEC_ORDERS_QUEUE', 'integration-orders'),
     ],
 

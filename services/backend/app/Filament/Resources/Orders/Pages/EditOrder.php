@@ -32,7 +32,7 @@ class EditOrder extends EditRecord
             ->first();
 
         $hasPaymentActions = $this->canMarkOrderPaid($order, $latestPayment)
-            || ($latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID()) && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::CANCELLED()));
+            || $this->canCancelManualPayment($order, $latestPayment);
 
         $refundService = app(RaiffeisenEcomRefundService::class);
         $canRefund = $latestPayment && $refundService->canRefund($latestPayment);
@@ -87,7 +87,7 @@ class EditOrder extends EditRecord
                     ->visible(fn () => $this->canMarkOrderPaid($order, $latestPayment))
                     ->requiresConfirmation()
                     ->modalHeading('Отметить заказ оплаченным')
-                    ->modalDescription('Статус платежа будет установлен «Оплачен», при необходимости заказ переведён в статус «Принят». Продолжить?')
+                    ->modalDescription('Подтвердите фактическое получение оплаты. Для банковских платежей статус устанавливает только банк. Период охлаждения сохраняется.')
                     ->action(function () use ($order, $latestPayment): void {
                         $this->markOrderAsPaid($order, $latestPayment);
                     }),
@@ -95,7 +95,7 @@ class EditOrder extends EditRecord
                     ->label('Отменить оплату')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn () => $latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID()) && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::CANCELLED()))
+                    ->visible(fn () => $this->canCancelManualPayment($order, $latestPayment))
                     ->requiresConfirmation()
                     ->modalHeading('Отменить оплату')
                     ->modalDescription('Платёж по заказу будет отменён. Продолжить?')
@@ -147,8 +147,16 @@ class EditOrder extends EditRecord
         ];
     }
 
+    protected function canCancelManualPayment($order, $payment): bool
+    {
+        return app(\App\Services\Order\ManualOrderPayment::class)->allowed($order)
+            && $payment && (float) $payment->amount_paid <= 0
+            && ! in_array((string) $payment->getRawOriginal('status'), ['paid', 'partially_refunded', 'refunded', 'cancelled'], true);
+    }
+
     protected function canMarkOrderPaid($order, $latestPayment): bool
     {
+        if (! app(\App\Services\Order\ManualOrderPayment::class)->allowed($order)) { return false; }
         if ($order->cooling_until) {
             return ! in_array($order->status, [OrderStatus::CANCELLED->value, OrderStatus::DELIVERED->value], true)
                 && ! app(\App\Services\Order\OrderCooling::class)->isPaid($order);
@@ -162,17 +170,7 @@ class EditOrder extends EditRecord
 
     protected function markOrderAsPaid($order, $latestPayment): void
     {
-        if (! $latestPayment && $order->cooling_until) {
-            $method = \App\Models\Payment\PaymentMethod::where('code', $order->payment_method)->firstOrFail();
-            $latestPayment = $order->payments()->create(['payment_method_id' => $method->id,
-                'currency' => 'RUB', 'amount' => (float) $order->total, 'amount_paid' => 0, 'status' => 'pending']);
-        }
-        if ($latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID())) {
-            $latestPayment->status = PaymentStatusProxy::PAID();
-            $latestPayment->amount_paid = (float) $latestPayment->getAmount();
-            $latestPayment->status_message = 'Оплата отмечена вручную в админке';
-            $latestPayment->save();
-        }
+        $latestPayment = app(\App\Services\Order\ManualOrderPayment::class)->record($order->id, $latestPayment?->id, true);
 
         if (in_array($order->status, [OrderStatus::AWAITING_PAYMENT->value, OrderStatus::NEW->value], true)) {
             $order->changeStatus(OrderStatus::ACCEPTED, 'Оплата отмечена вручную в админке', auth()->id());
@@ -204,9 +202,7 @@ class EditOrder extends EditRecord
 
     protected function cancelOrderPayment($order, $payment): void
     {
-        $payment->status = PaymentStatusProxy::CANCELLED();
-        $payment->status_message = 'Оплата отменена вручную в админке';
-        $payment->save();
+        $payment = app(\App\Services\Order\ManualOrderPayment::class)->record($order->id, $payment->id, false);
 
         app(GatewayLoggerInterface::class)->log(
             'admin_manual',
