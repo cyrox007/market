@@ -33,7 +33,7 @@ class ProductDescriptionEditorTest extends TestCase
 
     public function test_null_description_is_empty(): void
     {
-        $this->assertSame('', app(ProductDescriptionHtml::class)->forEditor(null));
+        $this->assertSame('<p></p>', app(ProductDescriptionHtml::class)->forEditor(null));
     }
 
     public function test_product_form_opens_and_saves_plain_text_with_visual_editor(): void

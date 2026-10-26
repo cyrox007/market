@@ -11,7 +11,8 @@ class ProductDescriptionHtml
     {
         $value = $value ?? '';
         if (! $this->hasContent($value)) {
-            return '';
+            // TipTap's DOM parser requires a document body, not an empty string.
+            return '<p></p>';
         }
 
         if ($value === strip_tags($value)) {
