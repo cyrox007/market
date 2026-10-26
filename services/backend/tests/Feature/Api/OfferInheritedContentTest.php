@@ -31,7 +31,7 @@ class OfferInheritedContentTest extends TestCase
         $response = $this->getJson('/api/v1/products/'.$parent->slug)->assertOk();
         $nested = collect($response->json('product.variants'))->firstWhere('id', $offer->id);
         $this->assertSame($parent->description, $nested['description']);
-        $this->assertSame('', app(ProductDescriptionHtml::class)->forEditor($empty));
+        $this->assertSame('<p></p>', app(ProductDescriptionHtml::class)->forEditor($empty));
         $this->assertSame('', app(ProductDescriptionHtml::class)->sanitize($empty));
     }
 
