@@ -47,7 +47,7 @@ class CartItemResource extends JsonResource
             $productForSlug = $product->parentProduct ?? $product;
         }
 
-        // Вариация: атрибуты из product_variant_attributes
+        // Вариация: собственные атрибуты из общего хранилища характеристик
         $variationAttributes = [];
         if ($product && method_exists($product, 'isVariant') && $product->isVariant() && method_exists($product, 'getVariationAttributesForApi')) {
             $variationAttributes = $product->getVariationAttributesForApi();

@@ -30,7 +30,7 @@ class ProductManufacturer
         $values = AttributeValue::whereHas('attribute', fn ($q) => $q->where('slug', Attribute::SLUG_MANUFACTURER))
             ->orderBy('value')->get()->map(fn ($v) => ['id' => $v->id, 'name' => $v->value, 'slug' => $v->slug]);
         $attributeId = Attribute::where('slug', Attribute::SLUG_MANUFACTURER)->value('id');
-        foreach (['product_product_attributes', 'product_variant_attributes'] as $table) {
+        foreach (['product_product_attributes'] as $table) {
             foreach (DB::table($table)->where('attribute_id', $attributeId)->whereNotNull('custom_value')->distinct()->pluck('custom_value') as $name) {
                 if (trim($name) !== '') {
                     $values->push(['id' => null, 'name' => trim($name), 'slug' => Str::slug(trim($name)) ?: 'value-'.substr(sha1(mb_strtolower(trim($name))), 0, 12)]);
@@ -43,8 +43,8 @@ class ProductManufacturer
 
     public function value(Product $product): ?string
     {
-        $product->loadMissing('manufacturerAttributes.values', 'variantManufacturerAttributes.values');
-        $row = $product->variantManufacturerAttributes->first() ?? $product->manufacturerAttributes->first();
+        $product->loadMissing('manufacturerAttributes.values');
+        $row = $product->manufacturerAttributes->first();
         if ($row) {
             return $row->values->firstWhere('id', $row->pivot->attribute_value_id)?->value ?? $row->pivot->custom_value;
         }
@@ -61,7 +61,7 @@ class ProductManufacturer
         validator(['manufacturer_name' => $name], ['manufacturer_name' => 'nullable|string|max:255'])->validate();
         DB::transaction(function () use ($product, $name): void {
             $attribute = $this->attribute();
-            foreach (['product_product_attributes', 'product_variant_attributes'] as $table) {
+            foreach (['product_product_attributes'] as $table) {
                 DB::table($table)->where('product_id', $product->id)->where('attribute_id', $attribute->id)->delete();
             }
             if ($name !== '') {
@@ -90,7 +90,7 @@ class ProductManufacturer
     {
         $attributeId = Attribute::where('slug', Attribute::SLUG_MANUFACTURER)->value('id');
         return $query->where(function ($q) use ($attributeId, $name): void {
-            foreach (['product_product_attributes', 'product_variant_attributes'] as $table) {
+            foreach (['product_product_attributes'] as $table) {
                 $q->orWhereExists(fn ($sub) => $sub->selectRaw('1')->from($table.' as manufacturer_row')
                     ->leftJoin('product_attribute_values as manufacturer_value', 'manufacturer_value.id', '=', 'manufacturer_row.attribute_value_id')
                     ->where(fn ($p) => $p->whereColumn('manufacturer_row.product_id', 'products.id')

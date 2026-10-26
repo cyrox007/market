@@ -23,12 +23,17 @@ class ProductCollectionCacheService
         Product::flushAllProductCaches();
 
         foreach (self::HOME_SLUGS as $slug) {
+            Cache::forget(Product::cacheKey('home_collection_sku_v1_' . $slug));
+            Cache::forget(Product::cacheKey('collection_sku_v1_' . $slug));
+            Cache::forget(Product::cacheKey('sku_v1_' . $slug));
             Cache::forget(Product::cacheKey('home_collection_' . $slug));
             Cache::forget(Product::cacheKey('collection_slug_' . $slug));
             Cache::forget(Product::cacheKey($slug));
         }
 
         if ($collection?->slug) {
+            Cache::forget(Product::cacheKey('home_collection_sku_v1_' . $collection->slug));
+            Cache::forget(Product::cacheKey('collection_sku_v1_' . $collection->slug));
             Cache::forget(Product::cacheKey('home_collection_' . $collection->slug));
             Cache::forget(Product::cacheKey('collection_slug_' . $collection->slug));
         }

@@ -96,9 +96,7 @@ class ProductCollection extends Model
             return;
         }
 
-        $query = Product::query()
-            ->whereNull('parent_product_id')
-            ->active();
+        $query = Product::query()->catalogItems();
 
         // Применяем соответствующий скоуп
         switch ($this->scope_type) {
@@ -140,8 +138,7 @@ class ProductCollection extends Model
                     'manufacturer',
                     'media',
                 ])
-                ->whereNull('parent_product_id')
-                ->active();
+                ->catalogItems();
 
             switch ($this->scope_type) {
                 case 'featured':
@@ -157,20 +154,30 @@ class ProductCollection extends Model
 
             return $query->limit($this->limit)->get();
         } else {
-            // Для ручных подборок используем сохраненные товары
-            return $this->products()
+            // Existing selected groups expand to their individual active SKUs.
+            // Explicitly selected SKU IDs remain exact; no grouping in the API.
+            $ids = $this->products()->orderBy('product_product_collection.sort_order')->pluck('products.id')->all();
+            if ($ids === []) {
+                return collect();
+            }
+            $query = Product::query()->catalogItems()
+                ->where(fn ($scope) => $scope->whereIn('products.id', $ids)->orWhereIn('products.parent_product_id', $ids))
                 ->with([
                     'taxons',
                     'variants' => fn ($q) => $q->active()->orderBy('id'),
                     'attributeValues.attribute',
                     'manufacturer',
                     'media',
-                ])
-                ->whereNull('parent_product_id')
-                ->active()
-                ->orderBy('product_product_collection.sort_order')
-                ->limit($this->limit)
-                ->get();
+                ]);
+            $cases = [];
+            $bindings = [];
+            foreach ($ids as $rank => $id) {
+                $cases[] = 'WHEN products.id = ? OR products.parent_product_id = ? THEN ?';
+                array_push($bindings, $id, $id, $rank);
+            }
+
+            return $query->orderByRaw('CASE '.implode(' ', $cases).' ELSE '.count($ids).' END', $bindings)
+                ->orderBy('products.id')->limit($this->limit)->get();
         }
     }
 }

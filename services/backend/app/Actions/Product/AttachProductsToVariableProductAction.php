@@ -131,7 +131,7 @@ class AttachProductsToVariableProductAction
     {
         $variantAttributeId = (int) Attribute::ensureVariantAttribute()->id;
 
-        $seen = DB::table('product_variant_attributes')
+        $seen = DB::table('product_product_attributes')
             ->whereIn('product_id', $parent->variants()->pluck('id'))
             ->where('attribute_id', $variantAttributeId)
             ->pluck('custom_value')

@@ -86,10 +86,8 @@ class ProductVariationAttributeService
      */
     private function simpleProductAttributeValues(Product $product, string $slug, bool $withColorCode): Collection
     {
-        $rows = $product->attributes()
-            ->where('product_attributes.slug', $slug)
-            ->with('values')
-            ->get();
+        $product->loadMissing('attributes.values');
+        $rows = $product->getRelation('attributes')->where('slug', $slug);
 
         return $rows->map(function ($attribute) use ($withColorCode) {
             $pivot = $attribute->pivot;

@@ -44,7 +44,7 @@ class AttachProductsToVariableProductActionTest extends TestCase
         $this->assertSame('ext-white', $forgotten->external_id);
 
         $variantAttr = Attribute::where('slug', Attribute::SLUG_VARIANT)->firstOrFail();
-        $this->assertDatabaseHas('product_variant_attributes', [
+        $this->assertDatabaseHas('product_product_attributes', [
             'product_id' => $forgotten->id,
             'attribute_id' => $variantAttr->id,
             'custom_value' => 'Белый гладкий',

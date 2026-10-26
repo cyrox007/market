@@ -40,9 +40,9 @@ class CatalogWarehouseDistance
         $nearest = DB::query()->fromSub($skus, 'eligible_sku')
             ->join('product_warehouse_stocks as stock', 'stock.product_id', '=', 'eligible_sku.id')
             ->where('stock.quantity', '>=', 1)->whereIn('stock.warehouse_id', array_keys($distances))
-            ->selectRaw('COALESCE(eligible_sku.parent_product_id, eligible_sku.id) AS root_id')
+            ->selectRaw('eligible_sku.id AS root_id')
             ->selectRaw('MIN(CASE stock.warehouse_id '.$cases.' END) AS distance_km', $bindings)
-            ->groupByRaw('COALESCE(eligible_sku.parent_product_id, eligible_sku.id)');
+            ->groupBy('eligible_sku.id');
         $roots->leftJoinSub($nearest, 'nearest_source', 'nearest_source.root_id', '=', 'products.id')
             ->select('products.*')->addSelect('nearest_source.distance_km as nearest_distance_km')
             ->orderByRaw('nearest_source.distance_km IS NULL')->orderBy('nearest_source.distance_km')->orderBy('products.id');

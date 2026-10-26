@@ -351,7 +351,7 @@ class ProductController extends Controller
         $location = $this->getRegionFromRequest($request);
         $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location);
         $request->attributes->set('warehouse_destination', $destination);
-        $cacheKey = 'idx:v5:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
+        $cacheKey = 'idx:sku-v1:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
         if ($location) {
             $request->merge(['_region_id' => $location->id, '_region' => $location]);
             if (! $countOnly) {
@@ -359,7 +359,7 @@ class ProductController extends Controller
             }
         }
 
-        $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer', 'manufacturerAttributes.values', 'variantManufacturerAttributes.values', 'parentProduct.manufacturerAttributes.values']);
+        $query = Product::query()->catalogItems()->with(['taxons', 'manufacturer', 'manufacturerAttributes.values', 'variantManufacturerAttributes.values', 'parentProduct.manufacturerAttributes.values']);
         if ($location) {
             $query = $this->applyRegionVisibilityFilter($query, $location);
         }
@@ -386,13 +386,15 @@ class ProductController extends Controller
                 throw \Illuminate\Validation\ValidationException::withMessages(['category_slugs' => 'Одна из выбранных категорий не найдена.']);
             }
             $ids = $categories->flatMap(fn ($category) => Category::getAllDescendantIdsFor($category->id))->unique()->values()->all();
-            $query->whereHas('taxons', fn ($taxons) => $taxons->whereIn('taxons.id', $ids));
+            $query->where(fn ($scope) => $scope->whereHas('taxons', fn ($taxons) => $taxons->whereIn('taxons.id', $ids))
+                ->orWhereHas('parentProduct.taxons', fn ($taxons) => $taxons->whereIn('taxons.id', $ids)));
         }
 
         // Товары комнаты = объединение товаров её продуктовых категорий (с потомками).
         if ($roomCategoryIds !== null) {
             if (! empty($roomCategoryIds)) {
-                $query->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $roomCategoryIds));
+                $query->where(fn ($scope) => $scope->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $roomCategoryIds))
+                    ->orWhereHas('parentProduct.taxons', fn ($q) => $q->whereIn('taxons.id', $roomCategoryIds)));
             } else {
                 $query->whereRaw('1 = 0');
             }
@@ -404,16 +406,17 @@ class ProductController extends Controller
 
         // Фильтр по производителю
         if ($manufacturerId) {
-            $query->where('manufacturer_id', (int) $manufacturerId);
+            $query->where(fn ($scope) => $scope->where('manufacturer_id', (int) $manufacturerId)
+                ->orWhere(fn ($inherited) => $inherited->whereNull('manufacturer_id')
+                    ->whereHas('parentProduct', fn ($parent) => $parent->where('manufacturer_id', (int) $manufacturerId))));
         } else if ($manufacturerSlug) {
-            $query->whereHas('manufacturer', function ($q) use ($manufacturerSlug) {
-                $q->where('slug', $manufacturerSlug);
-            });
+            $query->where(fn ($scope) => $scope->whereHas('manufacturer', fn ($maker) => $maker->where('slug', $manufacturerSlug))
+                ->orWhere(fn ($inherited) => $inherited->whereNull('manufacturer_id')
+                    ->whereHas('parentProduct.manufacturer', fn ($maker) => $maker->where('slug', $manufacturerSlug))));
         }
 
-        $baseQueryForFilters = (clone $query)->whereNull('parent_product_id');
+        $baseQueryForFilters = clone $query;
         $catalogFilters = app(\App\Services\Product\CatalogFilterService::class)->forLocation($location);
-        $query->whereNull('parent_product_id');
         $catalogFilters->apply($query, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []));
         if ($countOnly) {
             return response()->json(['total' => (clone $query)->reorder()->count('products.id')]);
@@ -427,8 +430,7 @@ class ProductController extends Controller
                 $catalogFilters->skus($baseQueryForFilters, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? [])), $destination);
         } elseif ($sortBy === 'price') {
             $prices = $catalogFilters->skus($baseQueryForFilters, $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))
-                ->selectRaw('COALESCE(products.parent_product_id, products.id) AS root_id, MIN(catalog_prices.effective_price) AS effective_price')
-                ->groupByRaw('COALESCE(products.parent_product_id, products.id)');
+                ->selectRaw('products.id AS root_id, catalog_prices.effective_price AS effective_price');
             $query->leftJoinSub($prices, 'root_prices', 'root_prices.root_id', '=', 'products.id')
                 ->select('products.*')->orderByRaw('root_prices.effective_price IS NULL')->orderBy('root_prices.effective_price', $sortOrder)->orderBy('products.id');
         } else {
@@ -504,7 +506,7 @@ class ProductController extends Controller
         // и в реальном фронте каталог всегда фильтруется по категории.
         $filtersMeta = null;
         if ($categoryId || $categorySlugs || $roomSlug) {
-            $filtersMetaCacheKey = 'product_filters_meta:v3:'.sha1($baseQueryForFilters->toSql()
+            $filtersMetaCacheKey = 'product_filters_meta:sku-v1:'.sha1($baseQueryForFilters->toSql()
                 .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters, $location?->id])
                 .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
             $filtersMeta = Cache::remember($filtersMetaCacheKey, 300,
@@ -550,7 +552,10 @@ class ProductController extends Controller
     {
         $with = [
             'taxons',
-            'variants' => fn ($q) => $q->active()->orderBy('id'),
+            'parentProduct.media',
+            'parentProduct.taxons',
+            'parentProduct.manufacturer',
+            'warehouseStocks.warehouse',
             'manufacturer',
             'media',
         ];
@@ -656,7 +661,7 @@ class ProductController extends Controller
             }
         }
 
-        $cacheKey = "show_{$slug}" . (empty($attributesParam) ? '' : '_' . json_encode($attributesParam)) . ($region ? "_region_{$region->id}" : '');
+        $cacheKey = "show_sku_v2_{$slug}" . (empty($attributesParam) ? '' : '_' . json_encode($attributesParam)) . ($region ? "_region_{$region->id}" : '');
         $productId = $this->resolveProductShowCacheId($slug);
         $loadProductCallback = function () use ($slug, $attributesParam) {
             return $this->loadProductForShow($slug, $attributesParam);
@@ -963,8 +968,7 @@ class ProductController extends Controller
                 'manufacturer',
                 'media',
             ])
-                ->whereNull('parent_product_id')
-                ->active()
+                ->catalogItems()
                 ->featured()
                 ->limit(12)
                 ->get();
@@ -1006,8 +1010,7 @@ class ProductController extends Controller
                 'manufacturer',
                 'media',
             ])
-                ->whereNull('parent_product_id')
-                ->active()
+                ->catalogItems()
                 ->new()
                 ->limit(12)
                 ->get();
@@ -1050,8 +1053,7 @@ class ProductController extends Controller
                 'manufacturer',
                 'media',
             ])
-                ->whereNull('parent_product_id')
-                ->active();
+                ->catalogItems();
             app(\App\Services\Product\CatalogFilterService::class)->forLocation($location)->apply($roots, ['on_sale' => true]);
             return $roots->limit(12)->get();
         });
@@ -1106,7 +1108,7 @@ class ProductController extends Controller
         }
 
         $hotTtl = (int) config('cache_segments.hot_ttl', 86400);
-        $products = Product::cached('collection_slug_' . $slug, function () use ($collection) {
+        $products = Product::cached('collection_sku_v1_' . $slug, function () use ($collection) {
             return $collection->getProductsForApi();
         }, $hotTtl);
 
@@ -1132,12 +1134,12 @@ class ProductController extends Controller
             ->first();
 
         if ($collection) {
-            return Product::cached('home_collection_' . $slug, function () use ($collection) {
+            return Product::cached('home_collection_sku_v1_' . $slug, function () use ($collection) {
                 return $collection->getProductsForApi();
             }, $hotTtl);
         }
 
-        return Product::cached($slug, $scopeFallback, $hotTtl);
+        return Product::cached('sku_v1_'.$slug, $scopeFallback, $hotTtl);
     }
 
     /**
@@ -1296,63 +1298,13 @@ class ProductController extends Controller
     {
         $request->validate([
             'q' => 'required|string|min:2',
-            'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating',
+            'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating,distance',
             'sort_order' => 'sometimes|in:asc,desc',
         ]);
+        // One query contract for search, filters, counts, prices and pagination.
+        $request->merge(['search' => $request->input('q')]);
 
-        // Создаем детальный ключ кэша для поиска
-        $perPage = min($request->get('per_page', 20), 100);
-        $page = max(1, (int) $request->input('page', 1));
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
-        $searchQuery = $request->q;
-
-        // The resolved location and catalog revision are appended below before reading the cache.
-        $cacheKey = sprintf(
-            'search:q:%s:page:%d:per_page:%d:sort_by:%s:sort_order:%s',
-            md5($searchQuery),
-            $page,
-            $perPage,
-            $sortBy ?: 'null',
-            $sortOrder
-        );
-
-        // Регион из запроса подставляется в ProductResource при отдаче
-        $location = $this->getRegionFromRequest($request);
-        if ($location) {
-            $request->merge(['_region_id' => $location->id, '_region' => $location]);
-        }
-
-        $query = Product::query()->active()->with(['taxons', 'variants', 'manufacturer']);
-        if ($location) {
-            $query = $this->applyRegionVisibilityFilter($query, $location);
-        }
-        $query->whereNull('parent_product_id');
-        $query->search($searchQuery);
-
-        if ($sortBy === 'price') {
-            $prices = app(\App\Services\Product\CatalogFilterService::class)->forLocation($location)->skus(clone $query, [])
-                ->selectRaw('COALESCE(products.parent_product_id, products.id) AS root_id, MIN(catalog_prices.effective_price) AS effective_price')
-                ->groupByRaw('COALESCE(products.parent_product_id, products.id)');
-            $query->leftJoinSub($prices, 'search_prices', 'search_prices.root_id', '=', 'products.id')->select('products.*')
-                ->orderByRaw('search_prices.effective_price IS NULL')->orderBy('search_prices.effective_price', $sortOrder)->orderBy('products.id');
-        } else {
-            $this->applyCatalogSort($query, $sortBy, $sortOrder);
-        }
-        $cacheKey .= ':v3:'.Cache::get('catalog_filters_revision', '0').':location:'.($location?->id ?? 'none').':pricing:'.app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location);
-
-        // Используем кэш для поиска с тегами (без region_id; облегчённый список как в index)
-        $products = Product::cachedWithTags(
-            ["product_search_cache", "product_index_cache"],
-            $cacheKey,
-            function () use ($query, $perPage, $request) {
-                return $this->fetchProductsForCache($query, $perPage, $request, true);
-            },
-            36000
-        );
-
-        $request->merge(['_list_view' => true]);
-        return ProductResource::collection($products);
+        return $this->index($request);
     }
 
     /**
@@ -1361,33 +1313,17 @@ class ProductController extends Controller
      */
     private function applyRegionVisibilityFilter(\Illuminate\Database\Eloquent\Builder $query, ShippingLocation $location)
     {
-        $locationIds = array_reverse($location->getAncestorsIds());
+        $ids = $location->getAncestorsIds();
+        $rule = DB::table('product_region_rules as visibility')
+            ->whereIn('visibility.shipping_location_id', $ids)->where('visibility.is_active', true)
+            ->whereRaw('visibility.product_id = COALESCE(products.parent_product_id, products.id)')
+            ->where(fn ($scope) => $scope->whereNull('visibility.variant_id')->orWhereColumn('visibility.variant_id', 'products.id'))
+            ->select('visibility.is_hidden')
+            ->orderByRaw('CASE visibility.shipping_location_id '.implode(' ', array_map(fn ($id, $rank) => 'WHEN '.(int) $id.' THEN '.$rank, $ids, array_keys($ids))).' END')
+            ->orderByRaw('CASE WHEN visibility.variant_id IS NULL THEN 1 ELSE 0 END')
+            ->orderByDesc('visibility.priority')->orderByDesc('visibility.id')->limit(1);
 
-        $query->whereNotExists(function ($sub) use ($locationIds) {
-            $sub->select(DB::raw(1))
-                ->from('product_region_rules as prr')
-                ->whereIn('prr.shipping_location_id', $locationIds)
-                ->where('prr.is_active', true)
-                ->where('prr.is_hidden', true)
-                ->where(function ($ruleScope) {
-                    $ruleScope->where(function ($directProductRule) {
-                        $directProductRule->whereColumn('prr.product_id', 'products.id')
-                            ->whereNull('prr.variant_id');
-                    })->orWhereExists(function ($variantRule) {
-                        $variantRule->select(DB::raw(1))
-                            ->from('products as product_variants')
-                            ->whereColumn('product_variants.parent_product_id', 'products.id')
-                            ->whereColumn('prr.variant_id', 'product_variants.id');
-                    });
-                });
-        });
-
-        Log::debug('Applied region visibility filter for products listing', [
-            'location_id' => $location->id,
-            'location_ids_scope' => $locationIds,
-        ]);
-
-        return $query;
+        return $query->whereRaw('COALESCE(('.$rule->toSql().'), 0) = 0', $rule->getBindings());
     }
 
     /**

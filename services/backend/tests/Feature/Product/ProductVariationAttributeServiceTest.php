@@ -90,7 +90,7 @@ class ProductVariationAttributeServiceTest extends TestCase
         $parent = Product::factory()->create(['is_variable' => true]);
         $variant = Product::factory()->create(['parent_product_id' => $parent->id]);
 
-        DB::table('product_variant_attributes')->insert([
+        DB::table('product_product_attributes')->insert([
             'product_id' => $variant->id,
             'attribute_id' => $size->id,
             'attribute_value_id' => null,
@@ -136,7 +136,7 @@ class ProductVariationAttributeServiceTest extends TestCase
 
     private function attachVariantValue(Product $variant, Attribute $attribute, AttributeValue $value): void
     {
-        DB::table('product_variant_attributes')->insert([
+        DB::table('product_product_attributes')->insert([
             'product_id' => $variant->id,
             'attribute_id' => $attribute->id,
             'attribute_value_id' => $value->id,

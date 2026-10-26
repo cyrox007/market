@@ -137,7 +137,7 @@ class OzonCategoryImportServiceTest extends TestCase
         $this->assertSame(2, $result['created_variants']);
         $this->assertGreaterThanOrEqual(
             2,
-            \DB::table('product_variant_attributes')->whereIn('product_id', $variants->pluck('id'))->count(),
+            \DB::table('product_product_attributes')->whereIn('product_id', $variants->pluck('id'))->count(),
         );
     }
 
