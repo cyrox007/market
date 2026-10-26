@@ -160,6 +160,21 @@ class Order extends Model implements Payable
         $this->forceFill(['checkout_snapshot' => ['address' => $snapshot]])->save();
     }
 
+    public function cancellationRequest(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CancellationRequest::class);
+    }
+
+    public function refundTask(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(RefundTask::class);
+    }
+
+    public function checkoutPaymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Payment\PaymentMethod::class, 'payment_method', 'code');
+    }
+
     /**
      * Get the user that owns the order.
      */

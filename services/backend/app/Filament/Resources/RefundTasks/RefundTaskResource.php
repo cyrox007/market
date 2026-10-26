@@ -21,7 +21,7 @@ class RefundTaskResource extends \Filament\Resources\Resource
         ])->recordActions([
             \Filament\Actions\Action::make('order')->label('Открыть заказ')
                 ->visible(fn ($record) => (bool) auth()->user()?->can('view', $record->order))
-                ->url(fn ($record) => \App\Filament\Resources\Orders\OrderResource::getUrl('edit', ['record' => $record->order_id])),
+                ->url(fn ($record) => \App\Filament\Resources\Orders\OrderResource::getUrl('view', ['record' => $record->order_id])),
         ])->defaultSort('updated_at', 'desc');
     }
     public static function getPages(): array { return ['index' => Pages\ListRefundTasks::route('/')]; }
