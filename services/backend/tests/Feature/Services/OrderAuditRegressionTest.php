@@ -8,6 +8,27 @@ use Tests\TestCase;
 
 class OrderAuditRegressionTest extends TestCase
 {
+    public function test_kladr_fallback_uses_nearest_ancestor_and_preserves_building_gar(): void
+    {
+        $service = app(\App\Services\Address\FulfillmentAddress::class);
+        $path = [['kind' => 'region', 'kladrCode' => '4800000000000'],
+            ['kind' => 'locality', 'kladrCode' => '4800000100000'],
+            ['kind' => 'street', 'kladrCode' => '']];
+        $codes = $service->integrationCodes(['gar_guid' => 'house-guid', 'kladr_code' => '', 'path' => $path]);
+        $this->assertSame('4800000100000', $codes['addressKladrCode']);
+        $this->assertSame('locality', $codes['addressKladrLevel']);
+        $this->assertSame('house-guid', $codes['addressGarGuid']);
+        $this->assertNull($codes['addressBuildingKladrCode']);
+        $own = $service->integrationCodes(['gar_guid' => 'house-guid', 'kladr_code' => 'house-code', 'path' => $path]);
+        $this->assertSame('house-code', $own['addressKladrCode']);
+        $this->assertSame('building', $own['addressKladrLevel']);
+        $this->assertSame('house-code', $own['addressBuildingKladrCode']);
+        $missing = $service->integrationCodes(['gar_guid' => 'house-guid', 'path' => []]);
+        $this->assertNull($missing['addressKladrCode']);
+        $this->assertNull($missing['addressKladrLevel']);
+        $this->assertSame('house-guid', $missing['addressGarGuid']);
+    }
+
     public function test_guest_payment_config_access_is_repeatable_and_cancelled_order_cannot_pay(): void
     {
         $method = \App\Models\Payment\PaymentMethod::create(['name' => 'Card', 'code' => 'audit-card', 'gateway' => 'raiffeisen_ecom']);
@@ -41,7 +62,9 @@ class OrderAuditRegressionTest extends TestCase
             'path' => [['kind' => 'street', 'kladrCode' => '48000001000047800'], ['kind' => 'building', 'kladrCode' => null]],
         ]]]);
         $p = app(\App\Actions\Integration\Integration1C\BuildOrderSyncPayloadAction::class)->execute($order);
-        $this->assertNull($p['addressKladrCode']);
+        $this->assertSame('48000001000047800', $p['addressKladrCode']);
+        $this->assertSame('street', $p['addressKladrLevel']);
+        $this->assertNull($p['addressBuildingKladrCode']);
         $this->assertSame('gar-building', $p['addressGarGuid']);
         $this->assertSame([['kind' => 'street', 'code' => '48000001000047800']], $p['addressKladrHierarchy']);
     }

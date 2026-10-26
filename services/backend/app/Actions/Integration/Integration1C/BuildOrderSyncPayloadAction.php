@@ -33,8 +33,7 @@ class BuildOrderSyncPayloadAction
             'addressExternalId' => $order->fulfillment_snapshot['address_directory']['external_id']
                 ?? ($order->delivery_type === 'pickup' ? null : $order->address?->directory_external_id),
             'addressDetails' => $order->fulfillment_snapshot['address_directory']['details'] ?? null,
-            'addressKladrCode' => $order->fulfillment_snapshot['address_directory']['kladr_code'] ?? null,
-            'addressGarGuid' => $order->fulfillment_snapshot['address_directory']['gar_guid'] ?? null,
+            ...app(\App\Services\Address\FulfillmentAddress::class)->integrationCodes($order->fulfillment_snapshot['address_directory'] ?? null),
             'addressKladrHierarchy' => collect($order->fulfillment_snapshot['address_directory']['path'] ?? [])
                 ->filter(fn (array $node): bool => filled($node['kladrCode'] ?? null))
                 ->map(fn (array $node): array => ['kind' => $node['kind'], 'code' => (string) $node['kladrCode']])
