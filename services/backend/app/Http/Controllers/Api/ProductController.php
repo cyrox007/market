@@ -725,7 +725,7 @@ class ProductController extends Controller
                 ->whereNull('parent_product_id')
                 ->exists();
 
-            return $exists ? $numericId : null;
+            return $exists ? $numericId : Product::whereKey($numericId)->value('parent_product_id');
         }
 
         $variantParentId = Product::query()
@@ -783,7 +783,12 @@ class ProductController extends Controller
         }
 
         $variant = Product::query()
-            ->where('slug', $slug)
+            ->where(function ($query) use ($slug): void {
+                $query->where('slug', $slug);
+                if (ctype_digit($slug)) {
+                    $query->orWhere('id', (int) $slug);
+                }
+            })
             ->whereNotNull('parent_product_id')
             ->active()
             ->first();
