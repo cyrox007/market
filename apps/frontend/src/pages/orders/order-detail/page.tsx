@@ -248,16 +248,13 @@ export default function OrderDetail() {
       });
 
       // Если нужно сохранить адрес
-      if (syncData?.addressData && syncData.shippingLocationId) {
+      if (syncData?.addressData && order.address?.directory_external_id) {
         try {
           await api.addresses.create({
             title: 'Адрес доставки',
-            city: syncData.addressData.city,
-            street: syncData.addressData.street,
-            house: syncData.addressData.house,
+            directory_external_id: order.address.directory_external_id,
             apartment: syncData.addressData.apartment || undefined,
             entrance: syncData.addressData.entrance || undefined,
-            shipping_location_id: syncData.shippingLocationId,
           });
         } catch (err) {
           console.error('Failed to save address:', err);
@@ -451,6 +448,12 @@ export default function OrderDetail() {
                     {order.address.apartment && `, кв. ${order.address.apartment}`}
                     {order.address.entrance && `, подъезд ${order.address.entrance}`}
                   </p>
+                </div>
+              )}
+              {order.delivery_type === 'pickup' && order.fulfillment && (
+                <div><span className="text-gray-600 block mb-1">Пункт самовывоза:</span>
+                  <p className="font-medium">{order.fulfillment.name || order.fulfillment.warehouse_name}</p>
+                  <p>{order.fulfillment.address_directory?.label || order.fulfillment.address}</p>
                 </div>
               )}
 

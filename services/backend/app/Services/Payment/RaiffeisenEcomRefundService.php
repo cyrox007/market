@@ -257,7 +257,7 @@ class RaiffeisenEcomRefundService
             $payment = $payment->first();
         }
         if ($payment instanceof Model) {
-            return $payment;
+            return $payment->exists ? PaymentProxy::modelClass()::find($payment->getKey()) : null;
         }
         if (is_numeric($payment) || is_string($payment)) {
             return PaymentProxy::modelClass()::find($payment);

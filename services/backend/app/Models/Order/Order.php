@@ -70,6 +70,7 @@ class Order extends Model implements Payable
     protected function casts(): array
     {
         return [
+            'checkout_snapshot' => 'array',
             'cooling_until' => 'datetime', 'integration_sent_at' => 'datetime',
             'fulfillment_snapshot' => 'array',
             'total' => 'decimal:2',
@@ -102,9 +103,30 @@ class Order extends Model implements Payable
             }
         });
         static::saving(function (Order $order): void {
+            if ($order->exists && $order->getRawOriginal('checkout_snapshot') !== null) {
+                foreach (['number', 'payment_method', 'delivery_type', 'address_id', 'address_snapshot', 'checkout_snapshot', 'cooling_until'] as $field) {
+                    if ($order->isDirty($field)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Данные оформленного заказа зафиксированы. Изменение адреса или исходного платежа запрещено.']);
+                    }
+                }
+                $mutable = ['stock_state', 'reservation_version', 'global_stock_deltas'];
+                $before = \Illuminate\Support\Arr::except($order->getOriginal('fulfillment_snapshot') ?? [], $mutable);
+                $after = \Illuminate\Support\Arr::except($order->fulfillment_snapshot ?? [], $mutable);
+                if ($before != $after) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['fulfillment_snapshot' => 'Адрес, склад и условия оформленного заказа менять нельзя.']);
+                }
+            }
+            if ($order->cooling_until && in_array($order->status, ['new', 'awaiting_payment', 'accepted'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Для нового заказа используйте «В обработке у менеджера», затем «Собирается».']);
+            }
             if ($order->cooling_until && now()->lt($order->cooling_until)
                 && in_array($order->status, ['accepted', 'assembling', 'assembled', 'shipped', 'in_transit', 'delivered'], true)) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Период охлаждения заказа ещё не завершён.']);
+            }
+            if ($order->cooling_until && in_array($order->status, ['assembling', 'assembled', 'shipped', 'in_transit', 'delivered'], true)
+                && in_array($order->getPaymentGateway(), ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true)
+                && ! app(\App\Services\Order\OrderCooling::class)->isPaid($order)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Онлайн-оплата не подтверждена. Передача заказа в сборку недоступна.']);
             }
         });
     }
@@ -127,6 +149,15 @@ class Order extends Model implements Payable
             (clone $db)->where('day', $day)->update(['last_number' => $last + 1]);
             return 'ORD'.$day.str_pad((string) ($last + 1), 6, '0', STR_PAD_LEFT);
         }, 3);
+    }
+
+    public function sealCheckout(): void
+    {
+        if ($this->checkout_snapshot !== null) { return; }
+        $address = $this->address;
+        $snapshot = $address ? $address->only(['id', 'title', 'city', 'street', 'house', 'apartment', 'entrance', 'room', 'floor', 'intercom', 'comment', 'directory_external_id', 'gar_guid', 'kladr_code']) : null;
+        if ($snapshot) { $snapshot['full_address'] = $this->address_snapshot ?: $address->full_address; }
+        $this->forceFill(['checkout_snapshot' => ['address' => $snapshot]])->save();
     }
 
     /**

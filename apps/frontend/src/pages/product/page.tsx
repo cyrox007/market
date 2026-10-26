@@ -1205,7 +1205,7 @@ export default function Product() {
                   {(() => {
                     const count = product?.reviews_count ?? 0;
                     const label = count === 1 ? 'отзыв' : count < 5 ? 'отзыва' : 'отзывов';
-                    <a
+                    return <a
                       href="#reviews"
                       onClick={(e) => {
                         e.preventDefault();

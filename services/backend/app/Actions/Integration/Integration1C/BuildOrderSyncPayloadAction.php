@@ -31,7 +31,8 @@ class BuildOrderSyncPayloadAction
             'fullName' => (string) ($order->contact_name ?? ''),
             'address' => $this->formatAddress($order),
             'addressExternalId' => $order->fulfillment_snapshot['address_directory']['external_id']
-                ?? ($order->delivery_type === 'pickup' ? null : $order->address?->directory_external_id),
+                ?? ($order->delivery_type === 'pickup' ? null : ($order->checkout_snapshot !== null
+                    ? ($order->checkout_snapshot['address']['directory_external_id'] ?? null) : $order->address?->directory_external_id)),
             'addressDetails' => $order->fulfillment_snapshot['address_directory']['details'] ?? null,
             ...app(\App\Services\Address\FulfillmentAddress::class)->integrationCodes($order->fulfillment_snapshot['address_directory'] ?? null),
             'addressKladrHierarchy' => collect($order->fulfillment_snapshot['address_directory']['path'] ?? [])
@@ -115,6 +116,13 @@ class BuildOrderSyncPayloadAction
     {
         if (filled($order->address_snapshot)) {
             return (string) $order->address_snapshot;
+        }
+        if ($order->checkout_snapshot !== null) {
+            $saved = $order->checkout_snapshot['address'] ?? [];
+            return $saved['full_address'] ?? implode(', ', array_filter([
+                $saved['city'] ?? null, $saved['street'] ?? null, $saved['house'] ?? null,
+                filled($saved['apartment'] ?? null) ? 'кв. '.$saved['apartment'] : null,
+            ]));
         }
         if ($order->address === null) {
             return '';

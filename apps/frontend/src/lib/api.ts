@@ -113,63 +113,6 @@ export const api = {
   shipping: {
     quote: (data: unknown) => fetchAPI<WarehouseQuote>('/shipping/quote', { method: 'POST', body: JSON.stringify(data) }),
     pickupOptions: (items: Array<{ product_id: number; quantity: number }>) => fetchAPI<{ pickup: PickupOption[] }>('/shipping/pickup-options', { method: 'POST', body: JSON.stringify({ items }) }),
-    getLocations: (params?: { type?: string; parent_id?: number; search?: string }) => {
-      const query = new URLSearchParams();
-      if (params?.type) query.append('type', params.type);
-      if (params?.parent_id) query.append('parent_id', params.parent_id.toString());
-      if (params?.search) query.append('search', params.search);
-      return fetchAPI(`/shipping/locations?${query.toString()}`);
-    },
-    getLocationTree: (params?: { parent_id?: number; max_depth?: number }) => {
-      const query = new URLSearchParams();
-      if (params?.parent_id) query.append('parent_id', params.parent_id.toString());
-      if (params?.max_depth) query.append('max_depth', params.max_depth.toString());
-      return fetchAPI(`/shipping/locations/tree?${query.toString()}`);
-    },
-    getLocationInfo: (locationId: number) => fetchAPI(`/shipping/locations/${locationId}`),
-    getDeliveryHandlingTypes: (params?: { location_id?: number }) => {
-      const query = new URLSearchParams();
-      if (params?.location_id) query.append('location_id', params.location_id.toString());
-      return fetchAPI(`/shipping/delivery-handling-types?${query.toString()}`);
-    },
-    calculateShipping: (data: {
-      location_id: number;
-      order_amount?: number;
-      delivery_handling_type_id?: number;
-      floor?: number;
-      order_weight?: number;
-      order_volume?: number;
-      requires_assembly?: boolean;
-    }) =>
-      fetchAPI('/shipping/calculate', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    getCarriers: () => fetchAPI('/shipping/carriers'),
-    getShippingMethods: (params: { location_id: number; order_amount?: number }) => {
-      const query = new URLSearchParams();
-      query.append('location_id', params.location_id.toString());
-      if (params.order_amount) query.append('order_amount', params.order_amount.toString());
-      return fetchAPI(`/shipping/shipping-methods?${query.toString()}`);
-    },
-    calculateShippingMethod: (data: {
-      shipping_method_id: number;
-      location_id: number;
-      order_amount?: number;
-      delivery_handling_type_id?: number;
-      floor?: number;
-    }) =>
-      fetchAPI('/shipping/shipping-methods/calculate', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    getAdditionalServices: (params: { location_id: number }) => {
-      const query = new URLSearchParams();
-      query.append('location_id', params.location_id.toString());
-      return fetchAPI<{ data: AdditionalService[] }>(
-        `/shipping/additional-services?${query.toString()}`,
-      );
-    },
   },
   cart: {
     get: (params?: { region_id?: number }) => {
@@ -637,7 +580,12 @@ export interface Category {
   popular_title?: string | null;
 }
 
-export interface Product {
+export interface WarehouseStockInfo {
+  nearest_stock?: number | null;
+  nearest_warehouse_name?: string | null;
+  stocks?: Array<{ warehouse_id: number; warehouse_name: string; quantity: number }>;
+}
+export interface Product extends WarehouseStockInfo {
   is_visible_in_region?: boolean;
   id: number;
   name: string;
@@ -697,7 +645,7 @@ export interface SelectedVariationItem {
   value_name?: string | null;
 }
 
-export interface ProductVariant {
+export interface ProductVariant extends WarehouseStockInfo {
   id: number;
   sku: string;
   price: number;
@@ -1017,6 +965,10 @@ export interface InteriorIdeaHotspot {
     full_path: string | null;
     is_variable?: boolean;
     is_variant?: boolean;
+    in_stock?: boolean;
+    first_available_variant_id?: number | null;
+    thumbnail?: string | null;
+    sku?: string;
   } | null;
 }
 
@@ -1044,6 +996,7 @@ export interface NotificationSettings {
 }
 
 export interface Order {
+  fulfillment?: { warehouse_id?: number; store_id?: number | null; name?: string; warehouse_name?: string; address?: string | null; address_directory?: { label?: string | null } | null } | null;
   id: number;
   number: string;
   status: string;
@@ -1186,6 +1139,7 @@ export interface PaymentMethod {
 }
 
 export interface Address {
+  directory_external_id?: string | null;
   id: number;
   title?: string | null;
   city?: string | null;
@@ -1205,6 +1159,7 @@ export interface Address {
 }
 
 export interface AddressData {
+  directory_external_id?: string;
   title?: string;
   address?: string;
   city?: string;

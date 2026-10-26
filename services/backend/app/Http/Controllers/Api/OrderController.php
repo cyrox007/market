@@ -411,6 +411,7 @@ class OrderController extends Controller
             $order->subtotal = $calculatedSubtotal;
             $order->total = $calculatedSubtotal + $finalDeliveryCost + $finalAssemblyCost + $additionalServicesTotal;
             $order->save();
+            $order->sealCheckout();
 
             $order->statusHistory()->create([
                 'status' => $initialStatus->value,

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useCart } from './useCart';
 
 const mutateMock = vi.fn();
-const useSWRMock = vi.fn(() => ({
+const useSWRMock = vi.fn((..._args: unknown[]) => ({
   data: null,
   error: null,
   isLoading: false,

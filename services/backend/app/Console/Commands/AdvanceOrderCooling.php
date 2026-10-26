@@ -20,6 +20,7 @@ class AdvanceOrderCooling extends Command
         if (\Illuminate\Support\Facades\DB::table('cart_stock_reservations')->where('expires_at', '<=', now())->delete()) {
             \Illuminate\Support\Facades\Cache::forever('fulfillment_revision', (string) \Illuminate\Support\Str::uuid());
         }
+        \Illuminate\Support\Facades\Cache::put('pilot:cooling_last_run', now()->timestamp, 3600);
         return self::SUCCESS;
     }
 }

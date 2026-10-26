@@ -205,7 +205,9 @@ class OrderForm
                             ->dehydrated(false),
                         Select::make('status')
                             ->label(__('filament/admin_sv/order_resource.status'))
-                            ->options(\App\Models\Order\OrderStatus::options())
+                            ->options(fn ($record) => $record?->cooling_until
+                                ? array_diff_key(\App\Models\Order\OrderStatus::options(), array_flip(['new', 'awaiting_payment', 'accepted']))
+                                : \App\Models\Order\OrderStatus::options())
                             ->required(),
                         Select::make('user_id')
                             ->label(__('filament/admin_sv/order_resource.user_id'))
@@ -238,7 +240,8 @@ class OrderForm
                     ->schema([
                         Select::make('payment_method')
                             ->label(__('filament/admin_sv/order_resource.payment_method'))
-                            ->options(['card' => __('filament/admin_sv/order_resource.payment_method.card'), 'cash' => __('filament/admin_sv/order_resource.payment_method.cash'), 'installment' => __('filament/admin_sv/order_resource.payment_method.installment')])
+                            ->disabled(fn ($record) => $record?->checkout_snapshot !== null)
+                            ->options(fn () => \App\Models\Payment\PaymentMethod::query()->pluck('name', 'code')->all() + ['card' => __('filament/admin_sv/order_resource.payment_method.card'), 'cash' => __('filament/admin_sv/order_resource.payment_method.cash'), 'installment' => __('filament/admin_sv/order_resource.payment_method.installment')])
                             ->required(),
                     ])->columns(1),
 
