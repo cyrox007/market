@@ -50,7 +50,6 @@ class OfferInheritedContentTest extends TestCase
         $this->assertStringContainsString('first', $images[1]);
         $this->assertStringContainsString('second', $images[2]);
     }
-
     public static function emptyEditorValues(): array
     {
         return [[null], [''], [' '], ['<p></p>'], ['<p><br></p>'], ['<div><p>&nbsp;</p></div>'],
