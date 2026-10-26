@@ -454,6 +454,9 @@ class ProductDetailResource extends JsonResource
             'nearest_distance_km' => $priority['nearest_distance_km'],
             'nearest_stock' => $priority['nearest_stock'],
             'nearest_warehouse_name' => $priority['nearest_warehouse_name'],
+            'local_store' => ($localStore = app(\App\Services\Inventory\LocalStoreResolver::class)
+                ->resolve($request->attributes->get('warehouse_destination', [])))
+                ? new StoreResource($localStore) : null,
             'stocks' => $priority['stocks'],
             'stock_label' => $stockLabel,
             'backorder' => (bool) $this->backorder,

@@ -23,6 +23,10 @@ class WarehousePickup
 
     public function options(array $lines, ?array $point = null): array
     {
+        $lines = app(FulfillmentLines::class)->resolve($lines);
+        if (! $lines) {
+            return [];
+        }
         $quantities = collect($lines)->groupBy('product_id')->map(fn ($rows) => $rows->sum('quantity'));
         $warehouses = Warehouse::where('is_active', true)->where('source_type', 'physical')->where('stock_mode', 'quantity')
             ->where(fn ($q) => $q->where('pickup_enabled', true)->orWhereHas('stores', fn ($s) => $s->where('is_active', true)->where('pickup_enabled', true)))
@@ -37,9 +41,14 @@ class WarehousePickup
             $stores = $warehouse->stores->filter(fn (Store $store) => $store->physical_site_id && (int) $store->physical_site_id === (int) $warehouse->physical_site_id);
             $points = $stores->isNotEmpty() ? $stores : ($warehouse->pickup_enabled ? collect([null]) : collect());
             foreach ($points as $store) {
+                if (! app(PickupReadiness::class)->ready($warehouse, $store)) {
+                    continue;
+                }
                 $site = $warehouse->physicalSite;
                 $options[] = ['warehouse_id' => $warehouse->id, 'store_id' => $store?->id,
                     'warehouse_external_id' => $warehouse->external_id,
+                    'warehouse_fingerprint' => hash('sha256', json_encode([$warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes()])),
+                    'store_fingerprint' => $store ? hash('sha256', json_encode($store->getAttributes())) : null,
                     'address_directory' => app(\App\Services\Address\FulfillmentAddress::class)->snapshot($site?->address_snapshot ?? $warehouse->address_snapshot),
                     'name' => $store?->name ?? $warehouse->name, 'address' => $warehouse->physicalSite?->address ?? $warehouse->address,
                     'hours' => $store?->hours, 'opening_hours' => $store?->opening_hours,

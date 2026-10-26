@@ -20,7 +20,7 @@ class CartQuantityPolicyTest extends TestCase
             'остаток с учётом уже лежащего' => [4, 3, 5, false, 2, CartLimitReason::Stock],
             'лимит на заказ' => [150, 0, null, false, 100, CartLimitReason::MaxPerOrder],
             'лимит с учётом уже лежащего' => [20, 90, 500, false, 10, CartLimitReason::MaxPerOrder],
-            'предзаказ игнорирует остаток' => [7, 0, 0, true, 7, null],
+            'старый флаг предзаказа не обходит остаток' => [7, 0, 0, true, 0, CartLimitReason::Stock],
             'остаток исчерпан' => [1, 5, 5, false, 0, CartLimitReason::Stock],
             'остаток и лимит совпали' => [30, 90, 100, false, 10, CartLimitReason::MaxPerOrder],
         ];

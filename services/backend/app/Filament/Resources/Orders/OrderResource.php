@@ -36,6 +36,12 @@ class OrderResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    public static function canCreate(): bool
+    {
+        // Orders must be created through the transactional warehouse checkout.
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return OrderForm::configure($schema);
@@ -65,7 +71,6 @@ class OrderResource extends Resource
     {
         return [
             'index' => ListOrders::route('/'),
-            'create' => CreateOrder::route('/create'),
             'view' => ViewOrder::route('/{record}'),
             'edit' => EditOrder::route('/{record}/edit'),
         ];

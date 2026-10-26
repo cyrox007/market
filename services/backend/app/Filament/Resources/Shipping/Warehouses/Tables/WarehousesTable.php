@@ -47,11 +47,6 @@ class WarehousesTable
                     ->counts('deliveryProfiles')
                     ->sortable(),
 
-                TextColumn::make('shipping_locations_count')
-                    ->label('Локаций')
-                    ->counts('shippingLocations')
-                    ->sortable(),
-
                 IconColumn::make('is_active')
                     ->label('Активен')
                     ->boolean(),

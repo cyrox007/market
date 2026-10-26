@@ -13,6 +13,44 @@ use Tests\TestCase;
 
 class OfferInheritedContentTest extends TestCase
 {
+    public function test_multiple_values_are_one_specification_and_material_inherits_even_if_variation_enabled(): void
+    {
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $offer = Product::factory()->create(['parent_product_id' => $parent->id]);
+        $material = Attribute::create(['name' => 'Материал корпуса', 'slug' => 'material_korpusa', 'type' => 'text', 'is_use_in_variations' => true, 'is_multiple' => true]);
+        $parent->attributes()->attach($material->id, ['custom_value' => 'ЛДСП']);
+        $filling = Attribute::create(['name' => 'Внутреннее наполнение', 'slug' => 'filling', 'type' => 'text', 'is_multiple' => true]);
+        foreach (['2 горизонтальные штанги', 'Полки'] as $value) {
+            $v = $filling->values()->create(['value' => $value, 'slug' => \Illuminate\Support\Str::slug($value)]);
+            $parent->attributes()->attach($filling->id, ['attribute_value_id' => $v->id]);
+        }
+        $specs = collect($this->getJson('/api/v1/products/'.$offer->slug)->assertOk()->json('product.specifications'));
+        $this->assertSame('ЛДСП', $specs->firstWhere('slug', 'material_korpusa')['value']);
+        $this->assertCount(1, $specs->where('slug', 'filling'));
+        $this->assertSame('2 горизонтальные штанги, Полки', $specs->firstWhere('slug', 'filling')['value']);
+        $nested = collect($this->getJson('/api/v1/products/'.$parent->slug)->assertOk()->json('product.variants'))->firstWhere('id', $offer->id);
+        $this->assertSame($specs->all(), $nested['specifications']);
+    }
+
+    public function test_gallery_order_is_respected_in_original_and_hd_api_images(): void
+    {
+        $offer = Product::factory()->create();
+        foreach ([['main.jpg', 'images', 1], ['second.jpg', 'gallery', 2], ['first.jpg', 'gallery', 1]] as [$file, $collection, $order]) {
+            $offer->media()->create(['collection_name' => $collection, 'name' => $file, 'file_name' => $file,
+                'mime_type' => 'image/jpeg', 'disk' => 'public', 'conversions_disk' => 'public', 'size' => 1, 'manipulations' => [],
+                'custom_properties' => [], 'generated_conversions' => [], 'responsive_images' => [], 'order_column' => $order]);
+        }
+        $offer->unsetRelation('media');
+        foreach ([$offer->images_urls, $offer->images_hd_urls] as $urls) {
+            $this->assertStringContainsString('main', $urls[0]);
+            $this->assertStringContainsString('first', $urls[1]);
+            $this->assertStringContainsString('second', $urls[2]);
+        }
+        $images = $this->getJson('/api/v1/products/'.$offer->slug)->assertOk()->json('product.images');
+        $this->assertStringContainsString('first', $images[1]);
+        $this->assertStringContainsString('second', $images[2]);
+    }
+
     public static function emptyEditorValues(): array
     {
         return [[null], [''], [' '], ['<p></p>'], ['<p><br></p>'], ['<div><p>&nbsp;</p></div>'],

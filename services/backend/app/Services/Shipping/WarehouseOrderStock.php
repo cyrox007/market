@@ -29,9 +29,10 @@ class WarehouseOrderStock
         }
         if (($quote['mode'] ?? null) === 'pickup') {
             $store = ! empty($quote['store_id']) ? \App\Models\Page\Store::lockForUpdate()->find($quote['store_id']) : null;
-            $enabled = $store ? $store->is_active && $store->pickup_enabled && $store->warehouse_id === $warehouse->id
-                && $store->physical_site_id && $store->physical_site_id === $warehouse->physical_site_id : $warehouse->pickup_enabled;
-            if (! $enabled || $warehouse->source_type !== 'physical' || $warehouse->stock_mode !== 'quantity') {
+            $missingStore = ! empty($quote['store_id']) && ! $store;
+            $changedStore = $store && isset($quote['store_fingerprint'])
+                && hash('sha256', json_encode($store->getAttributes())) !== $quote['store_fingerprint'];
+            if ($missingStore || $changedStore || ! app(PickupReadiness::class)->ready($warehouse, $store)) {
                 throw ValidationException::withMessages(['warehouse_id' => 'Самовывоз в выбранной точке больше недоступен.']);
             }
         } else {

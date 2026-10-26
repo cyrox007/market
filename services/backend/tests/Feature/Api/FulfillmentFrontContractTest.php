@@ -35,7 +35,7 @@ class FulfillmentFrontContractTest extends TestCase
 
     private function warehouse(Product $sku, array $attributes = [], array $profile = [], float $quantity = 5): Warehouse
     {
-        $warehouse = Warehouse::create(array_merge(['name' => 'Склад', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'latitude' => 52.6, 'longitude' => 39.6], $attributes));
+        $warehouse = Warehouse::create(array_merge(['name' => 'Склад', 'address' => 'Липецк, дом 10', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'latitude' => 52.6, 'longitude' => 39.6], $attributes));
         $warehouse->productStocks()->create(['product_id' => $sku->id, 'quantity' => $quantity]);
         $warehouse->deliveryProfiles()->create(array_merge(['name' => 'Город', 'base_price' => 1000, 'coverage_type' => 'locations', 'delivery_days_min' => 1, 'delivery_days_max' => 2,
             'directory_territories' => [['region_id' => 'region48', 'locality_id' => 'city48']]], $profile));
@@ -137,7 +137,7 @@ class FulfillmentFrontContractTest extends TestCase
         $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 2])->assertCreated();
         $this->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'delivery-services@example.test',
             'payment_method' => 'card', 'delivery_type' => 'delivery', 'directory_external_id' => 'house', 'warehouse_id' => $warehouse->id,
-            'requires_assembly' => true, 'assembly_cost' => 1, 'delivery_cost' => 1, 'additional_services' => [['id' => $service->id]]])
+            'requires_assembly' => true, 'additional_services' => [['id' => $service->id]]])
             ->assertCreated()->assertJsonPath('order.assembly_cost', 400)->assertJsonPath('order.delivery_cost', 1000);
         $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
         $order = \App\Models\Order\Order::latest('id')->firstOrFail();
@@ -156,7 +156,7 @@ class FulfillmentFrontContractTest extends TestCase
         $this->postJson('/api/v1/orders/one-click', $data)->assertUnprocessable()->assertJsonValidationErrors('quantity');
     }
 
-    public function test_selected_pickup_reserves_only_its_warehouse_and_ignores_client_assembly_price(): void
+    public function test_selected_pickup_reserves_only_its_warehouse_without_delivery_services(): void
     {
         $sku = Product::factory()->create(['stock' => 20]);
         $warehouse = $this->warehouse($sku, ['pickup_enabled' => true, 'external_id' => 'warehouse-code', 'address_snapshot' => [
@@ -166,7 +166,7 @@ class FulfillmentFrontContractTest extends TestCase
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
         $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 2])->assertCreated();
         $response = $this->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'pickup@example.test',
-            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $warehouse->id, 'assembly_cost' => 9999])->assertCreated()
+            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $warehouse->id])->assertCreated()
             ->assertJsonPath('order.fulfillment.mode', 'pickup')->assertJsonPath('order.fulfillment.warehouse_id', $warehouse->id)->assertJsonPath('order.assembly_cost', 0);
         $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
         $order = \App\Models\Order\Order::findOrFail($response->json('order.id'));
@@ -186,6 +186,7 @@ class FulfillmentFrontContractTest extends TestCase
         $sku = Product::factory()->create(['price' => 1000, 'stock' => 20]);
         $other = Product::factory()->create(['price' => 500, 'stock' => 20]);
         $warehouse = $this->warehouse($sku, ['pickup_enabled' => true]);
+        $warehouse->productStocks()->create(['product_id' => $other->id, 'quantity' => 20]);
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
         $this->postJson('/api/v1/cart', ['product_id' => $other->id, 'quantity' => 1])->assertCreated();
         $response = $this->postJson('/api/v1/orders', [

@@ -17,6 +17,13 @@ use App\Models\Shipping\Carrier;
 
 class CarrierResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
     protected static ?string $model = Carrier::class;
 
     protected static ?string $navigationLabel = null;
@@ -50,11 +57,7 @@ class CarrierResource extends Resource
 
     public static function getPages(): array
     {
-        return [
-            'index' => ListCarriers::route('/'),
-            'create' => CreateCarrier::route('/create'),
-            'edit' => EditCarrier::route('/{record}/edit'),
-        ];
+        return [];
     }
     public static function getNavigationLabel(): string
     {

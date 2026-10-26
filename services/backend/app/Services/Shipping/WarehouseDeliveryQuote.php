@@ -68,7 +68,7 @@ class WarehouseDeliveryQuote
         }
         $options = [];
         $warehouses = Warehouse::where('is_active', true)->with([
-            'physicalSite', 'deliveryProfiles' => fn ($query) => $query->active()->with(['locations', 'servicesLocation'])->orderBy('priority')->orderBy('id'),
+            'physicalSite', 'deliveryProfiles' => fn ($query) => $query->active()->orderBy('priority')->orderBy('id'),
             'productStocks' => fn ($query) => $query->whereIn('product_id', array_keys($quantities)),
             'productAvailabilities' => fn ($query) => $query->whereIn('product_id', array_keys($quantities)),
         ])->get();

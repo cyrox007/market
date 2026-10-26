@@ -120,7 +120,7 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $response = $this->postJson('/api/v1/orders', [
             'contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'buyer@example.test',
             'payment_method' => 'card', 'delivery_type' => 'delivery', 'directory_external_id' => 'house',
-            'delivery_cost' => 1, 'delivery_details' => ['apartment' => '12'],
+            'delivery_details' => ['apartment' => '12'],
         ])->assertCreated()->assertJsonPath('order.delivery_cost', 1500)
             ->assertJsonPath('order.fulfillment.warehouse_id', $warehouse->id);
         $order = Order::findOrFail($response->json('order.id'));

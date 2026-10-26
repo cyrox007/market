@@ -285,8 +285,8 @@ class ServiceToolsPage extends Page
     public function saveWarehouseAccountingSettings(): void
     {
         $settings = ProductStockSettings::getInstance();
-        $settings->warehouse_accounting_enabled = $this->warehouseAccountingEnabled;
-        $settings->fallback_to_first_warehouse = $this->fallbackToFirstWarehouse;
+        $settings->warehouse_accounting_enabled = true;
+        $settings->fallback_to_first_warehouse = false;
         $settings->save();
 
         Notification::make()

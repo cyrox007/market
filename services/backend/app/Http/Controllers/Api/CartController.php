@@ -37,6 +37,7 @@ class CartController extends Controller
      */
     protected function getRegionFromRequest(Request $request): ?ShippingLocation
     {
+        $request->attributes->set('warehouse_destination', app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, null));
         $shippingLocationId = $request->input('shipping_location_id');
         $legacyRegionId = $request->input('region_id');
         $locationId = $shippingLocationId ?? $legacyRegionId;

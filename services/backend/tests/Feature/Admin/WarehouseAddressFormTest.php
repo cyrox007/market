@@ -75,7 +75,7 @@ class WarehouseAddressFormTest extends TestCase
         Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/hierarchy/'));
     }
 
-    public function test_editing_profile_preserves_tariff_mode_and_legacy_link(): void
+    public function test_editing_profile_only_uses_profile_tariffs(): void
     {
         Http::fake(['*' => Http::response([])]);
         $location = \App\Models\Shipping\ShippingLocation::factory()->create(['is_active' => true]);
@@ -89,15 +89,15 @@ class WarehouseAddressFormTest extends TestCase
             'ownerRecord' => $warehouse, 'pageClass' => EditWarehouse::class,
         ]);
         $manager->callTableAction('edit', $profile, data: ['name' => 'Renamed'])->assertHasNoTableActionErrors();
-        $this->assertNull($profile->fresh()->service_tariffs);
-        $this->assertSame($location->id, $profile->fresh()->services_location_id);
+        $this->assertIsArray($profile->fresh()->service_tariffs);
+        $this->assertNull($profile->fresh()->services_location_id);
 
         $profile->update(['service_tariffs' => ['assembly_price' => 650]]);
         $manager->callTableAction('edit', $profile->fresh(), data: ['name' => 'New tariffs'])->assertHasNoTableActionErrors();
         $this->assertSame(650, (int) $profile->fresh()->service_tariffs['assembly_price']);
         $manager->callTableAction('edit', $profile->fresh(), data: ['use_profile_tariffs' => false])->assertHasNoTableActionErrors();
-        $this->assertNull($profile->fresh()->service_tariffs);
-        $this->assertSame($location->id, $profile->fresh()->services_location_id);
+        $this->assertIsArray($profile->fresh()->service_tariffs);
+        $this->assertNull($profile->fresh()->services_location_id);
     }
 
     public function test_operator_can_create_a_directory_delivery_profile(): void

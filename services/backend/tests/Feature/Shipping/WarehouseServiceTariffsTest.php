@@ -79,30 +79,13 @@ class WarehouseServiceTariffsTest extends TestCase
         app(WarehouseServices::class)->calculate($profile, ['additional_services' => [['id' => $service->id]]]);
     }
 
-    public function test_legacy_profile_preserves_required_assembly_until_explicit_switch(): void
-    {
-        $location = ShippingLocation::factory()->create(['is_active' => true, 'requires_assembly' => true, 'assembly_price' => 750, 'assembly_days' => 3]);
-        $profile = WarehouseDeliveryProfile::create(['warehouse_id' => Warehouse::create(['name' => 'Legacy'])->id,
-            'name' => 'Legacy', 'coverage_type' => 'locations', 'services_location_id' => $location->id]);
-        $calculator = app(WarehouseServices::class);
-        $this->assertNull($profile->service_tariffs);
-        $this->assertNull($calculator->options($profile));
-        $this->assertSame(750.0, $calculator->calculate($profile, [])['assembly_cost']);
-        $this->assertSame(3, $calculator->calculate($profile, [])['assembly_days']);
-        $profile->update(['service_tariffs' => ['requires_assembly' => true, 'assembly_price' => 900]]);
-        $this->assertSame(900.0, $calculator->calculate($profile, [])['assembly_cost']);
-        $profile->update(['service_tariffs' => null]);
-        $this->assertNull($profile->fresh()->service_tariffs);
-        $this->assertSame(750.0, $calculator->calculate($profile, [])['assembly_cost']);
-    }
-
-    public function test_form_does_not_switch_legacy_profile_when_saving_unrelated_fields(): void
+    public function test_form_always_saves_profile_tariffs_without_legacy_switch(): void
     {
         $manager = new \App\Filament\Resources\Shipping\Warehouses\RelationManagers\DeliveryProfilesRelationManager;
-        $data = $manager->tariffData(['name' => 'Renamed', 'use_profile_tariffs' => false, 'service_tariffs' => ['assembly_price' => 0]]);
-        $this->assertNull($data['service_tariffs']);
+        $data = $manager->tariffData(['use_profile_tariffs' => false, 'service_tariffs' => ['assembly_price' => 0]]);
+        $this->assertSame(['assembly_price' => 0], $data['service_tariffs']);
         $this->assertArrayNotHasKey('use_profile_tariffs', $data);
-        $this->assertSame([], $manager->tariffData(['use_profile_tariffs' => true])['service_tariffs']);
+        $this->assertSame([], $manager->tariffData([])['service_tariffs']);
     }
 
     public function test_audit_is_read_only_and_reports_tariff_source(): void

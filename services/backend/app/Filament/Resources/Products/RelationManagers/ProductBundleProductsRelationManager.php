@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Products\RelationManagers;
 
-use App\Actions\Inventory\Stock\ResolveWarehouseStockRowAction;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
@@ -215,30 +214,6 @@ class ProductBundleProductsRelationManager extends RelationManager
      */
     protected static function resolveRowStock(Product $record): int
     {
-        $settings = ProductStockSettings::getInstance();
-
-        if ($settings->warehouse_accounting_enabled) {
-            if ($record->isVariable()) {
-                return (int) round(app(WarehouseStockResolver::class)->resolveForProduct($record, null) ?? 0);
-            }
-
-            $row = app(ResolveWarehouseStockRowAction::class)->execute(
-                $record,
-                null,
-                (bool) $settings->fallback_to_first_warehouse,
-            );
-
-            if ($row !== null) {
-                return (int) round((float) $row->quantity);
-            }
-
-            return (int) ($record->getAttributes()['stock'] ?? 0);
-        }
-
-        if ($record->isVariable()) {
-            return (int) $record->variants()->sum('stock');
-        }
-
-        return (int) ($record->stock ?? 0);
+        return (int) round(app(WarehouseStockResolver::class)->resolveForProduct($record, null) ?? 0);
     }
 }
