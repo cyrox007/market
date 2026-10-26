@@ -14,10 +14,8 @@ class CatalogWarehouseDistance
     {
         $distances = [];
         foreach (Warehouse::where('is_active', true)->where('stock_mode', 'quantity')
-            ->with(['physicalSite', 'deliveryProfiles.locations', 'shippingLocations'])->get() as $warehouse) {
-            $covered = $warehouse->deliveryProfiles->isNotEmpty()
-                ? app(WarehouseCoverage::class)->firstProfile($warehouse, $destination) !== null
-                : $warehouse->shippingLocations->pluck('id')->intersect($destination['location_ids'])->isNotEmpty();
+            ->with(['physicalSite', 'deliveryProfiles'])->get() as $warehouse) {
+            $covered = app(WarehouseCoverage::class)->firstProfile($warehouse, $destination) !== null;
             if (! $covered || ! $destination['point']) {
                 continue;
             }

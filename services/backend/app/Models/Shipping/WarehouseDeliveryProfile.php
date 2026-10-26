@@ -11,10 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class WarehouseDeliveryProfile extends Model
 {
     use \App\Models\Traits\InvalidatesFulfillment;
+    protected $attributes = ['service_tariffs' => '[]'];
+
     protected $fillable = [
         'warehouse_id', 'name', 'coverage_type', 'radius_km', 'base_price', 'price_per_km',
         'free_delivery_threshold', 'delivery_days_min', 'delivery_days_max', 'priority',
-        'is_active', 'constraints', 'directory_territories', 'service_tariffs', 'services_location_id',
+        'is_active', 'constraints', 'directory_territories', 'service_tariffs',
     ];
 
     protected function casts(): array
@@ -55,19 +57,6 @@ class WarehouseDeliveryProfile extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
-    }
-
-    public function servicesLocation(): BelongsTo
-    {
-        return $this->belongsTo(ShippingLocation::class, 'services_location_id');
-    }
-
-    public function locations(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            ShippingLocation::class,
-            'warehouse_delivery_profile_locations'
-        )->withTimestamps();
     }
 
     public function scopeActive(Builder $query): Builder

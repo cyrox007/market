@@ -14,7 +14,7 @@ class FulfillmentLines
         foreach ($items as $index => $item) {
             $root = Product::active()->find($item['product_id']);
             $sku = isset($item['variant_id']) ? Product::active()->where('parent_product_id', $root?->id)->find($item['variant_id']) : $root;
-            if (! $root || ! $sku || (! isset($item['variant_id']) && $root->isVariable() && $root->variants()->exists())) {
+            if (! $root || ! $sku || ($sku->isVariant() && (! $sku->parentProduct || (string) $sku->parentProduct->state !== 'active')) || (! isset($item['variant_id']) && $root->isVariable() && $root->variants()->exists())) {
                 throw ValidationException::withMessages(['items.'.$index.'.variant_id' => 'Выберите действующий вариант этого товара.']);
             }
             $quantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT);

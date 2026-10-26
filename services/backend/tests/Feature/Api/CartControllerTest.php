@@ -9,6 +9,14 @@ use Tests\TestCase;
 
 class CartControllerTest extends TestCase
 {
+    use \Tests\Concerns\WarehouseInventoryFixtures;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->configureWarehouseInventoryFixtures();
+    }
+
     use RefreshDatabase;
 
     public function test_can_get_cart(): void

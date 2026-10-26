@@ -15,7 +15,7 @@ class CorsTest extends TestCase
 
     public function test_preflight_returns_cors_headers_for_allowed_origin(): void
     {
-        $response = $this->call('OPTIONS', '/api/v1/regions', [], [], [], [
+        $response = $this->call('OPTIONS', '/api/v1/stores', [], [], [], [
             'HTTP_ORIGIN' => self::ALLOWED_ORIGIN,
             'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
             'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'authorization,content-type',
@@ -32,7 +32,7 @@ class CorsTest extends TestCase
 
     public function test_successful_response_carries_cors_headers(): void
     {
-        $response = $this->getJson('/api/v1/regions', ['Origin' => self::ALLOWED_ORIGIN]);
+        $response = $this->getJson('/api/v1/stores', ['Origin' => self::ALLOWED_ORIGIN]);
 
         $response->assertOk();
         $response->assertHeader('Access-Control-Allow-Origin', self::ALLOWED_ORIGIN);
@@ -50,7 +50,7 @@ class CorsTest extends TestCase
 
     public function test_disallowed_origin_gets_no_allow_origin_header(): void
     {
-        $response = $this->getJson('/api/v1/regions', ['Origin' => 'http://evil.example']);
+        $response = $this->getJson('/api/v1/stores', ['Origin' => 'http://evil.example']);
 
         $response->assertOk();
         $response->assertHeaderMissing('Access-Control-Allow-Origin');

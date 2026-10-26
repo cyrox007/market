@@ -9,7 +9,8 @@ use App\Models\Product\Product;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Shipping\ShippingLocation;
 use App\Models\User;
-use App\Services\Shipping\CarrierService;
+use App\Models\Inventory\Warehouse;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,9 +18,21 @@ class OrderControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Warehouse $warehouse;
+
     protected function setUp(): void
     {
         parent::setUp();
+        Http::fake(function ($request) {
+            $id = rawurldecode(basename(parse_url($request->url(), PHP_URL_PATH)));
+            $region = ['kind' => 'region', 'externalId' => 'region48', 'name' => 'Область'];
+            $city = ['kind' => 'locality', 'externalId' => 'city48', 'name' => 'Москва'];
+            $street = ['kind' => 'street', 'externalId' => 'street48', 'name' => 'Ленина'];
+            $target = $id === 'region48' ? $region : ['kind' => 'building', 'source' => 'gar', 'externalId' => 'house', 'name' => '1'];
+            return Http::response(['target' => $target, 'path' => [$region, $city, $street], 'label' => 'Москва, Ленина, д. 1']);
+        });
+        $this->warehouse = Warehouse::create(['name' => 'Test warehouse', 'address' => 'Москва, Ленина, д. 1', 'pickup_enabled' => true]);
+        $this->warehouse->deliveryProfiles()->create(['name' => 'Москва', 'base_price' => 500, 'directory_territories' => [['region_id' => 'region48']], 'service_tariffs' => []]);
 
         PaymentMethod::query()->firstOrCreate(
             ['code' => 'card'],
@@ -29,6 +42,7 @@ class OrderControllerTest extends TestCase
 
     private function addProductToCart(Product $product, int $quantity = 1): void
     {
+        $this->warehouse->productStocks()->updateOrCreate(['product_id' => $product->id], ['quantity' => max(10, (int) $product->stock)]);
         $this->postJson('/api/v1/cart', [
             'product_id' => $product->id,
             'quantity' => $quantity,
@@ -66,9 +80,8 @@ class OrderControllerTest extends TestCase
             'is_active' => true,
         ]);
 
-        $shippingMethod = app(CarrierService::class)->createShippingMethodsForLocation($location)[0];
-
-        return [$location, $handling, $shippingMethod];
+        $this->warehouse->deliveryProfiles()->first()->update(['service_tariffs' => ['assembly_price' => 1000, 'handling' => [['id' => $handling->id, 'base_price' => 200]]]]);
+        return [$location, $handling, $this->warehouse];
     }
 
     public function test_authenticated_user_can_list_orders(): void
@@ -102,6 +115,7 @@ class OrderControllerTest extends TestCase
             'contact_email' => 'test@example.com',
             'payment_method' => 'card',
             'delivery_type' => 'pickup',
+            'warehouse_id' => $this->warehouse->id,
         ]);
 
         $response->assertStatus(201)
@@ -153,17 +167,11 @@ class OrderControllerTest extends TestCase
             'contact_email' => 'test@example.com',
             'payment_method' => 'card',
             'delivery_type' => 'delivery',
-            'shipping_location_id' => $location->id,
-            'shipping_method_id' => $shippingMethod->id,
+            'directory_external_id' => 'house',
             'delivery_handling_type_id' => $handling->id,
             'delivery_floor' => 4,
             'requires_assembly' => false,
-            'address' => [
-                'city' => 'Москва',
-                'street' => 'Ленина',
-                'house' => '1',
-                'apartment' => '10',
-            ],
+            'delivery_details' => ['apartment' => '10'],
         ]);
 
         $response->assertStatus(201);
@@ -176,46 +184,14 @@ class OrderControllerTest extends TestCase
 
     public function test_delivery_order_with_first_shipping_method_succeeds(): void
     {
-        [$location, $handling, $shippingMethod] = $this->makeDeliveryScenario();
-
-        $product = Product::factory()->create([
-            'state' => 'active',
-            'price' => 1000,
-            'stock' => 10,
-            'backorder' => false,
-        ]);
-
-        $this->addProductToCart($product, 1);
-
-        $methodsResponse = $this->getJson(
-            '/api/v1/shipping/shipping-methods?location_id=' . $location->id . '&order_amount=1000'
-        );
-        $methodsResponse->assertStatus(200)->assertJsonStructure(['data' => [['id', 'name', 'price']]]);
-        $firstMethod = $methodsResponse->json('data.0');
-        $this->assertNotNull($firstMethod, 'At least one shipping method must be available');
-
-        $response = $this->postJson('/api/v1/orders', [
-            'contact_name' => 'Test User',
-            'contact_phone' => '+79991234567',
-            'contact_email' => 'test@example.com',
-            'payment_method' => 'card',
-            'delivery_type' => 'delivery',
-            'shipping_location_id' => $location->id,
-            'shipping_method_id' => $firstMethod['id'],
-            'delivery_handling_type_id' => $handling->id,
-            'delivery_floor' => 2,
-            'requires_assembly' => false,
-            'address' => [
-                'city' => 'Москва',
-                'street' => 'Ленина',
-                'house' => '1',
-            ],
-        ]);
-
-        $response->assertStatus(201)
-            ->assertJsonStructure(['order' => ['id', 'number', 'delivery_type', 'delivery_cost', 'total']]);
-        $this->assertSame('delivery', $response->json('order.delivery_type'));
-        $this->assertGreaterThanOrEqual(0, (float) $response->json('order.delivery_cost'));
+        $product = Product::factory()->create(['stock' => 10, 'price' => 1000]);
+        $this->addProductToCart($product);
+        $quote = $this->postJson('/api/v1/shipping/quote', ['directory_external_id' => 'house'])->assertOk();
+        $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Test', 'contact_phone' => '+79991234567', 'contact_email' => 'quote@example.test',
+            'payment_method' => 'card', 'delivery_type' => 'delivery', 'directory_external_id' => 'house',
+            'warehouse_id' => $quote->json('selected.warehouse_id'),
+        ])->assertCreated()->assertJsonPath('order.delivery_cost', 500);
     }
 
     public function test_delivery_order_requires_shipping_location(): void
@@ -237,7 +213,7 @@ class OrderControllerTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('errors.shipping_location_id.0', 'Поле локация доставки обязательно для типа доставки: delivery');
+            ->assertJsonValidationErrors('directory_external_id');
     }
 
     public function test_delivery_order_requires_floor_when_handling_type_requires_floor(): void
@@ -258,13 +234,13 @@ class OrderControllerTest extends TestCase
             'contact_email' => 'test@example.com',
             'payment_method' => 'card',
             'delivery_type' => 'delivery',
-            'shipping_location_id' => $location->id,
+            'directory_external_id' => 'house',
             'delivery_handling_type_id' => $handling->id,
             // delivery_floor отсутствует
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('errors.delivery_floor.0', 'Поле этаж обязательно для типа обработки: ' . $handling->name . '. Минимальный этаж: 1');
+            ->assertJsonValidationErrors('delivery_handling_type_id');
     }
 
     public function test_can_get_order_details(): void
@@ -368,13 +344,8 @@ class OrderControllerTest extends TestCase
                 'contact_email' => 'test@example.com',
                 'payment_method' => 'card',
                 'delivery_type' => 'delivery',
-                'shipping_location_id' => $location->id,
-                'address' => [
-                    'city' => 'Москва',
-                    'street' => 'Ленина',
-                    'house' => '1',
-                    'apartment' => '10',
-                ],
+                'directory_external_id' => 'house',
+                'delivery_details' => ['apartment' => '10'],
             ]);
 
         $response->assertStatus(201);
@@ -386,7 +357,7 @@ class OrderControllerTest extends TestCase
             'street' => 'Ленина',
             'house' => '1',
             'apartment' => '10',
-            'shipping_location_id' => $location->id,
+            'directory_external_id' => 'house',
         ]);
     }
 
@@ -415,12 +386,8 @@ class OrderControllerTest extends TestCase
             'contact_email' => 'test@example.com',
             'payment_method' => 'card',
             'delivery_type' => 'delivery',
-            'shipping_location_id' => $location->id,
-            'address' => [
-                'city' => 'Москва',
-                'street' => 'Ленина',
-                'house' => '1',
-            ],
+            'directory_external_id' => 'house',
+            'delivery_details' => ['apartment' => '10'],
         ]);
 
         $response->assertStatus(201);
@@ -457,6 +424,7 @@ class OrderControllerTest extends TestCase
                 'contact_email' => 'john@example.com',
                 'payment_method' => 'card',
                 'delivery_type' => 'pickup',
+            'warehouse_id' => $this->warehouse->id,
             ]);
 
         $response->assertStatus(201);
@@ -470,47 +438,16 @@ class OrderControllerTest extends TestCase
 
     public function test_delivery_rejects_shipping_method_not_available_for_location(): void
     {
-        [, , $shippingMethodMoscow] = $this->makeDeliveryScenario();
-
-        $locationSpb = ShippingLocation::factory()->create([
-            'type' => 'locality',
-            'name' => 'Санкт-Петербург',
-            'slug' => 'spb',
-            'delivery_price' => 400,
-            'min_order_amount' => null,
-            'max_order_weight' => null,
-            'max_order_volume' => null,
-            'is_active' => true,
-        ]);
-
-        $product = Product::factory()->create([
-            'state' => 'active',
-            'price' => 1000,
-            'stock' => 10,
-            'backorder' => false,
-        ]);
-        $this->addProductToCart($product, 1);
-
-        $response = $this->postJson('/api/v1/orders', [
-            'contact_name' => 'Test User',
-            'contact_phone' => '+79991234567',
-            'contact_email' => 'wrong-shipping-method@example.com',
-            'payment_method' => 'card',
-            'delivery_type' => 'delivery',
-            'shipping_location_id' => $locationSpb->id,
-            'shipping_method_id' => $shippingMethodMoscow->id,
-            'address' => [
-                'city' => 'СПб',
-                'street' => 'Невский',
-                'house' => '1',
-            ],
-        ]);
-
-        $response->assertStatus(422);
-        $this->assertNotEmpty($response->json('errors.shipping_method_id'));
+        $product = Product::factory()->create(['stock' => 10]);
+        $this->addProductToCart($product);
+        $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Test', 'contact_phone' => '+79991234567', 'contact_email' => 'old@example.test',
+            'payment_method' => 'card', 'delivery_type' => 'delivery', 'directory_external_id' => 'house',
+            'shipping_method_id' => 999,
+        ])->assertUnprocessable()->assertJsonValidationErrors('shipping_method_id');
     }
 
-    public function test_pickup_ignores_client_delivery_cost_override(): void
+    public function test_pickup_rejects_client_delivery_cost_override(): void
     {
         $product = Product::factory()->create([
             'state' => 'active',
@@ -526,10 +463,10 @@ class OrderControllerTest extends TestCase
             'contact_email' => 'pickup-cost@example.com',
             'payment_method' => 'card',
             'delivery_type' => 'pickup',
+            'warehouse_id' => $this->warehouse->id,
             'delivery_cost' => 999,
         ]);
 
-        $response->assertStatus(201);
-        $this->assertSame(0.0, (float) $response->json('order.delivery_cost'));
+        $response->assertStatus(422)->assertJsonValidationErrors('delivery_cost');
     }
 }

@@ -29,6 +29,16 @@ class ProductStockSettings extends Model
         'fallback_to_first_warehouse' => 'boolean',
     ];
 
+    public function getWarehouseAccountingEnabledAttribute(): bool
+    {
+        return true;
+    }
+
+    public function getFallbackToFirstWarehouseAttribute(): bool
+    {
+        return false;
+    }
+
     /**
      * Get the singleton instance of product stock settings.
      */
@@ -41,8 +51,8 @@ class ProductStockSettings extends Model
                 'stock_medium_max' => 5,
                 'stock_high_max' => 10,
                 'show_exact_above' => 10,
-                'warehouse_accounting_enabled' => false,
-                'fallback_to_first_warehouse' => true,
+                'warehouse_accounting_enabled' => true,
+                'fallback_to_first_warehouse' => false,
             ]
         );
     }

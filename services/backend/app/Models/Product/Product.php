@@ -330,7 +330,12 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             }
         }
 
-        return $specifications;
+        return collect($specifications)->groupBy('slug')->map(function ($rows): array {
+            $first = $rows->first();
+            $first['value'] = $rows->pluck('value')->unique()->implode(', ');
+
+            return $first;
+        })->values()->all();
     }
 
     /** Shared properties are inherited by attribute, never instead of all own properties. */
@@ -342,8 +347,8 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         }
         $this->loadMissing('attributes', 'parentProduct.attributes');
         $ownBySlug = collect($own)->groupBy('slug');
-        $variantSlugs = $this->parentProduct->getRelation('attributes')->where('is_use_in_variations', true)->pluck('slug')
-            ->merge([Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, 'variant']);
+        // Being available as a variation attribute does not make a shared value disappear.
+        $variantSlugs = collect([Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, 'variant']);
         $shared = collect($this->parentProduct->buildSpecificationsForApi())
             ->reject(fn (array $spec) => $variantSlugs->contains($spec['slug']))->groupBy('slug');
         $result = collect();

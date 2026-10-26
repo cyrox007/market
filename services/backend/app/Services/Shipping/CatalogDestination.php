@@ -26,6 +26,9 @@ class CatalogDestination
                 throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json(['message' => 'Адресный справочник временно недоступен.'], 503));
             }
             $target = $snapshot['target'] ?? [];
+            if (\App\Services\Address\AddressHierarchy::isLocality($target)) {
+                $snapshot['path'] = array_merge($snapshot['path'] ?? [], [$target]);
+            }
             if (! in_array($target['kind'] ?? null, ['region', 'locality', 'building'], true) && ! \App\Services\Address\AddressHierarchy::isLocality($target)) {
                 throw ValidationException::withMessages(['directory_external_id' => 'Выберите регион, населённый пункт или здание.']);
             }

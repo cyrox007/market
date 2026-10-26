@@ -48,7 +48,7 @@
     destroy() { this.disposed = true; clearTimeout(this.timer); this.observer?.disconnect(); this.map?.remove(); }
 }">
     <p x-cloak x-show="failed" role="alert">Не удалось загрузить карту. Проверьте соединение. <button type="button" x-on:click="retry()">Повторить</button></p>
-    <p style="margin-bottom: 8px" x-text="lat !== null && lat !== '' ? 'Точка склада задана. При необходимости перетащите метку к въезду.' : (centre?.message ?? 'Выберите регион, населённый пункт, улицу и дом. Если точных координат нет, укажите склад на карте.')"></p>
+    <p style="margin-bottom: 8px" x-text="lat !== null && lat !== '' ? 'Точка адреса задана. Проверьте положение: сопоставление здания может быть неточным. При необходимости перетащите метку.' : (centre?.message ?? 'Выберите регион, населённый пункт, улицу и дом. Если координат здания нет, укажите точку на карте.')"></p>
     <div wire:ignore x-ref="canvas" style="height: 320px; border-radius: 8px; z-index: 0"></div>
-    <p style="margin-top: 8px; font-size: 12px">Подложка карты загружается из OpenStreetMap. Центр населённого пункта не сохраняется как точка склада.</p>
+    <p style="margin-top: 8px; font-size: 12px">Подложка карты загружается из OpenStreetMap. Центр населённого пункта не сохраняется как точка адреса.</p>
 </div>

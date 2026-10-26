@@ -246,6 +246,12 @@ class EditOrder extends EditRecord
         // Обновляем все поля, кроме status (status обработаем отдельно)
         $dataWithoutStatus = $data;
         unset($dataWithoutStatus['status']);
+        // A form update must not bypass warehouse selection, pricing or stock reservation.
+        foreach (['fulfillment_snapshot', 'delivery_type', 'address_id', 'address_snapshot', 'shipping_location_id',
+            'shipping_method_id', 'delivery_handling_type_id', 'delivery_floor', 'requires_assembly',
+            'delivery_cost', 'assembly_cost', 'subtotal', 'total', 'region_id'] as $field) {
+            unset($dataWithoutStatus[$field]);
+        }
 
         $record->update($dataWithoutStatus);
 

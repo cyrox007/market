@@ -27,12 +27,10 @@ class WarehouseCoverage
 
     public function profileMatches(WarehouseDeliveryProfile $profile, Warehouse $warehouse, array $destination): bool
     {
-        if (! $warehouse->is_active || ! $profile->is_active || ! empty($profile->constraints)) {
+        if (! $warehouse->is_active || ! $profile->is_active || $profile->service_tariffs === null || ! empty($profile->constraints)) {
             return false;
         }
-        $territory = ! empty($profile->directory_territories)
-            ? app(DirectoryCoverage::class)->matches($profile->directory_territories, $destination)
-            : $profile->locations->pluck('id')->intersect($destination['location_ids'] ?? [])->isNotEmpty();
+        $territory = app(DirectoryCoverage::class)->matches($profile->directory_territories ?? [], $destination);
         $point = $destination['point'] ?? null;
         $distance = $point ? app(WarehouseDistance::class)->kilometres($warehouse, $point['latitude'], $point['longitude']) : null;
         $radius = $distance !== null && $profile->radius_km !== null && $distance <= (float) $profile->radius_km;

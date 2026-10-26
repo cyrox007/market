@@ -11,6 +11,14 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class StoreController extends Controller
 {
+    public function current(Request $request): JsonResponse
+    {
+        $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, null);
+        $store = app(\App\Services\Inventory\LocalStoreResolver::class)->resolve($destination);
+
+        return response()->json(['store' => $store ? new ApiStoreResource($store) : null]);
+    }
+
     /**
      * Get all stores.
      */
@@ -18,7 +26,8 @@ class StoreController extends Controller
     {
         $city = $request->query('city');
 
-        $stores = Store::cached('index'.($city ? "_city_{$city}" : ''), function () use ($city) {
+        $revision = \Illuminate\Support\Facades\Cache::get('store_api_revision', 0);
+        $stores = Store::cached('index'.($city ? "_city_{$city}" : '').'_v'.$revision, function () use ($city) {
             $query = Store::active()
                 ->ordered();
 
@@ -39,7 +48,8 @@ class StoreController extends Controller
      */
     public function show(Request $request, string $slug): JsonResponse
     {
-        $store = Store::cached("show_{$slug}", function () use ($slug) {
+        $revision = \Illuminate\Support\Facades\Cache::get('store_api_revision', 0);
+        $store = Store::cached("show_{$slug}_v{$revision}", function () use ($slug) {
             return Store::where('slug', $slug)
                 ->orWhere('id', $slug)
                 ->active()
@@ -58,7 +68,8 @@ class StoreController extends Controller
      */
     public function cities(Request $request): JsonResponse
     {
-        $cities = Store::cached('cities', function () {
+        $revision = \Illuminate\Support\Facades\Cache::get('store_api_revision', 0);
+        $cities = Store::cached('cities_v'.$revision, function () {
             return Store::active()
                 ->select('city')
                 ->distinct()
