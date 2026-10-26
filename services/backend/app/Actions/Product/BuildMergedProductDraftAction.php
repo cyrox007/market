@@ -38,7 +38,7 @@ class BuildMergedProductDraftAction
 
         $descriptions = $products
             ->map(fn (Product $product) => trim((string) $product->description))
-            ->filter(fn (string $text) => $text !== '')
+            ->filter(fn (string $text) => app(\App\Services\Product\ProductDescriptionHtml::class)->hasContent($text))
             ->unique()
             ->values();
 

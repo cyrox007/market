@@ -53,9 +53,7 @@ class DetachVariantFromParentAction
             if ($variant->taxons()->doesntExist()) {
                 $variant->taxons()->sync($parent->taxons()->pluck('taxons.id')->all());
             }
-            if (blank($variant->description)) {
-                $variant->description = $parent->description;
-            }
+            $variant->description = $variant->getEffectiveDescription();
             foreach (['length', 'width', 'height', 'weight'] as $field) {
                 if ($variant->{$field} === null) {
                     $variant->{$field} = $parent->{$field};

@@ -281,6 +281,8 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         $this->loadMissing(['attributes']);
 
         $specifications = [];
+        $hasValue = static fn ($value): bool => $value !== null
+            && preg_match('/^[\s\p{Z}\x{200B}\x{FEFF}]*$/u', (string) $value) !== 1;
 
         $productAttributes = $this->relationLoaded('attributes')
             ? $this->getRelation('attributes')
@@ -290,14 +292,14 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $pivot = $attribute->pivot;
             $value = null;
 
-            if ($pivot && $pivot->custom_value !== null && $pivot->custom_value !== '') {
+            if ($pivot && $hasValue($pivot->custom_value)) {
                 $value = (string) $pivot->custom_value;
             } elseif ($pivot?->attribute_value_id) {
                 $attribute->loadMissing('values');
                 $value = $attribute->values->firstWhere('id', $pivot->attribute_value_id)?->value;
             }
 
-            if ($value === null || $value === '') {
+            if (! $hasValue($value)) {
                 continue;
             }
 
@@ -339,13 +341,34 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             return $own;
         }
         $this->loadMissing('attributes', 'parentProduct.attributes');
-        $ownSlugs = $this->getRelation('attributes')->pluck('slug')->merge(collect($own)->pluck('slug'));
+        $ownBySlug = collect($own)->groupBy('slug');
         $variantSlugs = $this->parentProduct->getRelation('attributes')->where('is_use_in_variations', true)->pluck('slug')
             ->merge([Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, 'variant']);
-        $inherited = collect($this->parentProduct->buildSpecificationsForApi())
-            ->reject(fn (array $spec) => $ownSlugs->contains($spec['slug']) || $variantSlugs->contains($spec['slug']));
+        $shared = collect($this->parentProduct->buildSpecificationsForApi())
+            ->reject(fn (array $spec) => $variantSlugs->contains($spec['slug']))->groupBy('slug');
+        $result = collect();
+        foreach ($shared as $slug => $specs) {
+            // Override values in place: identical shared fields retain the parent's order.
+            $result = $result->concat($ownBySlug->get($slug, $specs));
+        }
 
-        return $inherited->concat($own)->values()->all();
+        return $result->concat($ownBySlug->except($shared->keys()->all())->flatten(1))->values()->all();
+    }
+
+    public function getEffectiveDescription(): ?string
+    {
+        $html = app(\App\Services\Product\ProductDescriptionHtml::class);
+        if ($html->hasContent($this->description)) {
+            return $this->description;
+        }
+        $parent = $this->isVariant() ? $this->parentProduct : null;
+
+        return $parent && $html->hasContent($parent->description) ? $parent->description : null;
+    }
+
+    public function setDescriptionAttribute(?string $value): void
+    {
+        $this->attributes['description'] = app(\App\Services\Product\ProductDescriptionHtml::class)->hasContent($value) ? $value : null;
     }
 
     /**
