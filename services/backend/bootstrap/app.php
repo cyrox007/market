@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Public cache hint only; grants themselves remain in the server session.
+        $middleware->encryptCookies(except: ['has_private_offer']);
         // Р-4: за reverse-proxy берём реальный IP клиента из X-Forwarded-For,
         // иначе rate limiting схлопнет всех в один IP (адрес прокси) и даст ложные 429.
         $middleware->trustProxies(

@@ -139,6 +139,10 @@ class EditOrder extends EditRecord
 
     protected function canMarkOrderPaid($order, $latestPayment): bool
     {
+        if ($order->cooling_until) {
+            return ! in_array($order->status, [OrderStatus::CANCELLED->value, OrderStatus::DELIVERED->value], true)
+                && ! app(\App\Services\Order\OrderCooling::class)->isPaid($order);
+        }
         if (in_array($order->status, [OrderStatus::AWAITING_PAYMENT->value, OrderStatus::NEW->value], true)) {
             return true;
         }
@@ -148,6 +152,11 @@ class EditOrder extends EditRecord
 
     protected function markOrderAsPaid($order, $latestPayment): void
     {
+        if (! $latestPayment && $order->cooling_until) {
+            $method = \App\Models\Payment\PaymentMethod::where('code', $order->payment_method)->firstOrFail();
+            $latestPayment = $order->payments()->create(['payment_method_id' => $method->id,
+                'currency' => 'RUB', 'amount' => (float) $order->total, 'amount_paid' => 0, 'status' => 'pending']);
+        }
         if ($latestPayment && ! $latestPayment->getStatus()->equals(PaymentStatusProxy::PAID())) {
             $latestPayment->status = PaymentStatusProxy::PAID();
             $latestPayment->amount_paid = (float) $latestPayment->getAmount();

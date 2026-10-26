@@ -98,6 +98,7 @@ class RaiffeisenEcomRefundService
                 $payment->status = PaymentStatusProxy::PARTIALLY_REFUNDED();
             }
             $payment->save();
+            if ($order instanceof \App\Models\Order\Order) { app(\App\Services\Order\OrderRefundTasks::class)->ensure($order); }
 
             $this->gatewayLog->log(self::GATEWAY_ID, 'refund_success', 'Возврат оформлен: заказ ' . $orderNumber . ', сумма ' . number_format($amount, 2) . ' ₽', [
                 'order_id' => $order->getKey(),

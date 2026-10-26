@@ -17,7 +17,7 @@ final class FulfillmentAddress
             'external_id' => $target['externalId'],
             'gar_guid' => ($target['source'] ?? null) === 'gar' ? $target['externalId'] : null,
             'object_id' => isset($target['objectId']) ? (string) $target['objectId'] : null,
-            'kladr_code' => $target['kladrCode'] ?? null,
+            'kladr_code' => $target['kladrCode'] ?? (($target['source'] ?? null) === 'kladr' ? $target['externalId'] : null),
             'source' => $target['source'] ?? null,
             'label' => $hierarchy['label'] ?? $target['label'] ?? null,
             'path' => array_values($hierarchy['path'] ?? []),

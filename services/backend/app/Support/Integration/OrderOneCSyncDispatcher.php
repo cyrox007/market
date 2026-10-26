@@ -24,6 +24,11 @@ final class OrderOneCSyncDispatcher
         }
 
         $orderId = $order instanceof Order ? (int) $order->id : $order;
+        $record = $order instanceof Order ? $order : Order::find($orderId);
+        if ($record?->cooling_until && ($record->status === 'manager_processing'
+            || now()->lt($record->cooling_until) || ($record->status === 'cancelled' && ! $record->integration_sent_at))) {
+            return;
+        }
         if ($orderId <= 0) {
             return;
         }

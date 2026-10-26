@@ -35,6 +35,9 @@ class WarehousePickup
         $options = [];
         foreach ($warehouses as $warehouse) {
             $stocks = $warehouse->productStocks->keyBy('product_id');
+            foreach ($stocks as $stock) {
+                $stock->quantity = app(\App\Services\Inventory\CartStockReservations::class)->available($warehouse->id, $stock->product_id, (float) $stock->quantity);
+            }
             if ($quantities->contains(fn ($quantity, $id) => ($stocks[$id]->quantity ?? 0) < $quantity)) {
                 continue;
             }

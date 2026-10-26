@@ -84,10 +84,18 @@ class OrderResource extends JsonResource
                     ];
                 });
             }),
-            'items' => OrderItemResource::collection($this->whenLoaded('items'))->resolve($request),
+            'items' => $this->whenLoaded('items', fn () => OrderItemResource::collection($this->items)->resolve($request)),
             'status_history' => OrderStatusHistoryResource::collection($this->whenLoaded('statusHistory')),
             'created_at' => $this->created_at?->toISOString(),
             'can_be_cancelled' => $this->canBeCancelled(),
+            'cooling_until' => $this->cooling_until?->toISOString(),
+            'server_time' => now()->toISOString(),
+            'payment_status' => app(\App\Services\Order\OrderCooling::class)->isPaid($this->resource) ? 'paid' : 'unpaid',
+            'integration_state' => $this->integration_state,
+            'cancellation_request' => \Illuminate\Support\Facades\DB::table('order_cancellation_requests')->where('order_id', $this->id)->first(),
+            'refund_task' => \Illuminate\Support\Facades\DB::table('order_refund_tasks')->where('order_id', $this->id)->first(),
+            'can_request_cancellation' => $this->cooling_until && now()->gte($this->cooling_until)
+                && ! in_array($this->status, ['cancelled', 'delivered'], true),
             'can_pay' => $this->canPayOnline(),
             'payment_gateway' => $this->getPaymentGateway(),
             'payform_url' => $this->when($this->canPayOnline(), $this->getCachedPayformUrl()),
@@ -99,6 +107,7 @@ class OrderResource extends JsonResource
 
     private function resolvePaymentDeadlineAt(): ?string
     {
+        if ($this->cooling_until && $this->canPayOnline()) { return $this->cooling_until->toISOString(); }
         if ($this->status !== OrderStatus::AWAITING_PAYMENT->value || $this->created_at === null) {
             return null;
         }
@@ -135,6 +144,8 @@ class OrderResource extends JsonResource
     {
         return match ($this->status) {
             'new' => 'Новый',
+            'manager_processing' => 'В обработке у менеджера',
+            'assembling' => 'Собирается',
             'awaiting_payment' => 'Ожидание оплаты',
             'accepted' => 'Принят',
             'assembled' => 'Собран',

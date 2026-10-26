@@ -32,6 +32,7 @@ class SyncOrdersTo1CAction
         $headers = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
+            'Idempotency-Key' => hash('sha256', json_encode($orders, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION)),
         ];
         if ($apiKey !== '') {
             $headers['Authorization'] = 'Bearer ' . $apiKey;

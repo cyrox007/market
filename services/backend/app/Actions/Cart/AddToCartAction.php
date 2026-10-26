@@ -47,6 +47,7 @@ class AddToCartAction
                 $item = Cart::addItem($product, $limit->quantity);
             }
 
+            app(\App\Services\Inventory\CartStockReservations::class)->reserve($product, $previous + $limit->quantity);
             return new CartQuantityResult($item, $requested, $limit->quantity, $previous, $stock, $limit->reason);
         });
 

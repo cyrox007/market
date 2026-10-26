@@ -142,8 +142,8 @@ class OrderControllerTest extends TestCase
         $this->getJson('/api/v1/cart')->assertJsonPath('is_empty', true);
         // Должна быть создана запись в истории статусов
         $this->assertDatabaseHas('order_status_history', [
-            'status' => 'accepted',
-            'comment' => 'Заказ создан, принят к исполнению',
+            'status' => 'manager_processing',
+            'comment' => 'Заказ создан. Период охлаждения 60 минут.',
         ]);
     }
 

@@ -5,6 +5,7 @@ import ProtectedRoute from '../components/auth/ProtectedRoute';
 import Catalog from '../pages/catalog/page';
 import CatalogCategory from '../pages/catalog-category/page';
 import Product from '../pages/product/page';
+import PrivateOfferRedirect from './PrivateOfferRedirect';
 
 const Home = lazy(() => import('../pages/home/page'));
 const Sets = lazy(() => import('../pages/sets/page'));
@@ -52,6 +53,7 @@ if (import.meta.env.DEV) {
 }
 
 const routes: RouteObject[] = [
+  { path: 'offer/:token', element: <PrivateOfferRedirect /> },
   ...devRoutes,
   {
     element: <RootLayout />,

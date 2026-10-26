@@ -368,6 +368,7 @@ class CartController extends Controller
         }
 
         Cart::removeItem($item);
+        app(\App\Services\Inventory\CartStockReservations::class)->release((int) $item->product_id);
 
         return response()->json([
             'message' => 'Товар удален из корзины',
@@ -380,6 +381,7 @@ class CartController extends Controller
     public function clear(Request $request): JsonResponse
     {
         Cart::clear();
+        app(\App\Services\Inventory\CartStockReservations::class)->release();
 
         return response()->json([
             'message' => 'Корзина очищена',

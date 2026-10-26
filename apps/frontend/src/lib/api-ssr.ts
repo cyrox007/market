@@ -54,6 +54,7 @@ export function createSSRFetch(req: IncomingMessage) {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           Cookie: cookieHeader, // Передаем cookies в Laravel API
+          ...(cookieHeader.split(';').some((c) => c.trim() === 'has_private_offer=1') ? { 'X-Private-Price-Context': '1' } : {}),
           ...options?.headers,
         },
         signal: controller.signal,
@@ -214,16 +215,6 @@ export function createSSRApi(req: IncomingMessage) {
         if (params?.per_page) query.append('per_page', params.per_page.toString());
         return fetchAPI<{ data: any[]; meta: any }>(`/interior-ideas?${query.toString()}`);
       },
-    },
-    regions: {
-      detect: (params?: { city?: string }) => {
-        const query = new URLSearchParams();
-        if (params?.city) query.append('city', params.city);
-        return fetchAPI<{ region: any | null; source: string }>(
-          `/regions/detect?${query.toString()}`,
-        );
-      },
-      list: () => fetchAPI<{ data: any[] }>('/regions'),
     },
   };
 }

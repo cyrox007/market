@@ -124,7 +124,8 @@ class WarehouseDeliveryQuoteTest extends TestCase
         ])->assertCreated()->assertJsonPath('order.delivery_cost', 1500)
             ->assertJsonPath('order.fulfillment.warehouse_id', $warehouse->id);
         $order = Order::findOrFail($response->json('order.id'));
-        $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(2.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
         $this->assertSame('house', $order->address->directory_external_id);
         $this->assertSame('12', $order->address->apartment);
         $this->assertSame(3, $order->delivery_days_min);

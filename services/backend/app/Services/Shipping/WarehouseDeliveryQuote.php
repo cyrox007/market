@@ -74,6 +74,9 @@ class WarehouseDeliveryQuote
         ])->get();
         foreach ($warehouses as $warehouse) {
             $stocks = $warehouse->productStocks->keyBy('product_id');
+            foreach ($stocks as $stock) {
+                $stock->quantity = app(\App\Services\Inventory\CartStockReservations::class)->available($warehouse->id, $stock->product_id, (float) $stock->quantity);
+            }
             $availability = $warehouse->productAvailabilities->keyBy('product_id');
             $preparationMin = (int) $warehouse->processing_days_min;
             $preparationMax = (int) $warehouse->processing_days_max;

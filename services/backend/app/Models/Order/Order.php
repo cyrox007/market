@@ -22,6 +22,7 @@ use Vanilo\Shipment\Models\ShippingMethod;
 
 class Order extends Model implements Payable
 {
+    protected $hidden = ['guest_token_hash'];
     use HasFactory;
 
     /**
@@ -36,6 +37,7 @@ class Order extends Model implements Payable
     protected $fillable = [
         'user_id',
         'number',
+        'cooling_until', 'integration_sent_at', 'integration_state', 'guest_token_hash',
         'status',
         'total',
         'subtotal',
@@ -68,6 +70,7 @@ class Order extends Model implements Payable
     protected function casts(): array
     {
         return [
+            'cooling_until' => 'datetime', 'integration_sent_at' => 'datetime',
             'fulfillment_snapshot' => 'array',
             'total' => 'decimal:2',
             'subtotal' => 'decimal:2',
@@ -96,6 +99,12 @@ class Order extends Model implements Payable
             }
             if (empty($order->status)) {
                 $order->status = OrderStatus::NEW->value;
+            }
+        });
+        static::saving(function (Order $order): void {
+            if ($order->cooling_until && now()->lt($order->cooling_until)
+                && in_array($order->status, ['accepted', 'assembling', 'assembled', 'shipped', 'in_transit', 'delivered'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Период охлаждения заказа ещё не завершён.']);
             }
         });
     }
@@ -282,6 +291,15 @@ class Order extends Model implements Payable
      */
     public function changeStatus(OrderStatus $status, ?string $comment = null, ?int $userId = null): void
     {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($status, $comment, $userId): void {
+        static::whereKey($this->id)->lockForUpdate()->firstOrFail();
+        $this->refresh();
+        if ($this->cooling_until && $this->status === OrderStatus::CANCELLED->value && $status !== OrderStatus::CANCELLED) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Отменённый заказ нельзя возобновить. Создайте новый заказ.']);
+        }
+        if ($this->cooling_until && now()->lt($this->cooling_until) && $status === OrderStatus::ACCEPTED) {
+            $status = OrderStatus::MANAGER_PROCESSING;
+        }
         $oldStatus = $this->status;
         $this->status = $status->value;
         $this->save();
@@ -303,12 +321,15 @@ class Order extends Model implements Payable
         // Возврат остатков при отмене (слушатель HandleOrderCancelled)
         if ($status === OrderStatus::CANCELLED) {
             event(new OrderCancelled($this));
+            app(\App\Services\Order\OrderRefundTasks::class)->ensure($this);
         }
 
         // Статистика продаж при завершении заказа
         if ($status === OrderStatus::DELIVERED) {
+            app(\App\Services\Shipping\WarehouseOrderStock::class)->consume($this);
             event(new OrderCompleted($this));
         }
+        });
     }
 
     /**
@@ -362,6 +383,9 @@ class Order extends Model implements Payable
      */
     public function canBeCancelled(): bool
     {
+        if ($this->cooling_until) {
+            return $this->status === OrderStatus::MANAGER_PROCESSING->value && now()->lt($this->cooling_until);
+        }
         return in_array($this->status, [OrderStatus::NEW->value, OrderStatus::AWAITING_PAYMENT->value], true);
     }
 
@@ -370,7 +394,9 @@ class Order extends Model implements Payable
      */
     public function canPayOnline(): bool
     {
-        if ($this->status !== OrderStatus::AWAITING_PAYMENT->value || !$this->payment_method) {
+        if (! in_array($this->status, [OrderStatus::AWAITING_PAYMENT->value, OrderStatus::MANAGER_PROCESSING->value], true) || !$this->payment_method
+            || ($this->cooling_until && now()->gte($this->cooling_until))
+            || app(\App\Services\Order\OrderCooling::class)->isPaid($this)) {
             return false;
         }
 
@@ -422,6 +448,8 @@ class Order extends Model implements Payable
     {
         return match ($this->status) {
             'new' => 'Новый',
+            'manager_processing' => 'В обработке у менеджера',
+            'assembling' => 'Собирается',
             'awaiting_payment' => 'Ожидание оплаты',
             'accepted' => 'Принят',
             'assembled' => 'Собран',

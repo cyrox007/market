@@ -175,13 +175,22 @@ Route::prefix('v1')->group(function () {
     });
 
     // Orders: создание и payment-config без auth
+    Route::post('/private-offers/activate', [\App\Http\Controllers\Api\PrivateOfferController::class, 'activate'])
+        ->middleware(['api-session', 'throttle:30,1']);
+    Route::get('/private-offers/current', [\App\Http\Controllers\Api\PrivateOfferController::class, 'current'])
+        ->middleware(['api-session', 'throttle:30,1']);
     Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('orders')->group(function () {
         Route::post('/one-click', \App\Http\Controllers\Api\DirectCheckoutController::class)->middleware('throttle:orders');
-        Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
+        Route::post('/', [OrderController::class, 'store'])->middleware(['throttle:orders', \App\Http\Middleware\CheckoutIdempotency::class]);
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });
 
     // Protected routes (require authentication)
+    Route::middleware(['api-session', 'throttle:orders'])->prefix('order-access')->group(function () {
+        Route::get('/{id}', [\App\Http\Controllers\Api\OrderAccessController::class, 'show'])->whereNumber('id');
+        Route::post('/{id}/cancel', [\App\Http\Controllers\Api\OrderAccessController::class, 'cancel'])->whereNumber('id');
+        Route::post('/{id}/cancellation-request', [\App\Http\Controllers\Api\OrderAccessController::class, 'requestCancellation'])->whereNumber('id');
+    });
     // Используем api-session для поддержки сессий и auth:sanctum для проверки аутентификации
     Route::middleware(['api-session', 'auth:sanctum'])->group(function () {
         // Auth
@@ -205,7 +214,6 @@ Route::prefix('v1')->group(function () {
         // Orders
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
-            Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
             Route::get('/{id}', [OrderController::class, 'show'])->where('id', '[0-9]+');
             Route::post('/{id}/cancel', [OrderController::class, 'cancel'])->where('id', '[0-9]+');
             Route::post('/{id}/repeat', [OrderController::class, 'repeat'])->where('id', '[0-9]+');

@@ -102,6 +102,7 @@ class CartItemResource extends JsonResource
             'slug' => $productForSlug->slug ?? null, // Slug для ссылки на товар (родительский, если это вариация)
             'price' => $regionalPrice,
             'quantity' => $quantity,
+            'reservation' => $product ? app(\App\Services\Inventory\CartStockReservations::class)->forProduct($product->id) : null,
             'total' => $total,
             // В корзине используем миниатюру, чтобы не тянуть большие изображения
             'image' => $product->thumbnail_url ?? $product->main_image_url ?? null,

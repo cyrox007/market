@@ -17,6 +17,13 @@ class OrderForm
     {
         return $schema
             ->components([
+                Section::make('Охлаждение и передача')->collapsed()->schema([
+                    Placeholder::make('cooling_state')->label('Состояние')->content(fn ($record) => $record
+                        ? $record->getStatusLabel().' · до '.($record->cooling_until?->format('d.m.Y H:i:s') ?? '—')
+                            .' · отправка: '.($record->integration_state ?? '—') : 'После оформления'),
+                    Placeholder::make('refund_review')->label('Возврат при отмене')->content(fn ($record) => $record
+                        ? (\Illuminate\Support\Facades\DB::table('order_refund_tasks')->where('order_id', $record->id)->value('status') ?? 'Не требуется') : '—'),
+                ])->columnSpanFull(),
                 Section::make('Детализация заказа')
                     ->schema([
                         Placeholder::make('buyer_summary')
@@ -198,7 +205,7 @@ class OrderForm
                             ->dehydrated(false),
                         Select::make('status')
                             ->label(__('filament/admin_sv/order_resource.status'))
-                            ->options(['new' => __('filament/admin_sv/order_resource.status.new'), 'awaiting_payment' => __('filament/admin_sv/order_resource.status.awaiting_payment'), 'accepted' => __('filament/admin_sv/order_resource.status.accepted'), 'assembled' => __('filament/admin_sv/order_resource.status.assembled'), 'shipped' => __('filament/admin_sv/order_resource.status.shipped'), 'in_transit' => __('filament/admin_sv/order_resource.status.in_transit'), 'delivered' => __('filament/admin_sv/order_resource.status.delivered'), 'cancelled' => __('filament/admin_sv/order_resource.status.cancelled')])
+                            ->options(\App\Models\Order\OrderStatus::options())
                             ->required(),
                         Select::make('user_id')
                             ->label(__('filament/admin_sv/order_resource.user_id'))

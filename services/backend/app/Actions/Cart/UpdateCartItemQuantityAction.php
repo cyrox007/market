@@ -57,6 +57,8 @@ class UpdateCartItemQuantityAction
                 $updated = Cart::addItem($product, $limit->quantity);
             }
 
+            if (! $keepsProduct) { app(\App\Services\Inventory\CartStockReservations::class)->release((int) $locked->product_id); }
+            app(\App\Services\Inventory\CartStockReservations::class)->reserve($product, $limit->quantity);
             return new CartQuantityResult($updated, $requested, $limit->quantity, $previous, $stock, $limit->reason);
         });
 

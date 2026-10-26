@@ -1,4 +1,5 @@
 import type { DimensionKey } from './catalog-query';
+import { checkoutIdempotencyKey } from './checkout-idempotency';
 import { retryWithoutDirectory, toProductListSearch } from './product-list-search';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -14,6 +15,8 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(typeof document !== 'undefined' && document.cookie.split(';').some((c) => c.trim() === 'has_private_offer=1')
+        ? { 'X-Private-Price-Context': '1' } : {}),
       ...options?.headers,
     },
     credentials: 'include', // Для поддержки Sanctum cookie-based auth
@@ -83,7 +86,7 @@ export const api = {
   /** Справочник адресов: регион, затем пункт внутри него (бэкендер, 21.10) */
   addressDirectory: {
     regions: (signal?: AbortSignal) =>
-      fetchAPI<{ data: DirectoryRegion[] }>('/address-directory/regions', { signal }),
+      fetchAPI<{ data: DirectoryRegion[] }>('/localities/regions', { signal }),
     localities: (
       params: { parentExternalId: string; q?: string; limit?: number },
       signal?: AbortSignal,
@@ -201,11 +204,14 @@ export const api = {
   orders: {
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
     get: (id: number) => fetchAPI<{ order: Order }>(`/orders/${id}`),
-    create: (data: any) =>
-      fetchAPI('/orders', {
+    create: async (data: any) => {
+      const body = JSON.stringify(data);
+      return fetchAPI('/orders', {
         method: 'POST',
-        body: JSON.stringify(data),
-      }),
+        headers: { 'Idempotency-Key': await checkoutIdempotencyKey(body) },
+        body,
+      });
+    },
     getPaymentConfig: (id: number) =>
       fetchAPI<{
         amount: number;
@@ -413,18 +419,6 @@ export const api = {
     },
     get: (slug: string) => fetchAPI<{ store: Store }>(`/stores/${slug}`),
     cities: () => fetchAPI<{ cities: string[] }>('/stores/cities'),
-  },
-  regions: {
-    list: () => fetchAPI<{ data: ShippingLocation[] }>('/regions'),
-    tree: () => fetchAPI<{ data: ShippingLocationTree[] }>('/regions/tree'),
-    detect: (params?: { city?: string }) => {
-      const query = new URLSearchParams();
-      if (params?.city) query.append('city', params.city);
-      // IP определяется автоматически на бэкенде из запроса
-      return fetchAPI<{ region: ShippingLocation | null; source: string }>(
-        `/regions/detect?${query.toString()}`,
-      );
-    },
   },
   wishlist: {
     list: () => fetchAPI<{ data: WishlistItem[] }>('/wishlist'),

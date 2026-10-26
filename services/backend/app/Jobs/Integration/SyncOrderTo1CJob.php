@@ -14,7 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class SyncOrderTo1CJob implements ShouldQueue
+class SyncOrderTo1CJob implements ShouldQueue, \Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing
 {
     use Dispatchable;
     use InteractsWithQueue;
@@ -24,11 +24,19 @@ class SyncOrderTo1CJob implements ShouldQueue
     public int $tries = 3;
 
     public int $backoff = 20;
+    public int $uniqueFor = 600;
+    public int $timeout = 120;
+
+    public function uniqueId(): string { return 'order:'.$this->orderId; }
+    public function middleware(): array
+    {
+        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping('order-sync:'.$this->orderId))->releaseAfter(10)->expireAfter(180)];
+    }
 
     public function __construct(
         private readonly int $orderId
     ) {
-        $this->queue = (string) (config('services.integration_1c.orders_queue') ?? 'integration-1c');
+        $this->queue = (string) (config('services.integration_1c.orders_queue') ?? 'integration-orders');
     }
 
     public function handle(
@@ -39,9 +47,19 @@ class SyncOrderTo1CJob implements ShouldQueue
         if ($order === null) {
             return;
         }
+        if ($order->cooling_until && ($order->status === 'manager_processing' || now()->lt($order->cooling_until)
+            || ($order->status === 'cancelled' && ! $order->integration_sent_at))) {
+            return;
+        }
 
         $payload = $buildOrderSyncPayloadAction->execute($order);
         $ok = $syncOrdersTo1CAction->execute([$payload]);
+
+        if (! $ok) {
+            $order->update(['integration_state' => 'failed']);
+            throw new \RuntimeException('Order integration did not acknowledge successful delivery.');
+        }
+        $order->update(['integration_state' => 'sent', 'integration_sent_at' => now()]);
 
         Log::info('SyncOrderTo1CJob finished', [
             'order_id' => $this->orderId,

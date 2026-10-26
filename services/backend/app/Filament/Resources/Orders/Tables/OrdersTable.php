@@ -58,6 +58,8 @@ class OrdersTable
                     ->formatStateUsing(fn(string $state): string => match ($state) {
                         'new' => 'Новый',
                         'awaiting_payment' => 'Ожидание оплаты',
+                        'manager_processing' => 'В обработке у менеджера',
+                        'assembling' => 'Собирается',
                         'accepted' => 'Принят',
                         'assembled' => 'Собран',
                         'shipped' => 'Отправлен',
@@ -163,6 +165,8 @@ class OrdersTable
                     ->options([
                         'new' => 'Новый',
                         'awaiting_payment' => 'Ожидание оплаты',
+                        'manager_processing' => 'В обработке у менеджера',
+                        'assembling' => 'Собирается',
                         'accepted' => 'Принят',
                         'assembled' => 'Собран',
                         'shipped' => 'Отправлен',

@@ -6,7 +6,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import type { SSRContext } from '../src/types/ssr';
-import { withCache, withCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
+import { withCache as sharedWithCache, withCacheSWR as sharedWithCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
 import {
   CATALOG_PER_PAGE,
   parseCatalogQuery,
@@ -86,6 +86,15 @@ async function createServer() {
 
   // Обработка всех маршрутов
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
+    // Never put session-specific private-offer prices into the shared SSR cache.
+    const privateOffer = req.cookies?.has_private_offer === '1';
+    if (privateOffer || /\/offer\//.test(req.path)) {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+    const withCache: typeof sharedWithCache = privateOffer ? async (_key, fetcher) => fetcher() : sharedWithCache;
+    const withCacheSWR: typeof sharedWithCacheSWR = privateOffer ? async (_key, fetcher) => fetcher() : sharedWithCacheSWR;
     const url = req.originalUrl.replace(base, '/') || '/';
 
     const homeCollectionFilters = new Set(['new', 'featured', 'sale']);
@@ -139,11 +148,6 @@ async function createServer() {
 
         // Параллельно: auth (только с сессией), счётчики, регион — без лишней последовательной задержки
         const parallelTasks: Promise<unknown>[] = [
-          withCacheSWR(
-            createCacheKey('/regions/detect', { ip: req.ip }),
-            () => ssrApi.regions.detect(),
-            { ttl: 300 },
-          ),
           withCache(
             createCacheKey('/cart/count', undefined, userId === 'authenticated' ? 1 : undefined),
             () => ssrApi.cart.count(),
@@ -176,12 +180,6 @@ async function createServer() {
             () => ssrApi.rooms.tree(),
             { ttl: 300 },
           ),
-          // Список городов для селектора региона в шапке. Кэш общий для всех.
-          withCacheSWR(
-            createCacheKey('/regions', undefined, undefined),
-            () => ssrApi.regions.list(),
-            { ttl: 300 },
-          ),
         ];
 
         if (hasAuthSession) {
@@ -210,13 +208,13 @@ async function createServer() {
           ssrContext.authChecked = true;
         }
 
-        const regionResponse = parallelResults[resultOffset++];
+
         const cartCountResponse = parallelResults[resultOffset++];
         const wishlistCountResponse = parallelResults[resultOffset++];
         const compareCountResponse = parallelResults[resultOffset++];
         const categoryTreeResponse = parallelResults[resultOffset++];
         const roomTreeResponse = parallelResults[resultOffset++];
-        const regionsListResponse = parallelResults[resultOffset++];
+
 
         if (categoryTreeResponse.status === 'fulfilled') {
           const tree = (categoryTreeResponse.value as { tree?: unknown[] })?.tree;
@@ -228,17 +226,7 @@ async function createServer() {
           if (tree?.length) ssrContext.roomTree = tree;
         }
 
-        if (regionsListResponse.status === 'fulfilled') {
-          const data = (regionsListResponse.value as { data?: unknown[] })?.data;
-          if (data?.length) ssrContext.regionsList = data;
-        }
 
-        if (
-          regionResponse.status === 'fulfilled' &&
-          (regionResponse.value as { region?: unknown })?.region
-        ) {
-          ssrContext.region = (regionResponse.value as { region: SSRContext['region'] }).region;
-        }
 
         const counters = {
           cartCount:

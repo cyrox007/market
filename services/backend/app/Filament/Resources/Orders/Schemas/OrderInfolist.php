@@ -27,6 +27,8 @@ class OrderInfolist
                             ->formatStateUsing(fn ($state) => match ($state) {
                                 'new' => 'Новый',
                                 'awaiting_payment' => 'Ожидание оплаты',
+                                'manager_processing' => 'В обработке у менеджера',
+                                'assembling' => 'Собирается',
                                 'accepted' => 'Принят',
                                 'assembled' => 'Собран',
                                 'shipped' => 'Отправлен',
@@ -367,6 +369,8 @@ class OrderInfolist
                             ->formatStateUsing(fn ($state) => match ($state) {
                                 'new' => 'Новый',
                                 'awaiting_payment' => 'Ожидание оплаты',
+                                'manager_processing' => 'В обработке у менеджера',
+                                'assembling' => 'Собирается',
                                 'accepted' => 'Принят',
                                 'assembled' => 'Собран',
                                 'shipped' => 'Отправлен',
@@ -401,6 +405,8 @@ class OrderInfolist
                                     ->badge()
                                     ->formatStateUsing(fn($state) => match ($state) {
                                         'new' => 'Новый',
+                                        'manager_processing' => 'В обработке у менеджера',
+                                        'assembling' => 'Собирается',
                                         'accepted' => 'Принят',
                                         'assembled' => 'Собран',
                                         'shipped' => 'Отправлен',
