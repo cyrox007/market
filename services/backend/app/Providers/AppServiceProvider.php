@@ -98,6 +98,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         ProductWarehouseStock::observe(ProductWarehouseStockObserver::class);
+        \Vanilo\Payment\Models\PaymentProxy::modelClass()::observe(\App\Observers\PaidPaymentIdentityObserver::class);
 
         // Р-4: лимиты частоты на чувствительных эндпоинтах (login — по IP и email).
         RateLimiter::for('auth-strict', fn (Request $r) => Limit::perMinute(10)->by($r->ip() . '|' . mb_strtolower(trim((string) $r->input('email')))));

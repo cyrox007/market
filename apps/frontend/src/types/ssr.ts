@@ -13,6 +13,7 @@ export interface SeoMetaSSR {
 }
 
 export interface SSRContext {
+  privateOfferContext?: string | null;
   /** SEO текущей страницы (для подстановки в head при SSR) */
   seo?: SeoMetaSSR | null;
   user?: any;

@@ -28,8 +28,12 @@ class RoomController extends Controller
         return CategoryResource::collection($rooms);
     }
 
-    public function tree(): JsonResponse
+    public function tree(\Illuminate\Http\Request $request): JsonResponse
     {
+        $request->validate(['view' => 'sometimes|in:full,menu']);
+        if ($request->query('view') === 'menu') {
+            return response()->json(['tree' => app(\App\Services\Product\MenuTree::class)->build(Room::class)]);
+        }
         $tree = Room::cached('tree', function () {
             return Room::active()
                 ->root()

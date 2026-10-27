@@ -54,12 +54,18 @@ class WarehouseOrderStock
             foreach (collect($quote['items'])->sortBy('product_id') as $item) {
                 $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
                     ->where('product_id', $item['product_id'])->lockForUpdate()->first();
-                if (! $stock || $stock->quantity < $item['quantity']) {
+                if (! $stock || app(\App\Services\Inventory\CartStockReservations::class)->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity) < $item['quantity']) {
                     throw ValidationException::withMessages(['cart' => 'Остатки выбранного склада изменились. Пересчитайте доставку.']);
                 }
-                $stock->decrement('quantity', $item['quantity']);
+                if ($order->cooling_until) {
+                    $stock->increment('reserved_quantity', $item['quantity']);
+                    $quote['reservation_version'] = 2;
+                } else {
+                    $stock->decrement('quantity', $item['quantity']);
+                }
+                app(\App\Services\Inventory\CartStockReservations::class)->release((int) $item['product_id']);
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
-                if ($product->stock !== null) {
+                if (! $order->cooling_until && $product->stock !== null) {
                     $quote['global_stock_deltas'][$item['product_id']] = min(max(0, (float) $product->stock), $item['quantity']);
                     $product->update(['stock' => max(0, (float) $product->stock - $item['quantity'])]);
                 }
@@ -81,9 +87,13 @@ class WarehouseOrderStock
                 foreach (collect($quote['items'])->sortBy('product_id') as $item) {
                     $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
                         ->where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
-                    $stock->increment('quantity', $item['quantity']);
+                    if (($quote['reservation_version'] ?? 1) === 2) {
+                        $stock->decrement('reserved_quantity', $item['quantity']);
+                    } else {
+                        $stock->increment('quantity', $item['quantity']);
+                    }
                     $product = Product::lockForUpdate()->findOrFail($item['product_id']);
-                    if ($product->stock !== null) {
+                    if (($quote['reservation_version'] ?? 1) === 1 && $product->stock !== null) {
                         $product->increment('stock', $quote['global_stock_deltas'][$item['product_id']] ?? 0);
                     }
                 }
@@ -92,6 +102,25 @@ class WarehouseOrderStock
             $locked->update(['fulfillment_snapshot' => $quote]);
 
             return [['success' => true, 'warehouse_id' => $quote['warehouse_id']]];
+        });
+    }
+
+    public function consume(Order $order): void
+    {
+        DB::transaction(function () use ($order): void {
+            $locked = Order::lockForUpdate()->findOrFail($order->id);
+            $quote = $locked->fulfillment_snapshot;
+            if (($quote['stock_state'] ?? null) !== 'reserved' || ($quote['reservation_version'] ?? 1) !== 2) { return; }
+            foreach (collect($quote['items'])->sortBy('product_id') as $item) {
+                $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])->where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
+                if ($stock->quantity < $item['quantity'] || $stock->reserved_quantity < $item['quantity']) {
+                    throw ValidationException::withMessages(['stock' => 'Остаток/резерв изменился. Требуется сверка склада.']);
+                }
+                $stock->decrement('quantity', $item['quantity']);
+                $stock->decrement('reserved_quantity', $item['quantity']);
+            }
+            $quote['stock_state'] = 'consumed';
+            $locked->update(['fulfillment_snapshot' => $quote]);
         });
     }
 }

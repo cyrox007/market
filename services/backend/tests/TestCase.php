@@ -17,6 +17,12 @@ abstract class TestCase extends BaseTestCase
      */
     public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)
     {
+        // Existing checkout fixtures follow the new required idempotency contract.
+        // Explicit keys supplied by regression tests are never replaced.
+        if (strtoupper($method) === 'POST' && rtrim(parse_url($uri, PHP_URL_PATH), '/') === '/api/v1/orders'
+            && ! isset($server['HTTP_IDEMPOTENCY_KEY'])) {
+            $server['HTTP_IDEMPOTENCY_KEY'] = (string) \Illuminate\Support\Str::uuid();
+        }
         $response = parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
 
         Auth::forgetGuards();

@@ -1,4 +1,6 @@
 import type { DimensionKey } from './catalog-query';
+import { checkoutIdempotencyKey } from './checkout-idempotency';
+import { guestOrderHeaders, saveGuestOrderToken } from './guest-order-access';
 import { retryWithoutDirectory, toProductListSearch } from './product-list-search';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -14,6 +16,8 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(typeof window !== 'undefined' && /^\d+$/.test(new URLSearchParams(window.location.search).get('offer') || '')
+        ? { 'X-Private-Price-Context': new URLSearchParams(window.location.search).get('offer')! } : {}),
       ...options?.headers,
     },
     credentials: 'include', // Для поддержки Sanctum cookie-based auth
@@ -82,8 +86,13 @@ export interface DirectoryRegion { externalId: string; name: string; label: stri
 export const api = {
   /** Справочник адресов: регион, затем пункт внутри него (бэкендер, 21.10) */
   addressDirectory: {
+    options: (level: 'localities' | 'streets' | 'buildings', parentExternalId: string | null, q: string, signal?: AbortSignal) => {
+      const query = new URLSearchParams({ q, limit: '50' });
+      if (parentExternalId) query.set('parentExternalId', parentExternalId);
+      return fetchAPI<{ data: Array<{ externalId: string; label: string; name: string }> }>(`/address-directory/${level}?${query}`, { signal });
+    },
     regions: (signal?: AbortSignal) =>
-      fetchAPI<{ data: DirectoryRegion[] }>('/address-directory/regions', { signal }),
+      fetchAPI<{ data: DirectoryRegion[] }>('/localities/regions', { signal }),
     localities: (
       params: { parentExternalId: string; q?: string; limit?: number },
       signal?: AbortSignal,
@@ -102,63 +111,8 @@ export const api = {
     get: (id: string) => fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(`/localities/${encodeURIComponent(id)}`),
   },
   shipping: {
-    getLocations: (params?: { type?: string; parent_id?: number; search?: string }) => {
-      const query = new URLSearchParams();
-      if (params?.type) query.append('type', params.type);
-      if (params?.parent_id) query.append('parent_id', params.parent_id.toString());
-      if (params?.search) query.append('search', params.search);
-      return fetchAPI(`/shipping/locations?${query.toString()}`);
-    },
-    getLocationTree: (params?: { parent_id?: number; max_depth?: number }) => {
-      const query = new URLSearchParams();
-      if (params?.parent_id) query.append('parent_id', params.parent_id.toString());
-      if (params?.max_depth) query.append('max_depth', params.max_depth.toString());
-      return fetchAPI(`/shipping/locations/tree?${query.toString()}`);
-    },
-    getLocationInfo: (locationId: number) => fetchAPI(`/shipping/locations/${locationId}`),
-    getDeliveryHandlingTypes: (params?: { location_id?: number }) => {
-      const query = new URLSearchParams();
-      if (params?.location_id) query.append('location_id', params.location_id.toString());
-      return fetchAPI(`/shipping/delivery-handling-types?${query.toString()}`);
-    },
-    calculateShipping: (data: {
-      location_id: number;
-      order_amount?: number;
-      delivery_handling_type_id?: number;
-      floor?: number;
-      order_weight?: number;
-      order_volume?: number;
-      requires_assembly?: boolean;
-    }) =>
-      fetchAPI('/shipping/calculate', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    getCarriers: () => fetchAPI('/shipping/carriers'),
-    getShippingMethods: (params: { location_id: number; order_amount?: number }) => {
-      const query = new URLSearchParams();
-      query.append('location_id', params.location_id.toString());
-      if (params.order_amount) query.append('order_amount', params.order_amount.toString());
-      return fetchAPI(`/shipping/shipping-methods?${query.toString()}`);
-    },
-    calculateShippingMethod: (data: {
-      shipping_method_id: number;
-      location_id: number;
-      order_amount?: number;
-      delivery_handling_type_id?: number;
-      floor?: number;
-    }) =>
-      fetchAPI('/shipping/shipping-methods/calculate', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    getAdditionalServices: (params: { location_id: number }) => {
-      const query = new URLSearchParams();
-      query.append('location_id', params.location_id.toString());
-      return fetchAPI<{ data: AdditionalService[] }>(
-        `/shipping/additional-services?${query.toString()}`,
-      );
-    },
+    quote: (data: unknown) => fetchAPI<WarehouseQuote>('/shipping/quote', { method: 'POST', body: JSON.stringify(data) }),
+    pickupOptions: (items: Array<{ product_id: number; quantity: number }>) => fetchAPI<{ pickup: PickupOption[] }>('/shipping/pickup-options', { method: 'POST', body: JSON.stringify({ items }) }),
   },
   cart: {
     get: (params?: { region_id?: number }) => {
@@ -199,13 +153,19 @@ export const api = {
     count: () => fetchAPI<{ count: number }>('/cart/count'),
   },
   orders: {
+    prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
-    get: (id: number) => fetchAPI<{ order: Order }>(`/orders/${id}`),
-    create: (data: any) =>
-      fetchAPI('/orders', {
+    get: (id: number) => fetchAPI<{ order: Order }>(`/order-access/${id}`, { headers: guestOrderHeaders(id) }),
+    create: async (data: any) => {
+      const body = JSON.stringify(data);
+      const response = await fetchAPI<{ order?: Order; guest_order_token?: string }>('/orders', {
         method: 'POST',
-        body: JSON.stringify(data),
-      }),
+        headers: { 'Idempotency-Key': await checkoutIdempotencyKey(body) },
+        body,
+      });
+      if (response.order && response.guest_order_token) saveGuestOrderToken(response.order.id, response.guest_order_token);
+      return response;
+    },
     getPaymentConfig: (id: number) =>
       fetchAPI<{
         amount: number;
@@ -215,12 +175,16 @@ export const api = {
         gateway_client_config:
           | { publicId: string; url: string; useSdk?: boolean }
           | { payformUrl: string; useEcomApi: true };
-      }>(`/orders/${id}/payment-config`),
+      }>(`/orders/${id}/payment-config`, { headers: guestOrderHeaders(id) }),
     cancel: (id: number, data?: { comment?: string }) =>
-      fetchAPI<{ order: Order; message: string }>(`/orders/${id}/cancel`, {
+      fetchAPI<{ order: Order; message: string }>(`/order-access/${id}/cancel`, {
         method: 'POST',
-        body: data ? JSON.stringify(data) : undefined,
+        headers: guestOrderHeaders(id),
+        body: data ? JSON.stringify({ reason: data.comment }) : undefined,
       }),
+    requestCancellation: (id: number, reason: string) => fetchAPI(`/order-access/${id}/cancellation-request`, {
+      method: 'POST', headers: guestOrderHeaders(id), body: JSON.stringify({ reason }),
+    }),
     repeat: (id: number) =>
       fetchAPI<{
         message: string;
@@ -413,18 +377,6 @@ export const api = {
     },
     get: (slug: string) => fetchAPI<{ store: Store }>(`/stores/${slug}`),
     cities: () => fetchAPI<{ cities: string[] }>('/stores/cities'),
-  },
-  regions: {
-    list: () => fetchAPI<{ data: ShippingLocation[] }>('/regions'),
-    tree: () => fetchAPI<{ data: ShippingLocationTree[] }>('/regions/tree'),
-    detect: (params?: { city?: string }) => {
-      const query = new URLSearchParams();
-      if (params?.city) query.append('city', params.city);
-      // IP определяется автоматически на бэкенде из запроса
-      return fetchAPI<{ region: ShippingLocation | null; source: string }>(
-        `/regions/detect?${query.toString()}`,
-      );
-    },
   },
   wishlist: {
     list: () => fetchAPI<{ data: WishlistItem[] }>('/wishlist'),
@@ -628,7 +580,12 @@ export interface Category {
   popular_title?: string | null;
 }
 
-export interface Product {
+export interface WarehouseStockInfo {
+  nearest_stock?: number | null;
+  nearest_warehouse_name?: string | null;
+  stocks?: Array<{ warehouse_id: number; warehouse_name: string; quantity: number }>;
+}
+export interface Product extends WarehouseStockInfo {
   is_visible_in_region?: boolean;
   id: number;
   name: string;
@@ -688,7 +645,7 @@ export interface SelectedVariationItem {
   value_name?: string | null;
 }
 
-export interface ProductVariant {
+export interface ProductVariant extends WarehouseStockInfo {
   id: number;
   sku: string;
   price: number;
@@ -898,6 +855,7 @@ export interface Store {
 }
 
 export interface CartItem {
+  price_source?: 'private_link' | 'catalog';
   id: number;
   product_id: number;
   name: string;
@@ -1007,6 +965,10 @@ export interface InteriorIdeaHotspot {
     full_path: string | null;
     is_variable?: boolean;
     is_variant?: boolean;
+    in_stock?: boolean;
+    first_available_variant_id?: number | null;
+    thumbnail?: string | null;
+    sku?: string;
   } | null;
 }
 
@@ -1034,6 +996,7 @@ export interface NotificationSettings {
 }
 
 export interface Order {
+  fulfillment?: { warehouse_id?: number; store_id?: number | null; name?: string; warehouse_name?: string; address?: string | null; address_directory?: { label?: string | null } | null } | null;
   id: number;
   number: string;
   status: string;
@@ -1062,10 +1025,28 @@ export interface Order {
   status_history?: OrderStatusHistory[];
   created_at: string;
   can_be_cancelled: boolean;
+  can_pay?: boolean;
+  cooling_until?: string | null;
+  server_time?: string;
+  payment_status?: 'paid' | 'unpaid';
+  can_request_cancellation?: boolean;
+  cancellation_request?: { status: string; reason: string } | null;
+  refund_task?: { status: string; amount: number } | null;
   payment_deadline_at?: string | null;
   payment_seconds_left?: number | null;
   cancelled_due_to_unpaid_timeout?: boolean;
 }
+
+export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null }
+export interface WarehouseOption {
+  warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
+  total_fulfillment_cost: number; service_options: {
+    assembly: { available: boolean; required: boolean; price: number | null };
+    handling: Array<{ id: number; name: string; requires_floor: boolean; max_floor?: number }>;
+    additional: Array<{ id: number; name: string; price: number }>;
+  };
+}
+export interface WarehouseQuote { available: boolean; subtotal: number; selected: WarehouseOption | null; options: WarehouseOption[] }
 
 export interface OrderItem {
   id: number;
@@ -1158,6 +1139,7 @@ export interface PaymentMethod {
 }
 
 export interface Address {
+  directory_external_id?: string | null;
   id: number;
   title?: string | null;
   city?: string | null;
@@ -1177,6 +1159,7 @@ export interface Address {
 }
 
 export interface AddressData {
+  directory_external_id?: string;
   title?: string;
   address?: string;
   city?: string;

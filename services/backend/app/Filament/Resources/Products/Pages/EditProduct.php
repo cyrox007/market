@@ -217,6 +217,25 @@ class EditProduct extends EditRecord
         return $data;
     }
 
+    protected function handleRecordUpdate(\Illuminate\Database\Eloquent\Model $record, array $data): \Illuminate\Database\Eloquent\Model
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
+            $current = Product::lockForUpdate()->findOrFail($record->getKey());
+            if (array_key_exists('external_id', $data)) {
+                $value = trim((string) $data['external_id']);
+                if (filled($current->external_id) && $value !== (string) $current->external_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'data.external_id' => 'Код 1С уже заполнен. Обновите страницу: менять сохранённый код нельзя.',
+                    ]);
+                }
+                $data['external_id'] = $value === '' ? null : $value;
+            }
+            // Filament keeps the original record instance for afterSave/form state.
+            $record->setRawAttributes($current->getAttributes(), true);
+            return parent::handleRecordUpdate($record, $data);
+        });
+    }
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         $product = $this->record;

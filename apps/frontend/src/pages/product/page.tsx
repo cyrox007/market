@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import ReviewModal from '../../components/feature/ReviewModal';
 //import ProductLink from '../../components/ui/ProductLink';
@@ -99,12 +99,14 @@ export default function Product() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const ssrData = useSSR();
+  const [priceContextSearch] = useSearchParams();
+  const priceContext = priceContextSearch.get('offer');
 
   // Используем SSR данные если они есть
   const initialProduct = ssrData?.product?.product || null;
   const initialVariantInfo = ssrData?.product?.variant_info || null;
   const ssrRegion = ssrData?.region;
-  const hasSSRProduct = !!initialProduct;
+  const hasSSRProduct = !!initialProduct && (ssrData?.privateOfferContext || null) === priceContext;
 
   /** region_id, с которым был загружен текущий товар; нужен чтобы при восстановлении региона перезапросить цены */
   const lastFetchRegionIdRef = useRef<number | null | undefined>(
@@ -118,6 +120,14 @@ export default function Product() {
   const [product, setProduct] = useState<ProductDetail | null>(initialProductForState);
   // isLoading = false если есть SSR данные, иначе true
   const [isLoading, setIsLoading] = useState(!hasSSRProduct);
+  const previousPriceContext = useRef(priceContext);
+  useEffect(() => {
+    if (previousPriceContext.current !== priceContext) {
+      previousPriceContext.current = priceContext;
+      setProduct(null);
+      setIsLoading(true);
+    }
+  }, [priceContext]);
 
   // Выбранная комбинация атрибутов вариации: attribute_slug -> value_slug (опции берём из product.variation_attributes)
   const [selectedVariation, setSelectedVariation] = useState<Record<string, string>>({});
@@ -309,8 +319,8 @@ export default function Product() {
           related: ssrData?.product?.related,
         }
       : undefined;
-  const productKey =
-    slug && (locationReady || ssrProductPayload) ? getProductKey(slug, locationParams) : null;
+  const productKey = slug && (locationReady || ssrProductPayload)
+    ? `${getProductKey(slug, locationParams)}${priceContext ? `|offer:${priceContext}` : ''}` : null;
 
   const {
     data: productPayload,
@@ -322,7 +332,7 @@ export default function Product() {
     revalidateOnMount: !ssrProductPayload || Boolean(locationParams.directory_external_id),
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
-    keepPreviousData: true,
+    keepPreviousData: false,
   });
 
   const relatedProducts = useMemo(
@@ -513,9 +523,9 @@ export default function Product() {
     try {
       setIsAddingToCart(true);
       setAddToCartError(null);
-      const variationAttrs = getVariationAttributesForCart();
-      await addToCart(product.id, quantity, variationAttrs);
-      navigate('/cart');
+      const selectedSku = getSelectedVariant();
+      const offer = new URLSearchParams(window.location.search).get('offer');
+      navigate('/checkout?product_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity + (offer ? '&offer=' + encodeURIComponent(offer) : ''));
     } catch (err: any) {
       console.error('Failed to add to cart:', err);
       const msg =
@@ -1195,7 +1205,7 @@ export default function Product() {
                   {(() => {
                     const count = product?.reviews_count ?? 0;
                     const label = count === 1 ? 'отзыв' : count < 5 ? 'отзыва' : 'отзывов';
-                    <a
+                    return <a
                       href="#reviews"
                       onClick={(e) => {
                         e.preventDefault();

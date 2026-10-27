@@ -1,5 +1,8 @@
 <?php
 
+\Illuminate\Support\Facades\Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
+\Illuminate\Support\Facades\Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
+
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -15,6 +18,8 @@ if (config('cache_segments.warm_schedule', true)) {
 Schedule::command('orders:cancel-expired-unpaid')
     ->everyMinute()
     ->withoutOverlapping(10);
+
+Schedule::command('orders:advance-cooling')->everyMinute()->withoutOverlapping(5);
 
 // Старый минутный импорт каталога сохраняется как legacy.
 if (config('catalog_import.config.svetofor_1c.legacy_minute_sync_schedule_enabled', false)) {

@@ -126,6 +126,7 @@ class OrderController extends Controller
 
             $validated = $request->validate([
                 'contact_name' => 'required|string|max:255',
+                'expected_subtotal' => 'nullable|numeric|min:0',
                 'contact_phone' => ['required', new PhoneNumberRule],
                 'contact_email' => 'required|email|max:255',
                 'payment_method' => [
@@ -224,14 +225,20 @@ class OrderController extends Controller
 
             // Проверка остатков
             $subtotal = 0;
-            foreach (app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems) as $pricingLine) {
-                $pricingProduct = Product::findOrFail($pricingLine['product_id']);
-                $subtotal += $this->regionRuleService->getPriceForRegion($pricingProduct->parentProduct ?? $pricingProduct, $region, $pricingProduct->isVariant() ? $pricingProduct : null) * $pricingLine['quantity'];
+            $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($cartItems, $region);
+            foreach ($pricedItems as $pricingLine) {
+                $subtotal += $pricingLine['price'] * $pricingLine['quantity'];
+                if ($pricingLine['expired_offer'] && ! array_key_exists('expected_subtotal', $validated)) {
+                    return response()->json(['message' => 'Цена по ссылке больше недоступна. Подтвердите актуальную стоимость.', 'code' => 'price_changed'], 409);
+                }
+            }
+            if (isset($validated['expected_subtotal']) && abs((float) $validated['expected_subtotal'] - $subtotal) >= 0.005) {
+                return response()->json(['message' => 'Стоимость товаров изменилась. Обновите расчёт и подтвердите цену.', 'subtotal' => round($subtotal, 2)], 409);
             }
             if ($directoryDelivery) {
                 $quotes = app(\App\Services\Shipping\WarehouseDeliveryQuote::class);
                 try {
-                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, $validated);
+                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, ['_cart_subtotal' => $subtotal]));
                 } catch (\RuntimeException $error) {
                     report($error);
                     return response()->json(['message' => 'Не удалось проверить адрес и тариф доставки. Повторите позже.'], 503);
@@ -327,15 +334,19 @@ class OrderController extends Controller
 
             // Онлайн-оплата → ожидание оплаты; самовывоз/другие способы → сразу принят
             $isOnlinePayment = in_array((string) $paymentMethodModel->gateway, ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true);
-            $initialStatus = $isOnlinePayment ? OrderStatus::AWAITING_PAYMENT : OrderStatus::ACCEPTED;
+            $initialStatus = OrderStatus::MANAGER_PROCESSING;
 
             $gatewayClientConfig = null;
+            $guestToken = bin2hex(random_bytes(32));
 
             DB::beginTransaction();
             try {
                 $order = Order::create([
                     'user_id' => $user?->id,
                     'status' => $initialStatus->value,
+                    'cooling_until' => now()->addMinutes(60),
+                    'integration_state' => 'cooling',
+                    'guest_token_hash' => hash('sha256', $guestToken),
                     'subtotal' => 0, // Будет пересчитано ниже
                     'delivery_cost' => $finalDeliveryCost,
                     'assembly_cost' => $finalAssemblyCost,
@@ -375,16 +386,14 @@ class OrderController extends Controller
             }
 
             $calculatedSubtotal = 0;
-            foreach (app(\App\Services\Shipping\FulfillmentLines::class)->resolve(
-                app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems)
-            ) as $line) {
+            foreach ($pricedItems as $line) {
                 $product = Product::with('parentProduct')->findOrFail($line['product_id']);
-                $price = $this->regionRuleService->getPriceForRegion($product->parentProduct ?? $product, $region, $product->isVariant() ? $product : null);
+                $price = $line['price'];
                 $lineTotal = $price * $line['quantity'];
                 OrderItem::create([
                     'order_id' => $order->id, 'product_id' => $product->id,
                     'quantity' => $line['quantity'], 'price' => $price, 'total' => $lineTotal,
-                    'pricing_snapshot' => app(\App\Services\Pricing\PricingEngine::class)->explain($product, $region),
+                    'pricing_snapshot' => $line['pricing_snapshot'],
                 ]);
                 $calculatedSubtotal += $lineTotal;
             }
@@ -402,10 +411,11 @@ class OrderController extends Controller
             $order->subtotal = $calculatedSubtotal;
             $order->total = $calculatedSubtotal + $finalDeliveryCost + $finalAssemblyCost + $additionalServicesTotal;
             $order->save();
+            $order->sealCheckout();
 
             $order->statusHistory()->create([
                 'status' => $initialStatus->value,
-                'comment' => $initialStatus === OrderStatus::AWAITING_PAYMENT ? 'Заказ создан, ожидание оплаты' : 'Заказ создан, принят к исполнению',
+                'comment' => 'Заказ создан. Период охлаждения 60 минут.',
                 'user_id' => $user?->id,
             ]);
 
@@ -477,11 +487,12 @@ class OrderController extends Controller
                 Cart::clear();
             }
 
-            if (!$user) {
+            if (! Auth::guard('web')->check() && ! $request->user()) {
                 session(['last_created_order_id' => $order->id]);
             }
 
             $responseData = [
+                'guest_order_token' => $guestToken,
                 'order' => new OrderResource($order->load([
                     'items.product.taxons',
                     'address',
@@ -592,7 +603,7 @@ class OrderController extends Controller
      */
     public function paymentConfig(Request $request, $id): JsonResponse
     {
-        $user = \Illuminate\Support\Facades\Auth::user() ?? $request->user();
+        $user = Auth::guard('sanctum')->user() ?? Auth::user() ?? $request->user();
         $order = Order::find($id);
         if (!$order) {
             return response()->json(['message' => 'Заказ не найден'], 404);
@@ -606,10 +617,12 @@ class OrderController extends Controller
             }
         } else {
             $hasAccess = (int) session('last_created_order_id', 0) === (int) $order->id;
-            if ($hasAccess) {
-                session()->forget('last_created_order_id');
-            }
         }
+          $guestToken = $request->header('X-Order-Token', '');
+          if (! $hasAccess && is_string($guestToken) && strlen($guestToken) === 64 && $order->guest_token_hash
+              && $order->created_at->gt(now()->subDays(30))) {
+              $hasAccess = hash_equals($order->guest_token_hash, hash('sha256', $guestToken));
+          }
         if (!$hasAccess) {
             return response()->json(['message' => 'Доступ запрещен'], 403);
         }
@@ -621,6 +634,10 @@ class OrderController extends Controller
 
         if (!$payment) {
             return response()->json(['message' => 'Платёж не найден'], 404);
+        }
+
+        if (! $order->canPayOnline()) {
+            return response()->json(['message' => 'Этот заказ больше не ожидает онлайн-оплату.'], 422);
         }
 
         $gatewayClientConfig = $this->resolveGatewayClientConfigForOrder($order);
@@ -703,11 +720,15 @@ class OrderController extends Controller
             ], 422);
         }
 
-        $order->changeStatus(
-            OrderStatus::CANCELLED,
-            $request->input('comment', 'Заказ отменен пользователем'),
-            $request->user()?->id
-        );
+        $request->validate(['comment' => 'nullable|string|max:1000']);
+        DB::transaction(function () use ($order, $request): void {
+            $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
+            if (! $locked->canBeCancelled()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['order' => 'Статус заказа изменился. Обновите страницу.']);
+            }
+            $locked->changeStatus(OrderStatus::CANCELLED,
+                $request->input('comment') ?? 'Заказ отменен пользователем', $request->user()?->id);
+        });
 
         return response()->json([
             'order' => new OrderResource($order->fresh(['items.product', 'address', 'statusHistory'])),

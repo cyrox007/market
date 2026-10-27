@@ -48,4 +48,9 @@ describe('ssr-to-swr utilities', () => {
     expect(fallback['/api/products/new?region_id=2']).toBeTruthy();
     expect(fallback['/api/products/sale?region_id=2']).toBeTruthy();
   });
+  it('never hydrates a normal product cache key with the private offer price', () => {
+    const fallback = ssrToSwrFallback({ privateOfferContext: '7', product: { product: { slug: 'chair', price: 1000 } } });
+    expect(fallback['/api/products/chair|offer:7']).toBeTruthy();
+    expect(fallback['/api/products/chair']).toBeUndefined();
+  });
 });

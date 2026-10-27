@@ -24,6 +24,11 @@ class AutoCancelExpiredUnpaidOrderAction
                 return false;
             }
 
+            $minutes = max(1, (int) config('orders.unpaid_auto_cancel_minutes', 10));
+            if (! $freshOrder->created_at || now()->lt($freshOrder->created_at->copy()->addMinutes($minutes))) {
+                return false;
+            }
+
             if ($this->hasSuccessfulPayment($freshOrder)) {
                 return false;
             }
@@ -36,16 +41,9 @@ class AutoCancelExpiredUnpaidOrderAction
 
     private function hasSuccessfulPayment(Order $order): bool
     {
-        $lastPayment = $order->payments()->orderByDesc('id')->first();
-        if ($lastPayment === null) {
-            return false;
-        }
-
-        if ($lastPayment->getStatus()->equals(PaymentStatusProxy::PAID())) {
-            return true;
-        }
-
-        return (float) $lastPayment->getAmountPaid() > 0;
+        // A newer failed attempt must not hide an earlier successful payment.
+        return $order->payments()->get()->contains(fn ($payment): bool =>
+            $payment->getStatus()->equals(PaymentStatusProxy::PAID()) || (float) $payment->getAmountPaid() > 0);
     }
 
     private function buildTimeoutComment(): string

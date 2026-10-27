@@ -1,4 +1,4 @@
-import { OrderStatusHistory } from '../../lib/api';
+import type { OrderStatusHistory } from '../../lib/api';
 import { formatDateTime } from '../../utils/orderUtils';
 import { CircleCheck } from 'lucide-react';
 

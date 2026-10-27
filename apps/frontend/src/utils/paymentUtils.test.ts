@@ -35,7 +35,7 @@ describe('paymentUtils', () => {
   });
 
   it('preparePaymentTab calls window.open', () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const open = vi.spyOn(window, 'open').mockImplementation((() => null) as typeof window.open);
     preparePaymentTab();
     expect(open).toHaveBeenCalledWith('about:blank', 'mebelvdar_payment');
     open.mockRestore();

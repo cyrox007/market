@@ -6,7 +6,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import type { SSRContext } from '../src/types/ssr';
-import { withCache, withCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
+import { withCache as sharedWithCache, withCacheSWR as sharedWithCacheSWR, createCacheKey, ssrCache } from './ssr-cache';
 import {
   CATALOG_PER_PAGE,
   parseCatalogQuery,
@@ -86,6 +86,15 @@ async function createServer() {
 
   // Обработка всех маршрутов
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
+    // Never put session-specific private-offer prices into the shared SSR cache.
+    const privateOffer = /^\d+$/.test(new URL(req.originalUrl, 'http://ssr.local').searchParams.get('offer') || '');
+    if (privateOffer || /\/offer\//.test(req.path)) {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+    const withCache: typeof sharedWithCache = privateOffer ? async (_key, fetcher) => fetcher() : sharedWithCache;
+    const withCacheSWR: typeof sharedWithCacheSWR = privateOffer ? async (_key, fetcher) => fetcher() : sharedWithCacheSWR;
     const url = req.originalUrl.replace(base, '/') || '/';
 
     const homeCollectionFilters = new Set(['new', 'featured', 'sale']);
@@ -108,7 +117,7 @@ async function createServer() {
 
     try {
       // Создаем SSR контекст с данными пользователя и счетчиков
-      const ssrContext: SSRContext = {};
+      const ssrContext: SSRContext = { privateOfferContext: new URL(req.originalUrl, 'http://ssr.local').searchParams.get('offer') };
 
       try {
         // Загружаем API клиент для SSR
@@ -199,11 +208,13 @@ async function createServer() {
           ssrContext.authChecked = true;
         }
 
+
         const cartCountResponse = parallelResults[resultOffset++];
         const wishlistCountResponse = parallelResults[resultOffset++];
         const compareCountResponse = parallelResults[resultOffset++];
         const categoryTreeResponse = parallelResults[resultOffset++];
         const roomTreeResponse = parallelResults[resultOffset++];
+
 
         if (categoryTreeResponse.status === 'fulfilled') {
           const tree = (categoryTreeResponse.value as { tree?: unknown[] })?.tree;
@@ -215,9 +226,7 @@ async function createServer() {
           if (tree?.length) ssrContext.roomTree = tree;
         }
 
-        // Регион с сервера больше не определяется: /regions, /regions/tree и /regions/detect
-        // удалены на бэкенде (подтверждено 27.10, 404 на проде и локально). Пункт выбирает
-        // покупатель через адресный справочник, он лежит в localStorage и приезжает на клиенте.
+
 
         const counters = {
           cartCount:
@@ -293,7 +302,7 @@ async function createServer() {
         }
 
         // Страница товара /product/:slug — один запрос (товар + набор + сопутствующие)
-        const productMatch = url.match(/^\/product\/([^/]+)/);
+        const productMatch = url.match(/^\/product\/([^/?#]+)/);
         if (productMatch) {
           const productSlug = decodeURIComponent(productMatch[1]);
           try {

@@ -1,4 +1,4 @@
-import { ReactNode, MouseEvent } from 'react';
+import type { ReactNode, MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { usePrefetchProduct } from '../../hooks/usePrefetchProduct';
 

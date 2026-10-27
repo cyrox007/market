@@ -42,7 +42,8 @@ class UpdateCartItemQuantityAction
             }
 
             $previous = (int) $locked->quantity;
-            $limit = $this->policy->limit($product, $requested, 0, $stock);
+            $otherQuantity = (int) Cart::model()->items()->byProduct($product)->where('id', '!=', $locked->id)->sum('quantity');
+            $limit = $this->policy->limit($product, $requested, $otherQuantity, $stock);
             if ($limit->quantity <= 0) {
                 throw new CartProductUnavailableException($stock);
             }
@@ -54,9 +55,11 @@ class UpdateCartItemQuantityAction
                 $updatedInPlace = true;
             } else {
                 Cart::removeItem($locked);
-                $updated = Cart::addItem($product, $limit->quantity);
+                $updated = Cart::addItem($product, $limit->quantity, [], true);
             }
 
+            if (! $keepsProduct) { app(\App\Services\Inventory\CartStockReservations::class)->release((int) $locked->product_id); }
+            app(\App\Services\Inventory\CartStockReservations::class)->reserve($product, $otherQuantity + $limit->quantity);
             return new CartQuantityResult($updated, $requested, $limit->quantity, $previous, $stock, $limit->reason);
         });
 

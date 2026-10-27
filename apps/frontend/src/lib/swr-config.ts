@@ -1,4 +1,4 @@
-import { SWRConfiguration } from 'swr';
+import type { SWRConfiguration } from 'swr';
 import { swrFetcher } from './swr-fetcher';
 import { ssrToSwrFallback } from '../utils/ssr-to-swr';
 
@@ -32,7 +32,7 @@ export const swrConfig: SWRConfiguration = {
   revalidateOnFocus: false,
   revalidateOnReconnect: true,
   revalidateIfStale: true,
-  revalidateInterval: 60_000, // 1 мин — было 1.5 сек, из‑за этого страницы «подлагивали»
+  refreshInterval: 60_000, // Revalidate at most once a minute.
   dedupingInterval: 15_000, // 15 сек дедуп — не дергать один и тот же ключ при переходах
   focusThrottleInterval: 10_000,
   errorRetryCount: 2,

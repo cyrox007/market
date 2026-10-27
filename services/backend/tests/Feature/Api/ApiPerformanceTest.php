@@ -7,6 +7,22 @@ use Tests\TestCase;
 
 class ApiPerformanceTest extends TestCase
 {
+    public function test_metrics_storage_runs_after_the_response_not_in_the_request_path(): void
+    {
+        Config::set('api_metrics.enabled', true);
+        Config::set('api_metrics.store_enabled', true);
+        $collector = new class extends \App\Services\ApiMetrics\ApiMetricsCollector {
+            public bool $recorded = false;
+            public function record(string $routeKey, int $durationMs): void { $this->recorded = true; }
+        };
+        $request = \Illuminate\Http\Request::create('/api/v1/categories/tree');
+        $response = (new \App\Http\Middleware\MeasureApiTiming($collector))->handle($request, fn () => response()->json(['tree' => []]));
+        $this->assertFalse($collector->recorded);
+        $this->assertStringContainsString('route;dur=', $response->headers->get('Server-Timing'));
+        $this->app->terminate();
+        $this->assertTrue($collector->recorded);
+    }
+
     public function test_api_response_includes_x_response_time_header(): void
     {
         Config::set('api_metrics.enabled', true);
