@@ -22,7 +22,7 @@ import { useProductCartActions } from './hooks/useProductCartActions';
 import { useProductReviews } from './hooks/useProductReviews';
 import { useWriteReview } from './hooks/useWriteReview';
 import { useVariantSelection } from './hooks/useVariantSelection';
-import { getSpecificationsArray, hasMeaningfulProductText } from './lib/productText';
+import { getSpecificationsArray } from './lib/productText';
 
 interface Props {
   product: ProductDetail;
@@ -71,13 +71,11 @@ export default function ProductContent({ product, related, isRefreshing }: Props
     setImage(0);
   }
 
-  const description =
-    selectedVariant && hasMeaningfulProductText(selectedVariant.description)
-      ? selectedVariant.description
-      : product.description;
-  const variantSpecs = selectedVariant
-    ? getSpecificationsArray(selectedVariant.specifications)
-    : [];
+  // Наследование делает бэк: у предложения приходит своё описание, иначе родительское,
+  // и пустая разметка вроде `<p></p>` своим не считается (market-docs/61).
+  // Фолбэк на родителя остаётся страховкой на случай старого ответа в кэше.
+  const description = selectedVariant?.description ?? product.description;
+  const variantSpecs = getSpecificationsArray(selectedVariant?.specifications);
   const specifications =
     variantSpecs.length > 0
       ? variantSpecs

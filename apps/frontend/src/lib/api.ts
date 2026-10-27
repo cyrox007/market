@@ -774,6 +774,8 @@ export interface SelectedVariationItem {
 export interface ProductVariant {
   id: number;
   sku: string;
+  /** У предложения своя страница: каталог ведёт на неё (market-docs/catalog-individual-sku-api.md) */
+  slug?: string | null;
   price: number;
   old_price?: number | null;
   stock: number;
