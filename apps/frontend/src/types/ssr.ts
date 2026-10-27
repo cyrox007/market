@@ -30,13 +30,12 @@ export interface SSRContext {
     bundle?: { data: any[] };
     related?: { data: any[] };
   };
+  /** Регион покупателя. Сервер его не определяет: /regions/detect удалён на бэкенде (27.10) */
   region?: any;
   /** Дерево категорий для шапки — грузится на всех маршрутах */
   categoryTree?: Category[];
   /** Дерево комнат для шапки — грузится на всех маршрутах */
   roomTree?: Category[];
-  /** Список городов для селектора региона в шапке */
-  regionsList?: any[];
   // Главная страница
   home?: {
     categories?: any[];

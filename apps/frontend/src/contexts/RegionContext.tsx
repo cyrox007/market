@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-
 import type { ShippingLocation, CustomerLocality } from '@/lib/api';
 import type { ReactNode } from 'react';
 import { RegionContext, type RegionContextType } from './region-context';
@@ -26,11 +25,7 @@ function getStoredRegionData(): ShippingLocation | null {
   }
 }
 
-export function RegionProvider({
-  children,
-  initialRegion = null,
-
-}: RegionProviderProps) {
+export function RegionProvider({ children, initialRegion = null }: RegionProviderProps) {
   // Первый рендер = initialRegion с SSR, без localStorage (иначе hydration mismatch и белый экран).
   const [region, setRegion] = useState<ShippingLocation | null>(initialRegion ?? null);
   const [locality, setLocality] = useState<CustomerLocality | null>(null);
@@ -73,7 +68,6 @@ export function RegionProvider({
     }
   }, []);
 
-
   const selectRegion = useCallback(
     (selectedRegion: ShippingLocation | null) => {
       if (!selectedRegion) return;
@@ -90,7 +84,6 @@ export function RegionProvider({
     [saveRegion],
   );
 
-
   useEffect(() => {
     const storedRegion = getStoredRegionData();
     if (!localityRestored || locality) return;
@@ -103,7 +96,6 @@ export function RegionProvider({
         // ignore
       }
     }
-
   }, [region, locality, localityRestored]);
 
   const getRegionId = useCallback((): number | null => region?.id ?? null, [region]);
@@ -125,8 +117,7 @@ export function RegionProvider({
   }, [saveRegion]);
 
   const value: RegionContextType = {
-    locality, locationReady: localityRestored, selectLocality, region, selectRegion,
-    getRegionId,
+    locality, locationReady: localityRestored, selectLocality, region, selectRegion, getRegionId,
   };
   return <RegionContext.Provider value={value}>{children}</RegionContext.Provider>;
 }

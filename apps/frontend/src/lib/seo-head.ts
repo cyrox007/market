@@ -1,4 +1,5 @@
 import type { SeoMeta } from './api';
+import { canonicalForPage } from './canonical';
 
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -24,7 +25,10 @@ export function applySeoToHead(
   pageUrl: string,
 ): string {
   let head = template;
-  const canonical = seo?.canonical_url || pageUrl;
+  // У адреса раздела с бэкенда номера страницы нет — дописываем его сами (market-docs/44).
+  // Своего canonical нет — остаётся адрес страницы целиком, как решено в market-docs/55
+  const search = pageUrl.includes('?') ? pageUrl.slice(pageUrl.indexOf('?')) : '';
+  const canonical = canonicalForPage(seo?.canonical_url, search) || pageUrl;
   head = upsert(
     head,
     /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/,

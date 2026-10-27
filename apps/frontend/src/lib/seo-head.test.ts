@@ -62,6 +62,29 @@ describe('SEO в <head> серверной страницы', () => {
     expect(head).toContain('<link rel="canonical" href="https://svetofor.ru/catalog/divany">');
   });
 
+  it('вторая страница раздела — canonical на себя, фильтры в него не идут', () => {
+    const head = applySeoToHead(
+      template,
+      { ...seo, canonical_url: 'https://svetofor.ru/catalog/divany' },
+      'https://svetofor.ru/catalog/divany?colors=seryi&page=2',
+    );
+    expect(head).toContain(
+      '<link rel="canonical" href="https://svetofor.ru/catalog/divany?page=2">',
+    );
+    expect(head).toContain(
+      '<meta property="og:url" content="https://svetofor.ru/catalog/divany?page=2">',
+    );
+  });
+
+  it('первая страница — canonical раздела без номера', () => {
+    const head = applySeoToHead(
+      template,
+      { ...seo, canonical_url: 'https://svetofor.ru/catalog/divany' },
+      'https://svetofor.ru/catalog/divany?page=1',
+    );
+    expect(head).toContain('<link rel="canonical" href="https://svetofor.ru/catalog/divany">');
+  });
+
   it('SEO нет — заглушка canonical всё равно заменяется адресом', () => {
     const head = applySeoToHead(template, null, PAGE);
     expect(head).toContain('<title>Светофор Мебели - Modern Furniture Store</title>');
