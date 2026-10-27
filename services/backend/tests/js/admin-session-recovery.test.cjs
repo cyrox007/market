@@ -14,7 +14,7 @@ function memoryStorage() {
         key: n => [...map.keys()][n], get length() { return map.size; }, map };
 }
 const settle = async () => { for (let i = 0; i < 12; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
-function boot({ status = 200, userId = '1', storage = memoryStorage(), data = { name: 'Original' }, actions = [] } = {}) {
+function boot({ status = 200, userId = '1', storage = memoryStorage(), data = { name: 'Original' }, actions = [], diagnostics = false, xhr } = {}) {
     const events = {}, hooks = {}, notices = [], requests = [];
     const listeners = {};
     let tick, watch, state = structuredClone(data);
@@ -28,16 +28,16 @@ function boot({ status = 200, userId = '1', storage = memoryStorage(), data = { 
         querySelector: () => ({ content: 'old-token' }), querySelectorAll: () => [],
         createElement: element, body: { appendChild: node => notices.push(node) } };
     const win = { document: doc, sessionStorage: storage, crypto: webcrypto,
-        Headers, URL, Response, location: { href: 'https://shop.test/admin_sv/products/8/edit', origin: 'https://shop.test', pathname: '/admin_sv/products/8/edit' },
+        Headers, URL, Response, XMLHttpRequest: xhr, location: { href: 'https://shop.test/admin_sv/products/8/edit', origin: 'https://shop.test', pathname: '/admin_sv/products/8/edit' },
         setInterval: fn => { tick = fn; }, addEventListener: (name, fn) => { listeners[name] = fn; },
         queueMicrotask, open() {}, Livewire: { all: () => [component], hook: (name, fn) => { hooks[name] = fn; } },
         fetch: async (url, options) => {
             requests.push({ url, options });
-            if (url === '/admin_sv/session-status') return new Response(JSON.stringify({ user_id: userId, csrf_token: 'fresh-token' }), { status });
+            if (url === '/admin_sv/session-status') return new Response(JSON.stringify({ user_id: userId, csrf_token: 'fresh-token' }), { status: typeof status === 'function' ? status() : status });
             return new Response('{}', { status: 200 });
         },
     };
-    start(win, { userId: '1', draftKey: key, statusUrl: '/admin_sv/session-status', interval: 60000, loginUrl: '/admin_sv/login' });
+    start(win, { userId: '1', draftKey: key, statusUrl: '/admin_sv/session-status', interval: 60000, loginUrl: '/admin_sv/login', diagnosticsUrl: diagnostics ? '/admin_sv/operator-diagnostics' : null });
     return { win, doc, events, listeners, hooks, notices, requests, storage, tick: () => tick(),
         change: value => { state = value; watch(value); }, state: () => state };
 }
@@ -97,6 +97,45 @@ test('expired/revoked or changed-user session never submits the old form', async
 test('network/server errors are not reported as expiration', async () => {
     const app = boot({ status: 503 }); await app.tick();
     assert.equal(app.notices.length, 0);
+});
+
+test('diagnostics retain the failed preflight across refresh and deliver only technical fields after reconnection', async () => {
+    const storage = memoryStorage();
+    const app = boot({ status: 503, storage, diagnostics: true });
+    await assert.rejects(app.win.fetch('/livewire/update', { method: 'POST', headers: { 'X-Livewire': '' },
+        body: JSON.stringify({ components: [{ calls: [{ method: '_startUpload', params: ['private-photo.jpg'] }], updates: { description: 'private-text' } }] }) }));
+    const saved = storage.getItem('admin-diagnostics:v1:1');
+    assert.ok(saved.includes('heartbeat_http'));
+    assert.ok(!saved.includes('private-'));
+    assert.equal(app.requests[0].options.headers['X-Operator-Action'], 'upload');
+    const refreshed = boot({ storage, diagnostics: true });
+    await refreshed.tick(); await settle();
+    const report = refreshed.requests.find(request => request.url === '/admin_sv/operator-diagnostics');
+    assert.ok(report);
+    const body = JSON.parse(report.options.body);
+    assert.equal(body.events[0].status, 503);
+    assert.equal(body.events[0].event, 'heartbeat_http');
+    assert.equal(storage.getItem('admin-diagnostics:v1:1'), '[]');
+});
+
+test('diagnostics capture an upload rejected by the proxy without inspecting its body or signed URL', async () => {
+    class Xhr {
+        open(method, url) { this.nativeUrl = url; }
+        send(body) { this.nativeBody = body; this.status = 413; this.done?.(); }
+        addEventListener(event, fn) { if (event === 'loadend') this.done = fn; }
+        getResponseHeader() { return null; }
+    }
+    const app = boot({ diagnostics: true, xhr: Xhr });
+    const xhr = new app.win.XMLHttpRequest();
+    xhr.open('POST', '/livewire/upload-file?signature=private-signature');
+    xhr.send('private-file-content');
+    const saved = app.storage.getItem('admin-diagnostics:v1:1');
+    assert.equal(JSON.parse(saved)[0].status, 413);
+    assert.equal(JSON.parse(saved)[0].event, 'upload_http');
+    assert.ok(!saved.includes('private-'));
+    assert.equal(xhr.nativeBody, 'private-file-content');
+    await app.tick(); await settle();
+    assert.ok(app.requests.some(request => request.url === '/admin_sv/operator-diagnostics'));
 });
 
 test('an open offer editor warns before refresh even when the parent resource draft is durable', async () => {
