@@ -40,14 +40,6 @@ class QuickActionsWidget extends Widget
                 'icon' => Heroicon::OutlinedClipboardDocumentList,
                 'color' => 'primary',
             ];
-            if ($user->can('create orders')) {
-                $actions[] = [
-                    'label' => 'Создать заказ',
-                    'url' => OrderResource::getUrl('create'),
-                    'icon' => Heroicon::OutlinedPlusCircle,
-                    'color' => 'success',
-                ];
-            }
         }
 
         if ($user->can('viewAny products')) {
