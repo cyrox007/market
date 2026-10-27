@@ -35,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\MeasureApiTiming::class,
+            \App\Http\Middleware\PublicReferenceCache::class,
+            \App\Http\Middleware\ApiJsonEncoding::class,
         ]);
 
         // Create a custom middleware group for API routes that need sessions
