@@ -97,6 +97,12 @@
                 ['Войти в новой вкладке', () => win.open(config.loginUrl, '_blank', 'noopener')],
             ]);
         }
+        function connectionFailed() {
+            if (!connectionNotice) connectionNotice = notice('Не удалось связаться с сервером. Форма остаётся открытой. Изменения ещё не сохранены — после восстановления связи повторите загрузку фото или сохранение.', [
+                ['Проверить связь', session],
+                ['Закрыть', () => { connectionNotice?.remove(); connectionNotice = null; }],
+            ]);
+        }
         function updateToken(token) {
             const meta = doc.querySelector('meta[name="csrf-token"]'); if (meta) meta.content = token;
             doc.querySelectorAll('input[name="_token"]').forEach(input => { input.value = token; });
@@ -128,7 +134,12 @@
                 const url = new win.URL(typeof input === 'string' ? input : input.url, win.location.href);
                 if (url.origin === win.location.origin) {
                     const token = await session();
-                    if (!token) return new win.Response('{"message":"Подтвердите вход или проверьте соединение"}', { status: loginNotice ? 401 : 503, headers: { 'Content-Type': 'application/json' } });
+                    if (!token) {
+                        if (!loginNotice) connectionFailed();
+                        // Livewire handles rejected fetches without opening its HTML error modal.
+                        // A synthetic HTTP error depends on a request hook installed by the page.
+                        throw new Error('Operator session preflight failed; action was not sent');
+                    }
                     const body = JSON.parse(options.body); body._token = token;
                     options = { ...options, body: JSON.stringify(body) };
                 }
@@ -202,17 +213,22 @@
                 if (status === 419 || status === 401) { preventDefault(); session(); }
                 if (status === 503) {
                     preventDefault();
-                    if (!connectionNotice) connectionNotice = notice('Не удалось связаться с сервером. Форма остаётся открытой. Изменения ещё не сохранены — после восстановления связи нажмите «Сохранить» снова.', [
-                        ['Проверить связь', session],
-                        ['Закрыть', () => { connectionNotice?.remove(); connectionNotice = null; }],
-                    ]);
+                    if (!loginNotice) connectionFailed();
                 }
             }));
             doc.addEventListener('admin-form-saved', event => tracked.get(event.detail.componentId)?.saved());
         }
         if (win.Livewire) install(); else doc.addEventListener('livewire:init', install, { once: true });
         win.addEventListener('beforeunload', event => {
-            if ([...tracked.values()].some(entry => entry.unsafe())) { event.preventDefault(); event.returnValue = ''; }
+            const openEditor = win.Livewire?.all().some(component => {
+                // Action forms are not part of resource `data` drafts. Do not silently
+                // abandon them on refresh, or restore action names/arguments as a draft.
+                if (component.effects?.redirect) return false;
+                const actions = component.$wire?.$get('mountedActions');
+                return Array.isArray(actions) && actions.some(action =>
+                    /^(edit|create)$/i.test(action?.name || '') && action.data && Object.keys(action.data).length > 0);
+            });
+            if (openEditor || [...tracked.values()].some(entry => entry.unsafe())) { event.preventDefault(); event.returnValue = ''; }
         });
         doc.addEventListener('submit', event => {
             if (event.target?.action?.includes('/logout')) { store?.clear(); tracked.forEach(entry => entry.clear()); }
