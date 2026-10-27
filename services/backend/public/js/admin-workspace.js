@@ -77,6 +77,7 @@
         const originalFetch = win.fetch.bind(win);
         let probe = null;
         let loginNotice = null;
+        let connectionNotice = null;
         const tracked = new Map();
         let store = null;
         try { store = new DraftStore(win.sessionStorage, win.crypto, config.draftKey, config.userId); } catch (_) { /* beforeunload still protects edits */ }
@@ -114,6 +115,7 @@
                     if (typeof data.csrf_token !== 'string' || !data.csrf_token) return null;
                     updateToken(data.csrf_token);
                     loginNotice?.remove(); loginNotice = null;
+                    connectionNotice?.remove(); connectionNotice = null;
                     return data.csrf_token;
                 } catch (_) { return null; } finally { probe = null; }
             })();
@@ -198,6 +200,13 @@
             win.Livewire.all().forEach(component => track(component.$wire ? component : component.__instance));
             win.Livewire.hook('request', ({ fail }) => fail(({ status, preventDefault }) => {
                 if (status === 419 || status === 401) { preventDefault(); session(); }
+                if (status === 503) {
+                    preventDefault();
+                    if (!connectionNotice) connectionNotice = notice('Не удалось связаться с сервером. Форма остаётся открытой. Изменения ещё не сохранены — после восстановления связи нажмите «Сохранить» снова.', [
+                        ['Проверить связь', session],
+                        ['Закрыть', () => { connectionNotice?.remove(); connectionNotice = null; }],
+                    ]);
+                }
             }));
             doc.addEventListener('admin-form-saved', event => tracked.get(event.detail.componentId)?.saved());
         }
