@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({ products: { list: vi.fn() } }));
 vi.mock('../api', () => ({ api }));
 
 describe('предзагрузка первой страницы раздела', () => {
-  it('кладёт ответ в кэш и не перезапрашивает его у тех, кто уже ждёт тот же ключ', async () => {
+  it('делит запрос с тем, кто уже ждёт тот же ключ, и не перезапрашивает после', async () => {
     api.products.list.mockResolvedValue({ data: [{ id: 1, name: 'Товар', slug: 't', price: 1 }] });
     // Глобальный кэш SWR — тот же, куда пишет preloadCatalogPage; slug — только для этого теста
     const scope: CatalogScope = { scope: 'category', slug: 'preload-once' };
@@ -16,7 +16,7 @@ describe('предзагрузка первой страницы раздела'
     preloadCatalogPage(scope, parseCatalogQuery(''));
     await waitFor(() => expect(result.current.products).toHaveLength(1));
     await new Promise((r) => setTimeout(r, 50));
-    // Один запрос лендинга и один — предзагрузки; третьего (перепроверки после неё) нет
-    expect(api.products.list).toHaveBeenCalledTimes(2);
+    // Предзагрузка и лендинг стартуют почти одновременно — поход в API один (market-docs/62)
+    expect(api.products.list).toHaveBeenCalledTimes(1);
   });
 });

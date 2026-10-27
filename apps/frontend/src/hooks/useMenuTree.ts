@@ -5,6 +5,27 @@ import type { Category } from '../lib/api';
 const STORAGE_TTL = 24 * 60 * 60 * 1000;
 
 /**
+ * В хранилище — только то, чем живут меню и карусель разделов: подпись, адрес и картинка.
+ * Ответ `/categories/tree` весит 451 КБ, и 81 % из них — копия родителя в каждом ребёнке,
+ * SEO и региональные поля (замеры — market-docs/62). Их незачем держать и разбирать
+ * при каждом запуске.
+ */
+function slimTree(nodes: Category[]): Category[] {
+  return nodes.map(
+    (node) =>
+      ({
+        id: node.id,
+        name: node.name,
+        slug: node.slug,
+        image: node.image ?? null,
+        image_thumb: node.image_thumb ?? null,
+        image_hd: node.image_hd ?? null,
+        children: slimTree(node.children ?? []),
+      }) as unknown as Category,
+  );
+}
+
+/**
  * Дерево для шапки (категории или комнаты) — один запрос на всё приложение.
  * Источники по убыванию скорости: localStorage → запрос к API.
  */
@@ -38,7 +59,10 @@ export function useMenuTree(
   useEffect(() => {
     if (data?.tree?.length) {
       try {
-        localStorage.setItem(storageKey, JSON.stringify({ savedAt: Date.now(), tree: data.tree }));
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({ savedAt: Date.now(), tree: slimTree(data.tree) }),
+        );
       } catch {
         // переполненное хранилище — игнорируем
       }
