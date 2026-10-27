@@ -10,6 +10,8 @@ class EditStore extends EditRecord
 {
     protected static string $resource = StoreResource::class;
 
+    protected ?bool $hasDatabaseTransactions = true;
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         $data['store_stock_mode'] = empty($data['warehouse_id']) ? 'showroom' : 'warehouse';
@@ -19,7 +21,15 @@ class EditStore extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        return app(\App\Services\Address\PhysicalSiteSetup::class)->store($data, $this->getRecord());
+        try {
+            return app(\App\Services\Address\PhysicalSiteSetup::class)->store($data, $this->getRecord());
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            \Filament\Notifications\Notification::make()->danger()->title('Магазин не сохранён')
+                ->body(implode(' ', \Illuminate\Support\Arr::flatten($exception->errors())))->send();
+            throw \Illuminate\Validation\ValidationException::withMessages(
+                collect($exception->errors())->mapWithKeys(fn ($messages, $field) => ['data.'.$field => $messages])->all(),
+            );
+        }
     }
 
     protected function getHeaderActions(): array
