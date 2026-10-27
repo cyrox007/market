@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWRInfinite from 'swr/infinite';
 import {
-  api,
   type FiltersMeta,
   type ProductListParams,
   type ProductListResponse,
 } from '../../../lib/api';
+import { fetchCatalogPage } from '../../../lib/catalog-listing/fetchCatalogPage';
 import {
   filtersSignature,
   toApiParams,
@@ -39,7 +39,7 @@ export function useCatalogListing({
   scope,
   query,
   onQueryChange,
-  fetchPage = api.products.list,
+  fetchPage,
   initial,
   paused = false,
 }: CatalogListingOptions) {
@@ -72,9 +72,11 @@ export function useCatalogListing({
       (paused && !fromServer) || range.from + i > range.to
         ? null
         : pageKey(scope, { ...base, page: range.from + i }),
+    // Без своего fetchPage (тесты) — общий загрузчик: он делит запрос с предзагрузкой,
+    // у которой свой кэш SWR и которая иначе сходила бы за той же страницей второй раз
     async ([, pageSection, params]) => ({
       section: pageSection,
-      response: await fetchPage(params),
+      response: await (fetchPage ? fetchPage(params) : fetchCatalogPage(pageSection, params)),
     }),
     {
       fallbackData: fromServer?.map((response) => ({ section, response })),

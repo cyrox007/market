@@ -67,6 +67,7 @@ class WarehouseDeliveryQuote
             $amount += (float) ($price ?? $product->price) * $quantities[$product->id];
         }
         $options = [];
+        if (array_key_exists('_cart_subtotal', $selection)) { $amount = (float) $selection['_cart_subtotal']; }
         $warehouses = Warehouse::where('is_active', true)->with([
             'physicalSite', 'deliveryProfiles' => fn ($query) => $query->active()->orderBy('priority')->orderBy('id'),
             'productStocks' => fn ($query) => $query->whereIn('product_id', array_keys($quantities)),
@@ -74,6 +75,9 @@ class WarehouseDeliveryQuote
         ])->get();
         foreach ($warehouses as $warehouse) {
             $stocks = $warehouse->productStocks->keyBy('product_id');
+            foreach ($stocks as $stock) {
+                $stock->quantity = app(\App\Services\Inventory\CartStockReservations::class)->available($warehouse->id, $stock->product_id, (float) $stock->quantity);
+            }
             $availability = $warehouse->productAvailabilities->keyBy('product_id');
             $preparationMin = (int) $warehouse->processing_days_min;
             $preparationMax = (int) $warehouse->processing_days_max;

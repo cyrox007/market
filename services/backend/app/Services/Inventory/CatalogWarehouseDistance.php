@@ -37,10 +37,15 @@ class CatalogWarehouseDistance
         $skus = (clone $matchingSkus)->select('products.id', 'products.parent_product_id');
         $nearest = DB::query()->fromSub($skus, 'eligible_sku')
             ->join('product_warehouse_stocks as stock', 'stock.product_id', '=', 'eligible_sku.id')
-            ->where('stock.quantity', '>=', 1)->whereIn('stock.warehouse_id', array_keys($distances))
+            ->whereIn('stock.warehouse_id', array_keys($distances))
             ->selectRaw('eligible_sku.id AS root_id')
             ->selectRaw('MIN(CASE stock.warehouse_id '.$cases.' END) AS distance_km', $bindings)
             ->groupBy('eligible_sku.id');
+        $holds = DB::table('cart_stock_reservations as holds')->selectRaw('COALESCE(SUM(holds.quantity), 0)')
+            ->whereColumn('holds.product_id', 'stock.product_id')->whereColumn('holds.warehouse_id', 'stock.warehouse_id')
+            ->where('holds.expires_at', '>', now());
+        if ($owner = app(CartStockReservations::class)->owner()) { $holds->where('holds.owner_hash', '!=', $owner); }
+        $nearest->whereRaw('stock.quantity - stock.reserved_quantity - ('.$holds->toSql().') >= 1', $holds->getBindings());
         $roots->leftJoinSub($nearest, 'nearest_source', 'nearest_source.root_id', '=', 'products.id')
             ->select('products.*')->addSelect('nearest_source.distance_km as nearest_distance_km')
             ->orderByRaw('nearest_source.distance_km IS NULL')->orderBy('nearest_source.distance_km')->orderBy('products.id');

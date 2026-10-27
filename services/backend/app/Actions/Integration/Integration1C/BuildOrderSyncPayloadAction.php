@@ -31,16 +31,26 @@ class BuildOrderSyncPayloadAction
             'fullName' => (string) ($order->contact_name ?? ''),
             'address' => $this->formatAddress($order),
             'addressExternalId' => $order->fulfillment_snapshot['address_directory']['external_id']
-                ?? ($order->delivery_type === 'pickup' ? null : $order->address?->directory_external_id),
+                ?? ($order->delivery_type === 'pickup' ? null : ($order->checkout_snapshot !== null
+                    ? ($order->checkout_snapshot['address']['directory_external_id'] ?? null) : $order->address?->directory_external_id)),
             'addressDetails' => $order->fulfillment_snapshot['address_directory']['details'] ?? null,
+            ...app(\App\Services\Address\FulfillmentAddress::class)->integrationCodes($order->fulfillment_snapshot['address_directory'] ?? null),
+            'addressKladrHierarchy' => collect($order->fulfillment_snapshot['address_directory']['path'] ?? [])
+                ->filter(fn (array $node): bool => filled($node['kladrCode'] ?? null))
+                ->map(fn (array $node): array => ['kind' => $node['kind'], 'code' => (string) $node['kladrCode']])
+                ->values()->all(),
             'warehouseExternalId' => $order->fulfillment_snapshot['warehouse_external_id'] ?? null,
             'phone' => (string) ($order->contact_phone ?? ''),
             'email' => $this->emailNormalizer->normalize($order->contact_email, (int) $order->id),
             'pickFromStore' => (bool) ($order->delivery_type === 'pickup'),
             'delivery' => (string) ($order->delivery_type === 'pickup' ? 'Самовывоз' : 'Курьером'),
-            'deliveryCost' => round((float) ($order->delivery_cost ?? 0), 2),
+            'deliveryCost' => round(max(0, (float) ($order->delivery_cost ?? 0) - $this->resolveLiftCost($order)), 2),
             'lift' => $this->formatLiftDescription($order),
             'liftCost' => $this->resolveLiftCost($order),
+            'assemblyCost' => round((float) $order->assembly_cost, 2),
+            'additionalServicesCost' => round((float) ($order->fulfillment_snapshot['additional_services_cost'] ?? 0), 2),
+            'subtotal' => round((float) $order->subtotal, 2),
+            'total' => round((float) $order->total, 2),
             'payment' => $this->resolvePaymentLabel($order),
             'products' => $this->buildProducts($order),
             'status' => (string) $order->status,
@@ -82,16 +92,11 @@ class BuildOrderSyncPayloadAction
     }
 
     /**
-     * Стоимость подъёма отдельно от доставки в нашей модели не хранится — она включена в delivery_cost / assembly_cost.
-     * Передаём 0, если подъём не выделен; при необходимости позже можно разнести по правилам магазина.
+     * Warehouse quotes preserve lifting separately. Legacy orders have no breakdown.
      */
     private function resolveLiftCost(Order $order): float
     {
-        if ($this->formatLiftDescription($order) === '') {
-            return 0.0;
-        }
-
-        return 0.0;
+        return round((float) ($order->fulfillment_snapshot['handling_cost'] ?? 0), 2);
     }
 
     /**
@@ -115,6 +120,13 @@ class BuildOrderSyncPayloadAction
     {
         if (filled($order->address_snapshot)) {
             return (string) $order->address_snapshot;
+        }
+        if ($order->checkout_snapshot !== null) {
+            $saved = $order->checkout_snapshot['address'] ?? [];
+            return $saved['full_address'] ?? implode(', ', array_filter([
+                $saved['city'] ?? null, $saved['street'] ?? null, $saved['house'] ?? null,
+                filled($saved['apartment'] ?? null) ? 'кв. '.$saved['apartment'] : null,
+            ]));
         }
         if ($order->address === null) {
             return '';

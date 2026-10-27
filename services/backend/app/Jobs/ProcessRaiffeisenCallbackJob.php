@@ -180,6 +180,18 @@ class ProcessRaiffeisenCallbackJob implements ShouldQueue
      * Проводит платёж по проверенному callback и меняет статус заказа.
      */
     private function applyPaymentResult(
+        AbstractRaiffeisenGateway $gateway, mixed $payment, Order $order, array $payloadClean,
+        mixed $requestIp, GatewayLoggerInterface $gatewayLog, string $logId
+    ): void {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($gateway, $payment, $order, $payloadClean, $requestIp, $gatewayLog, $logId): void {
+            $locked = Order::lockForUpdate()->findOrFail($order->id);
+            $payment = $payment->newQuery()->lockForUpdate()->findOrFail($payment->id);
+            if ($payment->getStatus()->equals(\Vanilo\Payment\Models\PaymentStatusProxy::PAID())) { return; }
+            $this->applyPaymentResultLocked($gateway, $payment, $locked, $payloadClean, $requestIp, $gatewayLog, $logId);
+        });
+    }
+
+    private function applyPaymentResultLocked(
         AbstractRaiffeisenGateway $gateway,
         mixed $payment,
         Order $order,
@@ -214,6 +226,7 @@ class ProcessRaiffeisenCallbackJob implements ShouldQueue
         }
 
         $handler->fireEvents();
+        app(\App\Services\Order\OrderRefundTasks::class)->ensure($order->fresh());
 
         if (!$response->wasSuccessful()) {
             $gatewayLog->log($logId, 'callback_failed', 'Оплата не прошла: заказ ' . $order->number . ' — ' . ($response->getMessage() ?? 'отклонено'), [

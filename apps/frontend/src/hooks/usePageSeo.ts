@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import type { SeoMeta } from '../lib/api';
+import { canonicalForPage } from '../lib/canonical';
 import { applySeoMeta } from '../utils/seo';
 
 /**
@@ -14,7 +16,8 @@ export function usePageSeo(seo: SeoMeta | null | undefined): void {
   const title = seo?.title ?? null;
   const description = seo?.description ?? null;
   const image = seo?.image ?? null;
-  const canonicalUrl = seo?.canonical_url;
+  // Номер страницы — из адреса: бэкенд про пагинацию не знает (market-docs/44)
+  const canonicalUrl = canonicalForPage(seo?.canonical_url, useLocation().search);
   const robots = seo?.robots ?? null;
   const openGraphTitle = seo?.open_graph_title ?? null;
   const locale = seo?.locale ?? null;

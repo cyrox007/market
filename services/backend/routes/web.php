@@ -4,6 +4,11 @@ use App\Http\Controllers\Admin\OrderPrintController;
 use App\Http\Controllers\Api\ApiMetricsController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/offer/{token}', [\App\Http\Controllers\Api\PrivateOfferController::class, 'redirect'])->middleware('throttle:30,1');
+
+Route::post('/admin_sv/operator-diagnostics', \App\Http\Controllers\Admin\OperatorDiagnosticsController::class)
+    ->middleware(['auth:web', 'throttle:60,1'])->name('admin.operator-diagnostics');
+
 // Read-only heartbeat for an open operator workspace, including idle/background tabs.
 Route::get('/admin_sv/session-status', function (\Illuminate\Http\Request $request) {
     abort_unless($request->user('web')?->canAccessPanel(\Filament\Facades\Filament::getPanel('admin_sv')), 403);

@@ -15,6 +15,11 @@ class OrderGatewayLogsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'id';
 
+    public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
+    {
+        return (bool) auth()->user()?->hasRole('super_admin');
+    }
+
     public function table(Table $table): Table
     {
         return $table

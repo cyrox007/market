@@ -168,6 +168,10 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         $request = Request::create('/', 'POST', [], [], [], [], json_encode($trustedPayload));
         $request->headers->set('Content-Type', 'application/json');
 
+        \Illuminate\Support\Facades\DB::transaction(function () use ($gateway, $payment, $order, $request, $gatewayLog, $requestIp, $payloadClean): void {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+        $payment = $payment->newQuery()->lockForUpdate()->findOrFail($payment->id);
+        if ($payment->getStatus()->equals(\Vanilo\Payment\Models\PaymentStatusProxy::PAID())) { return; }
         $response = $gateway->processPaymentResponse($request, ['payment' => $payment]);
 
         $handler = new PaymentResponseHandler($payment, $response);
@@ -183,6 +187,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         }
 
         $handler->fireEvents();
+        app(\App\Services\Order\OrderRefundTasks::class)->ensure($order->fresh());
 
         if ($response->wasSuccessful()) {
             $gatewayLog->log(self::GATEWAY_ID, 'callback_success', 'Оплата получена: заказ ' . $order->number . ', сумма ' . (float) $payment->getAmount() . ' ₽', [
@@ -214,6 +219,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], $payment, 'payment', 'warning');
         }
+        });
     }
 
     private function resolveOrder(mixed $mdOrder, mixed $orderNumber): ?Order

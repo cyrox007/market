@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { api, type ProductListParams, type ProductListResponse } from '../../../lib/api';
+import { type ProductListParams, type ProductListResponse } from '../../../lib/api';
 import { parseCatalogQuery, toApiParams, type CatalogScope } from '../../../lib/catalog-query';
+import { fetchCatalogPage } from '../../../lib/catalog-listing/fetchCatalogPage';
 import { pageKey, sectionOf, type LoadedPage } from '../../../lib/catalog-listing/pageKey';
 import { normalizeListProduct } from '../../../utils/cartProduct';
 import { sameParams } from '../listing/sameParams';
@@ -23,7 +24,10 @@ export function useLandingProducts(
 
   const { data, isLoading } = useSWR<LoadedPage>(
     scope && params && (!paused || fromServer) ? pageKey(scope, params) : null,
-    async () => ({ section: sectionOf(scope!), response: await api.products.list(params!) }),
+    async () => ({
+      section: sectionOf(scope!),
+      response: await fetchCatalogPage(sectionOf(scope!), params!),
+    }),
     {
       fallbackData: fromServer
         ? { section: sectionOf(scope!), response: fromServer.response }

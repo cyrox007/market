@@ -68,7 +68,7 @@ class PricingEngine
         $customer = $this->customer();
 
         // Include currently eligible windows, not a coarse time bucket: starts/ends act immediately.
-        return sha1(json_encode([$customer?->id, $this->eligible($location, $customer)->pluck('updated_at', 'id'),
+        return sha1(json_encode([app(PrivateOfferAccess::class)->grants()->map(fn ($g) => [$g->id, $g->price, $g->updated_at]), $customer?->id, $this->eligible($location, $customer)->pluck('updated_at', 'id'),
             PricingRule::where('is_active', true)->get(['id', 'starts_at', 'ends_at'])->map(fn ($r) => [$r->id, $r->starts_at?->lte(now()), ! $r->ends_at || $r->ends_at->gt(now())]),
             Cache::get('fulfillment_revision', '0')]));
     }
@@ -119,13 +119,23 @@ class PricingEngine
             array_push($idBindings, ...array_merge($target->getBindings(), [$rule->id]));
         }
 
-        return $query->selectRaw($priceCases ? 'CASE '.implode(' ', $priceCases).' ELSE pricing_base.effective_price END AS effective_price' : 'pricing_base.effective_price AS effective_price', $priceBindings)
+        $priceSql = $priceCases ? 'CASE '.implode(' ', $priceCases).' ELSE pricing_base.effective_price END' : 'pricing_base.effective_price';
+        $grants = app(PrivateOfferAccess::class)->grants();
+        if ($grants->isNotEmpty()) {
+            $private = DB::table('private_price_links')->whereIn('id', $grants->pluck('id'))
+                ->whereColumn('product_id', 'products.id')->select('price')->limit(1);
+            $privateSql = $private->toSql();
+            $priceSql = 'CASE WHEN ('.$privateSql.') < ('.$priceSql.') THEN ('.$privateSql.') ELSE ('.$priceSql.') END';
+            $priceBindings = array_merge($private->getBindings(), $priceBindings, $private->getBindings(), $priceBindings);
+        }
+
+        return $query->selectRaw($priceSql.' AS effective_price', $priceBindings)
             ->selectRaw($idCases ? 'CASE '.implode(' ', $idCases).' ELSE NULL END AS pricing_rule_id' : 'NULL AS pricing_rule_id', $idBindings);
     }
 
     private function priceKey(?ShippingLocation $location): string
     {
-        return 'pricing:sku_prices:'.sha1(json_encode([$location?->id, $this->customer()?->id, Cache::get('fulfillment_revision', '0'), now()->format('Y-m-d H:i:s')]));
+        return 'pricing:sku_prices:'.sha1(json_encode([app(PrivateOfferAccess::class)->grants()->pluck('id'), $location?->id, $this->customer()?->id, Cache::get('fulfillment_revision', '0'), now()->format('Y-m-d H:i:s')]));
     }
 
     public function preload(array $skuIds, ?ShippingLocation $location): void
@@ -148,11 +158,12 @@ class PricingEngine
     {
         $this->preload([$sku->id], $location);
 
-        return request()->attributes->get($this->priceKey($location), [])[$sku->id] ?? (float) $sku->price;
+        return app(PrivateOfferAccess::class)->price($sku->id, request()->attributes->get($this->priceKey($location), [])[$sku->id] ?? (float) $sku->price);
     }
 
     public function oldPrice(Product $sku, ?ShippingLocation $location, float $price): ?float
     {
+        if (app(PrivateOfferAccess::class)->grants()->has($sku->id)) { return null; }
         $regional = app(\App\Services\Product\ProductRegionRuleService::class)->getLegacyPriceForRegion($sku->parentProduct ?? $sku, $location, $sku->isVariant() ? $sku : null);
         $reference = max((float) ($sku->original_price ?? 0), $regional);
 
@@ -167,8 +178,9 @@ class PricingEngine
         $regional = app(CatalogPrice::class)->rows($location, false)->where('products.id', $sku->id)->first()?->effective_price;
         $rule = isset($row->pricing_rule_id) ? (($candidate && $row->pricing_rule_id == ($candidate->id ?? 2147483647)) ? $candidate : PricingRule::find($row->pricing_rule_id)) : null;
 
-        return ['base_price' => (float) $sku->getRawOriginal('price'), 'regional_price' => (float) $regional,
-            'price' => (float) ($row->effective_price ?? $regional), 'currency' => 'RUB', 'rule_id' => $rule?->id,
+        return ['private_offer_id' => app(PrivateOfferAccess::class)->grants()->get($sku->id)?->id,
+            'base_price' => (float) $sku->getRawOriginal('price'), 'regional_price' => (float) $regional,
+            'price' => app(PrivateOfferAccess::class)->price($sku->id, (float) ($row->effective_price ?? $regional)), 'currency' => 'RUB', 'rule_id' => $rule?->id,
             'rule_name' => $rule?->name, 'rule' => $rule?->only(['id', 'name', 'adjustment_type', 'amount', 'priority', 'updated_at']),
             'calculated_at' => now()->toISOString(), 'combination' => 'highest_priority_only'];
     }

@@ -82,7 +82,8 @@ class WarehouseOnlyFulfillmentTest extends TestCase
         $this->assertSame(2000.0, (float) $order->total);
         $this->assertSame(1, $order->items()->count());
         $this->assertSame('reserved', $order->fulfillment_snapshot['stock_state']);
-        $this->assertSame(3.0, (float) $this->warehouse->productStocks()->first()->quantity);
+        $this->assertSame(5.0, (float) $this->warehouse->productStocks()->first()->quantity);
+        $this->assertSame(2.0, (float) $this->warehouse->productStocks()->first()->reserved_quantity);
         app(WarehouseOrderStock::class)->release($order);
         app(WarehouseOrderStock::class)->release($order);
         $this->assertSame(5.0, (float) $this->warehouse->productStocks()->first()->quantity);

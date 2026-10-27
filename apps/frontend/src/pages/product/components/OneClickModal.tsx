@@ -1,13 +1,15 @@
 import { useId, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import PhoneInput from '../../../components/ui/PhoneInput';
 import { Button, Checkbox, Input, Modal } from '../../../components/ui/primitives';
-import { FOOTER_CONTACTS } from '../../../components/layout/Footer/lib/links';
 import { cn } from '../../../lib/cn';
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** SKU к оформлению: выбранный вариант, иначе сам товар; null — вариант ещё не выбран */
+  productId: number | null;
+  quantity: number;
 }
 
 /** Телефон считается полным, когда набраны все цифры маски +7 (999) 999-99-99 */
@@ -18,19 +20,22 @@ type FieldError = 'name' | 'phone' | 'consent';
 /**
  * «Купить в один клик» (Figma 595:40888, макет `56-макеты-товара/one-click-modal.png`).
  *
- * Отправлять заявку некуда: `POST /orders/one-click` только считает цену и велит слать
- * `POST /orders`, а тому нужны почта и способ доставки, которых в окне нет (`44`, сверка 24.10).
- * Поэтому проверенная форма показывает сообщение и телефон, а введённое остаётся на месте —
- * когда приём заявок появится, меняется только `submit`.
+ * Отправляет не заявку, а ведёт в прямое оформление выбранного SKU, минуя корзину:
+ * `POST /orders/one-click` считает цену, заказ создаёт оформление (`POST /orders` с `items`,
+ * `accept_offer`, `accept_personal_data`) — market-docs/frontend-fulfillment-contract.md.
+ * Введённое в окне едет на страницу оформления, чтобы покупатель не набирал заново.
  */
-export default function OneClickModal({ open, onClose }: Props) {
+export default function OneClickModal({ open, onClose, productId, quantity }: Props) {
+  const navigate = useNavigate();
+  // Закрытая цена по ссылке живёт в ?offer: без него оформление посчитает обычную цену
+  const offerParam = useSearchParams()[0].get('offer');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [comment, setComment] = useState('');
   const [offer, setOffer] = useState(false);
   const [personal, setPersonal] = useState(false);
   const [errors, setErrors] = useState<FieldError[]>([]);
-  const [failed, setFailed] = useState(false);
+  const [noVariant, setNoVariant] = useState(false);
   const nameErrorId = useId();
   const phoneErrorId = useId();
   const nameRef = useRef<HTMLInputElement>(null);
@@ -47,9 +52,19 @@ export default function OneClickModal({ open, onClose }: Props) {
     if (!offer || !personal) found.push('consent');
 
     setErrors(found);
-    // Поля в порядке — отправлять некуда, показываем сообщение (см. комментарий выше)
-    setFailed(found.length === 0);
     if (found.includes('name')) nameRef.current?.focus();
+    if (found.length) return;
+
+    // У вариативного товара бэкенд требует конкретный вариант и сам его не подставит
+    setNoVariant(!productId);
+    if (!productId) return;
+
+    const search = new URLSearchParams({ product_id: String(productId), quantity: String(quantity) });
+    if (offerParam) search.set('offer', offerParam);
+    navigate(`/checkout?${search}`, {
+      state: { oneClick: { name: name.trim(), phone, comment: comment.trim() } },
+    });
+    onClose();
   };
 
   return (
@@ -151,25 +166,22 @@ export default function OneClickModal({ open, onClose }: Props) {
           {has('consent') && <p className="text-12 text-brand-red">Отметьте оба согласия</p>}
         </div>
 
-        {failed && (
+        {noVariant && (
           <p
             role="alert"
             className="rounded-btn bg-brand-red/10 px-4 py-3 text-14 text-brand-red animate-fadeIn motion-reduce:animate-none"
           >
-            Оформление в один клик пока не работает. Позвоните нам:{' '}
-            <a
-              href={`tel:${FOOTER_CONTACTS.phone.replace(/\D/g, '')}`}
-              className="font-semibold underline"
-            >
-              {FOOTER_CONTACTS.phone}
-            </a>{' '}
-            — или добавьте товар в корзину и оформите заказ обычным способом.
+            Сначала выберите вариант товара — цвет и размер.
           </p>
         )}
 
         <Button type="submit" size="lg" shape="rounded" fullWidth className="mt-1">
           Оформить заказ
         </Button>
+        <p className="text-12 text-ink-secondary">
+          Дальше — страница оформления: почта, доставка или самовывоз и оплата. Корзина не
+          изменится.
+        </p>
       </form>
     </Modal>
   );

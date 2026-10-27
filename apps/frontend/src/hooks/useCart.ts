@@ -178,6 +178,7 @@ export function useCart() {
           });
 
           await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
+          await syncCartFromServer();
 
           return result;
         } catch (err) {
@@ -196,7 +197,7 @@ export function useCart() {
           if (!item) return current;
           const delta = quantity - item.quantity;
           if (delta === 0) return current;
-          return patchCartQuantity(current ?? null, item.product_id, delta);
+          return current?.items.filter((i) => i.product_id === item.product_id).length === 1 ? patchCartQuantity(current ?? null, item.product_id, delta) : current;
         });
 
         try {
@@ -205,7 +206,7 @@ export function useCart() {
             quantity,
             region_id: rid ?? undefined,
           });
-          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
+          await syncCartFromServer();
           return result;
         } catch (err) {
           await syncCartFromServer();
@@ -229,7 +230,7 @@ export function useCart() {
             region_id: rid ?? undefined,
             ...(variationAttributes?.length ? { variation_attributes: variationAttributes } : {}),
           });
-          await applyCartToCache((current) => mergeCartItem(current ?? null, result.item));
+          await syncCartFromServer();
           return result;
         } catch (err) {
           await syncCartFromServer();
@@ -245,7 +246,7 @@ export function useCart() {
         await applyCartToCache((current) => {
           const item = current?.items?.find((i) => i.id === itemId);
           if (!item) return current;
-          return patchCartQuantity(current ?? null, item.product_id, -item.quantity);
+          return current?.items.filter((i) => i.product_id === item.product_id).length === 1 ? patchCartQuantity(current ?? null, item.product_id, -item.quantity) : current;
         });
 
         try {

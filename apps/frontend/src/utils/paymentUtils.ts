@@ -44,7 +44,8 @@ export function buildPaymentUrl(
     fail_url: string;
   },
 ): string {
-  if ('payformUrl' in gw && gw.payformUrl) {
+  if ('payformUrl' in gw) {
+    if (!gw.payformUrl) throw new Error('Банк не вернул адрес формы оплаты');
     return gw.payformUrl;
   }
 

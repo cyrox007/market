@@ -77,7 +77,7 @@ class ProductRegionRuleService
         $sku = $variant ?? $product;
         $engine = app(\App\Services\Pricing\PricingEngine::class);
         if ($engine->eligible($location, $engine->customer())->isEmpty()) {
-            return $this->getLegacyPriceForRegion($product, $location, $variant);
+            return app(\App\Services\Pricing\PrivateOfferAccess::class)->price($sku->id, $this->getLegacyPriceForRegion($product, $location, $variant));
         }
         return $engine->price($sku, $location);
     }

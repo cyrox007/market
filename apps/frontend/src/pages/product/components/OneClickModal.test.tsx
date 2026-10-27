@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OneClickModal from './OneClickModal';
 
@@ -16,6 +16,7 @@ vi.mock('../../../components/ui/PhoneInput', () => ({
 }));
 
 beforeEach(() => {
+  onClose.mockReset();
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
@@ -26,10 +27,22 @@ beforeEach(() => {
 
 const onClose = vi.fn();
 
-const setup = () =>
+/** Показывает, куда ушёл переход и что приехало в state */
+function CheckoutProbe() {
+  const { search, state } = useLocation();
+  return <p>{`checkout ${search} ${JSON.stringify((state as { oneClick?: unknown })?.oneClick ?? null)}`}</p>;
+}
+
+const setup = (url = '/product/divan', productId: number | null = 42, quantity = 1) =>
   render(
-    <MemoryRouter>
-      <OneClickModal open onClose={onClose} />
+    <MemoryRouter initialEntries={[url]}>
+      <Routes>
+        <Route
+          path="/product/:slug"
+          element={<OneClickModal open onClose={onClose} productId={productId} quantity={quantity} />}
+        />
+        <Route path="/checkout" element={<CheckoutProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -101,26 +114,35 @@ describe('окно «Купить в один клик»', () => {
     expect(screen.getByText('Отметьте оба согласия')).toBeInTheDocument();
   });
 
-  it('форма заполнена: приёма заявок нет — сообщение с телефоном, введённое остаётся', () => {
-    setup();
+  it('форма заполнена — переход в прямое оформление с SKU, количеством и введённым', () => {
+    setup('/product/divan', 42, 2);
     fillValid();
     fireEvent.change(screen.getByPlaceholderText('Комментарий к заказу'), {
       target: { value: 'Позвоните после 18' },
     });
     fireEvent.click(submit());
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Оформление в один клик пока не работает',
+    expect(screen.getByText(/^checkout/)).toHaveTextContent(
+      'checkout ?product_id=42&quantity=2 {"name":"Иванов Иван","phone":"+7 (912) 345-67-89","comment":"Позвоните после 18"}',
     );
-    expect(screen.getByRole('link', { name: '8 (800) 222-85-86' })).toHaveAttribute(
-      'href',
-      'tel:88002228586',
-    );
+    expect(onClose).toHaveBeenCalled();
+  });
 
-    expect(name()).toHaveValue('Иванов Иван');
-    expect(phone()).toHaveValue('+7 (912) 345-67-89');
-    expect(screen.getByPlaceholderText('Комментарий к заказу')).toHaveValue('Позвоните после 18');
-    expect(offer()).toBeChecked();
+  it('закрытая цена по ссылке едет в оформление параметром offer', () => {
+    setup('/product/divan?offer=7');
+    fillValid();
+    fireEvent.click(submit());
+
+    expect(screen.getByText(/^checkout/)).toHaveTextContent('?product_id=42&quantity=1&offer=7');
+  });
+
+  it('вариант не выбран — просим выбрать, перехода нет', () => {
+    setup('/product/divan', null);
+    fillValid();
+    fireEvent.click(submit());
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Сначала выберите вариант товара');
+    expect(screen.queryByText(/^checkout/)).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 

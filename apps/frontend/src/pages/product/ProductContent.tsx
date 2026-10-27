@@ -52,6 +52,11 @@ export default function ProductContent({ product, related, isRefreshing }: Props
   const [tab, setTab] = useState<ProductTabId>('description');
   // «Купить в 1 клик» открывается и когда товара нет в наличии (задача 13)
   const [oneClickOpen, setOneClickOpen] = useState(false);
+  // SKU для прямого оформления: у вариативного родителя без выбранного варианта его нет
+  const oneClickSku =
+    product.is_variable && !product.is_variant && !selectedVariant
+      ? null
+      : (selectedVariant?.id ?? product.id);
 
   // Фото варианта, если они есть; иначе — товара
   const images = selectedVariant?.images?.length
@@ -161,7 +166,12 @@ export default function ProductContent({ product, related, isRefreshing }: Props
 
         <ProductContacts contacts={contacts} />
 
-        <OneClickModal open={oneClickOpen} onClose={() => setOneClickOpen(false)} />
+        <OneClickModal
+          open={oneClickOpen}
+          onClose={() => setOneClickOpen(false)}
+          productId={oneClickSku}
+          quantity={Math.max(1, cart.quantity)}
+        />
 
         {auth.user && (
           <ReviewModal

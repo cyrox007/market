@@ -12,7 +12,7 @@ export function applySeoMeta(seo: SeoMeta | null | undefined): void {
   document.title = seo.title || SITE_NAME;
 
   // description
-  setMetaTag('name', 'description', seo.description);
+  setMetaTag('name', 'description', seo.description ?? undefined);
 
   // robots
   setMetaTag('name', 'robots', seo.robots ?? undefined);

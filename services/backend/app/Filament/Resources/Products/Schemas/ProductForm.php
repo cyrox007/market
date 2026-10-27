@@ -474,9 +474,11 @@ class ProductForm
                 TextInput::make('external_id')
                     ->label(__('filament/admin_sv/product_resource.external_id'))
                     ->maxLength(255)
-                    ->disabled()
-                    ->dehydrated(true)
-                    ->helperText('Внешний ID товара в 1С (только для чтения)'),
+                    ->disabled(fn (?Product $record): bool => filled($record?->external_id))
+                    ->dehydrated(fn (?Product $record): bool => blank($record?->external_id))
+                    ->helperText(fn (?Product $record): string => filled($record?->external_id)
+                        ? 'Код 1С уже сохранён и защищён от изменения.'
+                        : 'Укажите идентификатор товара из 1С. После сохранения изменить его в этой форме нельзя.'),
 
                 Action::make('load_from_1c')
                     ->label('Загрузить данные из 1С')
