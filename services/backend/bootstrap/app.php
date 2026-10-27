@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(\App\Http\Middleware\DiagnoseOperatorRequests::class);
         // Public cache hint only; grants themselves remain in the server session.
         $middleware->encryptCookies(except: ['has_private_offer']);
         // Р-4: за reverse-proxy берём реальный IP клиента из X-Forwarded-For,

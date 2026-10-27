@@ -59,6 +59,7 @@ class StartBlockingSession extends StartSession
     /** При сбое хранилища блокировок или истечении ожидания запрос выполняется как обычный. */
     protected function handleRequestWhileBlocking(Request $request, $session, Closure $next)
     {
+        $lockStarted = microtime(true);
         try {
             $lock = $this->cache($this->manager->blockDriver())
                 ->lock('session:'.$session->getId(), self::LOCK_SECONDS)
@@ -67,6 +68,10 @@ class StartBlockingSession extends StartSession
         } catch (Throwable $e) {
             report($e);
             $lock = null;
+        }
+        if ($request->attributes->has('operator_diagnostic')) {
+            $request->attributes->set('operator_lock_wait_ms', (int) round((microtime(true) - $lockStarted) * 1000));
+            $request->attributes->set('operator_lock_acquired', $lock !== null);
         }
 
         try {
