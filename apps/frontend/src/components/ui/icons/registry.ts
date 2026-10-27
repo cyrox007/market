@@ -222,6 +222,6 @@ export interface ResolvedIcon {
 }
 
 export function resolveIcon(name: string): ResolvedIcon | null {
-  const icon: LucideIcon | undefined = LUCIDE_ICONS[name];
+  const icon: LucideIcon | undefined = Object.hasOwn(LUCIDE_ICONS, name) ? LUCIDE_ICONS[name] : undefined;
   return icon ? { icon, filled: false } : null;
 }

@@ -40,13 +40,13 @@ class ProductCollectionForm
                             ->columnSpanFull(),
 
                         Select::make('scope_type')
-                            ->label('Тип скоупа')
+                            ->label('Правило автоматического отбора')
                             ->options([
-                                'featured' => 'Популярное (units_sold > 0)',
+                                'featured' => 'По продажам — только товары с продажами',
                                 'new' => 'Новинки (за последние 30 дней)',
                                 'sale' => 'Акции (original_price > price)',
                             ])
-                            ->helperText('Обязателен для автоматической подборки. После сохранения товары подтянутся по правилам скоупа.')
+                            ->helperText('Используется только при включённом автоматическом отборе. Для ручной подборки выключите его и добавьте товары в список ниже.')
                             ->live()
                             ->required(fn ($get) => (bool) $get('is_auto'))
                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
@@ -57,7 +57,7 @@ class ProductCollectionForm
 
                         Toggle::make('is_auto')
                             ->label('Автоматическая подборка')
-                            ->helperText('При сохранении товары заполнятся автоматически по типу скоупа (нужен scope_type).')
+                            ->helperText('Выключено — товары и их порядок задаются вручную в списке ниже. Включено — отбор по правилу; без статистики продаж автоматическое «Популярное» будет пустым.')
                             ->default(false)
                             ->live(),
 

@@ -174,6 +174,10 @@ class CategoryController extends Controller
 
     public function tree(Request $request): JsonResponse
     {
+        $request->validate(['view' => 'sometimes|in:full,menu']);
+        if ($request->query('view') === 'menu') {
+            return response()->json(['tree' => app(\App\Services\Product\MenuTree::class)->build(Category::class)]);
+        }
         $hotTtl = (int) config('cache_segments.hot_ttl', 86400);
         $tree = Category::cached('tree', function () {
             $categories = Category::with([

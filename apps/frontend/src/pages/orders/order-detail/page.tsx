@@ -27,6 +27,7 @@ export default function OrderDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncData, setSyncData] = useState<{
     profileNeedsUpdate: boolean;
@@ -38,6 +39,7 @@ export default function OrderDetail() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const openedPaymentRef = useRef(false);
+  const loadedAtRef = useRef(Date.now());
 
   useEffect(() => {
     if (id) {
@@ -46,14 +48,14 @@ export default function OrderDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!order || order.status !== 'awaiting_payment' || !order.payment_deadline_at) {
+    if (!order || !(order.cooling_until || order.payment_deadline_at)) {
       setSecondsLeft(null);
       return;
     }
 
     const computeSecondsLeft = (): number => {
-      const deadline = new Date(order.payment_deadline_at as string);
-      const now = new Date();
+      const deadline = new Date((order.cooling_until || order.payment_deadline_at) as string);
+      const now = new Date(Date.now() + (order.server_time ? new Date(order.server_time).getTime() - loadedAtRef.current : 0));
       const diffMs = deadline.getTime() - now.getTime();
       return Math.max(0, Math.floor(diffMs / 1000));
     };
@@ -65,10 +67,10 @@ export default function OrderDetail() {
     }, 1000);
 
     return () => window.clearInterval(countdownTimer);
-  }, [order?.status, order?.id, order?.payment_deadline_at]);
+  }, [order?.status, order?.id, order?.payment_deadline_at, order?.cooling_until]);
 
   useEffect(() => {
-    if (!order || order.status !== 'awaiting_payment') return;
+    if (!order || !['awaiting_payment', 'manager_processing', 'assembling'].includes(order.status)) return;
 
     // Редкий heartbeat, чтобы не дёргать API слишком часто.
     const pollTimer = window.setInterval(() => {
@@ -79,11 +81,11 @@ export default function OrderDetail() {
   }, [order?.status, order?.id]);
 
   useEffect(() => {
-    if (!order || order.status !== 'awaiting_payment' || !order.payment_deadline_at) return;
+    if (!order || !(order.cooling_until || order.payment_deadline_at)) return;
 
     // Точечное обновление в момент дедлайна (с небольшим буфером),
     // чтобы быстро увидеть переход в "Отменён" без частого polling.
-    const deadlineMs = new Date(order.payment_deadline_at).getTime();
+    const deadlineMs = new Date((order.cooling_until || order.payment_deadline_at) as string).getTime();
     const nowMs = Date.now();
     const delayMs = Math.max(0, deadlineMs - nowMs + 2000);
 
@@ -92,7 +94,7 @@ export default function OrderDetail() {
     }, delayMs);
 
     return () => window.clearTimeout(timeoutId);
-  }, [order?.status, order?.id, order?.payment_deadline_at]);
+  }, [order?.status, order?.id, order?.payment_deadline_at, order?.cooling_until]);
 
   // Проверяем данные синхронизации из sessionStorage
   useEffect(() => {
@@ -122,6 +124,7 @@ export default function OrderDetail() {
     setError(null);
     try {
       const response = await api.orders.get(orderId);
+      loadedAtRef.current = Date.now();
       setOrder(response.order);
     } catch (err: any) {
       console.error('Failed to load order:', err);
@@ -160,7 +163,7 @@ export default function OrderDetail() {
   }, [order?.id]);
 
   const canPayOnline =
-    isOnlineCardPaymentMethod(order?.payment_method) && order?.status === 'awaiting_payment';
+    order?.can_pay ?? (isOnlineCardPaymentMethod(order?.payment_method) && order?.status === 'awaiting_payment');
 
   const formatCountdown = (seconds: number | null) => {
     if (seconds === null) return '—';
@@ -175,7 +178,7 @@ export default function OrderDetail() {
   // Авто-открытие оплаты после редиректа с чекаута (openPayment=1)
   useEffect(() => {
     if (!order || searchParams.get('openPayment') !== '1' || openedPaymentRef.current) return;
-    if (!isOnlineCardPaymentMethod(order.payment_method) || order.status !== 'awaiting_payment') {
+    if (!(order.can_pay ?? (isOnlineCardPaymentMethod(order.payment_method) && order.status === 'awaiting_payment'))) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('openPayment');
@@ -196,7 +199,10 @@ export default function OrderDetail() {
     if (!order) return;
 
     try {
-      await api.orders.cancel(order.id);
+      if (order.can_request_cancellation && !order.can_be_cancelled) {
+        if (cancellationReason.trim().length < 3) { alert('Укажите причину обращения — не менее 3 символов.'); return; }
+        await api.orders.requestCancellation(order.id, cancellationReason.trim());
+      } else await api.orders.cancel(order.id, cancellationReason ? { comment: cancellationReason } : undefined);
       setShowCancelModal(false);
       await loadOrder(order.id);
     } catch (err: any) {
@@ -242,16 +248,13 @@ export default function OrderDetail() {
       });
 
       // Если нужно сохранить адрес
-      if (syncData?.addressData && syncData.shippingLocationId) {
+      if (syncData?.addressData && order.address?.directory_external_id) {
         try {
           await api.addresses.create({
             title: 'Адрес доставки',
-            city: syncData.addressData.city,
-            street: syncData.addressData.street,
-            house: syncData.addressData.house,
+            directory_external_id: order.address.directory_external_id,
             apartment: syncData.addressData.apartment || undefined,
             entrance: syncData.addressData.entrance || undefined,
-            shipping_location_id: syncData.shippingLocationId,
           });
         } catch (err) {
           console.error('Failed to save address:', err);
@@ -339,6 +342,16 @@ export default function OrderDetail() {
             </div>
             <OrderStatusBadge status={order.status} />
           </div>
+
+          {order.cooling_until && order.status === 'manager_processing' && (
+            <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+              <p>В обработке у менеджера. Период охлаждения: {formatCountdown(secondsLeft)}.</p>
+              <p>До {new Date(order.cooling_until).toLocaleTimeString('ru-RU')} заказ можно отменить самостоятельно. Затем — через обращение в поддержку.</p>
+              {order.payment_status === 'paid' ? <p>Оплата получена.</p> : order.can_pay ? <p>Оплатите заказ до окончания этого срока, иначе он будет отменён.</p> : null}
+            </div>
+          )}
+          {order.cancellation_request && <p role="status" className="mb-4">Обращение об отмене передано менеджеру.</p>}
+          {order.refund_task && <p role="status" className="mb-4">{order.refund_task.status === 'completed' ? 'Возврат оплаты подтверждён.' : 'Возврат оплаты обрабатывается. Отмена заказа не означает мгновенного зачисления денег.'}</p>}
 
           {order.status === 'awaiting_payment' && (
             <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
@@ -435,6 +448,12 @@ export default function OrderDetail() {
                     {order.address.apartment && `, кв. ${order.address.apartment}`}
                     {order.address.entrance && `, подъезд ${order.address.entrance}`}
                   </p>
+                </div>
+              )}
+              {order.delivery_type === 'pickup' && order.fulfillment && (
+                <div><span className="text-gray-600 block mb-1">Пункт самовывоза:</span>
+                  <p className="font-medium">{order.fulfillment.name || order.fulfillment.warehouse_name}</p>
+                  <p>{order.fulfillment.address_directory?.label || order.fulfillment.address}</p>
                 </div>
               )}
 
@@ -599,18 +618,18 @@ export default function OrderDetail() {
                 {isPaymentLoading ? 'Открываем оплату...' : 'Оплатить заказ'}
               </button>
             )}
-            <button
+            {user && <button
               onClick={handleRepeatOrder}
               className="px-6 py-3 border border-gray-300 rounded-lg font-medium hover:border-red-600 transition-colors whitespace-nowrap"
             >
               Повторить заказ
-            </button>
-            {order.can_be_cancelled && (
+            </button>}
+            {(order.can_be_cancelled || (order.can_request_cancellation && !order.cancellation_request)) && (
               <button
                 onClick={() => setShowCancelModal(true)}
                 className="px-6 py-3 border border-red-600 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors whitespace-nowrap"
               >
-                Отменить заказ
+                {order.can_be_cancelled ? 'Отменить заказ' : 'Подать заявку на отмену'}
               </button>
             )}
           </div>
@@ -674,11 +693,13 @@ export default function OrderDetail() {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <TriangleAlert className="size-[1em] text-3xl text-red-600" />
             </div>
-            <h3 className="text-2xl font-bold text-center mb-2">Отменить заказ?</h3>
+            <h3 className="text-2xl font-bold text-center mb-2">{order.can_be_cancelled ? 'Отменить заказ?' : 'Обращение об отмене'}</h3>
             <p className="text-gray-600 text-center mb-6">
-              Вы уверены, что хотите отменить заказ №{order.number}? Это действие нельзя будет
-              отменить.
+              {order.can_be_cancelled ? `Вы уверены, что хотите отменить заказ №${order.number}?` : 'Период самостоятельной отмены завершён. Менеджер рассмотрит вашу заявку; заказ пока остаётся в работе.'}
             </p>
+            <label className="block mb-4">Причина
+              <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} maxLength={1000} className="block w-full border rounded p-2" />
+            </label>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowCancelModal(false)}
@@ -690,7 +711,7 @@ export default function OrderDetail() {
                 onClick={handleCancelOrder}
                 className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap"
               >
-                Отменить заказ
+                {order.can_be_cancelled ? 'Отменить заказ' : 'Отправить обращение'}
               </button>
             </div>
           </div>

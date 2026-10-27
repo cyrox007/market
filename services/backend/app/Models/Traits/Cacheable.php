@@ -147,6 +147,7 @@ trait Cacheable
      */
     protected function flushBasicCache(): void
     {
+        Cache::forget(static::cacheKey('menu_tree_v1'));
         Cache::forget(static::cacheKey('index'));
         Cache::forget(static::cacheKey('tree'));
         Cache::forget(static::cacheKey('featured'));
@@ -228,6 +229,7 @@ trait Cacheable
         // Ключи show/tree/index кладутся через cached() с тегами модели: на redis они
         // живут в теговом пространстве, поэтому один plain-forget их не видит — гасим и там.
         $keys = [
+            static::cacheKey('menu_tree_v1'),
             static::cacheKey('show_' . $categoryId),
             static::cacheKey('tree'),
             static::cacheKey('index'),

@@ -114,7 +114,7 @@ export function mergeCartItem(cart: Cart | null | undefined, item: CartItem): Ca
   const base: Cart = cart ?? { items: [], subtotal: 0, item_count: 0, is_empty: true };
   // Убираем временные строки (отрицательный id) для того же product_id
   const items = base.items.filter((i) => !(i.product_id === item.product_id && i.id <= 0));
-  const idx = items.findIndex((i) => i.product_id === item.product_id);
+  const idx = items.findIndex((i) => i.id === item.id);
   if (idx >= 0) {
     const cachedQty = items[idx].quantity;
     if (item.quantity < cachedQty) {

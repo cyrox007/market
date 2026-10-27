@@ -139,7 +139,8 @@ class FulfillmentFrontContractTest extends TestCase
             'payment_method' => 'card', 'delivery_type' => 'delivery', 'directory_external_id' => 'house', 'warehouse_id' => $warehouse->id,
             'requires_assembly' => true, 'additional_services' => [['id' => $service->id]]])
             ->assertCreated()->assertJsonPath('order.assembly_cost', 400)->assertJsonPath('order.delivery_cost', 1000);
-        $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(2.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
         $order = \App\Models\Order\Order::latest('id')->firstOrFail();
         $this->assertSame(300.0, (float) $order->additionalServices()->firstOrFail()->pivot->price);
     }
@@ -168,7 +169,8 @@ class FulfillmentFrontContractTest extends TestCase
         $response = $this->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'pickup@example.test',
             'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $warehouse->id])->assertCreated()
             ->assertJsonPath('order.fulfillment.mode', 'pickup')->assertJsonPath('order.fulfillment.warehouse_id', $warehouse->id)->assertJsonPath('order.assembly_cost', 0);
-        $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(2.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
         $order = \App\Models\Order\Order::findOrFail($response->json('order.id'));
         $this->assertSame('house-guid', $response->json('order.address_directory.gar_guid'));
         $warehouse->update(['external_id' => 'changed', 'address_snapshot' => null]);
@@ -199,7 +201,8 @@ class FulfillmentFrontContractTest extends TestCase
         $this->assertCount(1, $order->items);
         $this->assertSame($sku->id, $order->items->first()->product_id);
         $this->assertEquals(2000, $order->subtotal);
-        $this->assertSame(3.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
+        $this->assertSame(2.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
         $this->assertCount(1, \Vanilo\Cart\Facades\Cart::getItems());
         $this->assertEquals($other->id, \Vanilo\Cart\Facades\Cart::getItems()->first()->product_id);
     }

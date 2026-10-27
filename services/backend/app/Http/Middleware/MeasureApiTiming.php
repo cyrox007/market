@@ -26,7 +26,10 @@ class MeasureApiTiming
         $routeKey = $this->routeKey($request);
 
         if (config('api_metrics.header_response_time', true)) {
-            $response->headers->set('X-Response-Time', $durationMs . 'ms');
+            $requestStart = (float) $request->server('REQUEST_TIME_FLOAT', $start);
+            $phpMs = max($durationMs, (int) round((microtime(true) - $requestStart) * 1000));
+            $response->headers->set('X-Response-Time', $phpMs . 'ms');
+            $response->headers->set('Server-Timing', 'php;dur='.$phpMs.', route;dur='.$durationMs);
         }
 
         $threshold = config('api_metrics.log_slow_threshold_ms', 1000);
@@ -39,8 +42,10 @@ class MeasureApiTiming
                 'threshold_ms' => $threshold,
             ]);
         }
-        \Log::info('[MeasureApiTiming] recording', ['route_key' => $routeKey, 'duration' => $durationMs]);
-        $this->collector->record($routeKey, $durationMs);
+        // Redis observability must not delay sending the catalogue to the buyer.
+        if (config('api_metrics.store_enabled', true)) {
+            app()->terminating(fn () => $this->collector->record($routeKey, $durationMs));
+        }
 
         return $response;
     }

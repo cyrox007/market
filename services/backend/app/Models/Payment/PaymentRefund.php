@@ -9,6 +9,14 @@ use Vanilo\Payment\Models\PaymentProxy;
 
 class PaymentRefund extends Model
 {
+    protected static function booted(): void
+    {
+        static::updating(function (self $refund): void {
+            if ($refund->isDirty(['payment_id', 'refund_id', 'gateway', 'amount'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['payment_id' => 'Возврат привязан к исходному платежу. Его получателя, идентификатор и сумму подменять нельзя.']);
+            }
+        });
+    }
     protected $table = 'payment_refunds';
 
     protected $fillable = [

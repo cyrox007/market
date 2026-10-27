@@ -5,6 +5,7 @@ import ProtectedRoute from '../components/auth/ProtectedRoute';
 import Catalog from '../pages/catalog/page';
 import CatalogCategory from '../pages/catalog-category/page';
 import Product from '../pages/product/page';
+import PrivateOfferRedirect from './PrivateOfferRedirect';
 
 const Home = lazy(() => import('../pages/home/page'));
 const Sets = lazy(() => import('../pages/sets/page'));
@@ -21,7 +22,7 @@ const Cookies = lazy(() => import('../pages/cookies/page'));
 const About = lazy(() => import('../pages/about/page'));
 const Contacts = lazy(() => import('../pages/contacts/page'));
 const Cart = lazy(() => import('../pages/cart/page'));
-const Checkout = lazy(() => import('../pages/checkout/page'));
+const Checkout = lazy(() => import('../pages/checkout/warehouse-page'));
 const Account = lazy(() => import('../pages/account/page'));
 const Login = lazy(() => import('../pages/login/page'));
 const Register = lazy(() => import('../pages/register/page'));
@@ -52,6 +53,7 @@ if (import.meta.env.DEV) {
 }
 
 const routes: RouteObject[] = [
+  { path: 'offer/:token', element: <PrivateOfferRedirect /> },
   ...devRoutes,
   {
     element: <RootLayout />,
@@ -103,11 +105,7 @@ const routes: RouteObject[] = [
       },
       {
         path: 'orders/:id',
-        element: (
-          <ProtectedRoute>
-            <OrderDetail />
-          </ProtectedRoute>
-        ),
+        element: <OrderDetail />,
       },
       { path: 'search', element: <Search /> },
       { path: '*', element: <NotFound /> },

@@ -17,7 +17,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['ETag', 'X-Response-Time', 'Server-Timing'],
 
     'max_age' => 86400, // 24 часа для кеширования preflight запросов
 

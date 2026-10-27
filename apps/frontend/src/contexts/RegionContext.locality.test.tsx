@@ -13,11 +13,11 @@ afterEach(cleanup);
 it('stores a settlement independently and does not restore a stale warehouse location', async () => {
   localStorage.setItem('selected_region_data', JSON.stringify(region));
   localStorage.setItem('selected_region_id', '17');
-  const view = render(<RegionProvider initialRegions={[region]} initialRegion={region}><Probe /></RegionProvider>);
+  const view = render(<RegionProvider initialRegion={region}><Probe /></RegionProvider>);
   fireEvent.click(screen.getByText('Выбрать'));
   await waitFor(() => expect(screen.getByText('Посёлок / Нет зоны')).toBeInTheDocument());
   expect(localStorage.getItem('selected_region_id')).toBeNull();
   view.unmount();
-  render(<RegionProvider initialRegions={[region]} initialRegion={region}><Probe /></RegionProvider>);
+  render(<RegionProvider initialRegion={region}><Probe /></RegionProvider>);
   await waitFor(() => expect(screen.getByText('Посёлок / Нет зоны')).toBeInTheDocument());
 });

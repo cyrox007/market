@@ -9,6 +9,7 @@ return [
     */
 
     'enabled' => env('API_METRICS_ENABLED', true),
+    'reference_max_age' => (int) env('API_REFERENCE_MAX_AGE', 300),
 
     'header_response_time' => env('API_METRICS_HEADER_RESPONSE_TIME', true),
 

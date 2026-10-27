@@ -4,7 +4,7 @@ import LocationModal from './LocationModal';
 import { MapPin, X } from 'lucide-react';
 
 export default function RegionBanner() {
-  const { region, loading } = useRegion();
+  const { region, locationReady } = useRegion();
   const [isVisible, setIsVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -31,7 +31,7 @@ export default function RegionBanner() {
     setIsModalOpen(true);
   };
 
-  if (!isVisible || loading || !region) {
+  if (!isVisible || !locationReady || !region) {
     return null;
   }
 

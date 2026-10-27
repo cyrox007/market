@@ -18,6 +18,8 @@ export interface OrderStatusConfig {
 
 export function formatOrderStatus(status: string): OrderStatusConfig {
   const statusMap: Record<string, OrderStatusConfig> = {
+    manager_processing: { label: 'В обработке у менеджера', color: 'blue', icon: FilePlus },
+    assembling: { label: 'Собирается', color: 'yellow', icon: Wrench },
     new: {
       label: 'Новый',
       color: 'blue',

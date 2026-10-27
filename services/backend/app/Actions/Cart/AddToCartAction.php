@@ -32,10 +32,13 @@ class AddToCartAction
         $updatedInPlace = false;
         $result = DB::transaction(function () use ($product, $requested, $stock, &$updatedInPlace): CartQuantityResult {
             // Позицию ищем в базе под блокировкой: снимок корзины в памяти мог устареть
-            $item = Cart::model()?->items()->byProduct($product)->lockForUpdate()->first();
+            $offer = app(\App\Services\Pricing\PrivateOfferAccess::class)->grants()->get($product->id);
+            $sameSku = Cart::model()?->items()->byProduct($product)->lockForUpdate()->get() ?? collect();
+            $item = $sameSku->first(fn ($row) => (($row->configuration ?? [])['private_offer_hash'] ?? null) === $offer?->token_hash);
             $previous = $item ? (int) $item->quantity : 0;
+            $otherQuantity = (int) $sameSku->sum('quantity') - $previous;
 
-            $limit = $this->policy->limit($product, $requested, $previous, $stock);
+            $limit = $this->policy->limit($product, $requested, $previous + $otherQuantity, $stock);
             if ($limit->quantity <= 0) {
                 throw new CartProductUnavailableException($stock);
             }
@@ -44,9 +47,10 @@ class AddToCartAction
                 $item->update(['quantity' => $previous + $limit->quantity, 'price' => $product->getPrice()]);
                 $updatedInPlace = true;
             } else {
-                $item = Cart::addItem($product, $limit->quantity);
+                $item = Cart::addItem($product, $limit->quantity, ['attributes' => ['configuration' => ['private_offer_hash' => $offer?->token_hash]]], true);
             }
 
+            app(\App\Services\Inventory\CartStockReservations::class)->reserve($product, $otherQuantity + $previous + $limit->quantity);
             return new CartQuantityResult($item, $requested, $limit->quantity, $previous, $stock, $limit->reason);
         });
 

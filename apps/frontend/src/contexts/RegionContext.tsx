@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+
 import type { ShippingLocation, CustomerLocality } from '@/lib/api';
 import type { ReactNode } from 'react';
 import { RegionContext, type RegionContextType } from './region-context';
@@ -12,8 +12,6 @@ interface RegionProviderProps {
   children: ReactNode;
   /** Регион с SSR — чтобы сервер и клиент при гидрации рендерили одно и то же (избегаем hydration mismatch). */
   initialRegion?: ShippingLocation | null;
-  /** Список городов с SSR (предзагрузка) — чтобы не дёргать /regions на монтировании. */
-  initialRegions?: ShippingLocation[];
 }
 
 function getStoredRegionData(): ShippingLocation | null {
@@ -31,7 +29,7 @@ function getStoredRegionData(): ShippingLocation | null {
 export function RegionProvider({
   children,
   initialRegion = null,
-  initialRegions,
+
 }: RegionProviderProps) {
   // Первый рендер = initialRegion с SSR, без localStorage (иначе hydration mismatch и белый экран).
   const [region, setRegion] = useState<ShippingLocation | null>(initialRegion ?? null);
@@ -50,21 +48,6 @@ export function RegionProvider({
     } catch { /* Storage can be unavailable. */ }
     setLocalityRestored(true);
   }, []);
-  const [regions, setRegions] = useState<ShippingLocation[]>(initialRegions ?? []);
-  const [loading, setLoading] = useState<boolean>(() => !initialRegion && !initialRegions?.length);
-
-  const loadRegions = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await api.regions.list();
-      setRegions(response.data || []);
-    } catch {
-      setRegions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const saveRegion = useCallback((selectedRegion: ShippingLocation | null) => {
     try {
       if (selectedRegion) {
@@ -90,27 +73,6 @@ export function RegionProvider({
     }
   }, []);
 
-  const loadSavedRegion = useCallback((): boolean => {
-    try {
-      const savedRegionId = localStorage.getItem(REGION_STORAGE_KEY);
-      if (savedRegionId && regions.length > 0) {
-        const regionId = parseInt(savedRegionId, 10);
-        const foundRegion = regions.find((r) => r.id === regionId);
-        if (foundRegion) {
-          setRegion(foundRegion);
-          try {
-            sessionStorage.setItem('current_region_id', foundRegion.id.toString());
-          } catch {
-            // ignore
-          }
-          return true;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return false;
-  }, [regions]);
 
   const selectRegion = useCallback(
     (selectedRegion: ShippingLocation | null) => {
@@ -128,12 +90,6 @@ export function RegionProvider({
     [saveRegion],
   );
 
-  useEffect(() => {
-    // Список уже предзагружен на SSR — не дёргаем /regions повторно.
-    if (!initialRegions?.length) {
-      loadRegions();
-    }
-  }, [loadRegions, initialRegions]);
 
   useEffect(() => {
     const storedRegion = getStoredRegionData();
@@ -148,11 +104,7 @@ export function RegionProvider({
       }
     }
 
-    if (regions.length > 0) {
-      // Явно выбранный пользователем регион из localStorage имеет приоритет над SSR initialRegion.
-      loadSavedRegion();
-    }
-  }, [regions, loadSavedRegion, region, locality, localityRestored]);
+  }, [region, locality, localityRestored]);
 
   const getRegionId = useCallback((): number | null => region?.id ?? null, [region]);
   const selectLocality = useCallback((selected: CustomerLocality, shippingLocation: ShippingLocation | null) => {
@@ -173,8 +125,8 @@ export function RegionProvider({
   }, [saveRegion]);
 
   const value: RegionContextType = {
-    locality, locationReady: localityRestored, selectLocality, region, regions, loading, selectRegion,
-    reloadRegions: loadRegions, getRegionId,
+    locality, locationReady: localityRestored, selectLocality, region, selectRegion,
+    getRegionId,
   };
   return <RegionContext.Provider value={value}>{children}</RegionContext.Provider>;
 }

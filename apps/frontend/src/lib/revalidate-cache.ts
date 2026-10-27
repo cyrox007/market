@@ -43,12 +43,12 @@ export const HOME_CACHE_KEYS: string[] = [
  */
 export function revalidateCache(key?: string | string[]): Promise<void> {
   if (key === undefined) {
-    return mutate(() => true);
+    return mutate(() => true).then(() => undefined);
   }
   if (Array.isArray(key)) {
     return Promise.all(key.map((k) => mutate(k))).then(() => {});
   }
-  return mutate(key);
+  return mutate(key).then(() => undefined);
 }
 
 /**

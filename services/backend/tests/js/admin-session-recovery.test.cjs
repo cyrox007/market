@@ -99,6 +99,22 @@ test('network/server errors are not reported as expiration', async () => {
     assert.equal(app.notices.length, 0);
 });
 
+test('failed connection before saving shows a notice instead of the Livewire error screen and never submits', async () => {
+    const app = boot({ status: 503 });
+    await settle(); app.change({ name: 'Keep the sofa edits' }); await settle();
+    const response = await app.win.fetch('/livewire/update', { method: 'POST', headers: { 'X-Livewire': '' }, body: '{}' });
+    let failure, prevented = 0;
+    app.hooks.request({ fail: callback => { failure = callback; } });
+    failure({ status: response.status, preventDefault() { prevented++; } });
+    failure({ status: response.status, preventDefault() { prevented++; } });
+    assert.equal(prevented, 2);
+    assert.equal(app.notices.length, 1);
+    assert.match(app.notices[0].children[0].textContent, /ещё не сохранены/);
+    assert.equal(app.requests.length, 1);
+    assert.equal(app.storage.length, 1);
+    assert.equal(app.state().name, 'Keep the sofa edits');
+});
+
 test('form draft auto-restores after F5 without committing a server action', async () => {
     const storage = memoryStorage(), app = boot({ storage }); await settle();
     app.change({ name: 'Two hours of work' }); await settle();

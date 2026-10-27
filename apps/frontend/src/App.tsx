@@ -46,7 +46,6 @@ function App({ ssrContext, Router, routerProps = {} }: AppProps = {}) {
               <CountersProvider initialCounters={ssrContext?.counters}>
                 <RegionProvider
                   initialRegion={ssrContext?.region}
-                  initialRegions={ssrContext?.regionsList}
                 >
                   <CartToastProvider>
                     <Suspense fallback={<PageContentFallback />}>

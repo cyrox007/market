@@ -35,6 +35,9 @@ class WarehouseStockResolver
                 }
                 $warehouse = $stock->warehouse;
                 return app(WarehouseCoverage::class)->firstProfile($warehouse, $destination) !== null;
+            })->map(function ($stock) {
+                $stock->quantity = app(CartStockReservations::class)->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity);
+                return $stock;
             })->values();
     }
 
