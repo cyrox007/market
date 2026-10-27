@@ -48,7 +48,7 @@ return new class extends Migration {
             $t->id(); $t->string('name'); $t->intOrBigIntBasedOnRelated('product_id', Schema::connection(null), 'products.id');
             $t->decimal('price', 14, 2); $t->string('token_hash', 64)->unique();
             $t->boolean('is_active')->default(true); $t->timestamp('starts_at')->nullable();
-            $t->timestamp('expires_at'); $t->timestamps();
+            $t->dateTime('expires_at'); $t->timestamps();
         });
         }
 
