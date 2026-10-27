@@ -323,6 +323,7 @@ class ProductVariantsRelationManager extends RelationManager
                     ->helperText('Основное изображение торгового предложения. Будет автоматически создана миниатюра 300x300px')
                     ->image()
                     ->imageEditor()
+                    ->imagePreviewHeight('180')
                     ->conversion('thumb')
                     ->maxSize(10240)
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
@@ -331,8 +332,12 @@ class ProductVariantsRelationManager extends RelationManager
                 SpatieMediaLibraryFileUpload::make('gallery')
                     ->collection('gallery')
                     ->label('Галерея изображений')
-                    ->helperText('Дополнительные изображения торгового предложения для галереи. Можно загрузить до 10 изображений')
+                    ->helperText('Меняйте порядок уже загруженных фото перетаскиванием. Главное изображение показывается первым, затем галерея. До 10 изображений.')
                     ->multiple()
+                    ->reorderable()
+                    ->appendFiles()
+                    ->panelLayout('grid')
+                    ->imagePreviewHeight('140')
                     ->image()
                     ->imageEditor()
                     ->conversion('thumb')
@@ -342,6 +347,41 @@ class ProductVariantsRelationManager extends RelationManager
                     ->columnSpanFull(),
             ])
             ->collapsible();
+
+        $components[] = Section::make('Собственные данные предложения (необязательно)')
+            ->description('Пустое описание наследуется от товара. Здесь задавайте только отличающиеся характеристики; удаление строки возвращает наследование.')
+            ->schema([
+                \Filament\Forms\Components\RichEditor::make('description')->label('Своё описание'),
+                TextInput::make('length')->label('Длина (см)')->numeric(),
+                TextInput::make('width')->label('Ширина (см)')->numeric(),
+                TextInput::make('height')->label('Высота (см)')->numeric(),
+                TextInput::make('weight')->label('Вес (кг)')->numeric(),
+                Repeater::make('offer_attributes')->label('Свои характеристики')->defaultItems(0)->schema([
+                    Select::make('attribute_id')->label('Характеристика')->required()->searchable()->live()
+                        ->options(fn () => \App\Models\Product\Attribute::whereIn('id', app(\App\Services\Product\OfferAttributeOverrides::class)->ids($parentProduct))
+                            ->orderBy('sort_order')->pluck('name', 'id'))
+                        ->afterStateUpdated(function (Set $set): void {
+                            $set('attribute_value_id', null);
+                            $set('custom_value', null);
+                        }),
+                    \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')->label('Значение')
+                        ->options(fn (Get $get) => AttributeValue::where('attribute_id', $get('attribute_id'))->pluck('value', 'id'))
+                        ->multiple(fn (Get $get) => (bool) \App\Models\Product\Attribute::find($get('attribute_id'))?->is_multiple)
+                        ->searchable()->live()
+                        ->afterStateUpdated(function ($state, Set $set): void {
+                            if (filled($state)) {
+                                $set('custom_value', null);
+                            }
+                        }),
+                    TextInput::make('custom_value')->label('Своё значение')->maxLength(1000)
+                        ->visible(fn (Get $get) => (bool) \App\Models\Product\Attribute::find($get('attribute_id'))?->allow_custom_value)
+                        ->live()->afterStateUpdated(function ($state, Set $set): void {
+                            if (filled($state)) {
+                                $set('attribute_value_id', null);
+                            }
+                        }),
+                ])->columns(3)->addActionLabel('Добавить отличие'),
+            ])->collapsible()->collapsed();
 
         return $schema
             ->components($components)
@@ -538,39 +578,38 @@ class ProductVariantsRelationManager extends RelationManager
                         $data['parent_product_id'] = $parentProduct->id;
                         $data['is_variable'] = false; // Торговые предложения не вариативные
 
-                        // Подставляем данные родителя только если пользователь не заполнил поле (не перезаписываем введённые габариты и т.д.)
-                        $data['description'] = (isset($data['description']) && $data['description'] !== '') ? $data['description'] : $parentProduct->description;
-                        $data['excerpt'] = (isset($data['excerpt']) && $data['excerpt'] !== '') ? $data['excerpt'] : $parentProduct->excerpt;
-                        $data['length'] = (isset($data['length']) && $data['length'] !== '' && $data['length'] !== null) ? $data['length'] : $parentProduct->length;
-                        $data['width'] = (isset($data['width']) && $data['width'] !== '' && $data['width'] !== null) ? $data['width'] : $parentProduct->width;
-                        $data['height'] = (isset($data['height']) && $data['height'] !== '' && $data['height'] !== null) ? $data['height'] : $parentProduct->height;
-                        $data['weight'] = (isset($data['weight']) && $data['weight'] !== '' && $data['weight'] !== null) ? $data['weight'] : $parentProduct->weight;
+                        // Shared data is inherited at read time, not snapshotted into the offer.
 
                         return $data;
                     })
                     ->using(function (array $data, RelationManager $livewire): Product {
-                        $parentProduct = $livewire->getOwnerRecord();
+                        return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $livewire): Product {
+                            $parentProduct = $livewire->getOwnerRecord();
 
-                        if ($parentProduct->isVariant()) {
-                            throw new \Exception('Нельзя создавать торговые предложения для торговых предложений');
-                        }
+                            if ($parentProduct->isVariant()) {
+                                throw new \Exception('Нельзя создавать торговые предложения для торговых предложений');
+                            }
 
-                        $data['parent_product_id'] = $parentProduct->id;
+                            $data['parent_product_id'] = $parentProduct->id;
 
-                        $formDataForSync = $data;
-                        SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
+                            $formDataForSync = $data;
+                            $overrides = $data['offer_attributes'] ?? [];
+                            unset($data['offer_attributes']);
+                            SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
 
-                        $variant = Product::create($data);
+                            $variant = Product::create($data);
 
-                        app(SyncVariantVariationAttributesAction::class)->execute($variant, $formDataForSync, $parentProduct);
+                            app(SyncVariantVariationAttributesAction::class)->execute($variant, $formDataForSync, $parentProduct);
+                            app(\App\Services\Product\OfferAttributeOverrides::class)->save($variant, $parentProduct, $overrides);
 
-                        if (!$parentProduct->is_variable) {
-                            $parentProduct->update(['is_variable' => true]);
-                        }
+                            if (!$parentProduct->is_variable) {
+                                $parentProduct->update(['is_variable' => true]);
+                            }
 
-                        $parentProduct->flushCache();
+                            $parentProduct->flushCache();
 
-                        return $variant;
+                            return $variant;
+                        });
                     }),
             ])
             ->actions([
@@ -580,6 +619,7 @@ class ProductVariantsRelationManager extends RelationManager
                     ->modalDescription('Здесь задаются цена, фото и параметры конкретного предложения. Общие характеристики для всех предложений задавайте в родительской карточке товара.')
                     ->fillForm(function (Product $record): array {
                         $data = $record->toArray();
+                        $data['description'] = app(\App\Services\Product\ProductDescriptionHtml::class)->forEditor((string) $record->description);
                         $parent = $record->parentProduct;
                         if (!$parent) {
                             return $data;
@@ -587,6 +627,7 @@ class ProductVariantsRelationManager extends RelationManager
                         $record->load('variantAttributes');
 
                         // Группируем атрибуты по ID (один атрибут — несколько значений)
+                        $data['offer_attributes'] = app(\App\Services\Product\OfferAttributeOverrides::class)->formData($record, $parent);
                         $grouped = $record->variantAttributes->groupBy('id');
                         $formAttrs = app(GetVariationAttributesForProductAction::class)->execute($parent);
 
@@ -603,7 +644,8 @@ class ProductVariantsRelationManager extends RelationManager
 
                             if ($customValues->isNotEmpty()) {
                                 $data['variation_custom_' . $attr->id] = $customValues->first()->pivot->custom_value;
-                            } else {
+                            }
+                            if ($items->isNotEmpty()) {
                                 // Собираем все ID значений в массив
                                 $valueIds = $items
                                     ->pluck('pivot.attribute_value_id')
@@ -622,23 +664,23 @@ class ProductVariantsRelationManager extends RelationManager
                         return $data;
                     })
                     ->using(function (array $data, Product $record): Product {
-                        $parent = $record->parentProduct;
-                        if ($parent) {
-                            app(SyncVariantVariationAttributesAction::class)->execute($record, $data, $parent);
-                        }
-                        SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
-                        $record->update($data);
-                        if ($parent) {
-                            $parent->flushCache();
-                        }
-                        return $record;
+                        return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $record): Product {
+                            $parent = $record->parentProduct;
+                            if ($parent) {
+                                if (array_key_exists('offer_attributes', $data)) {
+                                    app(\App\Services\Product\OfferAttributeOverrides::class)->save($record, $parent, $data['offer_attributes']);
+                                }
+                                app(SyncVariantVariationAttributesAction::class)->execute($record, $data, $parent);
+                            }
+                            unset($data['offer_attributes']);
+                            SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
+                            $record->update($data);
+                            if ($parent) {
+                                $parent->flushCache();
+                            }
+                            return $record;
+                        });
                     }),
-                Action::make('fullProductCard')
-                    ->label('Полная карточка')
-                    ->icon('heroicon-o-document-text')
-                    ->color('gray')
-                    ->tooltip('Описание и обычные характеристики предложения. Цвет, размер и другие параметры варианта редактируйте через «Изменить».')
-                    ->url(fn (Product $record): string => ProductResource::getUrl('edit', ['record' => $record])),
                 Action::make('detach')
                     ->label('Отвязать')
                     ->icon('heroicon-o-link-slash')

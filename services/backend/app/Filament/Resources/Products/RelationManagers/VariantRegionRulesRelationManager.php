@@ -116,13 +116,6 @@ class VariantRegionRulesRelationManager extends RelationManager
                     ->helperText('Если включено, торговое предложение будет скрыто в выбранной локации и всех её дочерних локациях. По умолчанию все товары показываются.')
                     ->columnSpanFull(),
 
-                TextInput::make('delivery_days_override')
-                    ->label('Срок доставки (дни)')
-                    ->numeric()
-                    ->minValue(1)
-                    ->helperText('Переопределение срока доставки для выбранной локации (в днях)')
-                    ->nullable(),
-
                 TextInput::make('priority')
                     ->label('Приоритет')
                     ->numeric()
@@ -191,11 +184,6 @@ class VariantRegionRulesRelationManager extends RelationManager
                     ->formatStateUsing(fn ($state) => $state ? 'Да' : 'Нет')
                     ->badge()
                     ->color(fn ($state) => $state ? 'danger' : 'success'),
-
-                TextColumn::make('delivery_days_override')
-                    ->label('Срок доставки')
-                    ->formatStateUsing(fn ($state) => $state ? $state . ' дн.' : '—')
-                    ->sortable(),
 
                 TextColumn::make('priority')
                     ->label('Приоритет')

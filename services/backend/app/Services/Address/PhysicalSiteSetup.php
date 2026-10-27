@@ -45,6 +45,9 @@ class PhysicalSiteSetup
 
     public function store(array $data, ?Store $record = null): array
     {
+        if (array_key_exists('phone', $data)) {
+            $data['phone'] = \App\Support\PhoneNumber::normalize($data['phone']);
+        }
         $mode = $data['store_stock_mode'] ?? (($data['warehouse_id'] ?? $record?->warehouse_id) ? 'warehouse' : 'showroom');
         unset($data['store_stock_mode']);
         $warehouseId = $mode === 'showroom' ? null : ($data['warehouse_id'] ?? null);
@@ -63,10 +66,12 @@ class PhysicalSiteSetup
         if ($siteId && ! $site) {
             throw ValidationException::withMessages(['physical_site_id' => 'Площадка не найдена.']);
         }
-        if (! $site && ! $record) {
+        if (! $site) {
             throw ValidationException::withMessages(['physical_site_id' => 'Выберите или создайте адрес магазина.']);
         }
         $data['warehouse_id'] = $warehouseId;
+        // A legacy delivery region must never remain an alternative source of rules.
+        $data['shipping_location_id'] = null;
         $data['physical_site_id'] = $siteId;
         if ($site) {
             // Compatibility snapshots; site remains the authoritative source.

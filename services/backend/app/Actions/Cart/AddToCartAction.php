@@ -27,7 +27,7 @@ class AddToCartAction
      */
     public function execute(Product $product, int $requested, ?int $shippingLocationId): CartQuantityResult
     {
-        $stock = $this->stockAvailability->resolveAvailableStock($product, $shippingLocationId);
+        $stock = $this->stockAvailability->resolveAvailableStock($product);
 
         $updatedInPlace = false;
         $result = DB::transaction(function () use ($product, $requested, $stock, &$updatedInPlace): CartQuantityResult {

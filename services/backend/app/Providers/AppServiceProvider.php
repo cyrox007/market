@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Actions\Inventory\Stock\AdjustWarehouseStockAction;
 use App\Models\Shipping\ShippingLocation;
 use App\Models\Inventory\ProductWarehouseStock;
 use App\Observers\ProductWarehouseStockObserver;
@@ -10,15 +9,7 @@ use App\Services\Inventory\Contracts\InventorySyncInterface;
 use App\Services\Inventory\Integrations\Integration1CApiService;
 use App\Services\Inventory\StockAvailabilityService;
 use App\Services\Inventory\StockService;
-use App\Services\Shipping\Contracts\ShippingCostCalculatorInterface;
-use App\Services\Shipping\Contracts\ShippingMethodProviderInterface;
 use App\Services\Payment\Contracts\PaymentMethodAvailabilityInterface;
-use App\Services\Shipping\ShippingCostCalculator;
-use App\Services\Shipping\ShippingMethodProvider;
-use App\Services\Shipping\DeliveryHandlingProvider;
-use App\Services\Shipping\CarrierService;
-use App\Services\Shipping\ShippingCalculationService;
-use App\Services\Shipping\Contracts\DeliveryHandlingProviderInterface;
 use App\Services\Payment\PaymentMethodAvailabilityService;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
@@ -66,21 +57,11 @@ class AppServiceProvider extends ServiceProvider
             }
             return new StockService(
                 $sync,
-                $app->make(AdjustWarehouseStockAction::class),
                 $app->make(StockAvailabilityService::class),
             );
         });
 
         // Регистрируем интерфейсы для расчета стоимости доставки и оплаты
-        $this->app->singleton(DeliveryHandlingProviderInterface::class, DeliveryHandlingProvider::class);
-        $this->app->singleton(ShippingCostCalculatorInterface::class, function ($app) {
-            return new ShippingCostCalculator(
-                $app->make(CarrierService::class),
-                $app->make(ShippingCalculationService::class),
-                $app->make(DeliveryHandlingProviderInterface::class)
-            );
-        });
-        $this->app->singleton(ShippingMethodProviderInterface::class, ShippingMethodProvider::class);
         $this->app->singleton(PaymentMethodAvailabilityInterface::class, PaymentMethodAvailabilityService::class);
         $this->app->singleton(GatewayLoggerInterface::class, DatabaseGatewayLogger::class);
         $this->app->singleton(RaiffeisenEcomClientFactory::class);

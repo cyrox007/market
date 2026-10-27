@@ -133,13 +133,6 @@ class ProductRegionRuleForm
                             ->default(false)
                             ->helperText('Если включено, товар будет скрыт в выбранной локации и всех её дочерних локациях. По умолчанию все товары показываются.')
                             ->columnSpanFull(),
-
-                        TextInput::make('delivery_days_override')
-                            ->label('Срок доставки (дни)')
-                            ->numeric()
-                            ->minValue(1)
-                            ->helperText('Переопределение срока доставки для выбранной локации (в днях)')
-                            ->nullable(),
                     ])
                     ->columns(2)
                     ->collapsible(),

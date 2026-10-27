@@ -25,7 +25,10 @@ class BuildMergeVariantFormDataAction
     {
         $data = [];
         $variantAttribute = Attribute::ensureVariantAttribute();
-        $label = $this->resolveOfferLabel($variant, $variantLabelOverride);
+        $existingLabel = $variant->isVariant()
+            ? $variant->attributes()->where('product_attributes.id', $variantAttribute->id)->first()?->pivot?->custom_value
+            : null;
+        $label = $this->resolveOfferLabel($variant, $variantLabelOverride ?? $existingLabel);
         $data['variation_custom_' . $variantAttribute->id] = $label;
 
         $variationAttributes = $this->getVariationAttributesForProductAction->execute($parent);
@@ -36,18 +39,17 @@ class BuildMergeVariantFormDataAction
                 continue;
             }
 
-            $pivotRow = $variant->attributes()->where('product_attributes.id', $attribute->id)->first();
-            if ($pivotRow === null || $pivotRow->pivot === null) {
+            $items = $variant->getRelation('attributes')->where('id', $attribute->id);
+            if ($items->isEmpty()) {
                 continue;
             }
-
-            $custom = $pivotRow->pivot->custom_value ?? null;
-            $valueId = $pivotRow->pivot->attribute_value_id ?? null;
-
-            if ($custom !== null && $custom !== '') {
-                $data['variation_custom_' . $attribute->id] = (string) $custom;
-            } elseif ($valueId !== null && $valueId !== '') {
-                $data['variation_attr_' . $attribute->id] = $valueId;
+            $ids = $items->pluck('pivot.attribute_value_id')->filter()->unique()->values()->all();
+            $custom = $items->pluck('pivot.custom_value')->first(fn ($value) => $value !== null && $value !== '');
+            if ($ids !== []) {
+                $data['variation_attr_'.$attribute->id] = $attribute->is_multiple ? $ids : $ids[0];
+            }
+            if ($custom !== null) {
+                $data['variation_custom_'.$attribute->id] = (string) $custom;
             }
         }
 

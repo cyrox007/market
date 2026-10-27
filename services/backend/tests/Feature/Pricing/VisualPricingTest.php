@@ -17,6 +17,14 @@ use Tests\TestCase;
 
 class VisualPricingTest extends TestCase
 {
+    use \Tests\Concerns\WarehouseInventoryFixtures;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->configureWarehouseInventoryFixtures();
+    }
+
     private function rule(array $data = []): PricingRule
     {
         return PricingRule::create(array_merge(['name' => 'Скидка', 'is_active' => true, 'target_type' => 'all', 'audience_type' => 'all', 'adjustment_type' => 'discount_percent', 'amount' => 10, 'priority' => 0], $data));
@@ -92,6 +100,21 @@ class VisualPricingTest extends TestCase
         $this->assertEquals(900, $this->price($sku)['price']);
     }
 
+    public function test_room_rule_filters_individual_offers_in_parent_category(): void
+    {
+        $category = Category::factory()->create();
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $parent->taxons()->attach($category);
+        $cheap = Product::factory()->create(['parent_product_id' => $parent->id, 'price' => 1000]);
+        $expensive = Product::factory()->create(['parent_product_id' => $parent->id, 'price' => 2000]);
+        $room = Room::create(['name' => 'Комната предложений', 'filters' => ['price_max' => 1500]]);
+        $room->productCategories()->attach($category);
+        $this->rule(['target_type' => 'rooms', 'room_ids' => [$room->id]]);
+
+        $this->assertEquals(900, $this->price($cheap)['price']);
+        $this->assertEquals(2000, $this->price($expensive)['price']);
+    }
+
     public function test_empty_targets_fail_closed(): void
     {
         $this->expectException(\Illuminate\Validation\ValidationException::class);
@@ -130,7 +153,7 @@ class VisualPricingTest extends TestCase
         $cart = $this->actingAs($user)->getJson('/api/v1/cart')->assertOk();
         $this->assertEquals(1800, $cart->json('subtotal'));
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
-        $order = $this->actingAs($user)->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => $user->email, 'payment_method' => 'card', 'delivery_type' => 'pickup'])->assertCreated();
+        $order = $this->actingAs($user)->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => $user->email, 'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id])->assertCreated();
         $item = \App\Models\Order\OrderItem::where('order_id', $order->json('order.id'))->firstOrFail();
         $this->assertEquals(900, $item->price);
         $this->assertEquals('Скидка', $item->pricing_snapshot['rule_name']);

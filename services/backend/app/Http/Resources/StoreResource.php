@@ -21,7 +21,7 @@ class StoreResource extends JsonResource
         $warehouse = $this->warehouse;
         $hasOwnStock = $warehouse && $warehouse->is_active && $warehouse->source_type === 'physical' && $warehouse->stock_mode === 'quantity'
             && $site && (int) $warehouse->physical_site_id === (int) $site->id;
-        $pickupReady = $this->is_active && $this->pickup_enabled && $hasOwnStock && filled($site?->address);
+        $pickupReady = $warehouse && app(\App\Services\Shipping\PickupReadiness::class)->ready($warehouse, $this->resource);
 
         return [
             'id' => $this->id,
@@ -30,6 +30,7 @@ class StoreResource extends JsonResource
             'address' => $site?->address ?? $this->address,
             'city' => $site?->city ?? $this->city,
             'physical_site_id' => $this->physical_site_id,
+            'locality' => $site ? \App\Services\Address\AddressHierarchy::locality($site->address_snapshot ?? []) : null,
             'warehouse_id' => $this->warehouse_id,
             'has_own_stock' => (bool) $hasOwnStock,
             'gar_guid' => $site?->gar_guid,

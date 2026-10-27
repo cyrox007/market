@@ -742,7 +742,7 @@ class OpenCartXlsxCatalogImport extends AbstractCatalogImport
     }
 
     /**
-     * Записывает значение опции в характеристику «Вариант» вариации (product_variant_attributes.custom_value),
+     * Записывает значение опции в характеристику «Вариант» вариации (product_product_attributes.custom_value),
      * чтобы пользователь выбирал вариацию по этому значению.
      */
     protected function syncVariantAttributeForOption(Product $variantProduct, string $optionValueName): void
@@ -756,7 +756,7 @@ class OpenCartXlsxCatalogImport extends AbstractCatalogImport
             return;
         }
         $now = now();
-        DB::table('product_variant_attributes')->updateOrInsert(
+        DB::table('product_product_attributes')->updateOrInsert(
             [
                 'product_id' => $variantProduct->id,
                 'attribute_id' => $attr->id,

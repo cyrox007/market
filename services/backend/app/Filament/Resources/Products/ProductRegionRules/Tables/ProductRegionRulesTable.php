@@ -90,11 +90,6 @@ class ProductRegionRulesTable
                     ->badge()
                     ->color(fn ($state) => $state ? 'danger' : 'success'),
 
-                TextColumn::make('delivery_days_override')
-                    ->label('Срок доставки')
-                    ->formatStateUsing(fn ($state) => $state ? $state . ' дн.' : '—')
-                    ->sortable(),
-
                 TextColumn::make('priority')
                     ->label('Приоритет')
                     ->sortable()

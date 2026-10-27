@@ -43,11 +43,6 @@ class AdditionalServicesTable
                         default => 'gray',
                     }),
 
-                TextColumn::make('base_price')
-                    ->label('Базовая цена')
-                    ->money('RUB')
-                    ->default('—')
-                    ->sortable(),
 
                 IconColumn::make('is_active')
                     ->label('Активна')

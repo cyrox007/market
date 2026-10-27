@@ -16,7 +16,7 @@ class ProductCanonicalAttributeQueryService
      * Apply a canonical attribute filter to parent products.
      *
      * The value may live directly on a simple product in product_product_attributes
-     * or on one of a variable product's active variants in product_variant_attributes.
+     * or on one of a variable product's active variants in product_product_attributes.
      * Both predefined values and custom_value are supported.
      *
      * @param array<int, string> $inputs
@@ -48,7 +48,7 @@ class ProductCanonicalAttributeQueryService
             })->orWhereExists(function ($sub) use ($attribute, $valueIds, $customValues) {
                 $sub->selectRaw('1')
                     ->from('products as canonical_variants')
-                    ->join('product_variant_attributes as pva', 'pva.product_id', '=', 'canonical_variants.id')
+                    ->join('product_product_attributes as pva', 'pva.product_id', '=', 'canonical_variants.id')
                     ->whereColumn('canonical_variants.parent_product_id', 'products.id')
                     ->where('canonical_variants.state', Product::ACTIVE)
                     ->where('pva.attribute_id', $attribute->id)
@@ -80,7 +80,7 @@ class ProductCanonicalAttributeQueryService
             ->selectRaw('p.id as root_product_id, ppa.attribute_value_id, ppa.custom_value, pav.value, pav.slug, pav.color_code')
             ->get();
 
-        $variantRows = DB::table('product_variant_attributes as pva')
+        $variantRows = DB::table('product_product_attributes as pva')
             ->join('products as v', 'v.id', '=', 'pva.product_id')
             ->leftJoin('product_attribute_values as pav', 'pav.id', '=', 'pva.attribute_value_id')
             ->where('pva.attribute_id', $attribute->id)
@@ -167,7 +167,7 @@ class ProductCanonicalAttributeQueryService
                 return collect();
             }
 
-            $matchingIds = DB::table('product_variant_attributes as pva')
+            $matchingIds = DB::table('product_product_attributes as pva')
                 ->whereIn('pva.product_id', $variantIds)
                 ->where('pva.attribute_id', $constraint->id)
                 ->where(fn ($values) => $this->applyResolvedValueCondition($values, 'pva', $valueIds, $customValues))
@@ -179,7 +179,7 @@ class ProductCanonicalAttributeQueryService
             }
         }
 
-        $rows = DB::table('product_variant_attributes as pva')
+        $rows = DB::table('product_product_attributes as pva')
             ->leftJoin('product_attribute_values as pav', 'pav.id', '=', 'pva.attribute_value_id')
             ->whereIn('pva.product_id', $variantIds)
             ->where('pva.attribute_id', $target->id)
@@ -238,13 +238,6 @@ class ProductCanonicalAttributeQueryService
             ->whereNotNull('custom_value')
             ->where('custom_value', '!=', '')
             ->pluck('custom_value')
-            ->concat(
-                DB::table('product_variant_attributes')
-                    ->where('attribute_id', $attribute->id)
-                    ->whereNotNull('custom_value')
-                    ->where('custom_value', '!=', '')
-                    ->pluck('custom_value')
-            )
             ->unique()
             ->values();
 

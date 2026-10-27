@@ -9,10 +9,22 @@ use App\Models\Shipping\ShippingLocation;
 use App\Services\Shipping\FulfillmentSourceResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Illuminate\Support\Facades\Http;
 
 class FulfillmentSourceResolverTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Http::fake(fn ($request) => Http::response(['target' => ['kind' => 'region', 'externalId' => rawurldecode(basename(parse_url($request->url(), PHP_URL_PATH))), 'name' => 'Region'], 'path' => []]));
+    }
+
+    private function destination(ShippingLocation $location): array
+    {
+        return ['specified' => true, 'path' => [['kind' => 'region', 'externalId' => 'region-'.$location->getAncestorsIds()[array_key_last($location->getAncestorsIds())]]], 'point' => null];
+    }
 
     public function test_it_resolves_physical_and_manufacturer_sources_for_child_location(): void
     {
@@ -26,7 +38,7 @@ class FulfillmentSourceResolverTest extends TestCase
             'name' => 'Липецкое направление', 'base_price' => 4500,
             'delivery_days_min' => 2, 'delivery_days_max' => 4,
         ]);
-        $physicalProfile->locations()->attach($region);
+        $physicalProfile->update(['directory_territories' => [['region_id' => 'region-'.$region->id]]]);
 
         $factory = Warehouse::create([
             'name' => 'Фабрика', 'source_type' => 'manufacturer', 'stock_mode' => 'availability',
@@ -40,9 +52,9 @@ class FulfillmentSourceResolverTest extends TestCase
             'name' => 'ЦФО', 'base_price' => 3000,
             'delivery_days_min' => 3, 'delivery_days_max' => 5,
         ]);
-        $factoryProfile->locations()->attach($region);
+        $factoryProfile->update(['directory_territories' => [['region_id' => 'region-'.$region->id]]]);
 
-        $sources = app(FulfillmentSourceResolver::class)->resolve($product, $city);
+        $sources = app(FulfillmentSourceResolver::class)->resolve($product, $this->destination($city));
 
         $this->assertCount(2, $sources);
         $this->assertSame('Склад Воронеж', $sources->first()['source_name']);
@@ -65,11 +77,11 @@ class FulfillmentSourceResolverTest extends TestCase
                 'name' => $name, 'base_price' => 1500, 'delivery_days_min' => 3, 'delivery_days_max' => 5,
                 'is_active' => $name !== 'disabled-profile',
             ]);
-            $profile->locations()->attach($region);
+            $profile->update(['directory_territories' => [['region_id' => 'region-'.$region->id]]]);
         }
         $resolver = app(FulfillmentSourceResolver::class);
-        $this->assertSame(['active'], $resolver->resolve($product, $city)->pluck('source_name')->all());
-        $this->assertEmpty($resolver->resolve($product, $outside));
+        $this->assertSame(['active'], $resolver->resolve($product, $this->destination($city))->pluck('source_name')->all());
+        $this->assertEmpty($resolver->resolve($product, $this->destination($outside)));
     }
 
     public function test_it_excludes_source_without_stock_or_availability(): void
@@ -81,9 +93,9 @@ class FulfillmentSourceResolverTest extends TestCase
             'name' => 'Регион', 'base_price' => 1000,
             'delivery_days_min' => 1, 'delivery_days_max' => 2,
         ]);
-        $profile->locations()->attach($location);
+        $profile->update(['directory_territories' => [['region_id' => 'region-'.$location->id]]]);
 
-        $this->assertEmpty(app(FulfillmentSourceResolver::class)->resolve($product, $location));
+        $this->assertEmpty(app(FulfillmentSourceResolver::class)->resolve($product, $this->destination($location)));
     }
 
     public function test_distance_ranks_only_eligible_sources_and_unknown_points_last(): void
@@ -96,9 +108,9 @@ class FulfillmentSourceResolverTest extends TestCase
             $profile = $warehouse->deliveryProfiles()->create([
                 'name' => 'Доставка', 'base_price' => 1000, 'delivery_days_min' => 1, 'delivery_days_max' => 2,
             ]);
-            $profile->locations()->attach($location);
+            $profile->update(['directory_territories' => [['region_id' => 'region-'.$location->id]]]);
         }
-        $sources = app(FulfillmentSourceResolver::class)->resolve($product, $location, ['latitude' => 51, 'longitude' => 39]);
+        $sources = app(FulfillmentSourceResolver::class)->resolve($product, $this->destination($location), ['latitude' => 51, 'longitude' => 39]);
         $this->assertSame(['Near', 'Far', 'Unknown'], $sources->pluck('source_name')->all());
         $this->assertGreaterThan(100, $sources->first()['distance_km']);
         $this->assertNull($sources->last()['distance_km']);

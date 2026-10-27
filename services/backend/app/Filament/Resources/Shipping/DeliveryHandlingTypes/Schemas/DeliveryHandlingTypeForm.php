@@ -15,6 +15,7 @@ class DeliveryHandlingTypeForm
         return $schema
             ->components([
                 Section::make('Основная информация')
+                    ->description('Справочник вариантов подъёма и разгрузки. Доступность и стоимость задаются только в профиле доставки склада; создание записи само по себе не начисляет плату.')
                     ->schema([
                         TextInput::make('name')
                             ->label(__('filament/admin_sv/delivery_handling_type_resource.name'))

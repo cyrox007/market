@@ -19,6 +19,13 @@ use UnitEnum;
 
 class RegionShippingMethodResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
     protected static ?string $model = RegionShippingMethod::class;
 
     protected static ?string $navigationLabel = null;
@@ -57,12 +64,7 @@ class RegionShippingMethodResource extends Resource
 
     public static function getPages(): array
     {
-        return [
-            'index' => ListRegionShippingMethods::route('/'),
-            'create' => CreateRegionShippingMethod::route('/create'),
-            'view' => ViewRegionShippingMethod::route('/{record}'),
-            'edit' => EditRegionShippingMethod::route('/{record}/edit'),
-        ];
+        return [];
     }
 
     public static function getNavigationLabel(): string

@@ -16,7 +16,7 @@ class CartQuantityPolicy
     public function limit(Product $product, int $requested, int $alreadyInCart, ?int $stock): CartQuantityLimit
     {
         $byOrderLimit = max(0, self::MAX_PER_ORDER - $alreadyInCart);
-        $byStock = ($stock === null || $product->backorder) ? null : max(0, $stock - $alreadyInCart);
+        $byStock = ($stock === null) ? null : max(0, $stock - $alreadyInCart);
 
         $allowed = $byStock === null ? $byOrderLimit : min($byOrderLimit, $byStock);
         $quantity = min($requested, $allowed);

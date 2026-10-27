@@ -145,7 +145,7 @@ class ProductCanonicalVariationCompatibilityTest extends TestCase
 
     private function attach(Product $variant, Attribute $attribute, AttributeValue $value): void
     {
-        DB::table('product_variant_attributes')->insert([
+        DB::table('product_product_attributes')->insert([
             'product_id' => $variant->id,
             'attribute_id' => $attribute->id,
             'attribute_value_id' => $value->id,

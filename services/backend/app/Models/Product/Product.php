@@ -213,8 +213,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
 
     public function variantManufacturerAttributes(): BelongsToMany
     {
-        return $this->belongsToMany(Attribute::class, 'product_variant_attributes', 'product_id', 'attribute_id')
-            ->where('product_attributes.slug', Attribute::SLUG_MANUFACTURER)->withPivot('attribute_value_id', 'custom_value');
+        return $this->manufacturerAttributes();
     }
 
     public function attributeValues(): BelongsToMany
@@ -282,6 +281,8 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         $this->loadMissing(['attributes']);
 
         $specifications = [];
+        $hasValue = static fn ($value): bool => $value !== null
+            && preg_match('/^[\s\p{Z}\x{200B}\x{FEFF}]*$/u', (string) $value) !== 1;
 
         $productAttributes = $this->relationLoaded('attributes')
             ? $this->getRelation('attributes')
@@ -291,14 +292,14 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $pivot = $attribute->pivot;
             $value = null;
 
-            if ($pivot && $pivot->custom_value !== null && $pivot->custom_value !== '') {
+            if ($pivot && $hasValue($pivot->custom_value)) {
                 $value = (string) $pivot->custom_value;
             } elseif ($pivot?->attribute_value_id) {
                 $attribute->loadMissing('values');
                 $value = $attribute->values->firstWhere('id', $pivot->attribute_value_id)?->value;
             }
 
-            if ($value === null || $value === '') {
+            if (! $hasValue($value)) {
                 continue;
             }
 
@@ -309,22 +310,70 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             ];
         }
 
-        if ($this->length || $this->width || $this->height || $this->weight) {
+        $parent = $this->isVariant() ? $this->parentProduct : null;
+        $length = $this->length ?? $parent?->length;
+        $width = $this->width ?? $parent?->width;
+        $height = $this->height ?? $parent?->height;
+        $weight = $this->weight ?? $parent?->weight;
+        if ($length || $width || $height || $weight) {
             $specifications[] = [
                 'name' => 'Размеры (ДxШxВ)',
-                'value' => ($this->length ?? '-') . ' x ' . ($this->width ?? '-') . ' x ' . ($this->height ?? '-') . ' см',
+                'value' => ($length ?? '-') . ' x ' . ($width ?? '-') . ' x ' . ($height ?? '-') . ' см',
                 'slug' => 'dimensions',
             ];
-            if ($this->weight) {
+            if ($weight) {
                 $specifications[] = [
                     'name' => 'Вес',
-                    'value' => $this->weight . ' кг',
+                    'value' => $weight . ' кг',
                     'slug' => 'weight',
                 ];
             }
         }
 
-        return $specifications;
+        return collect($specifications)->groupBy('slug')->map(function ($rows): array {
+            $first = $rows->first();
+            $first['value'] = $rows->pluck('value')->unique()->implode(', ');
+
+            return $first;
+        })->values()->all();
+    }
+
+    /** Shared properties are inherited by attribute, never instead of all own properties. */
+    public function buildEffectiveSpecificationsForApi(): array
+    {
+        $own = $this->buildSpecificationsForApi();
+        if (! $this->isVariant() || ! $this->parentProduct) {
+            return $own;
+        }
+        $this->loadMissing('attributes', 'parentProduct.attributes');
+        $ownBySlug = collect($own)->groupBy('slug');
+        // Being available as a variation attribute does not make a shared value disappear.
+        $variantSlugs = collect([Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, 'variant']);
+        $shared = collect($this->parentProduct->buildSpecificationsForApi())
+            ->reject(fn (array $spec) => $variantSlugs->contains($spec['slug']))->groupBy('slug');
+        $result = collect();
+        foreach ($shared as $slug => $specs) {
+            // Override values in place: identical shared fields retain the parent's order.
+            $result = $result->concat($ownBySlug->get($slug, $specs));
+        }
+
+        return $result->concat($ownBySlug->except($shared->keys()->all())->flatten(1))->values()->all();
+    }
+
+    public function getEffectiveDescription(): ?string
+    {
+        $html = app(\App\Services\Product\ProductDescriptionHtml::class);
+        if ($html->hasContent($this->description)) {
+            return $this->description;
+        }
+        $parent = $this->isVariant() ? $this->parentProduct : null;
+
+        return $parent && $html->hasContent($parent->description) ? $parent->description : null;
+    }
+
+    public function setDescriptionAttribute(?string $value): void
+    {
+        $this->attributes['description'] = app(\App\Services\Product\ProductDescriptionHtml::class)->hasContent($value) ? $value : null;
     }
 
     /**
@@ -390,31 +439,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public function getColorsArray(): array
     {
-        $colors = [];
-        
-        // Ищем характеристику "Цвет"
-        $colorAttribute = Attribute::where('slug', 'color')->first();
-        if (!$colorAttribute) {
-            return $colors;
-        }
-        
-        // Получаем значения цвета через характеристики
-        $colorValues = $this->attributeValues()
-            ->whereHas('attribute', function ($q) use ($colorAttribute) {
-                $q->where('id', $colorAttribute->id);
-            })
-            ->get();
-        
-        foreach ($colorValues as $value) {
-            $colors[] = [
+        return app(ProductVariationAttributeService::class)->valuesForSimpleProduct($this, Attribute::SLUG_COLOR)
+            ->map(fn ($value) => [
                 'id' => $value->id,
                 'value' => $value->value,
                 'slug' => $value->slug,
                 'color_code' => $value->color_code,
-            ];
-        }
-        
-        return $colors;
+            ])->values()->all();
     }
 
     /**
@@ -589,13 +620,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
-     * Получить характеристики вариации (через product_variant_attributes)
+     * Получить характеристики вариации (через product_product_attributes)
      */
     public function variantAttributes(): BelongsToMany
     {
         return $this->belongsToMany(
             Attribute::class,
-            'product_variant_attributes',
+            'product_product_attributes',
             'product_id',
             'attribute_id'
         )->withPivot('attribute_value_id', 'custom_value')->withTimestamps();
@@ -608,7 +639,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     {
         return $this->belongsToMany(
             AttributeValue::class,
-            'product_variant_attributes',
+            'product_product_attributes',
             'product_id',
             'attribute_value_id'
         )->withPivot('attribute_id', 'custom_value')->withTimestamps();
@@ -655,12 +686,12 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             return collect();
         }
 
-        $rows = \DB::table('product_variant_attributes')
-            ->join('products', 'products.id', '=', 'product_variant_attributes.product_id')
-            ->where('product_variant_attributes.attribute_id', $attribute->id)
+        $rows = \DB::table('product_product_attributes')
+            ->join('products', 'products.id', '=', 'product_product_attributes.product_id')
+            ->where('product_product_attributes.attribute_id', $attribute->id)
             ->where('products.parent_product_id', $this->id)
             ->where('products.state', self::ACTIVE)
-            ->select('product_variant_attributes.attribute_value_id', 'product_variant_attributes.custom_value')
+            ->select('product_product_attributes.attribute_value_id', 'product_product_attributes.custom_value')
             ->distinct()
             ->get();
 
@@ -730,7 +761,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             // Сопоставление custom_value в PHP: в БД только текст, slug считаем здесь.
             $matchingCustomValues = collect();
             if (($input !== '' || $inputSlug !== '') && $variantIds->isNotEmpty()) {
-                $customValues = \DB::table('product_variant_attributes')
+                $customValues = \DB::table('product_product_attributes')
                     ->whereIn('product_id', $variantIds)
                     ->where('attribute_id', $attr->id)
                     ->whereNotNull('custom_value')
@@ -753,7 +784,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             }
 
             $query->whereExists(function ($q) use ($attr, $valueIds, $matchingCustomValues) {
-                $q->from('product_variant_attributes as pva')
+                $q->from('product_product_attributes as pva')
                     ->whereColumn('pva.product_id', 'products.id')
                     ->where('pva.attribute_id', $attr->id)
                     ->where(function ($q2) use ($valueIds, $matchingCustomValues) {
@@ -778,13 +809,12 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         if (!$this->isVariant()) {
             return [];
         }
-        $rows = \DB::table('product_variant_attributes')
-            ->where('product_id', $this->id)
-            ->get();
+        $this->loadMissing('attributes.values');
+        $rows = $this->getRelation('attributes');
         $out = [];
-        foreach ($rows as $row) {
-            $attr = Attribute::find($row->attribute_id);
-            if (!$attr || !$attr->is_use_in_variations) {
+        foreach ($rows as $attr) {
+            $row = $attr->pivot;
+            if (!$attr->is_use_in_variations && $attr->slug !== 'variant') {
                 continue;
             }
             if (!empty($row->custom_value)) {
@@ -799,7 +829,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             if (empty($row->attribute_value_id)) {
                 continue;
             }
-            $av = AttributeValue::find($row->attribute_value_id);
+            $av = $attr->values->firstWhere('id', $row->attribute_value_id);
             if (!$av) {
                 continue;
             }
@@ -977,15 +1007,28 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             ->whereNotNull('price');
     }
 
-    /**
-     * Scope a query to filter by category (taxon) including all descendant categories.
-     */
+    /** Public catalog positions: simple products and individual active offers. */
+    public function scopeCatalogItems(Builder $query): Builder
+    {
+        return $query->active()->where(function (Builder $items): void {
+            $items->where(function (Builder $simple): void {
+                $simple->whereNull('parent_product_id')
+                    ->where(fn (Builder $flag) => $flag->whereNull('is_variable')->orWhere('is_variable', false))
+                    ->whereDoesntHave('variants');
+            })->orWhere(function (Builder $offer): void {
+                $offer->whereNotNull('parent_product_id')->whereHas('parentProduct', fn (Builder $parent) => $parent->active()->whereNull('parent_product_id'));
+            });
+        });
+    }
+
+    /** Filter by own or inherited category, including descendant categories. */
     public function scopeInCategory(Builder $query, $taxonId): Builder
     {
         $categoryIds = Category::getAllDescendantIdsFor($taxonId);
 
-        return $query->whereHas('taxons', function ($q) use ($categoryIds) {
-            $q->whereIn('taxons.id', $categoryIds);
+        return $query->where(function (Builder $scope) use ($categoryIds): void {
+            $scope->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $categoryIds))
+                ->orWhereHas('parentProduct.taxons', fn ($q) => $q->whereIn('taxons.id', $categoryIds));
         });
     }
 
@@ -999,7 +1042,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             $q->where('name', 'like', $searchTerm)
                 ->orWhere('description', 'like', $searchTerm)
                 //->orWhere('excerpt', 'like', $searchTerm)
-                ->orWhere('sku', 'like', $searchTerm);
+                ->orWhere('sku', 'like', $searchTerm)
+                ->orWhereHas('parentProduct', fn (Builder $parent) => $parent->where(fn (Builder $text) => $text
+                    ->where('name', 'like', $searchTerm)->orWhere('description', 'like', $searchTerm)));
         });
     }
 

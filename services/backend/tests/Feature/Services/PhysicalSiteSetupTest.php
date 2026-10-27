@@ -76,12 +76,27 @@ class PhysicalSiteSetupTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_legacy_store_can_still_be_edited_without_site(): void
+    public function test_legacy_store_requires_site_when_edited(): void
     {
         $store = Store::create(['name' => 'Старый', 'address' => 'Старый адрес', 'city' => 'Липецк', 'phone' => '123']);
-        $data = app(PhysicalSiteSetup::class)->store(['name' => 'Новое имя', 'store_stock_mode' => 'showroom'], $store);
-        $store->update($data);
-        $this->assertSame('Старый адрес', $store->fresh()->address);
+        $this->expectException(ValidationException::class);
+        app(PhysicalSiteSetup::class)->store(['name' => 'Новое имя', 'store_stock_mode' => 'showroom'], $store);
+    }
+
+    public function test_store_discards_legacy_region_and_manual_coordinates(): void
+    {
+        $site = $this->site();
+        $data = app(PhysicalSiteSetup::class)->store([
+            'physical_site_id' => $site->id, 'store_stock_mode' => 'showroom',
+            'shipping_location_id' => 999, 'city' => 'Подмена', 'address' => 'Подмена',
+            'coordinates' => '1,2', 'latitude' => 1, 'longitude' => 2,
+        ]);
+        $this->assertNull($data['shipping_location_id']);
+        $this->assertNull($data['coordinates']);
+        $this->assertSame($site->city, $data['city']);
+        $this->assertSame($site->address, $data['address']);
+        $this->assertEquals($site->latitude, $data['latitude']);
+        $this->assertEquals($site->longitude, $data['longitude']);
     }
 
     public function test_site_point_update_propagates_shop_coordinates(): void

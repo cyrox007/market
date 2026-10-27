@@ -31,7 +31,7 @@ class UpdateCartItemQuantityAction
      */
     public function execute(CartItem&Model $item, Product $product, int $requested, ?int $shippingLocationId): CartQuantityResult
     {
-        $stock = $this->stockAvailability->resolveAvailableStock($product, $shippingLocationId);
+        $stock = $this->stockAvailability->resolveAvailableStock($product);
         $keepsProduct = (int) $item->product_id === (int) $product->getKey();
 
         $updatedInPlace = false;

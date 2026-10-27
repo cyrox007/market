@@ -83,7 +83,7 @@ class CatalogFilterService
             return $roots;
         }
 
-        return $roots->whereIn('products.id', $this->skus($roots, $filters)->selectRaw('COALESCE(products.parent_product_id, products.id)'));
+        return $roots->whereIn('products.id', $this->skus(clone $roots, $filters)->select('products.id'));
     }
 
     private function hasPredicates(array $filters): bool
@@ -105,14 +105,7 @@ class CatalogFilterService
     public function skus(Builder $roots, array $filters): Builder
     {
         $ids = (clone $roots)->reorder()->select('products.id')->setEagerLoads([]);
-        $sku = Product::query()->active()->where(function ($q) use ($ids) {
-            $q->where(function ($simple) use ($ids) {
-                $simple->whereIn('products.id', clone $ids)->whereNull('parent_product_id')
-                    ->where(fn ($v) => $v->whereNull('is_variable')->orWhere('is_variable', false)->orWhereDoesntHave('variants'));
-            })->orWhere(function ($variant) use ($ids) {
-                $variant->whereIn('products.parent_product_id', clone $ids);
-            });
-        });
+        $sku = Product::query()->catalogItems()->whereIn('products.id', $ids);
         $sku->joinSub(app(CatalogPrice::class)->rows($this->location, $this->applyPricingRules), 'catalog_prices', 'catalog_prices.sku_id', '=', 'products.id');
         foreach (['min' => '>=', 'max' => '<='] as $bound => $operator) {
             if (isset($filters['price_'.$bound]) && $filters['price_'.$bound] !== '') {
@@ -195,15 +188,11 @@ class CatalogFilterService
             is_array($values) ? $values : explode(',', (string) $values)), fn ($v) => $v !== '')));
     }
 
-    /** Both storage pivots are valid; a SKU's own attribute overrides an inherited root attribute. */
+    /** One storage pivot; a SKU's own attribute overrides an inherited root attribute. */
     private function rows(Attribute $attribute): \Illuminate\Database\Query\Builder
     {
-        $regular = DB::table('product_product_attributes')->where('attribute_id', $attribute->id)
-            ->select('product_id', 'attribute_value_id', 'custom_value');
-        $variant = DB::table('product_variant_attributes')->where('attribute_id', $attribute->id)
-            ->select('product_id', 'attribute_value_id', 'custom_value');
-
-        return DB::query()->fromSub($regular->unionAll($variant), 'stored');
+        return DB::query()->fromSub(DB::table('product_product_attributes')->where('attribute_id', $attribute->id)
+            ->select('product_id', 'attribute_value_id', 'custom_value'), 'stored');
     }
 
     private function effectiveRows(Attribute $attribute): \Illuminate\Database\Query\Builder
@@ -262,13 +251,11 @@ class CatalogFilterService
             $meta['dimensions'][$key] = $range;
         }
         $rootIds = (clone $roots)->reorder()->select('products.id');
+        $parentIds = (clone $roots)->reorder()->select('products.parent_product_id');
         $scopeIds = Product::query()->active()->where(fn ($q) => $q->whereIn('id', clone $rootIds)
-            ->orWhereIn('parent_product_id', clone $rootIds))->select('id');
+            ->orWhereIn('id', clone $parentIds))->select('id');
         $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
-        $usedVariantAttributes = DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
-        // MySQL versions used on hosting reject Laravel's parenthesized UNION inside IN.
-        // Two membership predicates have the same set semantics without that syntax.
-        foreach (Attribute::where(fn ($q) => $q->whereIn('id', $usedAttributes)->orWhereIn('id', $usedVariantAttributes))->where(fn ($q) => $q->where('is_filterable', true)
+        foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
             ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {
@@ -279,7 +266,7 @@ class CatalogFilterService
                 ->join('products as sku', 'sku.id', '=', 'facet.sku_id')
                 ->leftJoin('product_attribute_values as val', 'val.id', '=', 'facet.attribute_value_id')
                 ->whereIn('facet.sku_id', $skus)
-                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, COUNT(DISTINCT COALESCE(sku.parent_product_id, sku.id)) as product_count')
+                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, COUNT(DISTINCT sku.id) as product_count')
                 ->groupBy('facet.attribute_value_id', 'facet.custom_value', 'val.value', 'val.slug', 'val.color_code')
                 ->get()->map(function ($v) {
                     $name = trim((string) ($v->value ?? $v->custom_value));
