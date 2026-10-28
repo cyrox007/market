@@ -65,6 +65,16 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         });
         static::deleted(fn () => \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid()));
 
+        // Базовая цена виртуального предложения зависит от цен физических SKU.
+        // Точную региональную цену оформления всё равно рассчитывает PricingEngine.
+        static::saved(function (self $product): void {
+            if ($product->wasChanged('price') && ! $product->is_sellable_bundle
+                && ! $product->parentProduct?->is_sellable_bundle) {
+                app(\App\Services\Product\SellableBundle::class)
+                    ->syncOffersUsingComponent((int) $product->id);
+            }
+        });
+
         // Сбрасываем кэш при изменении вариаций и синхронизируем цену родителя
         static::saved(function ($product) {
             if ($product->isVariant() && $product->parent_product_id) {
@@ -133,7 +143,18 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public static function syncParentPriceFromVariants(self $parent): void
     {
-        $minPrice = $parent->variants()->active()->min('price');
+        // A virtual kit offer without a complete component mapping must not make
+        // the catalogue's minimum price 0 ₽ (or its stale manual price).
+        if ($parent->is_sellable_bundle && $parent->isVariable()) {
+            $required = $parent->sellableBundleGroups()->count();
+            $minPrice = $required > 0
+                ? $parent->variants()->active()
+                    ->whereHas('sellableBundleComponents', fn ($q) => $q, '=', $required)
+                    ->min('price')
+                : null;
+        } else {
+            $minPrice = $parent->variants()->active()->min('price');
+        }
         if ($minPrice !== null) {
             $parent->updateQuietly(['price' => (float) $minPrice]);
         }
@@ -486,6 +507,17 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         $related->relatedProducts()->detach($this->getKey());
 
         static::flushAllProductCaches();
+    }
+
+    /**
+     * Parent catalogue groups used to configure every sellable variation separately.
+     * The group itself never becomes an order line.
+     */
+    public function sellableBundleGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'sellable_bundle_groups', 'product_id', 'component_group_id')
+            ->withPivot('sort_order')->withTimestamps()
+            ->orderBy('sellable_bundle_groups.sort_order')->orderBy('sellable_bundle_groups.id');
     }
 
     /**

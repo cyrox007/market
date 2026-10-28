@@ -9,9 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * A sellable kit is the selected primary SKU plus fixed, concrete add-on SKUs.
- * All lines are expanded before warehouse quoting, reservation and 1C sync.
- * Never use min-price of a variable parent as the price of a kit component.
+ * Simple kit: physical root SKU + extras on root.
+ * Variable kit: root is an editorial group, selected child offer is a VIRTUAL kit
+ * and owns a complete mapping from every allowed component group to a real SKU.
+ * Only real component SKUs enter pricing, shipping, stock, order items and 1C.
  */
 class SellableBundle
 {
@@ -20,20 +21,107 @@ class SellableBundle
         if ($sku->is($owner) || (int) $sku->parent_product_id === (int) $owner->id) {
             return false;
         }
-        if ((bool) $sku->is_sellable_bundle || $sku->sellableBundleComponents()->exists()) {
-            return false; // nested sets are intentionally not supported
+        // A kit or any kit offer must never be a physical component of another kit.
+        if ($sku->is_sellable_bundle || $sku->parentProduct?->is_sellable_bundle
+            || $sku->sellableBundleComponents()->exists()) {
+            return false;
         }
-        if ($sku->isVariable() && ! $sku->isVariant() && $sku->variants()->exists()) {
-            return false; // concrete variant required
+        if ($sku->isVariable() && ! $sku->isVariant()) {
+            return false;
         }
-
         return $sku->getRawOriginal('state') === Product::ACTIVE
             && (! $sku->isVariant() || $sku->parentProduct?->getRawOriginal('state') === Product::ACTIVE);
     }
 
+    public function groupIsEligible(Product $group, Product $root): bool
+    {
+        return ! $group->isVariant() && ! $group->is($root)
+            && $group->getRawOriginal('state') === Product::ACTIVE
+            && ! $group->is_sellable_bundle && ! $group->sellableBundleComponents()->exists();
+    }
+
+    private function groupForSku(Product $sku): int
+    {
+        return (int) ($sku->parent_product_id ?: $sku->id);
+    }
+
     /**
-     * @return array{bundle_id:int,primary_sku_id:int,bundle_quantity:int,items:array,components:array}
+     * Called by the variation's own modal. Every selected root group must be mapped
+     * to one concrete, active SKU; no silent matching by color name is allowed.
      */
+    public function saveOfferComposition(Product $offer, array $rows): void
+    {
+        DB::transaction(function () use ($offer, $rows): void {
+            $root = Product::query()->lockForUpdate()->findOrFail($offer->parent_product_id);
+            if (! $root->isVariable() || (int) $offer->parent_product_id !== (int) $root->id) {
+                throw ValidationException::withMessages(['components' => 'Выберите предложение вариативного комплекта.']);
+            }
+            $groups = $root->sellableBundleGroups()->lockForUpdate()->get();
+            if ($groups->isEmpty() || $groups->count() > 29 || count($rows) !== $groups->count()) {
+                throw ValidationException::withMessages(['components' => 'Сначала настройте группы составляющих в корневой карточке.']);
+            }
+            $allowed = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $selected = [];
+            foreach ($rows as $row) {
+                $groupId = (int) ($row['group_id'] ?? 0);
+                $sku = Product::with('parentProduct')->find($row['product_id'] ?? null);
+                $qty = filter_var($row['quantity'] ?? null, FILTER_VALIDATE_INT);
+                if (! in_array($groupId, $allowed, true) || isset($selected[$groupId])
+                    || ! $sku || $this->groupForSku($sku) !== $groupId
+                    || ! $this->componentIsSellable($sku, $root)
+                    || ! $qty || $qty < 1 || $qty > 1000) {
+                    throw ValidationException::withMessages(['components' => 'Для каждой группы выберите подходящий активный SKU и количество.']);
+                }
+                $selected[$groupId] = ['product_id' => (int) $sku->id, 'quantity' => $qty];
+            }
+            if (count($selected) !== count($allowed)) {
+                throw ValidationException::withMessages(['components' => 'Каждая группа должна иметь своё торговое предложение.']);
+            }
+            $sync = [];
+            foreach ($allowed as $i => $groupId) {
+                $row = $selected[$groupId];
+                $sync[$row['product_id']] = ['quantity' => $row['quantity'], 'sort_order' => $i];
+            }
+            $offer->sellableBundleComponents()->sync($sync);
+            $offer->setRelation('parentProduct', $root);
+            $this->syncBasePrice($offer);
+            $root->flushCache();
+            $offer->flushCache();
+            Product::flushAllProductCaches();
+        });
+    }
+
+    /**
+     * Base catalogue price (before region/customer promotions) of the virtual offer.
+     * Kept in products.price for search/listings; checkout always recalculates from
+     * real SKUs through PricingEngine instead of trusting this denormalized value.
+     */
+    public function syncBasePrice(Product $offer): void
+    {
+        if (! $offer->isVariant() || ! $offer->parentProduct?->isVariable()) {
+            return;
+        }
+        $rows = $offer->sellableBundleComponents()->get();
+        if ($rows->isEmpty()) {
+            return;
+        }
+        $price = round((float) $rows->sum(fn (Product $sku) => (float) $sku->price * (int) $sku->pivot->quantity), 2);
+        $offer->updateQuietly(['price' => $price, 'stock' => 0, 'backorder' => false]);
+        Product::syncParentPriceFromVariants($offer->parentProduct);
+    }
+
+    public function syncOffersUsingComponent(int $componentSkuId): void
+    {
+        $offerIds = DB::table('sellable_bundle_components')
+            ->where('component_product_id', $componentSkuId)->pluck('product_id');
+        foreach (Product::with('parentProduct')->whereIn('id', $offerIds)->get() as $offer) {
+            if ($offer->isVariant() && $offer->parentProduct?->isVariable()) {
+                $this->syncBasePrice($offer);
+            }
+        }
+    }
+
+    /** @return array{bundle_id:int,primary_sku_id:int,bundle_quantity:int,items:array,components:array} */
     public function composition(int $bundleId, ?int $primarySkuId, int $quantity = 1): array
     {
         if ($quantity < 1 || $quantity > 1000) {
@@ -45,51 +133,84 @@ class SellableBundle
         if (! $root->is_sellable_bundle) {
             throw ValidationException::withMessages(['bundle_id' => 'Этот товар не продаётся комплектом.']);
         }
-        if ($root->isVariable() && $root->variants()->exists()) {
-            $primary = $primarySkuId ? Product::query()->active()
-                ->where('parent_product_id', $root->id)->find($primarySkuId) : null;
-            if (! $primary) {
-                throw ValidationException::withMessages(['primary_sku_id' => 'Выберите действующее торговое предложение основного товара.']);
+        $variable = $root->isVariable() && $root->variants()->exists();
+        if ($variable) {
+            $offer = $primarySkuId ? Product::query()->active()
+                ->where('parent_product_id', $root->id)
+                ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())
+                ->find($primarySkuId) : null;
+            if (! $offer) {
+                throw ValidationException::withMessages(['primary_sku_id' => 'Выберите торговое предложение комплекта.']);
             }
-        } else {
-            if ($primarySkuId !== null && $primarySkuId !== (int) $root->id) {
-                throw ValidationException::withMessages(['primary_sku_id' => 'Неверное торговое предложение основного товара.']);
+            $groups = $root->sellableBundleGroups()
+                ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())->get();
+            if ($groups->isEmpty() || $groups->count() > 29) {
+                throw ValidationException::withMessages(['bundle_id' => 'Для комплекта не настроены группы составляющих.']);
             }
-            $primary = $root;
+            $parts = $offer->sellableBundleComponents()->with('parentProduct')
+                ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())->get();
+            if ($parts->count() !== $groups->count()) {
+                throw ValidationException::withMessages(['primary_sku_id' => 'Состав этого торгового предложения не заполнен.']);
+            }
+            $allowedGroups = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $seen = [];
+            $items = [];
+            $components = [];
+            foreach ($parts as $sku) {
+                $groupId = $this->groupForSku($sku);
+                if (! in_array($groupId, $allowedGroups, true) || isset($seen[$groupId])
+                    || ! $this->componentIsSellable($sku, $root)) {
+                    throw ValidationException::withMessages(['primary_sku_id' => 'Состав торгового предложения устарел. Обновите его в админке.']);
+                }
+                $seen[$groupId] = true;
+                $this->appendComponent($items, $components, $sku, (int) $sku->pivot->quantity, $quantity, $groupId);
+            }
+            if (count($seen) !== count($allowedGroups)) {
+                throw ValidationException::withMessages(['primary_sku_id' => 'Не все группы составляющих настроены.']);
+            }
+            // Neither the parent nor the virtual bundle offer has its own stock or 1C line.
+            return ['bundle_id' => (int) $root->id, 'primary_sku_id' => (int) $offer->id,
+                'bundle_quantity' => $quantity, 'items' => $items, 'components' => $components];
         }
-        $items = [['product_id' => (int) $primary->id, 'quantity' => $quantity]];
-        $components = [['product_id' => (int) $primary->id, 'quantity_per_bundle' => 1, 'role' => 'primary']];
-        // Lock links during checkout, blocking concurrent configuration changes.
+
+        if ($primarySkuId !== null && $primarySkuId !== (int) $root->id) {
+            throw ValidationException::withMessages(['primary_sku_id' => 'Неверный SKU основного товара.']);
+        }
+        $items = [];
+        $components = [];
+        $this->appendComponent($items, $components, $root, 1, $quantity, (int) $root->id, 'primary');
         $parts = $root->sellableBundleComponents()->with('parentProduct')
-            ->orderBy('sellable_bundle_components.sort_order')
-            ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())
-            ->get();
-        if ($parts->isEmpty()) {
-            throw ValidationException::withMessages(['bundle_id' => 'У комплекта не задан состав.']);
-        }
-        if ($parts->count() > 29) {
-            throw ValidationException::withMessages(['bundle_id' => 'В комплекте допускается не более 29 дополнительных SKU.']);
+            ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())->get();
+        if ($parts->isEmpty() || $parts->count() > 29) {
+            throw ValidationException::withMessages(['bundle_id' => 'Не задан корректный состав комплекта.']);
         }
         foreach ($parts as $sku) {
             if (! $this->componentIsSellable($sku, $root)) {
-                throw ValidationException::withMessages(['bundle_id' => 'Компонент комплекта неактивен или не имеет конкретного SKU.']);
+                throw ValidationException::withMessages(['bundle_id' => 'Компонент недоступен.']);
             }
-            $units = (int) $sku->pivot->quantity;
-            if ($units < 1 || $units > 1000 || $units * $quantity > 1000) {
-                throw ValidationException::withMessages(['quantity' => 'Количество компонентов превышает допустимый предел.']);
-            }
-            $components[] = ['product_id' => (int) $sku->id, 'quantity_per_bundle' => $units, 'role' => 'component'];
-            $items[] = ['product_id' => (int) $sku->id, 'quantity' => $units * $quantity];
+            $this->appendComponent($items, $components, $sku, (int) $sku->pivot->quantity, $quantity);
         }
-        return ['bundle_id' => (int) $root->id, 'primary_sku_id' => (int) $primary->id,
+        return ['bundle_id' => (int) $root->id, 'primary_sku_id' => (int) $root->id,
             'bundle_quantity' => $quantity, 'items' => $items, 'components' => $components];
+    }
+
+    private function appendComponent(array &$items, array &$components, Product $sku, int $units, int $sets,
+        ?int $groupId = null, string $role = 'component'): void
+    {
+        if ($units < 1 || $units > 1000 || $units * $sets > 1000) {
+            throw ValidationException::withMessages(['quantity' => 'Количество компонентов превышает допустимое.']);
+        }
+        $items[] = ['product_id' => (int) $sku->id, 'quantity' => $units * $sets];
+        $components[] = [
+            'product_id' => (int) $sku->id, 'sku' => (string) $sku->sku, 'name' => (string) $sku->name,
+            'component_group_id' => $groupId, 'quantity_per_bundle' => $units, 'role' => $role,
+        ];
     }
 
     public function quote(int $bundleId, ?int $primarySkuId, int $quantity = 1, ?ShippingLocation $region = null): array
     {
         $composition = $this->composition($bundleId, $primarySkuId, $quantity);
-        $ids = array_column($composition['items'], 'product_id');
-        $skus = Product::with('parentProduct')->whereIn('id', $ids)->get()->keyBy('id');
+        $skus = Product::with('parentProduct')->whereIn('id', array_column($composition['items'], 'product_id'))->get()->keyBy('id');
         $pricing = app(PricingEngine::class);
         $subtotal = 0;
         $rows = [];
@@ -98,15 +219,102 @@ class SellableBundle
             $unit = $pricing->explain($sku, $region)['price'];
             $amount = round((float) $unit * $item['quantity'], 2);
             $subtotal += $amount;
-            $rows[] = [
-                'product_id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
-                'quantity' => $item['quantity'], 'unit_price' => (float) $unit, 'total' => $amount,
-            ];
+            $rows[] = ['product_id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
+                'quantity' => $item['quantity'], 'unit_price' => (float) $unit, 'total' => $amount];
         }
         return [...$composition, 'subtotal' => round($subtotal, 2), 'priced_components' => $rows];
     }
 
-    /** Fail closed if composition changes between preview and checkout submission. */
+    /**
+     * Coarse catalogue availability on ONE warehouse for the whole composition.
+     * Destination-specific delivery/pickup is rechecked by WarehouseDeliveryQuote
+     * and locked by WarehouseOrderStock in the order transaction.
+     */
+    public function availableSets(array $items): int
+    {
+        if (! config('bundles.multi_warehouse_enabled', false)) {
+            return $this->singleWarehouseAvailableSets($items);
+        }
+        if ($items === []) {
+            return 0;
+        }
+        // Every concrete SKU has its own stock. Different SKU groups may be
+        // sourced from different warehouses; NEVER count the virtual kit offer.
+        // A single SKU is not split across warehouses during fulfillment.
+        $units = collect($items)->groupBy('product_id')->map(fn ($rows): int => (int) $rows->sum('quantity'));
+        $warehouses = \App\Models\Inventory\Warehouse::query()->where('is_active', true)
+            ->with([
+                'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+                'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+            ])->get();
+        $availableSets = PHP_INT_MAX;
+        foreach ($units as $skuId => $unitsPerSet) {
+            $bestForSku = 0;
+            foreach ($warehouses as $warehouse) {
+                if ($warehouse->stock_mode === 'availability') {
+                    $source = $warehouse->productAvailabilities->firstWhere('product_id', $skuId);
+                    if ($source?->available_to_order) {
+                        // Factory availability is a boolean, not a finite count.
+                        $bestForSku = max($bestForSku, 1);
+                    }
+                } elseif ($warehouse->stock_mode === 'quantity') {
+                    $stock = $warehouse->productStocks->firstWhere('product_id', $skuId);
+                    if ($stock) {
+                        $free = app(\App\Services\Inventory\CartStockReservations::class)
+                            ->available((int) $warehouse->id, (int) $skuId, (float) $stock->quantity);
+                        $bestForSku = max($bestForSku, (int) floor($free / $unitsPerSet));
+                    }
+                }
+            }
+            $availableSets = min($availableSets, $bestForSku);
+            if ($availableSets === 0) {
+                return 0;
+            }
+        }
+        return $availableSets === PHP_INT_MAX ? 0 : $availableSets;
+    }
+
+    private function singleWarehouseAvailableSets(array $items): int
+    {
+        if ($items === []) {
+            return 0;
+        }
+        $units = collect($items)->groupBy('product_id')->map(fn ($rows): int => (int) $rows->sum('quantity'));
+        $warehouses = \App\Models\Inventory\Warehouse::query()->where('is_active', true)
+            ->with([
+                'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+                'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+            ])->get();
+        $best = 0;
+        foreach ($warehouses as $warehouse) {
+            if ($warehouse->stock_mode === 'availability') {
+                $available = $warehouse->productAvailabilities->keyBy('product_id');
+                if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false))) {
+                    $best = max($best, 1);
+                }
+                continue;
+            }
+            if ($warehouse->stock_mode !== 'quantity') {
+                continue;
+            }
+            $stocks = $warehouse->productStocks->keyBy('product_id');
+            $sets = PHP_INT_MAX;
+            foreach ($units as $id => $qty) {
+                $stock = $stocks->get($id);
+                if (! $stock) {
+                    $sets = 0;
+                    break;
+                }
+                $available = app(\App\Services\Inventory\CartStockReservations::class)
+                    ->available((int) $warehouse->id, (int) $id, (float) $stock->quantity);
+                $sets = min($sets, (int) floor($available / $qty));
+            }
+            $best = max($best, $sets);
+        }
+        return max(0, $best);
+    }
+
+
     public function assertMatches(array $composition, array $submitted): void
     {
         $normalize = static function (array $items): array {

@@ -60,11 +60,16 @@ class WarehouseDeliveryQuote
             throw ValidationException::withMessages(['cart' => 'Товар не найден.']);
         }
         $amount = 0;
+        $unitPrices = [];
         foreach ($products as $product) {
             $price = app(ProductRegionRuleService::class)->getPriceForRegion(
                 $product->isVariant() ? ($product->parentProduct ?? $product) : $product,
                 $priceRegion, $product->isVariant() ? $product : null);
-            $amount += (float) ($price ?? $product->price) * $quantities[$product->id];
+            $unitPrices[(int) $product->id] = (float) ($price ?? $product->price);
+            if (isset($selection['_priced_unit_prices'][$product->id])) {
+                $unitPrices[(int) $product->id] = (float) $selection['_priced_unit_prices'][$product->id];
+            }
+            $amount += $unitPrices[(int) $product->id] * $quantities[$product->id];
         }
         $options = [];
         if (array_key_exists('_cart_subtotal', $selection)) { $amount = (float) $selection['_cart_subtotal']; }
@@ -137,6 +142,13 @@ class WarehouseDeliveryQuote
                 break; // The first eligible profile by configured priority wins within a warehouse.
             }
         }
+        // Multi-source delivery is opt-in for complete bundle checkout, and
+        // only considered when no single warehouse can deliver the entire kit.
+        if (! $options && ! empty($selection['allow_multi_warehouse'])) {
+            $options = app(MultiWarehouseBundleDelivery::class)->options(
+                $warehouses, $quantities, $destination, $point, $unitPrices, $selection
+            );
+        }
         $options = collect($options)->sortBy([['total_fulfillment_cost', 'asc'], ['delivery_days_max', 'asc'], ['warehouse_id', 'asc']])->values()->all();
         if (! $options && isset($serviceErrors)) {
             throw $serviceErrors;
@@ -154,7 +166,7 @@ class WarehouseDeliveryQuote
             'address' => $address, 'selected' => $selected, 'options' => $options,
             'estimate' => ($snapshot['target']['kind'] ?? null) !== 'building',
             'pickup' => app(WarehousePickup::class)->options($lines, $point),
-            'reason' => $options ? null : 'Нет склада, который обеспечивает всю корзину и доставляет по этому адресу. Проверьте покрытие и координаты для радиусного тарифа.',
+            'reason' => $options ? null : 'Нет подходящего склада или допустимого распределения компонентов между складами с доставкой по этому адресу.',
         ];
     }
 }

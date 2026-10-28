@@ -40,6 +40,9 @@ class ProductResource extends JsonResource
         $price = (float) $this->price;
         $oldPrice = $this->original_price ? (float) $this->original_price : null;
         $firstAvailableVariantId = null;
+        $kitRoot = $this->isVariant() ? $this->resource->parentProduct : $this->resource;
+        $isVariableKit = $kitRoot?->isVariable() && (bool) $kitRoot->is_sellable_bundle;
+        $kitAvailableSets = 0;
         $deliveryDays = null;
         $defaultColor = null;
         $defaultSize = null;
@@ -56,20 +59,33 @@ class ProductResource extends JsonResource
 
             if ($variants->isNotEmpty()) {
                 // Применяем правила для каждой вариации и находим минимальную цену
-                $variantsWithPrices = $variants->map(function ($variant) use ($region, $regionRuleService) {
-                    $variantPrice = $regionRuleService->getPriceForRegion($this->resource, $region, $variant);
-                    return ['variant' => $variant, 'price' => $variantPrice];
+                $variantsWithPrices = $variants->map(function ($variant) use ($region, $regionRuleService, $isVariableKit) {
+                    if ($isVariableKit) {
+                        try {
+                            $kit = app(\App\Services\Product\SellableBundle::class)
+                                ->quote((int) $this->id, (int) $variant->id, 1, $region);
+                            $sets = app(\App\Services\Product\SellableBundle::class)
+                                ->availableSets($kit['items']);
+                            return ['variant' => $variant, 'price' => $kit['subtotal'], 'sets' => $sets];
+                        } catch (\Illuminate\Validation\ValidationException $error) {
+                            return ['variant' => $variant, 'price' => null, 'sets' => 0];
+                        }
+                    }
+                    return ['variant' => $variant,
+                        'price' => $regionRuleService->getPriceForRegion($this->resource, $region, $variant)];
                 });
-                $minPrice = $variantsWithPrices->min('price');
+                $pricedVariants = $variantsWithPrices->filter(fn ($row) => $row['price'] !== null);
+                $minPrice = $pricedVariants->min('price');
                 if ($minPrice !== null) {
                     $price = (float) $minPrice;
                 }
 
                 // Цвет и коммерческий размер берём только из канонических атрибутов вариации.
                 // length/width/height остаются физическими габаритами и не участвуют в выборе размера.
-                $cheapestEntry = $variantsWithPrices->where('price', $minPrice)->first();
+                $cheapestEntry = $pricedVariants->where('price', $minPrice)->first();
                 if ($cheapestEntry) {
-                    $oldPrice = app(\App\Services\Pricing\PricingEngine::class)->oldPrice($cheapestEntry['variant'], $region, (float) $minPrice);
+                    $oldPrice = $isVariableKit ? null
+                        : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($cheapestEntry['variant'], $region, (float) $minPrice);
                     $selected = $variationAttributeService->selectedForVariant($cheapestEntry['variant']);
                     $defaultColor = $selected['color'];
                     $defaultSize = $selected['size'];
@@ -80,10 +96,18 @@ class ProductResource extends JsonResource
                     $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($this->resource, $region);
                 }
                 // Получаем ID первого доступного варианта (in_stock = true и stock > 0)
-                $firstAvailableVariant = $variants
-                    ->filter(fn ($variant) => ($warehouseStockResolver->resolveForProduct($variant, $region) ?? 0) > 0)
-                    ->sortBy('id')
-                    ->first();
+                if ($isVariableKit) {
+                    $kitAvailableSets = (int) $variantsWithPrices->max('sets');
+                    $firstAvailableVariant = $variantsWithPrices
+                        ->filter(fn ($row) => ($row['sets'] ?? 0) > 0)
+                        ->sortBy(fn ($row) => $row['variant']->id)
+                        ->first()['variant'] ?? null;
+                } else {
+                    $firstAvailableVariant = $variants
+                        ->filter(fn ($variant) => ($warehouseStockResolver->resolveForProduct($variant, $region) ?? 0) > 0)
+                        ->sortBy('id')
+                        ->first();
+                }
                 if ($firstAvailableVariant) {
                     $firstAvailableVariantId = $firstAvailableVariant->id;
                 }
@@ -126,10 +150,22 @@ class ProductResource extends JsonResource
         }
 
         // Применяем правила для невариативных товаров
-        if (!$this->isVariable()) {
+        if (!$this->isVariable() && ! $isVariableKit) {
             $price = $regionRuleService->getPriceForRegion($ruleProduct, $region, $ruleVariant);
             $oldPrice = app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $price);
             $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($ruleProduct, $region, $ruleVariant);
+        }
+
+        if ($isVariableKit && $this->isVariant()) {
+            try {
+                $kit = app(\App\Services\Product\SellableBundle::class)->quote((int) $kitRoot->id, (int) $this->id, 1, $region);
+                $price = $kit['subtotal'];
+                $kitAvailableSets = app(\App\Services\Product\SellableBundle::class)->availableSets($kit['items']);
+            } catch (\Illuminate\Validation\ValidationException $error) {
+                $price = 0;
+                $kitAvailableSets = 0;
+            }
+            $oldPrice = null;
         }
 
         // Проверяем видимость товара в регионе
@@ -148,8 +184,12 @@ class ProductResource extends JsonResource
             }
         }
 
-        $resolvedStock = $warehouseStockResolver->resolveForProduct($this->resource, $region);
-        $stocks = app(\App\Services\Inventory\WarehousePriorityResolver::class)->resolve($this->resource, $region)['stocks'];
+        $resolvedStock = $isVariableKit
+            ? $kitAvailableSets
+            : $warehouseStockResolver->resolveForProduct($this->resource, $region);
+        $stocks = $isVariableKit
+            ? []
+            : app(\App\Services\Inventory\WarehousePriorityResolver::class)->resolve($this->resource, $region)['stocks'];
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -170,7 +210,8 @@ class ProductResource extends JsonResource
             'image_fullhd' => $isListView ? null : $this->image_fullhd_url,
             'thumbnail' => $this->thumbnail_url,
             'in_stock' => $resolvedStock > 0,
-            'available_to_order' => $warehouseStockResolver->availableToOrder($this->resource, $region),
+            'available_to_order' => $isVariableKit ? $kitAvailableSets > 0
+                : $warehouseStockResolver->availableToOrder($this->resource, $region),
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'stock' => $resolvedStock,
             'stock_known' => $resolvedStock !== null,

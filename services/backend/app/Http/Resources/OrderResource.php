@@ -31,7 +31,7 @@ class OrderResource extends JsonResource
             'bundle_snapshot' => $this->bundle_snapshot,
             'total' => (float) $this->total,
             'delivery_cost' => (float) $this->delivery_cost,
-            'fulfillment' => $this->fulfillment_snapshot ? \Illuminate\Support\Arr::except($this->fulfillment_snapshot, ['profile_fingerprint', 'warehouse_fingerprint', 'store_fingerprint', 'global_stock_deltas']) : null,
+            'fulfillment' => $this->fulfillment_snapshot ? WarehouseDeliveryQuoteResource::sanitizeOption($this->fulfillment_snapshot) : null,
             'assembly_cost' => (float) $this->assembly_cost,
             'payment_method' => $this->payment_method,
             'payment_method_label' => $this->getPaymentMethodLabel(),

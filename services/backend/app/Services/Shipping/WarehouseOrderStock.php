@@ -17,6 +17,10 @@ class WarehouseOrderStock
         if (! $quote || isset($quote['stock_state'])) {
             return;
         }
+        if (($quote['stock_mode'] ?? null) === 'multi') {
+            $order->update(['fulfillment_snapshot' => app(MultiWarehouseBundleStock::class)->reserve($order, $quote)]);
+            return;
+        }
         $warehouse = \App\Models\Inventory\Warehouse::lockForUpdate()->find($quote['warehouse_id']);
         if ($warehouse?->physical_site_id) {
             $warehouse->setRelation('physicalSite', \App\Models\Inventory\PhysicalSite::lockForUpdate()->find($warehouse->physical_site_id));
@@ -83,6 +87,13 @@ class WarehouseOrderStock
             if (($quote['stock_state'] ?? null) !== 'reserved') {
                 return [];
             }
+            if (($quote['stock_mode'] ?? null) === 'multi') {
+                $quote = app(MultiWarehouseBundleStock::class)->release($quote);
+                $locked->update(['fulfillment_snapshot' => $quote]);
+                return collect($quote['warehouse_allocations'])->map(fn (array $source): array => [
+                    'success' => true, 'warehouse_id' => $source['warehouse_id'],
+                ])->all();
+            }
             if ($quote['stock_mode'] === 'quantity') {
                 foreach (collect($quote['items'])->sortBy('product_id') as $item) {
                     $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
@@ -111,6 +122,10 @@ class WarehouseOrderStock
             $locked = Order::lockForUpdate()->findOrFail($order->id);
             $quote = $locked->fulfillment_snapshot;
             if (($quote['stock_state'] ?? null) !== 'reserved' || ($quote['reservation_version'] ?? 1) !== 2) { return; }
+            if (($quote['stock_mode'] ?? null) === 'multi') {
+                $locked->update(['fulfillment_snapshot' => app(MultiWarehouseBundleStock::class)->consume($quote)]);
+                return;
+            }
             foreach (collect($quote['items'])->sortBy('product_id') as $item) {
                 $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])->where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
                 if ($stock->quantity < $item['quantity'] || $stock->reserved_quantity < $item['quantity']) {

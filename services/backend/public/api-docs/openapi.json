@@ -2073,6 +2073,11 @@
           "cancelled_due_to_unpaid_timeout": {
             "type": "boolean",
             "nullable": true
+          },
+          "fulfillment": {
+            "type": "object",
+            "nullable": true,
+            "description": "Снимок доставки с warehouse_allocations[] для мультискладского комплекта; warehouse_id при stock_mode=multi обозначает лишь ведущий склад"
           }
         },
         "description": "OrderResource (main). Поля can_pay/payform_url/payment_seconds_left — для сценария онлайн-оплаты и таймера. Часть связей (shipping_method, region…) — условные (whenLoaded)."
@@ -2241,10 +2246,11 @@
           },
           "stock_mode": {
             "type": "string",
-            "description": "quantity — фактический остаток, availability — под заказ",
+            "description": "quantity — фактический остаток, availability — под заказ; multi — отдельный склад для каждого компонента",
             "enum": [
               "quantity",
-              "availability"
+              "availability",
+              "multi"
             ]
           },
           "transport_cost": {
@@ -2339,7 +2345,8 @@
             "type": "string",
             "description": "Метод расстояния",
             "enum": [
-              "straight_line"
+              "straight_line",
+              "per_warehouse"
             ]
           },
           "items": {
@@ -2357,6 +2364,67 @@
                 }
               }
             }
+          },
+          "multi_warehouse": {
+            "type": "boolean",
+            "description": "true — комплект распределён между несколькими складами"
+          },
+          "warehouse_allocations": {
+            "type": "array",
+            "description": "Распределение физических SKU по складам; отсутствует при обычном едином складе",
+            "items": {
+              "type": "object",
+              "properties": {
+                "warehouse_id": {
+                  "type": "integer"
+                },
+                "warehouse_name": {
+                  "type": "string"
+                },
+                "warehouse_external_id": {
+                  "type": "string"
+                },
+                "stock_mode": {
+                  "type": "string",
+                  "enum": [
+                    "quantity",
+                    "availability"
+                  ]
+                },
+                "profile_id": {
+                  "type": "integer"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "product_id": {
+                        "type": "integer"
+                      },
+                      "quantity": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "transport_cost": {
+                  "type": "number"
+                },
+                "processing_days_min": {
+                  "type": "integer"
+                },
+                "processing_days_max": {
+                  "type": "integer"
+                },
+                "delivery_days_min": {
+                  "type": "integer"
+                },
+                "delivery_days_max": {
+                  "type": "integer"
+                }
+              }
+            }
           }
         }
       },
@@ -2365,7 +2433,7 @@
         "properties": {
           "available": {
             "type": "boolean",
-            "description": "Есть склад, который обеспечивает весь набор и доставку"
+            "description": "Есть один склад для всех SKU либо допустимый распределённый план доставки комплекта"
           },
           "currency": {
             "type": "string",
@@ -2392,7 +2460,7 @@
           },
           "options": {
             "type": "array",
-            "description": "Подходящие склады по цене и сроку. Автоматического разделения набора между складами нет.",
+            "description": "Подходящие способы отгрузки, включая распределённый по складам комплект",
             "items": {
               "$ref": "#/components/schemas/WarehouseQuoteOption"
             }
@@ -5473,7 +5541,7 @@
       "post": {
         "operationId": "createOrder",
         "summary": "Создать заказ",
-        "description": "Доступен БЕЗ аутентификации (только сессия). Позиции и subtotal берутся из серверной корзины, не из тела запроса. Проверяет остатки. Возможна авторегистрация нового пользователя или login существующего по contact_email (без пароля). Статус: AWAITING_PAYMENT для онлайн-оплаты, иначе ACCEPTED.\nДля нового самовывоза передайте delivery_type=pickup, warehouse_id и store_id (если точка магазина) из shipping/quote.pickup. Сервер повторно проверяет точку/остатки и резервирует выбранный склад. При складской доставке передайте directory_external_id здания, warehouse_id при явном выборе и услуги; цены пересчитывает сервер.",
+        "description": "Доступен БЕЗ аутентификации (только сессия). Позиции и subtotal берутся из серверной корзины, не из тела запроса. Проверяет остатки. Возможна авторегистрация нового пользователя или login существующего по contact_email (без пароля). Статус: AWAITING_PAYMENT для онлайн-оплаты, иначе ACCEPTED.\nДля нового самовывоза передайте delivery_type=pickup, warehouse_id и store_id (если точка магазина) из shipping/quote.pickup. Сервер повторно проверяет точку/остатки и резервирует выбранный склад. При складской доставке передайте directory_external_id здания, warehouse_id при явном выборе и услуги; цены пересчитывает сервер.\nДля продаваемого комплекта: items содержит реальные физические SKU, bundle_id/primary_sku_id/bundle_quantity идентифицируют виртуальное предложение. Состав проверяется повторно. При разных складах резерв/списание выполняется для каждого SKU из собственного источника, а fulfillment_snapshot сохраняет warehouse_allocations. Мультискладская доставка доступна без сборки/подъёма/прочих услуг; самовывоз требует единую точку.",
         "tags": [
           "Orders"
         ],
@@ -5494,20 +5562,38 @@
                   "items": {
                     "type": "array",
                     "minItems": 1,
-                    "maxItems": 1,
-                    "description": "Прямое оформление без корзины: ровно один выбранный SKU. Если поле отсутствует, оформляется корзина. Корзина при прямом оформлении сохраняется.",
+                    "maxItems": 30,
+                    "description": "Прямое оформление: один обычный SKU либо все физические SKU выбранного комплекта, максимум 30 строк. При отсутствии items используется корзина.",
                     "items": {
                       "type": "object",
-                      "required": ["product_id", "quantity"],
+                      "required": [
+                        "product_id",
+                        "quantity"
+                      ],
                       "properties": {
-                        "product_id": {"type": "integer"},
-                        "variant_id": {"type": "integer", "nullable": true},
-                        "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}
+                        "product_id": {
+                          "type": "integer"
+                        },
+                        "variant_id": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000
+                        }
                       }
                     }
                   },
-                  "accept_offer": {"type": "boolean", "description": "Для прямого оформления обязательно true"},
-                  "accept_personal_data": {"type": "boolean", "description": "Для прямого оформления обязательно true"},
+                  "accept_offer": {
+                    "type": "boolean",
+                    "description": "Для прямого оформления обязательно true"
+                  },
+                  "accept_personal_data": {
+                    "type": "boolean",
+                    "description": "Для прямого оформления обязательно true"
+                  },
                   "contact_name": {
                     "type": "string",
                     "maxLength": 255
@@ -5639,6 +5725,20 @@
                     "type": "string",
                     "maxLength": 1000,
                     "nullable": true
+                  },
+                  "bundle_id": {
+                    "type": "integer",
+                    "description": "Корневой продаваемый комплект. Требуется для прямой покупки набора"
+                  },
+                  "primary_sku_id": {
+                    "type": "integer",
+                    "description": "Конкретное предложение комплекта (цвет), для вариативного комплекта"
+                  },
+                  "bundle_quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "description": "Количество комплектов, обязательно при bundle_id"
                   }
                 }
               }
@@ -7793,24 +7893,45 @@
     },
     "/api/v1/manufacturers": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "operationId": "listManufacturerValues",
         "summary": "Запомненные названия производителей",
         "description": "Значения характеристики proizvoditel для повторного выбора. Фильтр каталога и count: attr_proizvoditel=slug1,slug2 либо manufacturers=slug1,slug2. Счётчики в meta.filters.manufacturers учитывают остальные фильтры без собственного выбора производителя.",
         "responses": {
           "200": {
             "description": "Список значений, не сущностей производителей",
-            "content": {"application/json": {"schema": {
-              "type": "object",
-              "properties": {"data": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                  "id": {"type": "integer", "nullable": true, "description": "ID значения характеристики; null для прежнего свободного текста"},
-                  "name": {"type": "string", "description": "Название производителя"},
-                  "slug": {"type": "string", "description": "Значение для фильтра каталога"}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "nullable": true,
+                            "description": "ID значения характеристики; null для прежнего свободного текста"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Название производителя"
+                          },
+                          "slug": {
+                            "type": "string",
+                            "description": "Значение для фильтра каталога"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
-              }}}
-            }}}
+              }
+            }
           }
         }
       }
@@ -8132,7 +8253,7 @@
         ],
         "operationId": "warehouseDeliveryQuote",
         "summary": "Доставка выбранных SKU и самовывоз без изменения корзины",
-        "description": "Передайте items для карточки или общего набора товаров. Без items рассчитывается текущая корзина. Все позиции должны обеспечиваться одним складом; это общий расчёт набора, не независимые ответы на каждый товар. С items разрешён предварительный расчёт по региону/населённому пункту; заказ требует конкретное здание. Цена услуг определяется сервером, для услуг «от»/по согласованию окончательную стоимость уточняет менеджер. Даты в календарных днях, готовность не заменяет часы работы. Канонический путь в единственном числе — /shipping/quote.",
+        "description": "Передайте items для карточки или общего набора товаров. Без items рассчитывается текущая корзина. Обычные товары и самовывоз — один склад. Для выбранного комплекта из нескольких реальных SKU допускается доставка из разных складов при независимом покрытии адреса каждым источником. Ответ содержит warehouse_allocations, stock_mode=multi; стоимость суммируется по источникам, сроки определяются по самому долгому. Подъём/сборка/дополнительные услуги при таком разделении не поддерживаются. С items разрешён предварительный расчёт по региону/населённому пункту; заказ требует конкретное здание. Цена услуг определяется сервером, для услуг «от»/по согласованию окончательную стоимость уточняет менеджер. Даты в календарных днях, готовность не заменяет часы работы. Канонический путь в единственном числе — /shipping/quote.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8212,6 +8333,20 @@
                         }
                       }
                     }
+                  },
+                  "bundle_id": {
+                    "type": "integer",
+                    "description": "Корневая карточка продаваемого комплекта, проверяется сервером"
+                  },
+                  "primary_sku_id": {
+                    "type": "integer",
+                    "description": "Выбранное торговое предложение комплекта (цвет). Само предложение не резервируется"
+                  },
+                  "bundle_quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "description": "Число комплектов. Обязательно при bundle_id"
                   }
                 },
                 "example": {
@@ -8262,7 +8397,7 @@
         ],
         "operationId": "prepareDirectCheckout",
         "summary": "Купить в один клик: прямое оформление",
-        "description": "Не создаёт заявку или заказ и не меняет корзину. Откройте оформление на фронтенде с возвращёнными items. Подтверждение: POST /api/v1/orders с items и обычными полями оформления; цена и остатки проверяются заново.",
+        "description": "Не создаёт заявку или заказ и не меняет корзину. Откройте оформление на фронтенде с возвращёнными items. Подтверждение: POST /api/v1/orders с items и обычными полями оформления; цена и остатки проверяются заново. Для комплекта передайте bundle_id, primary_sku_id (вариативный комплект) и quantity: в ответе будут только конкретные физические SKU; виртуальный SKU не списывается.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8270,12 +8405,12 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "product_id",
                   "quantity"
                 ],
                 "properties": {
                   "product_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Обязателен для одиночного SKU, при bundle_id можно не указывать"
                   },
                   "variant_id": {
                     "type": "integer",
@@ -8289,6 +8424,14 @@
                   "region_id": {
                     "type": "integer",
                     "nullable": true
+                  },
+                  "bundle_id": {
+                    "type": "integer",
+                    "description": "Корневой комплект; при его указании product_id не требуется"
+                  },
+                  "primary_sku_id": {
+                    "type": "integer",
+                    "description": "Выбранное торговое предложение комплекта"
                   }
                 }
               }
