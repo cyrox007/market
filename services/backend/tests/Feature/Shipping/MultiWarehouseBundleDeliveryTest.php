@@ -193,6 +193,60 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $this->assertArrayNotHasKey('stock_state', $order->fresh()->fulfillment_snapshot);
     }
 
+    public function test_confirmation_consumes_reserved_quantities_at_both_original_sources(): void
+    {
+        $this->fakeAddress();
+        [$root, $offer, $wardrobe, $top] = $this->kit();
+        $first = $this->warehouse($wardrobe, 2, 100, 'Шкафы');
+        $second = $this->warehouse($top, 2, 200, 'Антресоли');
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $snapshot = app(WarehouseDeliveryQuote::class)->calculate('house',
+            $composition['items'], null, ['allow_multi_warehouse' => true])['selected'];
+        $order = Order::factory()->create([
+            'fulfillment_snapshot' => $snapshot,
+            'cooling_until' => now()->addHour(),
+        ]);
+
+        DB::transaction(fn () => app(WarehouseOrderStock::class)->reserve($order));
+        $this->assertEquals(1, $first->productStocks()->first()->reserved_quantity);
+        $this->assertEquals(1, $second->productStocks()->first()->reserved_quantity);
+        app(WarehouseOrderStock::class)->consume($order);
+
+        $this->assertSame('consumed', $order->fresh()->fulfillment_snapshot['stock_state']);
+        $this->assertEquals(1, $first->productStocks()->first()->quantity);
+        $this->assertEquals(1, $second->productStocks()->first()->quantity);
+        $this->assertEquals(0, $first->productStocks()->first()->reserved_quantity);
+        $this->assertEquals(0, $second->productStocks()->first()->reserved_quantity);
+        // A repeated consume cannot deduct twice.
+        app(WarehouseOrderStock::class)->consume($order);
+        $this->assertEquals(1, $first->productStocks()->first()->quantity);
+        $this->assertEquals(1, $second->productStocks()->first()->quantity);
+    }
+
+    public function test_public_quote_hides_nested_fingerprints_and_single_sku_is_not_split(): void
+    {
+        $this->fakeAddress();
+        [$root, $offer, $wardrobe, $top] = $this->kit();
+        $this->warehouse($wardrobe, 1, 100, 'Шкафы');
+        $this->warehouse($top, 1, 200, 'Антресоли');
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $response = $this->postJson('/api/v1/shipping/quote', [
+            'directory_external_id' => 'house',
+            'bundle_id' => $root->id, 'primary_sku_id' => $offer->id, 'bundle_quantity' => 1,
+            'items' => $composition['items'],
+        ])->assertOk()->assertJsonPath('selected.multi_warehouse', true);
+        $this->assertStringNotContainsString('profile_fingerprint', $response->getContent());
+        $this->assertStringNotContainsString('warehouse_fingerprint', $response->getContent());
+
+        // Same SKU, quantity=2 is not satisfied by two one-unit warehouses.
+        $second = $this->warehouse($wardrobe, 1, 100, 'Другие шкафы');
+        $result = app(WarehouseDeliveryQuote::class)->calculate('house', [
+            ['product_id' => $wardrobe->id, 'quantity' => 2],
+            ['product_id' => $top->id, 'quantity' => 1],
+        ], null, ['allow_multi_warehouse' => true]);
+        $this->assertFalse($result['available']);
+    }
+
     public function test_pickup_does_not_promise_unconfigured_inter_warehouse_transfer(): void
     {
         [$root, $offer, $wardrobe, $top] = $this->kit();
