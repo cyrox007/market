@@ -26,7 +26,7 @@ class SellableBundle
             || $sku->sellableBundleComponents()->exists()) {
             return false;
         }
-        if ($sku->isVariable() && ! $sku->isVariant() && $sku->variants()->exists()) {
+        if ($sku->isVariable() && ! $sku->isVariant()) {
             return false;
         }
         return $sku->getRawOriginal('state') === Product::ACTIVE
