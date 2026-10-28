@@ -336,6 +336,50 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $this->assertEquals(3000, collect($payload['products'])->sum(fn ($line) => $line['quantity'] * $line['promoPrice']));
     }
 
+    public function test_multi_source_kit_with_zero_stock_backorder_preserves_physical_quantity_and_releases(): void
+    {
+        Queue::fake();
+        [$root, $offer, $wardrobe, $top] = $this->kit();
+        $top->update(['backorder' => true]);
+        $first = $this->warehouse($wardrobe, 2, 100, 'Шкафы');
+        $second = $this->warehouse($top, 0, 200, 'Антресоли под заказ');
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $this->assertSame(1, app(SellableBundle::class)->availableSets($composition['items']));
+        $quote = app(WarehouseDeliveryQuote::class)->calculate('house', $composition['items'], null, [
+            'allow_multi_warehouse' => true,
+            'allow_component_backorder' => true,
+        ]);
+        $this->assertTrue($quote['available']);
+        $this->assertTrue($quote['selected']['contains_backorder']);
+        $this->assertSame('multi', $quote['selected']['stock_mode']);
+        $this->assertNull($quote['selected']['delivery_days_max']);
+
+        $order = Order::factory()->create([
+            'fulfillment_snapshot' => $quote['selected'],
+            'bundle_snapshot' => ['bundle_id' => $root->id, 'primary_sku_id' => $offer->id],
+            'cooling_until' => now()->addHour(),
+            'status' => \App\Models\Order\OrderStatus::MANAGER_PROCESSING->value,
+        ]);
+        DB::transaction(fn () => app(WarehouseOrderStock::class)->reserve($order));
+        $this->assertSame(0.0, (float) $second->productStocks()->first()->quantity);
+        $this->assertEquals(1, $second->productStocks()->first()->reserved_quantity);
+        $this->assertEquals(1, $first->productStocks()->first()->reserved_quantity);
+
+        try {
+            app(WarehouseOrderStock::class)->consume($order);
+            $this->fail('Cannot consume a backordered SKU before goods arrive');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('stock', $e->errors());
+        }
+        $this->assertSame('reserved', $order->fresh()->fulfillment_snapshot['stock_state']);
+        $second->productStocks()->first()->update(['quantity' => 1]);
+        app(WarehouseOrderStock::class)->consume($order);
+        $this->assertEquals(0, $second->productStocks()->first()->reserved_quantity);
+        $this->assertEquals(0, $second->productStocks()->first()->quantity);
+        $this->assertEquals(1, $first->productStocks()->first()->quantity);
+        $this->assertSame('consumed', $order->fresh()->fulfillment_snapshot['stock_state']);
+    }
+
     public function test_pickup_does_not_promise_unconfigured_inter_warehouse_transfer(): void
     {
         [$root, $offer, $wardrobe, $top] = $this->kit();
