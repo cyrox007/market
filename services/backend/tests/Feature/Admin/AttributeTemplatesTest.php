@@ -36,6 +36,40 @@ class AttributeTemplatesTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
     }
 
+    public function test_operator_can_create_value_in_product_attribute_row(): void
+    {
+        foreach ([false, true] as $multiple) {
+            $attribute = $this->attribute('Материал '.(int) $multiple, ['type' => 'select', 'is_multiple' => $multiple]);
+            $old = $attribute->values()->create(['value' => 'Старое', 'slug' => 'old']);
+            $product = Product::factory()->create();
+            app(\App\Services\Product\ProductAttributeSyncService::class)->sync($product, [
+                ['attribute_id' => $attribute->id, 'attribute_value_id' => $multiple ? [$old->id] : $old->id],
+            ]);
+            $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()]);
+            $field = collect($page->instance()->getSchema('form')->getFlatComponents())
+                ->first(fn ($component): bool => $component instanceof \Filament\Forms\Components\Select && $component->getName() === 'attribute_value_id');
+            $page->callAction(TestAction::make('createOption')->schemaComponent(Str::after($field->getKey(), 'form.'), 'form'), ['value' => 'ЛДСП'])
+                ->assertHasNoActionErrors();
+            $this->assertDatabaseHas('product_attribute_values', ['attribute_id' => $attribute->id, 'value' => 'ЛДСП']);
+        }
+    }
+
+    public function test_incomplete_quick_create_data_is_a_validation_error_not_a_server_error(): void
+    {
+        $attribute = $this->attribute('Столешница', ['type' => 'select']);
+        foreach ([[], ['value' => '   '], ['value' => ['wrong']]] as $data) {
+            try {
+                \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create($data, $attribute->id);
+                $this->fail('Incomplete dialog must not create a value');
+            } catch (\Illuminate\Validation\ValidationException $exception) {
+                $this->assertArrayHasKey('value', $exception->errors());
+            }
+        }
+        $this->assertSame(0, $attribute->values()->count());
+        $id = \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create(['value' => '  ЛДСП  '], $attribute->id);
+        $this->assertDatabaseHas('product_attribute_values', ['id' => $id, 'value' => 'ЛДСП']);
+    }
+
     public function test_operator_creates_template_with_ordered_attributes(): void
     {
         $width = $this->attribute('Ширина (мм)');
