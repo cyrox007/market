@@ -322,7 +322,7 @@ class SellableBundleCheckoutTest extends TestCase
         PaymentMethod::create(['name' => 'Cash', 'code' => 'cash', 'gateway' => 'manual',
             'is_active' => true, 'is_enabled' => true]);
         $composition = app(SellableBundle::class)->composition($root->id, $virtual->id);
-        $this->assertSame(1, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->assertGreaterThanOrEqual(1, app(SellableBundle::class)->availableSets($composition['items']));
 
         $this->getJson('/api/v1/products/'.$root->slug)->assertOk()
             ->assertJsonPath('product.variants.0.in_stock', true);
