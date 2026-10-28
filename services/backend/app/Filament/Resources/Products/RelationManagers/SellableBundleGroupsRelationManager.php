@@ -83,7 +83,7 @@ class SellableBundleGroupsRelationManager extends RelationManager
                         }
                     });
                     Product::flushAllProductCaches();
-                    Notification::make()->title('Группа добавлена. Проверьте состав каждого предложения и включите продажу.')->warning()->send();
+                    Notification::make()->title('Группа добавлена. Продажа каждого цвета недоступна до полного сопоставления его SKU.')->warning()->send();
                 }),
         ])->recordActions([
             Action::make('removeGroup')
@@ -99,7 +99,7 @@ class SellableBundleGroupsRelationManager extends RelationManager
                         // unavailable rather than silently becoming standalone SKUs.
                     });
                     Product::flushAllProductCaches();
-                    Notification::make()->title('Группа удалена. Проверьте предложения перед повторным включением.')->warning()->send();
+                    Notification::make()->title('Группа удалена. Проверьте состав всех предложений.')->warning()->send();
                 }),
         ])->defaultSort('sellable_bundle_groups.sort_order');
     }
