@@ -1009,6 +1009,12 @@ export interface Order {
   status: string;
   status_label: string;
   subtotal: number;
+  bundle_snapshot?: {
+    bundle_id: number;
+    primary_sku_id: number;
+    bundle_quantity: number;
+    components: Array<{ product_id: number; quantity: number; quantity_per_bundle: number; role: string; unit_price: number }>;
+  } | null;
   total: number;
   delivery_cost: number;
   assembly_cost: number;

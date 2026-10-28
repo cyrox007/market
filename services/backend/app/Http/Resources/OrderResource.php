@@ -28,6 +28,7 @@ class OrderResource extends JsonResource
             'status' => $this->status,
             'status_label' => $this->getStatusLabel(),
             'subtotal' => (float) $this->subtotal,
+            'bundle_snapshot' => $this->bundle_snapshot,
             'total' => (float) $this->total,
             'delivery_cost' => (float) $this->delivery_cost,
             'fulfillment' => $this->fulfillment_snapshot ? \Illuminate\Support\Arr::except($this->fulfillment_snapshot, ['profile_fingerprint', 'warehouse_fingerprint', 'store_fingerprint', 'global_stock_deltas']) : null,
