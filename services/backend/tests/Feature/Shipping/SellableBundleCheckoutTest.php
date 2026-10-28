@@ -154,6 +154,11 @@ class SellableBundleCheckoutTest extends TestCase
         $this->assertEquals(2400, $kit->fresh()->price);
         // The graphite offer remains independent.
         $this->assertEquals(2650, $offers['graphite'][0]->fresh()->price);
+        Product::factory()->create([
+            'parent_product_id' => $kit->id, 'sku' => 'KIT-UNCONFIGURED',
+            'price' => 0, 'stock' => 0,
+        ]);
+        $this->assertEquals(2400, $kit->fresh()->price, 'Новый вариант без состава не должен обнулять цену каталога.');
     }
 
     public function test_chosen_color_reserves_only_its_parts_and_sends_them_to_1c(): void
