@@ -39,7 +39,9 @@ class SellableBundle
         if ($quantity < 1 || $quantity > 1000) {
             throw ValidationException::withMessages(['quantity' => 'Количество комплекта должно быть от 1 до 1000.']);
         }
-        $root = Product::query()->active()->whereNull('parent_product_id')->findOrFail($bundleId);
+        $root = Product::query()->active()->whereNull('parent_product_id')
+            ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())
+            ->findOrFail($bundleId);
         if (! $root->is_sellable_bundle) {
             throw ValidationException::withMessages(['bundle_id' => 'Этот товар не продаётся комплектом.']);
         }

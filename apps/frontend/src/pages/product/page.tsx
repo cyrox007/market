@@ -1400,7 +1400,13 @@ export default function Product() {
                   {formatPrice(displayOldPrice)}
                 </span>
               )}
-              {bundleProducts.length > 0 && (
+              {product.is_sellable_bundle && (
+                <p className="mt-2 text-xs text-gray-600">
+                  Указана цена основного изделия. Стоимость всего комплекта из выбранных SKU
+                  рассчитывается на следующем шаге до подтверждения заказа.
+                </p>
+              )}
+              {bundleProducts.length > 0 && !product.is_sellable_bundle && (
                 <p className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
                   Состав набора показан ниже. Пока его товары добавляются в корзину отдельно;
                   общая цена набора здесь не рассчитывается.{' '}
