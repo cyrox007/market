@@ -246,7 +246,7 @@ class SellableBundle
             if ($warehouse->stock_mode === 'availability') {
                 $available = $warehouse->productAvailabilities->keyBy('product_id');
                 if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false))) {
-                    return max($best, 1);
+                    $best = max($best, 1);
                 }
                 continue;
             }
