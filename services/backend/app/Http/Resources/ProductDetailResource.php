@@ -312,6 +312,7 @@ class ProductDetailResource extends JsonResource
             Log::debug('ProductDetailResource: Регион не передан, используется базовая цена', [
                 'product_id' => $this->id,
                 'is_variant' => $isVariant,
+                'is_sellable_bundle' => (bool) $sourceProduct->is_sellable_bundle,
                 'price' => $productPrice,
             ]);
         }

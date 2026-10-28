@@ -195,6 +195,9 @@ class CartController extends Controller
         ]);
 
         $product = Product::findOrFail($validated['product_id']);
+        if ($product->is_sellable_bundle || $product->parentProduct?->is_sellable_bundle) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['product_id' => 'Товар настроен как единый комплект. Используйте кнопку «Купить комплект».']);
+        }
 
         if ($product->isVariant()) {
             // Уже вариация — используем как есть
