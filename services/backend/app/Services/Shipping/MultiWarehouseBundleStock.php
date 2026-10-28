@@ -138,6 +138,9 @@ class MultiWarehouseBundleStock
 
         $reserveForLater = (bool) $order->cooling_until || $backordered !== []
             || ! empty($quote['contains_backorder']);
+        if ($reserveForLater) {
+            $quote['reservation_version'] = 2;
+        }
         $quote['backorder_items'] = $backordered;
         $quote['contains_backorder'] = $backordered !== [];
         foreach ($lines as $line) {
@@ -190,12 +193,23 @@ class MultiWarehouseBundleStock
         return $quote;
     }
 
+    private function verifyAvailabilityForConsumption(array $line): ?\App\Models\Inventory\SourceProductAvailability
+    {
+        return \App\Models\Inventory\SourceProductAvailability::where('warehouse_id', $line['warehouse_id'])
+            ->where('product_id', $line['product_id'])->lockForUpdate()->first();
+    }
+
     public function consume(array $quote): array
     {
         $lines = $this->lines($this->allocations($quote));
         $stocks = [];
         foreach ($lines as $line) {
-            if ($line['stock_mode'] !== 'quantity') {
+            if ($line['stock_mode'] === 'availability') {
+                $availability = $line['quantity'] > 0
+                    ? $this->verifyAvailabilityForConsumption($line) : null;
+                if (! $availability?->available_to_order) {
+                    throw ValidationException::withMessages(['stock' => 'Компонент под заказ ещё не поступил от поставщика.']);
+                }
                 continue;
             }
             $stock = ProductWarehouseStock::where('warehouse_id', $line['warehouse_id'])

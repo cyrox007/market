@@ -59,6 +59,7 @@ class WarehouseOrderStock
                     $quote['backorder_items'][] = ['product_id' => (int) $sku->id,
                         'quantity' => (int) $item['quantity'], 'warehouse_id' => (int) $warehouse->id];
                     $quote['contains_backorder'] = true;
+                    $quote['reservation_version'] = 2;
                 }
             }
         }
@@ -166,6 +167,18 @@ class WarehouseOrderStock
             if (($quote['stock_state'] ?? null) !== 'reserved' || ($quote['reservation_version'] ?? 1) !== 2) { return; }
             if (($quote['stock_mode'] ?? null) === 'multi') {
                 $locked->update(['fulfillment_snapshot' => app(MultiWarehouseBundleStock::class)->consume($quote)]);
+                return;
+            }
+            if (($quote['stock_mode'] ?? null) === 'availability') {
+                foreach ($quote['items'] as $item) {
+                    $availability = \App\Models\Inventory\SourceProductAvailability::where('warehouse_id', $quote['warehouse_id'])
+                        ->where('product_id', $item['product_id'])->lockForUpdate()->first();
+                    if (! $availability?->available_to_order) {
+                        throw ValidationException::withMessages(['stock' => 'Компонент под заказ ещё не доступен у поставщика.']);
+                    }
+                }
+                $quote['stock_state'] = 'consumed';
+                $locked->update(['fulfillment_snapshot' => $quote]);
                 return;
             }
             foreach (collect($quote['items'])->sortBy('product_id') as $item) {
