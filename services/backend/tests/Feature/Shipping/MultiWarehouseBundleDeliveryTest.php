@@ -18,6 +18,12 @@ use Tests\TestCase;
 
 class MultiWarehouseBundleDeliveryTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->fakeAddress();
+    }
+
     private function kit(): array
     {
         $root = Product::factory()->create([
