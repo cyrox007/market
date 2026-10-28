@@ -52,6 +52,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     {
         parent::boot();
 
+        static::saved(function (self $product): void {
+            if ($product->wasChanged('bundle_price') && $product->isVariant()
+                && $product->parentProduct?->is_sellable_bundle) {
+                app(\App\Services\Product\SellableBundle::class)->syncBasePrice($product);
+            }
+        });
+
         static::bootCacheable();
 
         // Сбрасываем кэш при любом изменении/создании товара (flushCache также вызывается из трейта Cacheable)

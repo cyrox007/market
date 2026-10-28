@@ -37,6 +37,15 @@ class SellableBundleComponentsRelationManager extends RelationManager
                 TextColumn::make('price')->label('Базовая цена SKU')->money('RUB'),
             ])
             ->headerActions([
+                Action::make('bundlePrice')
+                    ->label('Цена комплекта')
+                    ->form([\App\Filament\Forms\BundlePriceField::make()])
+                    ->fillForm(fn (): array => ['bundle_price' => $this->getOwnerRecord()->bundle_price])
+                    ->action(function (array $data): void {
+                        $this->getOwnerRecord()->forceFill(['bundle_price' => $data['bundle_price'] ?? null])->save();
+                        Product::flushAllProductCaches();
+                        Notification::make()->title('Цена комплекта сохранена')->success()->send();
+                    }),
                 Action::make('toggleBundle')
                     ->label(fn (): string => $this->getOwnerRecord()->is_sellable_bundle
                         ? 'Отключить продажу комплектом' : 'Включить продажу комплектом')

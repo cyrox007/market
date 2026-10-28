@@ -249,6 +249,9 @@ class OrderController extends Controller
             // Проверка остатков
             $subtotal = 0;
             $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($cartItems, $region);
+            if ($bundleComposition !== null) {
+                $pricedItems = app(\App\Services\Product\BundlePricing::class)->apply($bundleComposition, $pricedItems);
+            }
             foreach ($pricedItems as $pricingLine) {
                 $subtotal += $pricingLine['price'] * $pricingLine['quantity'];
                 if ($pricingLine['expired_offer'] && ! array_key_exists('expected_subtotal', $validated)) {
@@ -264,7 +267,7 @@ class OrderController extends Controller
                     $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, [
                         '_cart_subtotal' => $subtotal,
                         'allow_multi_warehouse' => $bundleComposition !== null,
-                        '_priced_unit_prices' => collect($pricedItems)->pluck('price', 'product_id')->all(),
+                        '_priced_unit_prices' => app(\App\Services\Product\BundlePricing::class)->unitPrices($pricedItems),
                     ]));
                 } catch (\RuntimeException $error) {
                     report($error);
@@ -375,14 +378,25 @@ class OrderController extends Controller
                         $bundleComposition['bundle_id'], $bundleComposition['primary_sku_id'], $bundleComposition['bundle_quantity']
                     );
                     app(\App\Services\Product\SellableBundle::class)->assertMatches($lockedComposition, $bundleComposition['items']);
+                    $lockedPrices = app(\App\Services\Product\BundlePricing::class)->apply($lockedComposition,
+                        app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($cartItems, $region));
+                    $priceIdentity = fn (array $lines): array => array_map(fn ($line) => [
+                        $line['product_id'], $line['quantity'], $line['price'], $line['pricing_snapshot']['bundle_pricing'] ?? null,
+                    ], $lines);
+                    if ($priceIdentity($lockedPrices) !== $priceIdentity($pricedItems)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['expected_subtotal' => 'Цена комплекта изменилась. Пересчитайте заказ.']);
+                    }
                 }
                 $bundleSnapshot = $bundleComposition === null ? null : [
                     'bundle_id' => $bundleComposition['bundle_id'],
                     'primary_sku_id' => $bundleComposition['primary_sku_id'],
                     'bundle_quantity' => $bundleComposition['bundle_quantity'],
                     'components' => collect($bundleComposition['components'])->map(function (array $component) use ($pricedItems, $bundleComposition): array {
-                        $priced = collect($pricedItems)->firstWhere('product_id', $component['product_id']);
-                        return [...$component, 'unit_price' => $priced['price'], 'quantity' => $component['quantity_per_bundle'] * ($bundleComposition['bundle_quantity'] ?? 1)];
+                        $priced = collect($pricedItems)->where('product_id', $component['product_id']);
+                        $quantity = $priced->sum('quantity');
+                        $total = round($priced->sum(fn ($row) => $row['price'] * $row['quantity']), 2);
+                        return [...$component, 'unit_price' => $total / $quantity, 'quantity' => $quantity, 'total' => $total,
+                            'price_allocations' => $priced->map(fn ($row) => ['quantity' => $row['quantity'], 'unit_price' => $row['price']])->values()->all()];
                     })->all(),
                 ];
                 $order = Order::create([

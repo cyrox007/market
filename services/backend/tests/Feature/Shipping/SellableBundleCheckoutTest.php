@@ -79,6 +79,58 @@ class SellableBundleCheckoutTest extends TestCase
         return [$kit, $wardrobes, $mezzanines, $offers];
     }
 
+    public function test_fixed_offer_price_is_independent_and_survives_component_price_updates(): void
+    {
+        [$root, , , $offers] = $this->variableKit();
+        [$white, $wardrobe] = $offers['white'];
+        $white->update(['bundle_price' => 1900.01]);
+        $wardrobe->update(['price' => 1700]);
+        $this->assertEquals(1900.01, $white->fresh()->price);
+        $this->assertEquals(1900.01, app(SellableBundle::class)->quote($root->id, $white->id)['subtotal']);
+        $this->assertEquals(2650, app(SellableBundle::class)->quote($root->id, $offers['graphite'][0]->id)['subtotal']);
+        $white->update(['bundle_price' => null]);
+        $this->assertEquals(2400, $white->fresh()->price);
+    }
+
+    public function test_fixed_bundle_price_matches_preview_order_snapshot_and_1c_to_the_kopeck(): void
+    {
+        Queue::fake();
+        Http::fake(fn ($request) => Http::response([
+            'target' => str_ends_with($request->url(), '/region48')
+                ? ['kind' => 'region', 'externalId' => 'region48', 'name' => 'Липецкая область']
+                : ['kind' => 'building', 'externalId' => 'house', 'name' => '1'],
+            'path' => [['kind' => 'region', 'externalId' => 'region48', 'name' => 'Липецкая область'],
+                ['kind' => 'locality', 'externalId' => 'lipetsk', 'name' => 'Липецк']],
+            'label' => 'Тестовый адрес',
+        ]));
+        [$root, , $part] = $this->kit();
+        $root->update(['bundle_price' => 1000.01]);
+        $warehouse = Warehouse::create(['name' => 'Central', 'is_active' => true]);
+        $warehouse->productStocks()->create(['product_id' => $root->id, 'quantity' => 10]);
+        $warehouse->productStocks()->create(['product_id' => $part->id, 'quantity' => 10]);
+        $warehouse->deliveryProfiles()->create(['name' => 'Область', 'coverage_type' => 'locations',
+            'directory_territories' => [['region_id' => 'region48']], 'base_price' => 500, 'service_tariffs' => []]);
+        PaymentMethod::create(['name' => 'Тестовая оплата', 'code' => 'cash', 'gateway' => 'manual', 'is_active' => true, 'is_enabled' => true]);
+        $preview = $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $root->id, 'quantity' => 3])
+            ->assertOk()->assertJsonPath('subtotal', 3000.03);
+        $body = ['bundle_id' => $root->id, 'bundle_quantity' => 3, 'items' => $preview->json('items'),
+            'directory_external_id' => 'house', 'delivery_type' => 'delivery', 'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cash', 'expected_subtotal' => 3000.03,
+            'contact_name' => 'Тест', 'contact_phone' => '+79001234567', 'contact_email' => 'test@example.test',
+            'accept_offer' => true, 'accept_personal_data' => true];
+        $this->postJson('/api/v1/shipping/quote', $body)->assertOk()->assertJsonPath('subtotal', 3000.03);
+        $created = $this->postJson('/api/v1/orders', $body)->assertCreated();
+        $order = Order::findOrFail($created->json('order.id'));
+        $this->assertEquals(3000.03, $order->subtotal);
+        $this->assertEquals(3500.03, $order->total);
+        $this->assertEquals(3000.03, $order->items->sum('total'));
+        $this->assertSame(300003, array_sum(array_map(fn ($row) => (int) round($row['total'] * 100), $order->bundle_snapshot['components'])));
+        $payload = app(BuildOrderSyncPayloadAction::class)->execute($order);
+        $this->assertSame(300003, array_sum(array_map(fn ($row) => (int) round($row['promoPrice'] * 100) * $row['quantity'], $payload['products'])));
+        $root->update(['bundle_price' => 9999]);
+        $this->assertEquals(3000.03, $order->fresh()->subtotal);
+    }
+
     public function test_catalog_offer_uses_physical_component_stock_and_price(): void
     {
         [$kit, , , $offers] = $this->variableKit();

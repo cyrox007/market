@@ -63,8 +63,11 @@ class WarehouseDeliveryQuoteController extends Controller
                 ? app(\App\Services\Order\DirectCheckout::class)->items($lines)
                 : Cart::getItems();
             $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($pricingItems, $region);
+            if ($isBundle) {
+                $pricedItems = app(\App\Services\Product\BundlePricing::class)->apply($composition, $pricedItems);
+            }
             $data['_cart_subtotal'] = collect($pricedItems)->sum(fn ($line) => $line['price'] * $line['quantity']);
-            $data['_priced_unit_prices'] = collect($pricedItems)->pluck('price', 'product_id')->all();
+            $data['_priced_unit_prices'] = app(\App\Services\Product\BundlePricing::class)->unitPrices($pricedItems);
             $result = $quotes->calculate($id, $lines, $region,
                 array_merge($data, [
                     'preview' => isset($data['items']),

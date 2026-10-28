@@ -471,7 +471,20 @@ class ProductDetailResource extends JsonResource
         if ($sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()) {
             $productPrice = $kitCurrentVariant['price'] ?? $productPriceFromCheapestVariant ?? 0;
         }
-        $effectiveOldPrice = $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
+        $simpleKit = $sourceProduct->is_sellable_bundle && ! $sourceProduct->isVariable();
+        if ($simpleKit) {
+            try {
+                $simpleQuote = app(\App\Services\Product\SellableBundle::class)->quote((int) $sourceProduct->id, null, 1, $region);
+                $productPrice = $simpleQuote['subtotal'];
+                $rawStock = $resolvedStock = app(\App\Services\Product\SellableBundle::class)->availableSets($simpleQuote['items']);
+                $inStock = $resolvedStock > 0;
+            } catch (\Illuminate\Validation\ValidationException $error) {
+                $productPrice = 0;
+                $rawStock = $resolvedStock = 0;
+                $inStock = false;
+            }
+        }
+        $effectiveOldPrice = $sourceProduct->is_sellable_bundle
             ? null : (isset($cheapest) ? ($cheapest['old_price'] ?? null) : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $productPrice));
         $displayCategories = $this->taxons->isNotEmpty() ? $this->taxons : $sourceProduct->taxons;
 
@@ -503,7 +516,7 @@ class ProductDetailResource extends JsonResource
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'available_to_order' => $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
                 ? ($kitCurrentVariant ? $kitCurrentVariant['in_stock'] : collect($variants)->contains('in_stock', true))
-                : $warehouseStockResolver->availableToOrder($this->resource, $region),
+                : ($simpleKit ? $inStock : $warehouseStockResolver->availableToOrder($this->resource, $region)),
             'nearest_distance_km' => $priority['nearest_distance_km'],
             'nearest_stock' => $priority['nearest_stock'],
             'nearest_warehouse_name' => $priority['nearest_warehouse_name'],
