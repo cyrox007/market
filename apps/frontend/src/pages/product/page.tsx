@@ -524,9 +524,14 @@ export default function Product() {
       setIsAddingToCart(true);
       setAddToCartError(null);
       const selectedSku = getSelectedVariant();
+      if (product.is_sellable_bundle && (product.is_variable || product.is_variant)
+        && (!selectedSku?.is_bundle_configured || (selectedSku.stock ?? 0) < 1)) {
+        setAddToCartError('Этот цвет комплекта пока не доступен. Выберите другой вариант.');
+        return;
+      }
       const offer = new URLSearchParams(window.location.search).get('offer');
       navigate(product.is_sellable_bundle
-        ? '/checkout?bundle_id=' + product.id + '&primary_sku_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity
+        ? '/checkout?bundle_id=' + (product.parent_id || product.id) + '&primary_sku_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity
         : '/checkout?product_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity + (offer ? '&offer=' + encodeURIComponent(offer) : ''));
     } catch (err: any) {
       console.error('Failed to add to cart:', err);
@@ -1387,7 +1392,9 @@ export default function Product() {
             >
               <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
                 <span className="text-2xl sm:text-3xl font-bold text-red-600">
-                  {formatPrice(displayPrice ?? 0)}
+                  {product.is_sellable_bundle && (product.is_variable || product.is_variant)
+                    && selectedVariant && !selectedVariant.is_bundle_configured
+                    ? 'Состав не настроен' : formatPrice(displayPrice ?? 0)}
                 </span>
                 {displayOldPrice && displayPrice && displayOldPrice > displayPrice && (
                   <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap">
@@ -1402,8 +1409,11 @@ export default function Product() {
               )}
               {product.is_sellable_bundle && (
                 <p className="mt-2 text-xs text-gray-600">
-                  Указана цена основного изделия. Стоимость всего комплекта из выбранных SKU
-                  рассчитывается на следующем шаге до подтверждения заказа.
+                  {product.is_variable
+                    ? (selectedVariant?.is_bundle_configured
+                        ? 'Цена выбранного цвета рассчитана по его шкафу, антресоли и остальным SKU. Наличие проверяется по всем компонентам.'
+                        : 'Выберите доступный цвет комплекта с настроенным составом.')
+                    : 'Окончательная стоимость и наличие всего комплекта проверяются при оформлении заказа.'}
                 </p>
               )}
               {bundleProducts.length > 0 && !product.is_sellable_bundle && (
@@ -1790,16 +1800,34 @@ export default function Product() {
           {product.is_sellable_bundle && (
             <section id="product-bundle" className="mb-10 scroll-mt-20 rounded-2xl border p-6">
               <h2 className="text-2xl font-bold mb-4">Что входит в комплект</h2>
-              <p className="mb-3 text-sm text-gray-600">
-                Основной товар: {product.name}, 1 шт. {selectedVariant ? '(выбранное торговое предложение)' : ''}
-              </p>
-              {(product.sellable_bundle_components || []).map((component) => (
-                <p key={component.id} className="py-2 border-b text-sm">
-                  {component.name} · SKU {component.sku} × {component.quantity} шт.
-                </p>
-              ))}
+              {(product.is_variable || product.is_variant) ? (
+                <>
+                  <p className="mb-3 text-sm text-gray-600">
+                    {selectedVariant ? 'Состав предложения: ' + (selectedVariant.name || selectedVariant.sku) : 'Выберите цвет комплекта, чтобы увидеть его состав.'}
+                  </p>
+                  {selectedVariant?.is_bundle_configured ? (
+                    selectedVariant.bundle_components?.map((component) => (
+                      <div key={component.product_id} className="flex flex-wrap justify-between gap-3 py-2 border-b text-sm">
+                        <span>{component.name} · SKU {component.sku} × {component.quantity} шт.</span>
+                        <span className="font-semibold">{component.total.toLocaleString('ru-RU')} ₽</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-amber-700">Для выбранного цвета состав пока не настроен. Купить его нельзя.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="mb-3 text-sm text-gray-600">Основной товар: {product.name} × 1 шт.</p>
+                  {(product.sellable_bundle_components || []).map((component) => (
+                    <p key={component.id} className="py-2 border-b text-sm">
+                      {component.name} · SKU {component.sku} × {component.quantity} шт.
+                    </p>
+                  ))}
+                </>
+              )}
               <p className="mt-4 text-sm text-gray-600">
-                Все позиции проверяются по остаткам одного склада и оформляются одним заказом.
+                Все компоненты проверяются на одном складе и оформляются одним заказом.
               </p>
             </section>
           )}
