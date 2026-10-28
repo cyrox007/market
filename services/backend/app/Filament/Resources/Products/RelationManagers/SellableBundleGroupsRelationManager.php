@@ -31,30 +31,19 @@ class SellableBundleGroupsRelationManager extends RelationManager
             TextColumn::make('pivot.sort_order')->label('Порядок'),
             TextColumn::make('name')->label('Группа товара'),
         ])->headerActions([
-            Action::make('enableKit')
-                ->label(fn (): string => $this->getOwnerRecord()->is_sellable_bundle
-                    ? 'Отключить продажу комплектом' : 'Включить продажу комплектом')
-                ->requiresConfirmation()
-                ->color(fn (): string => $this->getOwnerRecord()->is_sellable_bundle ? 'danger' : 'success')
+            Action::make('verifyKit')
+                ->label('Проверить готовность всех цветов')
+                ->icon('heroicon-o-check-circle')
                 ->action(function (): void {
-                    $owner = $this->getOwnerRecord();
-                    DB::transaction(function () use ($owner): void {
-                        $root = Product::lockForUpdate()->findOrFail($owner->id);
-                        if ($root->is_sellable_bundle) {
-                            $root->forceFill(['is_sellable_bundle' => false])->save();
-                        } else {
-                            $offers = $root->variants()->active()->get();
-                            if ($offers->isEmpty() || ! $root->sellableBundleGroups()->exists()) {
-                                throw ValidationException::withMessages(['bundle' => 'Укажите группы и создайте торговые предложения.']);
-                            }
-                            $root->forceFill(['is_sellable_bundle' => true])->save();
-                            foreach ($offers as $offer) {
-                                app(SellableBundle::class)->composition($root->id, $offer->id);
-                            }
-                        }
-                        Product::flushAllProductCaches();
-                    });
-                    Notification::make()->title('Продажа комплектом обновлена')->success()->send();
+                    $root = $this->getOwnerRecord();
+                    $offers = $root->variants()->active()->get();
+                    if ($offers->isEmpty() || ! $root->sellableBundleGroups()->exists()) {
+                        throw ValidationException::withMessages(['bundle' => 'Укажите группы и создайте торговые предложения.']);
+                    }
+                    foreach ($offers as $offer) {
+                        app(SellableBundle::class)->composition($root->id, $offer->id);
+                    }
+                    Notification::make()->title('Все активные цветовые предложения имеют корректный состав.')->success()->send();
                 }),
             Action::make('addGroup')
                 ->label('Добавить группу составляющих')
@@ -87,9 +76,10 @@ class SellableBundleGroupsRelationManager extends RelationManager
                         $root->sellableBundleGroups()->attach($group->id, [
                             'sort_order' => (int) $root->sellableBundleGroups()->count(),
                         ]);
-                        // Mapping for all offers must be renewed before sale can resume.
-                        if ($root->is_sellable_bundle) {
-                            $root->forceFill(['is_sellable_bundle' => false])->save();
+                        // Treat the root as a virtual kit as soon as its first component
+                        // group is added. Unmapped offers fail closed, never sell separately.
+                        if (! $root->is_sellable_bundle) {
+                            $root->forceFill(['is_sellable_bundle' => true])->save();
                         }
                     });
                     Product::flushAllProductCaches();
@@ -105,9 +95,8 @@ class SellableBundleGroupsRelationManager extends RelationManager
                     $root = $this->getOwnerRecord();
                     DB::transaction(function () use ($root, $record): void {
                         $root->sellableBundleGroups()->detach($record->id);
-                        if ($root->is_sellable_bundle) {
-                            $root->forceFill(['is_sellable_bundle' => false])->save();
-                        }
+                        // Keep kit mode on even with no groups: incomplete kits remain
+                        // unavailable rather than silently becoming standalone SKUs.
                     });
                     Product::flushAllProductCaches();
                     Notification::make()->title('Группа удалена. Проверьте предложения перед повторным включением.')->warning()->send();
