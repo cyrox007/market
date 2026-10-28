@@ -1148,6 +1148,10 @@ export interface PaymentMethod {
   description?: string | null;
   icon?: string | null;
   is_active: boolean;
+  is_coming_soon?: boolean;
+  selectable?: boolean;
+  availability?: 'available' | 'coming_soon';
+  availability_label?: string | null;
   sort_order: number;
 }
 

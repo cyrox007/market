@@ -34,6 +34,9 @@ class PaymentMethodController extends Controller
 
         // Получаем методы оплаты через интерфейс
         $methods = $this->paymentMethodAvailability->getAvailablePaymentMethods($location);
+        $methods = $methods->filter(fn (PaymentMethod $method): bool => $method->isGloballyActive())
+            ->merge(PaymentMethod::where('is_coming_soon', true)->ordered()->get())
+            ->unique('id')->values();
 
         return response()->json([
             'data' => $methods->map(function ($method) {
@@ -44,6 +47,10 @@ class PaymentMethodController extends Controller
                     'description' => $method->description,
                     'icon' => $method->icon,
                     'is_active' => $method->is_active,
+                    'is_coming_soon' => (bool) $method->is_coming_soon,
+                    'selectable' => $method->isGloballyActive(),
+                    'availability' => $method->is_coming_soon ? 'coming_soon' : 'available',
+                    'availability_label' => $method->is_coming_soon ? 'Скоро' : null,
                     'sort_order' => $method->sort_order,
                 ];
             }),

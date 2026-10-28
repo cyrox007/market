@@ -272,6 +272,8 @@ class OrderController extends Controller
             }
             // Автоматическая регистрация пользователя, если не авторизован
             $user = $request->user();
+            // Capture checkout identity before optional automatic registration.
+            $guestCheckout = $user === null;
             $autoRegistered = false;
             $autoRegisteredPassword = null;
 
@@ -382,6 +384,7 @@ class OrderController extends Controller
                 $order = Order::create([
                     'user_id' => $user?->id,
                     'bundle_snapshot' => $bundleSnapshot,
+                    'guest_checkout' => $guestCheckout,
                     'status' => $initialStatus->value,
                     'cooling_until' => now()->addMinutes(60),
                     'integration_state' => 'cooling',
@@ -663,9 +666,8 @@ class OrderController extends Controller
             $hasAccess = (int) session('last_created_order_id', 0) === (int) $order->id;
         }
           $guestToken = $request->header('X-Order-Token', '');
-          if (! $hasAccess && is_string($guestToken) && strlen($guestToken) === 64 && $order->guest_token_hash
-              && $order->created_at->gt(now()->subDays(30))) {
-              $hasAccess = hash_equals($order->guest_token_hash, hash('sha256', $guestToken));
+          if (! $hasAccess) {
+              $hasAccess = app(\App\Services\Order\GuestOrderAccess::class)->valid($order, $guestToken);
           }
         if (!$hasAccess) {
             return response()->json(['message' => 'Доступ запрещен'], 403);

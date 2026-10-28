@@ -37,6 +37,7 @@ class Order extends Model implements Payable
     protected $fillable = [
         'user_id',
         'bundle_snapshot',
+        'guest_checkout',
         'number',
         'cooling_until', 'integration_sent_at', 'integration_state', 'guest_token_hash',
         'status',
@@ -73,6 +74,7 @@ class Order extends Model implements Payable
         return [
             'checkout_snapshot' => 'array',
             'bundle_snapshot' => 'array',
+            'guest_checkout' => 'boolean',
             'cooling_until' => 'datetime', 'integration_sent_at' => 'datetime',
             'fulfillment_snapshot' => 'array',
             'total' => 'decimal:2',

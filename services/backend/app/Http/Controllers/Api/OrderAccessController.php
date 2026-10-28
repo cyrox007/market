@@ -16,8 +16,7 @@ class OrderAccessController
         $user = auth('sanctum')->user();
         $owner = $user && $order->user_id && (int) $order->user_id === (int) $user->id;
         $token = $request->header('X-Order-Token', '');
-        $guest = is_string($token) && strlen($token) === 64 && $order->guest_token_hash
-            && hash_equals($order->guest_token_hash, hash('sha256', $token)) && $order->created_at->gt(now()->subDays(30));
+        $guest = app(\App\Services\Order\GuestOrderAccess::class)->valid($order, $token);
         abort_unless($owner || $guest, 403);
         return $order;
     }
