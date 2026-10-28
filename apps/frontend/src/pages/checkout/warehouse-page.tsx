@@ -84,7 +84,7 @@ export default function WarehouseCheckout() {
     setBusy(true); setError('');
     try {
       const response = await api.orders.create({ contact_name: contact.name, contact_phone: contact.phone, contact_email: contact.email,
-        payment_method: payment, delivery_type: mode, expected_subtotal: quote?.subtotal ?? subtotal,
+        payment_method: payment, delivery_type: mode, expected_subtotal: isBundle ? subtotal : (quote?.subtotal ?? subtotal),
         ...(direct ? { items } : {}),
         ...(isBundle ? { bundle_id: bundleId, primary_sku_id: primarySkuId, bundle_quantity: quantity } : {}),
         accept_offer: true, accept_personal_data: true,
