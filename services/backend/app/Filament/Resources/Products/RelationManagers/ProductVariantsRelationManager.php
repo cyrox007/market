@@ -636,7 +636,7 @@ class ProductVariantsRelationManager extends RelationManager
                     ->modalDescription('Каждая группа — ровно один конкретный SKU. Это предложение комплекта не резервируется и не уходит в 1С как отдельная номенклатура.')
                     ->form(function (Product $record): array {
                         $root = $this->getOwnerRecord();
-                        $controls = [];
+                        $controls = [\App\Filament\Forms\BundlePriceField::make()];
                         foreach ($root->sellableBundleGroups as $group) {
                             $controls[] = Section::make($group->name)
                                 ->schema([
@@ -644,19 +644,9 @@ class ProductVariantsRelationManager extends RelationManager
                                         ->label('Торговое предложение / SKU')
                                         ->searchable()
                                         ->required()
-                                        ->getSearchResultsUsing(function (string $search) use ($group, $root): array {
-                                            return Product::active()->with('parentProduct')
-                                                ->where(fn ($q) => $q->where('parent_product_id', $group->id)
-                                                    ->orWhere('id', $group->id))
-                                                ->where(fn ($q) => $q->where('name', 'like', '%'.$search.'%')
-                                                    ->orWhere('sku', 'like', '%'.$search.'%'))
-                                                ->limit(50)->get()
-                                                ->filter(fn (Product $sku) => app(\App\Services\Product\SellableBundle::class)
-                                                    ->componentIsSellable($sku, $root))
-                                                ->mapWithKeys(fn (Product $sku): array => [
-                                                    $sku->id => $sku->name.' ('.$sku->sku.')',
-                                                ])->all();
-                                        })
+                                        ->options(fn (): array => self::kitSkuOptions($group, $root))
+                                        ->preload()
+                                        ->getSearchResultsUsing(fn (string $search): array => self::kitSkuOptions($group, $root, $search))
                                         ->getOptionLabelUsing(fn ($value): ?string => ($sku = Product::find($value))
                                             ? $sku->name.' ('.$sku->sku.')' : null),
                                     TextInput::make('qty_'.$group->id)
@@ -667,7 +657,7 @@ class ProductVariantsRelationManager extends RelationManager
                         return $controls;
                     })
                     ->fillForm(function (Product $record): array {
-                        $values = [];
+                        $values = ['bundle_price' => $record->bundle_price];
                         foreach ($this->getOwnerRecord()->sellableBundleGroups as $group) {
                             $component = $record->sellableBundleComponents()->get()
                                 ->first(fn (Product $sku): bool => (int) ($sku->parent_product_id ?: $sku->id) === (int) $group->id);
@@ -685,7 +675,10 @@ class ProductVariantsRelationManager extends RelationManager
                                 'quantity' => $data['qty_'.$group->id] ?? null,
                             ];
                         }
-                        app(\App\Services\Product\SellableBundle::class)->saveOfferComposition($record, $rows);
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $rows, $data): void {
+                            $record->forceFill(['bundle_price' => $data['bundle_price'] ?? null])->save();
+                            app(\App\Services\Product\SellableBundle::class)->saveOfferComposition($record, $rows);
+                        });
                         Notification::make()->title('Состав предложения сохранён')->success()->send();
                     }),
                 EditAction::make()
@@ -839,5 +832,15 @@ class ProductVariantsRelationManager extends RelationManager
         $products = Product::query()->whereIn('id', $ids)->with('taxons')->get();
 
         return app(AttachProductsToVariableProductAction::class)->newCategoryNames($owner, $products);
+    }
+    private static function kitSkuOptions(Product $group, Product $root, string $search = ''): array
+    {
+        return Product::active()->with('parentProduct')
+            ->where(fn ($query) => $query->where('parent_product_id', $group->id)->orWhere('id', $group->id))
+            ->when($search !== '', fn ($query) => $query->where(fn ($filter) =>
+                $filter->where('name', 'like', '%'.$search.'%')->orWhere('sku', 'like', '%'.$search.'%')))
+            ->orderBy('name')->orderBy('id')->limit(50)->get()
+            ->filter(fn (Product $sku) => app(\App\Services\Product\SellableBundle::class)->componentIsSellable($sku, $root))
+            ->mapWithKeys(fn (Product $sku): array => [$sku->id => $sku->name.' ('.$sku->sku.')'])->all();
     }
 }

@@ -4,7 +4,6 @@ namespace App\Services\Product;
 
 use App\Models\Product\Product;
 use App\Models\Shipping\ShippingLocation;
-use App\Services\Pricing\PricingEngine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -105,7 +104,8 @@ class SellableBundle
         if ($rows->isEmpty()) {
             return;
         }
-        $price = round((float) $rows->sum(fn (Product $sku) => (float) $sku->price * (int) $sku->pivot->quantity), 2);
+        $price = $offer->bundle_price !== null ? (float) $offer->bundle_price
+            : round((float) $rows->sum(fn (Product $sku) => (float) $sku->price * (int) $sku->pivot->quantity), 2);
         $offer->updateQuietly(['price' => $price, 'stock' => 0, 'backorder' => false]);
         Product::syncParentPriceFromVariants($offer->parentProduct);
     }
@@ -211,18 +211,17 @@ class SellableBundle
     {
         $composition = $this->composition($bundleId, $primarySkuId, $quantity);
         $skus = Product::with('parentProduct')->whereIn('id', array_column($composition['items'], 'product_id'))->get()->keyBy('id');
-        $pricing = app(PricingEngine::class);
-        $subtotal = 0;
-        $rows = [];
-        foreach ($composition['items'] as $item) {
-            $sku = $skus[$item['product_id']];
-            $unit = $pricing->explain($sku, $region)['price'];
-            $amount = round((float) $unit * $item['quantity'], 2);
-            $subtotal += $amount;
-            $rows[] = ['product_id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
-                'quantity' => $item['quantity'], 'unit_price' => (float) $unit, 'total' => $amount];
-        }
-        return [...$composition, 'subtotal' => round($subtotal, 2), 'priced_components' => $rows];
+        $base = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems(
+            app(\App\Services\Order\DirectCheckout::class)->items($composition['items']), $region);
+        $lines = app(BundlePricing::class)->apply($composition, $base);
+        $rows = collect($lines)->groupBy('product_id')->map(function ($group, $id) use ($skus): array {
+            $quantity = $group->sum('quantity');
+            $total = round($group->sum(fn ($row) => $row['price'] * $row['quantity']), 2);
+            return ['product_id' => (int) $id, 'sku' => $skus[$id]->sku, 'name' => $skus[$id]->name,
+                'quantity' => $quantity, 'unit_price' => $total / $quantity, 'total' => $total,
+                'price_allocations' => $group->map(fn ($row) => ['quantity' => $row['quantity'], 'unit_price' => $row['price']])->values()->all()];
+        })->values()->all();
+        return [...$composition, 'subtotal' => round(array_sum(array_column($rows, 'total')), 2), 'priced_components' => $rows];
     }
 
     /**

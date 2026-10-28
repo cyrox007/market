@@ -42,6 +42,7 @@ class ProductResource extends JsonResource
         $firstAvailableVariantId = null;
         $kitRoot = $this->isVariant() ? $this->resource->parentProduct : $this->resource;
         $isVariableKit = $kitRoot?->isVariable() && (bool) $kitRoot->is_sellable_bundle;
+        $isSimpleKit = ! $this->isVariant() && ! $this->isVariable() && (bool) $this->is_sellable_bundle;
         $kitAvailableSets = 0;
         $deliveryDays = null;
         $defaultColor = null;
@@ -156,9 +157,9 @@ class ProductResource extends JsonResource
             $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($ruleProduct, $region, $ruleVariant);
         }
 
-        if ($isVariableKit && $this->isVariant()) {
+        if (($isVariableKit && $this->isVariant()) || $isSimpleKit) {
             try {
-                $kit = app(\App\Services\Product\SellableBundle::class)->quote((int) $kitRoot->id, (int) $this->id, 1, $region);
+                $kit = app(\App\Services\Product\SellableBundle::class)->quote((int) $kitRoot->id, $isSimpleKit ? null : (int) $this->id, 1, $region);
                 $price = $kit['subtotal'];
                 $kitAvailableSets = app(\App\Services\Product\SellableBundle::class)->availableSets($kit['items']);
             } catch (\Illuminate\Validation\ValidationException $error) {
@@ -184,10 +185,10 @@ class ProductResource extends JsonResource
             }
         }
 
-        $resolvedStock = $isVariableKit
+        $resolvedStock = ($isVariableKit || $isSimpleKit)
             ? $kitAvailableSets
             : $warehouseStockResolver->resolveForProduct($this->resource, $region);
-        $stocks = $isVariableKit
+        $stocks = ($isVariableKit || $isSimpleKit)
             ? []
             : app(\App\Services\Inventory\WarehousePriorityResolver::class)->resolve($this->resource, $region)['stocks'];
         return [
@@ -210,7 +211,7 @@ class ProductResource extends JsonResource
             'image_fullhd' => $isListView ? null : $this->image_fullhd_url,
             'thumbnail' => $this->thumbnail_url,
             'in_stock' => $resolvedStock > 0,
-            'available_to_order' => $isVariableKit ? $kitAvailableSets > 0
+            'available_to_order' => ($isVariableKit || $isSimpleKit) ? $kitAvailableSets > 0
                 : $warehouseStockResolver->availableToOrder($this->resource, $region),
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'stock' => $resolvedStock,

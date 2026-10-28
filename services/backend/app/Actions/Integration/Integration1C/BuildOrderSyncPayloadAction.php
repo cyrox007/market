@@ -209,6 +209,9 @@ class BuildOrderSyncPayloadAction
     private function resolveLinePrices(Product $product, OrderItem $item): array
     {
         $paidUnit = (float) $item->price;
+        if (isset($item->pricing_snapshot['bundle_pricing'])) {
+            return [max($paidUnit, (float) $item->pricing_snapshot['bundle_pricing']['base_unit_price']), $paidUnit];
+        }
         $original = $product->getOriginalPrice();
         if ($original !== null && $original > $paidUnit) {
             return [$original, $paidUnit];
