@@ -113,9 +113,10 @@ class MultiWarehouseBundleDelivery
             $items = collect($best['items'])->map(fn (int $quantity, int $id) => [
                 'product_id' => (int) $id, 'quantity' => $quantity,
             ])->values()->all();
-            $sourceSubtotal = collect($best['items'])->sum(
-                fn (int $qty, int $sku): float => ($unitPrices[$sku] ?? 0) * $qty
-            );
+            $sourceSubtotal = 0.0;
+            foreach ($best['items'] as $skuId => $qty) {
+                $sourceSubtotal += (float) ($unitPrices[$skuId] ?? 0) * $qty;
+            }
             $transportCost = $best['source']['transport'];
             if ($profile->free_delivery_threshold !== null
                 && $sourceSubtotal >= (float) $profile->free_delivery_threshold) {
