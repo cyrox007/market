@@ -246,6 +246,7 @@ class SellableBundle
                 'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
                 'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
             ])->get();
+        $backorderIds = Product::whereIn('id', $units->keys())->where('backorder', true)->pluck('id')->flip();
         $availableSets = PHP_INT_MAX;
         foreach ($units as $skuId => $unitsPerSet) {
             $bestForSku = 0;
@@ -266,7 +267,11 @@ class SellableBundle
                     }
                 }
             }
-            $availableSets = min($availableSets, max($bestForSku, (int) floor($freeUnits / $unitsPerSet)));
+            // 1 is a catalogue orderability signal, not a fictitious physical unit.
+            $availableSets = min($availableSets, max(
+                $bestForSku, (int) floor($freeUnits / $unitsPerSet),
+                $backorderIds->has((int) $skuId) && $warehouses->isNotEmpty() ? 1 : 0
+            ));
             if ($availableSets === 0) {
                 return 0;
             }
@@ -285,11 +290,13 @@ class SellableBundle
                 'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
                 'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
             ])->get();
+        $backorderIds = Product::whereIn('id', $units->keys())->where('backorder', true)->pluck('id')->flip();
         $best = 0;
         foreach ($warehouses as $warehouse) {
             if ($warehouse->stock_mode === 'availability') {
                 $available = $warehouse->productAvailabilities->keyBy('product_id');
-                if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false))) {
+                if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false)
+                    || $backorderIds->has((int) $id))) {
                     $best = max($best, 1);
                 }
                 continue;
@@ -300,6 +307,10 @@ class SellableBundle
             $stocks = $warehouse->productStocks->keyBy('product_id');
             $sets = PHP_INT_MAX;
             foreach ($units as $id => $qty) {
+                if ($backorderIds->has((int) $id)) {
+                    // No finite inventory bound for an explicitly preordered SKU.
+                    continue;
+                }
                 $stock = $stocks->get($id);
                 if (! $stock) {
                     $sets = 0;
@@ -309,7 +320,7 @@ class SellableBundle
                     ->available((int) $warehouse->id, (int) $id, (float) $stock->quantity);
                 $sets = min($sets, (int) floor($available / $qty));
             }
-            $best = max($best, $sets);
+            $best = max($best, $sets === PHP_INT_MAX ? 1 : $sets);
         }
         return max(0, $best);
     }
