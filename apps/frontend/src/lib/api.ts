@@ -654,9 +654,6 @@ export interface SelectedVariationItem {
 
 export interface ProductVariant extends WarehouseStockInfo {
   id: number;
-  name?: string;
-  is_bundle_configured?: boolean;
-  bundle_components?: Array<{ product_id: number; sku: string; name: string; quantity: number; unit_price: number; total: number }>;
   sku: string;
   price: number;
   old_price?: number | null;
