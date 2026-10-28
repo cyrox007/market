@@ -57,10 +57,18 @@ class PaymentMethodForm
                             ->default(0)
                             ->helperText('Порядок отображения в списке'),
 
+                        Toggle::make('is_coming_soon')
+                            ->label('Скоро — показать без возможности оплаты')
+                            ->default(false)->live()
+                            ->afterStateUpdated(function ($state, $set): void {
+                                if ($state) { $set('is_active', false); $set('is_enabled', false); }
+                            })
+                            ->helperText('На сайте появится пометка «Скоро». Выбрать этот способ и оформить через него заказ нельзя. Для запуска сначала выключите «Скоро», затем включите «Активен на сайте».'),
                         Toggle::make('is_active')
                             ->label('Активен на сайте')
                             ->default(true)
-                            ->helperText('Если выключено — метод не показывается в checkout и недоступен для новых заказов. Для отключения в отдельном регионе используйте настройки локации доставки.'),
+                            ->disabled(fn ($get): bool => (bool) $get('is_coming_soon'))->dehydrated()
+                            ->helperText('Если выключено — способ скрыт и недоступен для новых заказов. Исключение: включённое состояние «Скоро» показывает недоступную заглушку.'),
 
                         Toggle::make('is_enabled')
                             ->label('Включен (системный)')

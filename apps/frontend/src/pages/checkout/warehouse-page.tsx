@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import CheckoutAddress from '../../components/CheckoutAddress';
 
 const field = 'block w-full border border-gray-300 rounded-lg p-3 mt-1';
+const selectable = (method?: PaymentMethod) => !!method && method.is_active !== false && !method.is_coming_soon && method.selectable !== false;
 export default function WarehouseCheckout() {
   const { cart, reloadCart } = useCart();
   const { user } = useAuth();
@@ -42,7 +43,7 @@ export default function WarehouseCheckout() {
   const total = (quote?.subtotal ?? subtotal) + (mode === 'delivery' ? selected?.total_fulfillment_cost || 0 : 0);
   useEffect(() => {
     let active = true;
-    api.paymentMethods.list().then((r) => { if (active) { setMethods(r.data); setPayment(r.data[0]?.code || ''); } }).catch(() => { if (active) setError('Не удалось загрузить способы оплаты.'); });
+    api.paymentMethods.list().then((r) => { if (active) { setMethods(r.data); setPayment(r.data.find(selectable)?.code || ''); } }).catch(() => { if (active) setError('Не удалось загрузить способы оплаты.'); });
     return () => { active = false; };
   }, []);
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function WarehouseCheckout() {
   }, [mode, building, itemsKey, warehouse, assembly, handling, floor, additional, quoteRevision]);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || calculating || !consent || !payment || !items.length) return;
+    if (busy || calculating || !consent || !selectable(methods.find(method => method.code === payment)) || !items.length) return;
     const pickupPoint = pickup.find((p) => `${p.warehouse_id}:${p.store_id || ''}` === point);
     if (mode === 'delivery' && (!selected || !building)) { setError('Выберите дом и дождитесь расчёта доставки.'); return; }
     if (mode === 'pickup' && !pickupPoint) { setError('Выберите доступную точку самовывоза.'); return; }
@@ -112,10 +113,10 @@ export default function WarehouseCheckout() {
           {services?.additional.map((s) => <label className="block" key={s.id}><input type="checkbox" checked={additional.includes(s.id)} onChange={(e) => setAdditional(e.target.checked ? [...additional, s.id] : additional.filter((id) => id !== s.id))} /> {s.name} — {s.price} ₽</label>)}
         </> : <label className="block">Точка самовывоза<select required value={point} onChange={(e) => setPoint(e.target.value)} className={field}><option value="">Выберите точку</option>{pickup.map((p) => <option key={`${p.warehouse_id}:${p.store_id}`} value={`${p.warehouse_id}:${p.store_id || ''}`}>{p.name} — {p.address}</option>)}</select>{!pickup.length && <p>Для этих товаров нет доступных точек самовывоза.</p>}</label>}
       </section>
-      <section className="border rounded-2xl p-6 space-y-4"><h2 className="text-xl font-bold">Оплата</h2><select required aria-label="Способ оплаты" value={payment} onChange={(e) => setPayment(e.target.value)} className={field}>{methods.map((m) => <option value={m.code} key={m.code}>{m.name}</option>)}</select>
+      <section className="border rounded-2xl p-6 space-y-4"><h2 className="text-xl font-bold">Оплата</h2><select required aria-label="Способ оплаты" value={payment} onChange={(e) => setPayment(e.target.value)} className={field}>{!methods.some(selectable) && <option value="" disabled>Нет доступных способов оплаты</option>}{methods.map((m) => <option value={m.code} key={m.code} disabled={!selectable(m)}>{m.name}{m.is_coming_soon ? ' — Скоро' : ''}</option>)}</select>
         <p>Товары: {quote?.subtotal ?? subtotal} ₽</p><p>{calculating ? 'Рассчитываем доставку…' : mode === 'delivery' && !selected ? 'Выберите адрес для расчёта полной стоимости.' : `Итого: ${total} ₽`}</p>
         <label className="block"><input required type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Принимаю <Link to="/oferta">оферту</Link> и условия <Link to="/privacy">обработки персональных данных</Link>.</label>
-        <button disabled={busy || calculating || !items.length || !payment || !consent || (mode === 'delivery' ? !selected : !point)} className="bg-red-600 text-white rounded-lg px-6 py-3 disabled:opacity-50">{busy ? 'Оформляем…' : 'Оформить заказ'}</button>
+        <button disabled={busy || calculating || !items.length || !selectable(methods.find(method => method.code === payment)) || !consent || (mode === 'delivery' ? !selected : !point)} className="bg-red-600 text-white rounded-lg px-6 py-3 disabled:opacity-50">{busy ? 'Оформляем…' : 'Оформить заказ'}</button>
         <p>После оформления — 60 минут в обработке у менеджера. В это время заказ можно отменить самостоятельно.</p>
       </section>
     </form>

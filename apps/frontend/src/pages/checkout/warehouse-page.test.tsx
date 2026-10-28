@@ -21,6 +21,30 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it('shows digital ruble as coming soon and chooses an available payment method', async () => {
+  vi.mocked(api.paymentMethods.list).mockResolvedValue({ data: [
+    { id: 2, code: 'digital_ruble', name: 'Цифровой рубль', is_active: false, is_coming_soon: true, selectable: false, sort_order: 0 },
+    { id: 1, code: 'card', name: 'Банковская карта', is_active: true, selectable: true, sort_order: 1 },
+  ] });
+  render(<MemoryRouter><Checkout /></MemoryRouter>);
+  const option = await screen.findByRole('option', { name: 'Цифровой рубль — Скоро' });
+  expect((option as HTMLOptionElement).disabled).toBe(true);
+  expect((screen.getByLabelText('Способ оплаты') as HTMLSelectElement).value).toBe('card');
+});
+
+it('cannot submit when only coming soon methods exist, including a forged selection', async () => {
+  vi.mocked(api.paymentMethods.list).mockResolvedValue({ data: [
+    { id: 2, code: 'digital_ruble', name: 'Цифровой рубль', is_active: false, is_coming_soon: true, selectable: false, sort_order: 0 },
+  ] });
+  const { container } = render(<MemoryRouter><Checkout /></MemoryRouter>);
+  await screen.findByRole('option', { name: 'Цифровой рубль — Скоро' });
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Способ оплаты'), { target: { value: 'digital_ruble' } });
+  expect((screen.getByRole('button', { name: 'Оформить заказ' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.submit(container.querySelector('form')!);
+  expect(api.orders.create).not.toHaveBeenCalled();
+});
+
 async function contacts() {
   fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Покупатель' } });
   fireEvent.change(screen.getByLabelText('Телефон'), { target: { value: '+79001234567' } });
