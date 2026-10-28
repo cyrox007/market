@@ -40,7 +40,7 @@ class MailEventService
             }
 
             // Заменяем переменные в шаблоне
-            $replaced = $template->replaceVariables($variables);
+            $replaced = $template->replaceVariables($variables, html: true);
             $subject = $replaced['subject'];
             $body = $replaced['body'];
 
@@ -57,7 +57,7 @@ class MailEventService
 
             // Отправляем письмо
             try {
-                Mail::raw($body, function ($message) use ($recipientEmail, $subject) {
+                Mail::send(['html' => 'mail.template-html', 'text' => 'mail.template-text'], ['customBody' => $body], function ($message) use ($recipientEmail, $subject) {
                     $message->to($recipientEmail)
                         ->subject($subject);
                 });
@@ -112,7 +112,7 @@ class MailEventService
             }
 
             // Заменяем переменные в шаблоне
-            $replaced = $template->replaceVariables($variables);
+            $replaced = $template->replaceVariables($variables, html: true);
             $subject = $replaced['subject'];
             $body = $replaced['body'];
 

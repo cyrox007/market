@@ -40,11 +40,13 @@ class UserRegisteredMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            text: 'mail.user-registered',
+            view: 'mail.template-html',
+            text: 'mail.template-text',
             with: [
                 'user' => $this->user,
                 'password' => $this->password,
                 'customBody' => $this->customBody,
+                'fallbackBody' => 'Ваш аккаунт создан. Войдите на сайт для продолжения.',
             ],
         );
     }

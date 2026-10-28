@@ -48,7 +48,7 @@ class MailTemplatesTable
                         'old_status' => 'Новый',
                         'new_status' => 'Принят',
                     ];
-                    $rendered = $record->replaceVariables($examples);
+                    $rendered = $record->replaceVariables($examples, html: true);
                     $note = $record->mailEvent?->code === 'order.created.guest'
                         ? '<p><em>Ссылка для открытия заказа добавится автоматически при реальной отправке. В предпросмотре она скрыта.</em></p>'
                         : '';

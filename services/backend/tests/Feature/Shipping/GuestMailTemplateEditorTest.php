@@ -23,6 +23,44 @@ class GuestMailTemplateEditorTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_customer_variables_are_text_and_are_not_expanded_recursively(): void
+    {
+        $template = new MailEventTemplate([
+            'subject' => 'Заказ {{order_number}}',
+            'body' => '<p>{{contact_name}}</p><p>{{order_number}}</p>',
+        ]);
+        $result = $template->replaceVariables([
+            'contact_name' => '<a href="https://evil.test">Оплатить</a> {{order_number}}',
+            'order_number' => '123',
+        ], html: true);
+        $this->assertStringNotContainsString('<a href=', $result['body']);
+        $this->assertStringContainsString('&lt;a href=', $result['body']);
+        $this->assertStringContainsString('{{order_number}}', $result['body']);
+        $this->assertSame('Заказ 123', $result['subject']);
+
+        $template->body = 'Здравствуйте, {{contact_name}}!';
+        $plain = $template->replaceVariables(['contact_name' => '<b>Имя</b>'], html: true);
+        $this->assertStringContainsString('&lt;b&gt;Имя&lt;/b&gt;', MailTemplateContent::html($plain['body']));
+    }
+
+    public function test_all_editor_mailables_render_both_html_and_text(): void
+    {
+        $order = $this->guestOrder();
+        $user = User::factory()->create();
+        $mailables = [
+            new OrderCreatedMail($order),
+            new \App\Mail\OrderStatusChangedMail($order, 'Новый', 'Собирается'),
+            new \App\Mail\OrderCancelledMail($order),
+            new \App\Mail\UserRegisteredMail($user, 'test-password'),
+        ];
+        foreach ($mailables as $mail) {
+            $mail->setBody('<p>Письмо <strong>покупателю</strong></p>');
+            $mail->assertSeeInHtml('<strong>покупателю</strong>', escape: false);
+            $mail->assertSeeInText('Письмо');
+            $mail->assertDontSeeInText('<strong>');
+        }
+    }
+
     private function guestOrder(): Order
     {
         return Order::factory()->create([
