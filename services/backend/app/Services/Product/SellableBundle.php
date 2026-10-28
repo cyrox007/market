@@ -235,39 +235,40 @@ class SellableBundle
         if ($items === []) {
             return 0;
         }
+        // Every concrete SKU has its own stock. Different SKU groups may be
+        // sourced from different warehouses; NEVER count the virtual kit offer.
+        // A single SKU is not split across warehouses during fulfillment.
         $units = collect($items)->groupBy('product_id')->map(fn ($rows): int => (int) $rows->sum('quantity'));
         $warehouses = \App\Models\Inventory\Warehouse::query()->where('is_active', true)
             ->with([
                 'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
                 'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
             ])->get();
-        $best = 0;
-        foreach ($warehouses as $warehouse) {
-            if ($warehouse->stock_mode === 'availability') {
-                $available = $warehouse->productAvailabilities->keyBy('product_id');
-                if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false))) {
-                    $best = max($best, 1);
+        $availableSets = PHP_INT_MAX;
+        foreach ($units as $skuId => $unitsPerSet) {
+            $bestForSku = 0;
+            foreach ($warehouses as $warehouse) {
+                if ($warehouse->stock_mode === 'availability') {
+                    $source = $warehouse->productAvailabilities->firstWhere('product_id', $skuId);
+                    if ($source?->available_to_order) {
+                        // Factory availability is a boolean, not a finite count.
+                        $bestForSku = max($bestForSku, 1);
+                    }
+                } elseif ($warehouse->stock_mode === 'quantity') {
+                    $stock = $warehouse->productStocks->firstWhere('product_id', $skuId);
+                    if ($stock) {
+                        $free = app(\App\Services\Inventory\CartStockReservations::class)
+                            ->available((int) $warehouse->id, (int) $skuId, (float) $stock->quantity);
+                        $bestForSku = max($bestForSku, (int) floor($free / $unitsPerSet));
+                    }
                 }
-                continue;
             }
-            if ($warehouse->stock_mode !== 'quantity') {
-                continue;
+            $availableSets = min($availableSets, $bestForSku);
+            if ($availableSets === 0) {
+                return 0;
             }
-            $stocks = $warehouse->productStocks->keyBy('product_id');
-            $sets = PHP_INT_MAX;
-            foreach ($units as $id => $qty) {
-                $stock = $stocks->get($id);
-                if (! $stock) {
-                    $sets = 0;
-                    break;
-                }
-                $available = app(\App\Services\Inventory\CartStockReservations::class)
-                    ->available((int) $warehouse->id, (int) $id, (float) $stock->quantity);
-                $sets = min($sets, (int) floor($available / $qty));
-            }
-            $best = max($best, $sets);
         }
-        return max(0, $best);
+        return $availableSets === PHP_INT_MAX ? 0 : $availableSets;
     }
 
     public function assertMatches(array $composition, array $submitted): void
