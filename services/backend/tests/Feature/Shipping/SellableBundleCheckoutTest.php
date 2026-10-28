@@ -141,6 +141,21 @@ class SellableBundleCheckoutTest extends TestCase
         $this->assertSame([], $response->json('product.sellable_bundle_components'));
     }
 
+    public function test_base_catalogue_price_updates_when_physical_sku_price_changes(): void
+    {
+        [$kit, , , $offers] = $this->variableKit();
+        [$white, $wardrobe] = $offers['white'];
+        $this->assertEquals(2200, $white->fresh()->price);
+        $this->assertEquals(2200, $kit->fresh()->price);
+
+        $wardrobe->update(['price' => 1700]);
+        $this->assertEquals(2400, $white->fresh()->price);
+        $this->assertEquals(2400, app(SellableBundle::class)->quote($kit->id, $white->id)['subtotal']);
+        $this->assertEquals(2400, $kit->fresh()->price);
+        // The graphite offer remains independent.
+        $this->assertEquals(2650, $offers['graphite'][0]->fresh()->price);
+    }
+
     public function test_chosen_color_reserves_only_its_parts_and_sends_them_to_1c(): void
     {
         Queue::fake();
