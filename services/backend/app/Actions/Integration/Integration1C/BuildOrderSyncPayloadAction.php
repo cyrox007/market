@@ -163,11 +163,16 @@ class BuildOrderSyncPayloadAction
     {
         $products = [];
         $sourceBySku = [];
-        foreach ($order->fulfillment_snapshot['warehouse_allocations'] ?? [] as $source) {
+        $allocations = $order->fulfillment_snapshot['warehouse_allocations'] ?? [];
+        if ($allocations === [] && collect($order->fulfillment_snapshot['items'] ?? [])->sum('preorder_quantity') > 0) {
+            $allocations = [$order->fulfillment_snapshot];
+        }
+        foreach ($allocations as $source) {
             foreach ($source['items'] ?? [] as $line) {
                 $sourceBySku[(int) $line['product_id']][] = [
                     'warehouseExternalId' => (string) $source['warehouse_external_id'],
                     'quantity' => (int) $line['quantity'],
+                    'preorder_quantity' => (int) ($line['preorder_quantity'] ?? 0),
                 ];
             }
         }
@@ -211,10 +216,13 @@ class BuildOrderSyncPayloadAction
             foreach ($sourceBySku[(int) $product->id] as &$source) {
                 $take = min($remaining, $source['quantity']);
                 if ($take > 0) {
+                    $preordered = max(0, $take - ($source['quantity'] - $source['preorder_quantity']));
                     $products[] = array_replace($baseLine, [
                         'quantity' => $take, 'warehouseExternalId' => $source['warehouseExternalId'],
+                        ...($preordered > 0 ? ['preorderQuantity' => $preordered] : []),
                     ]);
                     $source['quantity'] -= $take;
+                    $source['preorder_quantity'] -= $preordered;
                     $remaining -= $take;
                 }
             }

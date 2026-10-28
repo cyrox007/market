@@ -14,6 +14,17 @@ class StockAvailabilityService
 
     public function resolveAvailableStock(Product $product): ?int
     {
+        $composition = app(\App\Services\Product\CartFulfillment::class)->composition($product);
+        if ($composition !== null) {
+            $capacity = null;
+            foreach ($composition['items'] as $line) {
+                $sku = Product::findOrFail($line['product_id']);
+                if ($this->warehouseStockResolver->availableToOrder($sku, null)) { continue; }
+                $sets = (int) floor(($this->warehouseStockResolver->resolveForProduct($sku, null) ?? 0) / $line['quantity']);
+                $capacity = $capacity === null ? $sets : min($capacity, $sets);
+            }
+            return $capacity;
+        }
         $location = null;
         if ($this->warehouseStockResolver->availableToOrder($product, null)) {
             return null;

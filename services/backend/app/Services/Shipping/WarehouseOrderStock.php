@@ -10,6 +10,14 @@ use Illuminate\Validation\ValidationException;
 
 class WarehouseOrderStock
 {
+    private function physicalItems(array $quote): \Illuminate\Support\Collection
+    {
+        return collect($quote['items'])->map(function (array $item): array {
+            $item['quantity'] -= (int) ($item['preorder_quantity'] ?? 0);
+            return $item;
+        })->filter(fn ($item) => $item['quantity'] > 0)->sortBy('product_id');
+    }
+
     /** Called inside the order transaction, before payment is initialized. */
     public function reserve(Order $order): void
     {
@@ -55,7 +63,13 @@ class WarehouseOrderStock
             }
         }
         if ($quote['stock_mode'] === 'quantity') {
-            foreach (collect($quote['items'])->sortBy('product_id') as $item) {
+            foreach ($quote['items'] as $item) {
+                if (($item['preorder_quantity'] ?? 0) > 0 && ! Product::lockForUpdate()->findOrFail($item['product_id'])->backorder) {
+                    throw ValidationException::withMessages(['cart' => 'Предзаказ товара отключён. Пересчитайте заказ.']);
+                }
+            }
+            if ($order->cooling_until) { $quote['reservation_version'] = 2; }
+            foreach ($this->physicalItems($quote) as $item) {
                 $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
                     ->where('product_id', $item['product_id'])->lockForUpdate()->first();
                 if (! $stock || app(\App\Services\Inventory\CartStockReservations::class)->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity) < $item['quantity']) {
@@ -95,7 +109,7 @@ class WarehouseOrderStock
                 ])->all();
             }
             if ($quote['stock_mode'] === 'quantity') {
-                foreach (collect($quote['items'])->sortBy('product_id') as $item) {
+                foreach ($this->physicalItems($quote) as $item) {
                     $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
                         ->where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
                     if (($quote['reservation_version'] ?? 1) === 2) {
@@ -126,7 +140,7 @@ class WarehouseOrderStock
                 $locked->update(['fulfillment_snapshot' => app(MultiWarehouseBundleStock::class)->consume($quote)]);
                 return;
             }
-            foreach (collect($quote['items'])->sortBy('product_id') as $item) {
+            foreach ($this->physicalItems($quote) as $item) {
                 $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])->where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
                 if ($stock->quantity < $item['quantity'] || $stock->reserved_quantity < $item['quantity']) {
                     throw ValidationException::withMessages(['stock' => 'Остаток/резерв изменился. Требуется сверка склада.']);

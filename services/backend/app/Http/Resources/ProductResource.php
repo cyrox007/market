@@ -211,7 +211,7 @@ class ProductResource extends JsonResource
             'image_fullhd' => $isListView ? null : $this->image_fullhd_url,
             'thumbnail' => $this->thumbnail_url,
             'in_stock' => $resolvedStock > 0,
-            'available_to_order' => ($isVariableKit || $isSimpleKit) ? $kitAvailableSets > 0
+            'available_to_order' => ($isVariableKit || $isSimpleKit) ? ($kitAvailableSets > 0 || (isset($kit) && app(\App\Services\Product\SellableBundle::class)->canOrder($kit['items'])))
                 : $warehouseStockResolver->availableToOrder($this->resource, $region),
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'stock' => $resolvedStock,

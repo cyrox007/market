@@ -59,9 +59,10 @@ class UpdateCartItemQuantityAction
             }
 
             if (! $keepsProduct) { app(\App\Services\Inventory\CartStockReservations::class)->release((int) $locked->product_id); }
-            app(\App\Services\Inventory\CartStockReservations::class)->reserve($product, $otherQuantity + $limit->quantity);
+            app(\App\Services\Product\CartFulfillment::class)->rememberSelection($updated, $product);
+            app(\App\Services\Product\CartFulfillment::class)->reserveCart();
             return new CartQuantityResult($updated, $requested, $limit->quantity, $previous, $stock, $limit->reason);
-        });
+        }, 3);
 
         // Менеджер корзины держит загруженные позиции — освежаем после правки строки
         Cart::model()?->load('items');

@@ -91,7 +91,19 @@ class CartItemResource extends JsonResource
             }
         }
 
-        $resolvedStock = $product ? $warehouseStockResolver->resolveForProduct($product, $region) : 0;
+        $bundleQuote = null;
+        $isBundle = $product && ($product->is_sellable_bundle || $product->parentProduct?->is_sellable_bundle);
+        if ($isBundle) {
+            $root = $product->isVariant() ? $product->parentProduct : $product;
+            try {
+                $bundleQuote = app(\App\Services\Product\SellableBundle::class)->quote($root->id, $product->isVariant() ? $product->id : null, 1, $region);
+                $regionalPrice = $bundleQuote['subtotal'];
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                // Keep a stale cart line visible so the buyer can remove it.
+            }
+        }
+        $resolvedStock = $bundleQuote !== null ? app(\App\Services\Product\SellableBundle::class)->availableSets($bundleQuote['items'])
+            : ($product ? $warehouseStockResolver->resolveForProduct($product, $region) : 0);
 
         $quantity = (int) ($this->quantity ?? 1);
         $total = $regionalPrice * $quantity;
@@ -102,6 +114,11 @@ class CartItemResource extends JsonResource
             'name' => $product->name ?? null,
             'slug' => $productForSlug->slug ?? null, // Slug для ссылки на товар (родительский, если это вариация)
             'price' => $regionalPrice,
+            'is_sellable_bundle' => (bool) $isBundle,
+            'is_bundle_configured' => ! $isBundle || $bundleQuote !== null,
+            'available_to_order' => $isBundle ? ($bundleQuote !== null && app(\App\Services\Product\SellableBundle::class)->canOrder($bundleQuote['items']))
+                : ($product ? $warehouseStockResolver->availableToOrder($product, $region) : false),
+            'bundle_components' => $bundleQuote['priced_components'] ?? [],
             'quantity' => $quantity,
             'price_source' => filled(($this->configuration ?? [])['private_offer_hash'] ?? null) ? 'private_link' : 'catalog',
             'reservation' => $product ? app(\App\Services\Inventory\CartStockReservations::class)->forProduct($product->id) : null,

@@ -229,6 +229,18 @@ class SellableBundle
      * Destination-specific delivery/pickup is rechecked by WarehouseDeliveryQuote
      * and locked by WarehouseOrderStock in the order transaction.
      */
+    public function canOrder(array $items): bool
+    {
+        if ($items === []) { return false; }
+        $resolver = app(\App\Services\Inventory\WarehouseStockResolver::class);
+        foreach (collect($items)->groupBy('product_id') as $id => $rows) {
+            $sku = Product::find($id);
+            if (! $sku || (($resolver->resolveForProduct($sku, null) ?? 0) < $rows->sum('quantity')
+                && ! $resolver->availableToOrder($sku, null))) { return false; }
+        }
+        return true;
+    }
+
     public function availableSets(array $items): int
     {
         if (! config('bundles.multi_warehouse_enabled', false)) {

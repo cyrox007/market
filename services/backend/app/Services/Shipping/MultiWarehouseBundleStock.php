@@ -58,14 +58,16 @@ class MultiWarehouseBundleStock
             foreach ($allocation['items'] ?? [] as $line) {
                 $skuId = (int) ($line['product_id'] ?? 0);
                 $qty = (int) ($line['quantity'] ?? 0);
-                if ($skuId < 1 || $qty < 1 || isset($seen[$allocation['warehouse_id'].':'.$skuId])) {
+                $preorder = (int) ($line['preorder_quantity'] ?? 0);
+                if ($skuId < 1 || $qty < 1 || $preorder < 0 || $preorder > $qty || isset($seen[$allocation['warehouse_id'].':'.$skuId])) {
                     throw ValidationException::withMessages(['cart' => 'Некорректные складские позиции комплекта.']);
                 }
                 $seen[$allocation['warehouse_id'].':'.$skuId] = true;
                 $result[] = [
                     'warehouse_id' => (int) $allocation['warehouse_id'],
                     'stock_mode' => $allocation['stock_mode'],
-                    'product_id' => $skuId, 'quantity' => $qty,
+                    'product_id' => $skuId, 'quantity' => $qty - $preorder,
+                    'ordered_quantity' => $qty, 'preorder_quantity' => $preorder,
                 ];
             }
         }
@@ -85,7 +87,7 @@ class MultiWarehouseBundleStock
         }
         $lines = $this->lines($allocations);
         // Confirm the plan still accounts for every component, no extras.
-        $planned = collect($lines)->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('quantity'))->sortKeys()->all();
+        $planned = collect($lines)->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('ordered_quantity'))->sortKeys()->all();
         $requested = collect($quote['items'])->pluck('quantity', 'product_id')->sortKeys()->all();
         if ($planned !== $requested) {
             throw ValidationException::withMessages(['cart' => 'Состав складской отгрузки не совпадает с заказом.']);
@@ -94,6 +96,9 @@ class MultiWarehouseBundleStock
         // Validate + lock ALL stock rows before updating any one of them.
         $stocks = [];
         foreach ($lines as $line) {
+            if ($line['preorder_quantity'] > 0 && ! Product::lockForUpdate()->findOrFail($line['product_id'])->backorder) {
+                throw ValidationException::withMessages(['cart' => 'Предзаказ компонента отключён.']);
+            }
             $id = $line['warehouse_id'];
             if ($line['stock_mode'] === 'availability') {
                 $availability = $sources[$id]->productAvailabilities()
@@ -131,6 +136,7 @@ class MultiWarehouseBundleStock
             }
             app(\App\Services\Inventory\CartStockReservations::class)->release($line['product_id']);
         }
+        if ($order->cooling_until) { $quote['reservation_version'] = 2; }
         $quote['stock_state'] = 'reserved';
         return $quote;
     }

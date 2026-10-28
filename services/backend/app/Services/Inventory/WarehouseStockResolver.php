@@ -52,6 +52,9 @@ class WarehouseStockResolver
         if ($product->isVariable() && ! $product->isVariant()) {
             return $product->variants()->active()->get()->contains(fn ($sku) => $this->availableToOrder($sku, $location));
         }
+        if ($product->backorder && $this->eligibleStocks($product, $location, $destination)->isNotEmpty()) {
+            return true;
+        }
         return \App\Models\Inventory\SourceProductAvailability::where('product_id', $product->id)->where('available_to_order', true)
             ->whereHas('warehouse', fn ($q) => $q->where('is_active', true)->where('stock_mode', 'availability'))
             ->with(['warehouse.physicalSite', 'warehouse.deliveryProfiles'])->get()

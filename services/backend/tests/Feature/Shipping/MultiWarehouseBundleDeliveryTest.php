@@ -55,6 +55,162 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         return [$root, $offer, $wardrobe, $top];
     }
 
+    private function paymentAndContact(): array
+    {
+        Queue::fake();
+        PaymentMethod::firstOrCreate(['code' => 'cash'], ['name' => 'Test payment', 'gateway' => 'manual', 'is_active' => true, 'is_enabled' => true]);
+        return ['directory_external_id' => 'house', 'delivery_type' => 'delivery',
+            'payment_method' => 'cash', 'contact_name' => 'Buyer', 'contact_phone' => '+79001234567',
+            'contact_email' => 'combination@example.test', 'accept_offer' => true, 'accept_personal_data' => true];
+    }
+
+    public function test_cart_reserves_split_quantity_and_releases_all_sources(): void
+    {
+        [$root, $offer, $sku] = $this->kit();
+        $this->warehouse($sku, 3, 100, 'A');
+        $this->warehouse($sku, 2, 200, 'B');
+        $response = $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 5])->assertCreated();
+        $this->assertDatabaseCount('cart_stock_reservations', 2);
+        $this->assertEquals(5, DB::table('cart_stock_reservations')->sum('quantity'));
+        $this->deleteJson('/api/v1/cart/'.$response->json('item.id'))->assertOk();
+        $this->assertDatabaseCount('cart_stock_reservations', 0);
+    }
+
+    public function test_split_cart_update_keeps_original_deadline(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $this->warehouse($sku, 3, 100, 'A');
+        $this->warehouse($sku, 2, 200, 'B');
+        $response = $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 5])->assertCreated();
+        $deadline = DB::table('cart_stock_reservations')->min('expires_at');
+        $this->travel(10)->minutes();
+        $this->putJson('/api/v1/cart/'.$response->json('item.id'), ['quantity' => 4])->assertOk();
+        $this->assertEquals(4, DB::table('cart_stock_reservations')->sum('quantity'));
+        $this->assertSame($deadline, DB::table('cart_stock_reservations')->max('expires_at'));
+    }
+
+    public function test_shared_bundle_component_cannot_be_reserved_twice_by_the_same_cart(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $central = $this->warehouse($sku, 1, 100, 'A');
+        $central->productStocks()->create(['product_id' => $top->id, 'quantity' => 1]);
+        $this->postJson('/api/v1/cart', ['product_id' => $offer->id, 'quantity' => 1])->assertCreated();
+        $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 1])->assertStatus(422);
+        $this->assertEquals(1, DB::table('cart_stock_reservations')->where('product_id', $sku->id)->sum('quantity'));
+        $this->assertSame(1, \Vanilo\Cart\Facades\Cart::model()->items()->count());
+    }
+
+    public function test_preorder_component_is_orderable_without_fake_physical_stock(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $first = $this->warehouse($sku, 2, 100, 'Central');
+        $first->productStocks()->create(['product_id' => $top->id, 'quantity' => 0]);
+        $top->update(['backorder' => true]);
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $this->assertSame(0, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->assertTrue(app(SellableBundle::class)->canOrder($composition['items']));
+        $this->getJson('/api/v1/products/'.$offer->slug)->assertOk()
+            ->assertJsonPath('product.in_stock', false)->assertJsonPath('product.available_to_order', true);
+        $response = $this->postJson('/api/v1/orders', $this->paymentAndContact() + [
+            'bundle_id' => $root->id, 'primary_sku_id' => $offer->id, 'bundle_quantity' => 1,
+            'items' => $composition['items'], 'expected_subtotal' => 1500,
+        ])->assertCreated();
+        $order = Order::findOrFail($response->json('order.id'));
+        $this->assertEquals(1, $first->productStocks()->where('product_id', $sku->id)->value('reserved_quantity'));
+        $this->assertEquals(0, $first->productStocks()->where('product_id', $top->id)->value('reserved_quantity'));
+        $payload = app(BuildOrderSyncPayloadAction::class)->execute($order);
+        $topLine = collect($payload['products'])->first(fn ($line) => $line['modifications'] === ['1c-t-white']);
+        $this->assertSame(1, $topLine['preorderQuantity']);
+        $this->assertTrue($order->fulfillment_snapshot['has_preorders']);
+        $this->assertNull($order->fulfillment_snapshot['delivery']['date_max']);
+        app(WarehouseOrderStock::class)->consume($order);
+        $this->assertEquals(0, $first->productStocks()->where('product_id', $top->id)->value('quantity'));
+        $this->assertSame(2, $order->items()->count());
+    }
+
+    public function test_mixed_cart_keeps_bundle_price_and_shared_component_reservations(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $offer->update(['bundle_price' => 1200]);
+        $central = $this->warehouse($sku, 5, 100, 'Central');
+        $central->productStocks()->create(['product_id' => $top->id, 'quantity' => 5]);
+        $this->postJson('/api/v1/cart', ['product_id' => $offer->id, 'quantity' => 1])->assertCreated();
+        $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 1])->assertCreated();
+        $this->assertEquals(2, DB::table('cart_stock_reservations')->where('product_id', $sku->id)->sum('quantity'));
+        $this->postJson('/api/v1/shipping/quote', ['directory_external_id' => 'house'])
+            ->assertOk()->assertJsonPath('subtotal', 2200);
+        $response = $this->postJson('/api/v1/orders', $this->paymentAndContact() + ['expected_subtotal' => 2200])->assertCreated();
+        $order = Order::findOrFail($response->json('order.id'));
+        $this->assertEquals(2200, $order->subtotal);
+        $this->assertSame(2, $order->bundle_snapshot['version']);
+        $this->assertEquals(1200, $order->bundle_snapshot['bundles'][0]['subtotal']);
+        $this->assertEquals(2, $order->items()->where('product_id', $sku->id)->sum('quantity'));
+        $this->assertEquals(1, $order->items()->where('product_id', $top->id)->sum('quantity'));
+        $this->assertFalse($order->items()->where('product_id', $offer->id)->exists());
+        $this->assertDatabaseCount('cart_stock_reservations', 0);
+    }
+
+    public function test_preorder_on_multiple_sources_is_exported_and_cancelled_without_creating_stock(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $first = $this->warehouse($sku, 2, 100, 'A');
+        $second = $this->warehouse($top, 0, 200, 'B');
+        $top->update(['backorder' => true]);
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $response = $this->postJson('/api/v1/orders', $this->paymentAndContact() + [
+            'bundle_id' => $root->id, 'primary_sku_id' => $offer->id, 'bundle_quantity' => 1,
+            'items' => $composition['items'], 'expected_subtotal' => 1500,
+        ])->assertCreated();
+        $order = Order::findOrFail($response->json('order.id'));
+        $this->assertTrue($order->fulfillment_snapshot['has_preorders']);
+        $this->assertSame('multi', $order->fulfillment_snapshot['stock_mode']);
+        $payload = app(BuildOrderSyncPayloadAction::class)->execute($order);
+        $this->assertSame(1, collect($payload['products'])->sum('preorderQuantity'));
+        app(WarehouseOrderStock::class)->release($order);
+        $this->assertEquals(2, $first->productStocks()->first()->quantity);
+        $this->assertEquals(0, $second->productStocks()->first()->quantity);
+        $this->assertEquals(0, $second->productStocks()->first()->reserved_quantity);
+    }
+
+    public function test_missing_source_service_tariff_blocks_the_selected_service(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $this->warehouse($sku, 2, 100, 'A')->deliveryProfiles()->first()->update(['service_tariffs' => ['assembly_price' => 100]]);
+        $this->warehouse($top, 2, 200, 'B');
+        $items = app(SellableBundle::class)->composition($root->id, $offer->id)['items'];
+        $quote = app(WarehouseDeliveryQuote::class)->calculate('house', $items, null, [
+            'allow_multi_warehouse' => true, 'requires_assembly' => true,
+        ]);
+        $this->assertFalse($quote['available']);
+        $this->assertNull($quote['selected']);
+    }
+
+    public function test_multisource_services_are_priced_for_every_shipment(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $first = $this->warehouse($sku, 2, 100, 'A');
+        $second = $this->warehouse($top, 2, 200, 'B');
+        $type = \App\Models\Shipping\DeliveryHandlingType::factory()->create(['requires_floor' => false]);
+        $service = \App\Models\Shipping\AdditionalService::create(['name' => 'Packing', 'slug' => 'packing', 'code' => 'packing', 'price_type' => 'fixed', 'is_active' => true]);
+        foreach ([$first, $second] as $warehouse) {
+            $warehouse->deliveryProfiles()->first()->update(['service_tariffs' => [
+                'assembly_price' => 100, 'handling' => [['id' => $type->id, 'base_price' => 50]],
+                'additional' => [['id' => $service->id, 'price' => 25]],
+            ]]);
+        }
+        $items = app(SellableBundle::class)->composition($root->id, $offer->id)['items'];
+        $selected = app(WarehouseDeliveryQuote::class)->calculate('house', $items, null, [
+            'allow_multi_warehouse' => true, 'requires_assembly' => true,
+            'delivery_handling_type_id' => $type->id, 'additional_services' => [['id' => $service->id]],
+        ])['selected'];
+        $this->assertNotNull($selected);
+        $this->assertEquals(400, $selected['delivery_cost']);
+        $this->assertEquals(200, $selected['assembly_cost']);
+        $this->assertEquals(50, $selected['additional_services_cost']);
+        $this->assertEquals(650, $selected['total_fulfillment_cost']);
+        $this->assertEquals(50, $selected['additional_services'][0]['price']);
+    }
+
     public function test_disabled_rollout_does_not_offer_cross_warehouse_stock_or_delivery(): void
     {
         config(['bundles.multi_warehouse_enabled' => false]);

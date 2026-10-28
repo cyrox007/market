@@ -220,7 +220,7 @@ class OrderController extends Controller
             }
             $cartItems = $directCheckout
                 ? app(\App\Services\Order\DirectCheckout::class)->items($request->input('items'))
-                : Cart::getItems();
+                : app(\App\Services\Product\CartFulfillment::class)->expand(Cart::getItems());
             if ($warehousePickup) {
                 if (! empty($validated['additional_services']) || ! empty($validated['requires_assembly']) || ! empty($validated['delivery_handling_type_id'])) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['services' => 'Услуги доставки недоступны в расчёте самовывоза.']);
@@ -248,7 +248,7 @@ class OrderController extends Controller
 
             // Проверка остатков
             $subtotal = 0;
-            $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($cartItems, $region);
+            $pricedItems = app(\App\Services\Product\CartFulfillment::class)->pricedItems($cartItems, $region);
             if ($bundleComposition !== null) {
                 $pricedItems = app(\App\Services\Product\BundlePricing::class)->apply($bundleComposition, $pricedItems);
             }
@@ -387,7 +387,17 @@ class OrderController extends Controller
                         throw \Illuminate\Validation\ValidationException::withMessages(['expected_subtotal' => 'Цена комплекта изменилась. Пересчитайте заказ.']);
                     }
                 }
-                $bundleSnapshot = $bundleComposition === null ? null : [
+                if (! $directCheckout) {
+                    $fresh = app(\App\Services\Product\CartFulfillment::class)->pricedItems(Cart::model()->items()->lockForUpdate()->get(), $region);
+                    $identity = fn (array $lines) => array_map(fn ($line) => [
+                        (int) $line['product_id'], (int) $line['quantity'], round((float) $line['price'], 2),
+                        $line['pricing_snapshot']['bundle'] ?? null,
+                    ], $lines);
+                    if ($identity($fresh) !== $identity($pricedItems)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['cart' => 'Состав или цена корзины изменились. Пересчитайте заказ.']);
+                    }
+                }
+                $bundleSnapshot = $bundleComposition === null ? app(\App\Services\Product\CartFulfillment::class)->snapshot($cartItems, $pricedItems) : [
                     'bundle_id' => $bundleComposition['bundle_id'],
                     'primary_sku_id' => $bundleComposition['primary_sku_id'],
                     'bundle_quantity' => $bundleComposition['bundle_quantity'],
