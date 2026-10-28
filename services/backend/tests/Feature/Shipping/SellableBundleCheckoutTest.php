@@ -79,6 +79,23 @@ class SellableBundleCheckoutTest extends TestCase
         return [$kit, $wardrobes, $mezzanines, $offers];
     }
 
+    public function test_catalog_offer_uses_physical_component_stock_and_price(): void
+    {
+        [$kit, , , $offers] = $this->variableKit();
+        [$offer, $wardrobe, $mezz] = $offers['white'];
+        $warehouse = Warehouse::create(['name' => 'Central', 'is_active' => true, 'stock_mode' => 'quantity']);
+        $warehouse->productStocks()->create(['product_id' => $wardrobe->id, 'quantity' => 3]);
+        $warehouse->productStocks()->create(['product_id' => $mezz->id, 'quantity' => 2]);
+        $rows = collect($this->getJson('/api/v1/products?search='.urlencode('Комплект Белый'))->assertOk()->json('data'));
+        $row = $rows->firstWhere('id', $offer->id);
+        $this->assertNotNull($row);
+        $this->assertEquals(2200, $row['price']);
+        $this->assertSame(2, $row['stock']);
+        $this->assertTrue($row['available_to_order']);
+        $this->assertTrue($row['in_stock']);
+        $this->assertSame([], $row['stocks']);
+    }
+
     public function test_color_offer_owns_concrete_components_not_virtual_main_sku(): void
     {
         [$kit, $wardrobes, $mezzanines, $offers] = $this->variableKit();

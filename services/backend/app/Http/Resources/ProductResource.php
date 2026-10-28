@@ -40,7 +40,8 @@ class ProductResource extends JsonResource
         $price = (float) $this->price;
         $oldPrice = $this->original_price ? (float) $this->original_price : null;
         $firstAvailableVariantId = null;
-        $isVariableKit = $this->isVariable() && (bool) $this->is_sellable_bundle;
+        $kitRoot = $this->isVariant() ? $this->resource->parentProduct : $this->resource;
+        $isVariableKit = $kitRoot?->isVariable() && (bool) $kitRoot->is_sellable_bundle;
         $kitAvailableSets = 0;
         $deliveryDays = null;
         $defaultColor = null;
@@ -149,10 +150,22 @@ class ProductResource extends JsonResource
         }
 
         // Применяем правила для невариативных товаров
-        if (!$this->isVariable()) {
+        if (!$this->isVariable() && ! $isVariableKit) {
             $price = $regionRuleService->getPriceForRegion($ruleProduct, $region, $ruleVariant);
             $oldPrice = app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $price);
             $deliveryDays = $regionRuleService->getDeliveryDaysForRegion($ruleProduct, $region, $ruleVariant);
+        }
+
+        if ($isVariableKit && $this->isVariant()) {
+            try {
+                $kit = app(\App\Services\Product\SellableBundle::class)->quote((int) $kitRoot->id, (int) $this->id, 1, $region);
+                $price = $kit['subtotal'];
+                $kitAvailableSets = app(\App\Services\Product\SellableBundle::class)->availableSets($kit['items']);
+            } catch (\Illuminate\Validation\ValidationException $error) {
+                $price = 0;
+                $kitAvailableSets = 0;
+            }
+            $oldPrice = null;
         }
 
         // Проверяем видимость товара в регионе
