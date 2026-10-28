@@ -60,11 +60,13 @@ class WarehouseDeliveryQuote
             throw ValidationException::withMessages(['cart' => 'Товар не найден.']);
         }
         $amount = 0;
+        $unitPrices = [];
         foreach ($products as $product) {
             $price = app(ProductRegionRuleService::class)->getPriceForRegion(
                 $product->isVariant() ? ($product->parentProduct ?? $product) : $product,
                 $priceRegion, $product->isVariant() ? $product : null);
-            $amount += (float) ($price ?? $product->price) * $quantities[$product->id];
+            $unitPrices[(int) $product->id] = (float) ($price ?? $product->price);
+            $amount += $unitPrices[(int) $product->id] * $quantities[$product->id];
         }
         $options = [];
         if (array_key_exists('_cart_subtotal', $selection)) { $amount = (float) $selection['_cart_subtotal']; }
@@ -141,7 +143,7 @@ class WarehouseDeliveryQuote
         // only considered when no single warehouse can deliver the entire kit.
         if (! $options && ! empty($selection['allow_multi_warehouse'])) {
             $options = app(MultiWarehouseBundleDelivery::class)->options(
-                $warehouses, $quantities, $destination, $point, (float) $amount, $selection
+                $warehouses, $quantities, $destination, $point, $unitPrices, $selection
             );
         }
         $options = collect($options)->sortBy([['total_fulfillment_cost', 'asc'], ['delivery_days_max', 'asc'], ['warehouse_id', 'asc']])->values()->all();

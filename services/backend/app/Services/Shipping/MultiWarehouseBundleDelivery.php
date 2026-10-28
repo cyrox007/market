@@ -22,7 +22,7 @@ class MultiWarehouseBundleDelivery
      * @param array<int,int> $quantities physical SKU => units
      * @return array<int,array<string,mixed>>
      */
-    public function options(Collection $warehouses, array $quantities, array $destination, ?array $point, float $subtotal, array $selection): array
+    public function options(Collection $warehouses, array $quantities, array $destination, ?array $point, array $unitPrices, array $selection): array
     {
         if (count($quantities) < 2 || ! empty($selection['additional_services'])
             || ! empty($selection['requires_assembly'])
@@ -113,6 +113,14 @@ class MultiWarehouseBundleDelivery
             $items = collect($best['items'])->map(fn (int $quantity, int $id) => [
                 'product_id' => (int) $id, 'quantity' => $quantity,
             ])->values()->all();
+            $sourceSubtotal = collect($best['items'])->sum(
+                fn (int $qty, int $sku): float => ($unitPrices[$sku] ?? 0) * $qty
+            );
+            $transportCost = $best['source']['transport'];
+            if ($profile->free_delivery_threshold !== null
+                && $sourceSubtotal >= (float) $profile->free_delivery_threshold) {
+                $transportCost = 0.0;
+            }
             $allocations[] = [
                 'warehouse_id' => (int) $warehouse->id,
                 'warehouse_name' => $warehouse->name,
@@ -124,7 +132,7 @@ class MultiWarehouseBundleDelivery
                 'profile_id' => $profile->id,
                 'profile_fingerprint' => hash('sha256', json_encode($profile->getAttributes())),
                 'items' => $items,
-                'transport_cost' => $best['source']['transport'],
+                'transport_cost' => $transportCost,
                 'processing_days_min' => (int) $warehouse->processing_days_min,
                 'processing_days_max' => (int) $warehouse->processing_days_max,
                 'delivery_days_min' => (int) $profile->delivery_days_min,
