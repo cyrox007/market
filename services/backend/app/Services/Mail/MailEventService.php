@@ -91,6 +91,11 @@ class MailEventService
      */
     public function sendMailable(string $eventCode, string $recipientEmail, $mailable, array $variables = []): bool
     {
+        if (method_exists($mailable, 'requiresConfidentialTransport') && $mailable->requiresConfidentialTransport()
+            && $this->usesLogTransport((string) ($mailable->mailer ?? config('mail.default')))) {
+            Log::warning('Confidential order email was not sent: configure a non-logging mail transport.', ['event' => $eventCode]);
+            return false;
+        }
         try {
             // Находим событие
             $event = MailEvent::findByCode($eventCode);
@@ -148,6 +153,24 @@ class MailEventService
             ]);
             return false;
         }
+    }
+
+    private function usesLogTransport(string $mailer, array $visited = []): bool
+    {
+        if (in_array($mailer, $visited, true)) {
+            return true;
+        }
+        $visited[] = $mailer;
+        $config = config('mail.mailers.'.$mailer, []);
+        if (($config['transport'] ?? $mailer) === 'log') {
+            return true;
+        }
+        foreach ($config['mailers'] ?? [] as $child) {
+            if ($this->usesLogTransport((string) $child, $visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

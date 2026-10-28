@@ -43,12 +43,17 @@ class SendOrderCreatedMail implements ShouldQueue
             $mailable = new OrderCreatedMail($order);
 
             // Отправляем письмо через сервис
-            $this->mailEventService->sendMailable(
+            $sent = $this->mailEventService->sendMailable(
                 'order.created',
                 $order->contact_email,
                 $mailable,
                 $variables
             );
+
+            if (! $sent) {
+                Log::warning('Order creation email was not sent; check mail transport and event settings.', ['order_id' => $order->id]);
+                return;
+            }
 
             Log::info("SendOrderCreatedMail: Mail sent for order", [
                 'order_id' => $order->id,
