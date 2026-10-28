@@ -142,8 +142,8 @@ class WarehouseDeliveryQuote
                 break; // The first eligible profile by configured priority wins within a warehouse.
             }
         }
-        // Multi-source delivery is opt-in for complete bundle checkout, and
-        // only considered when no single warehouse can deliver the entire kit.
+        // Multi-source delivery is opt-in and only considered when no single
+        // warehouse can deliver the complete order.
         if (! $options && ! empty($selection['allow_multi_warehouse'])) {
             $options = app(MultiWarehouseBundleDelivery::class)->options(
                 $warehouses, $quantities, $destination, $point, $unitPrices, $selection

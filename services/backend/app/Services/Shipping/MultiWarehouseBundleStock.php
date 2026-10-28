@@ -58,10 +58,10 @@ class MultiWarehouseBundleStock
             foreach ($allocation['items'] ?? [] as $line) {
                 $skuId = (int) ($line['product_id'] ?? 0);
                 $qty = (int) ($line['quantity'] ?? 0);
-                if ($skuId < 1 || $qty < 1 || isset($seen[$skuId])) {
+                if ($skuId < 1 || $qty < 1 || isset($seen[$allocation['warehouse_id'].':'.$skuId])) {
                     throw ValidationException::withMessages(['cart' => 'Некорректные складские позиции комплекта.']);
                 }
-                $seen[$skuId] = true;
+                $seen[$allocation['warehouse_id'].':'.$skuId] = true;
                 $result[] = [
                     'warehouse_id' => (int) $allocation['warehouse_id'],
                     'stock_mode' => $allocation['stock_mode'],
@@ -85,7 +85,7 @@ class MultiWarehouseBundleStock
         }
         $lines = $this->lines($allocations);
         // Confirm the plan still accounts for every component, no extras.
-        $planned = collect($lines)->pluck('quantity', 'product_id')->sortKeys()->all();
+        $planned = collect($lines)->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('quantity'))->sortKeys()->all();
         $requested = collect($quote['items'])->pluck('quantity', 'product_id')->sortKeys()->all();
         if ($planned !== $requested) {
             throw ValidationException::withMessages(['cart' => 'Состав складской отгрузки не совпадает с заказом.']);
@@ -124,7 +124,7 @@ class MultiWarehouseBundleStock
                 $stock->decrement('quantity', $line['quantity']);
                 $product = Product::lockForUpdate()->findOrFail($line['product_id']);
                 if ($product->stock !== null) {
-                    $quote['global_stock_deltas'][$line['product_id']] =
+                    $quote['global_stock_deltas'][$line['warehouse_id'].':'.$line['product_id']] =
                         min(max(0, (float) $product->stock), $line['quantity']);
                     $product->update(['stock' => max(0, (float) $product->stock - $line['quantity'])]);
                 }
@@ -153,7 +153,8 @@ class MultiWarehouseBundleStock
                 $stock->increment('quantity', $line['quantity']);
                 $product = Product::lockForUpdate()->findOrFail($line['product_id']);
                 if ($product->stock !== null) {
-                    $product->increment('stock', $quote['global_stock_deltas'][$line['product_id']] ?? 0);
+                    $product->increment('stock', $quote['global_stock_deltas'][$line['warehouse_id'].':'.$line['product_id']]
+                        ?? $quote['global_stock_deltas'][$line['product_id']] ?? 0);
                 }
             }
         }

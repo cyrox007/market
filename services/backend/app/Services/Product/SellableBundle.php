@@ -239,7 +239,7 @@ class SellableBundle
         }
         // Every concrete SKU has its own stock. Different SKU groups may be
         // sourced from different warehouses; NEVER count the virtual kit offer.
-        // A single SKU is not split across warehouses during fulfillment.
+        // Sum physical free units before dividing by the quantity per set.
         $units = collect($items)->groupBy('product_id')->map(fn ($rows): int => (int) $rows->sum('quantity'));
         $warehouses = \App\Models\Inventory\Warehouse::query()->where('is_active', true)
             ->with([
@@ -249,6 +249,7 @@ class SellableBundle
         $availableSets = PHP_INT_MAX;
         foreach ($units as $skuId => $unitsPerSet) {
             $bestForSku = 0;
+            $freeUnits = 0;
             foreach ($warehouses as $warehouse) {
                 if ($warehouse->stock_mode === 'availability') {
                     $source = $warehouse->productAvailabilities->firstWhere('product_id', $skuId);
@@ -261,11 +262,11 @@ class SellableBundle
                     if ($stock) {
                         $free = app(\App\Services\Inventory\CartStockReservations::class)
                             ->available((int) $warehouse->id, (int) $skuId, (float) $stock->quantity);
-                        $bestForSku = max($bestForSku, (int) floor($free / $unitsPerSet));
+                        $freeUnits += max(0, (int) floor($free));
                     }
                 }
             }
-            $availableSets = min($availableSets, $bestForSku);
+            $availableSets = min($availableSets, max($bestForSku, (int) floor($freeUnits / $unitsPerSet)));
             if ($availableSets === 0) {
                 return 0;
             }
