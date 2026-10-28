@@ -312,7 +312,6 @@ class ProductDetailResource extends JsonResource
             Log::debug('ProductDetailResource: Регион не передан, используется базовая цена', [
                 'product_id' => $this->id,
                 'is_variant' => $isVariant,
-                'is_sellable_bundle' => (bool) $sourceProduct->is_sellable_bundle,
                 'price' => $productPrice,
             ]);
         }
@@ -467,6 +466,7 @@ class ProductDetailResource extends JsonResource
             //'excerpt' => $this->excerpt,
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
+            'is_sellable_bundle' => (bool) $sourceProduct->is_sellable_bundle,
             'parent_id' => $this->when($isVariant, $this->parent_product_id),
             'variants' => $variants, // ВАЖНО: Все вариации для сравнения на фронтенде
             'category' => $this->when(
