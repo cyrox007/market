@@ -165,7 +165,10 @@ class BuildOrderSyncPayloadAction
         $sourceBySku = [];
         foreach ($order->fulfillment_snapshot['warehouse_allocations'] ?? [] as $source) {
             foreach ($source['items'] ?? [] as $line) {
-                $sourceBySku[(int) $line['product_id']] = (string) $source['warehouse_external_id'];
+                $sourceBySku[(int) $line['product_id']][] = [
+                    'warehouseExternalId' => (string) $source['warehouse_external_id'],
+                    'quantity' => (int) $line['quantity'],
+                ];
             }
         }
 
@@ -190,14 +193,35 @@ class BuildOrderSyncPayloadAction
 
             [$catalogUnit, $paidUnit] = $this->resolveLinePrices($product, $item);
 
-            $products[] = [
+            $baseLine = [
                 'productId' => $this->normalizeExternalId($productExternalId),
                 'modifications' => $modifications,
                 'quantity' => (int) $item->quantity,
                 'price' => round($catalogUnit, 2),
                 'promoPrice' => round($paidUnit, 2),
-                ...($sourceBySku ? ['warehouseExternalId' => $sourceBySku[(int) $product->id] ?? null] : []),
             ];
+            if (! $sourceBySku) {
+                $products[] = $baseLine;
+                continue;
+            }
+            $remaining = (int) $item->quantity;
+            if (! isset($sourceBySku[(int) $product->id])) {
+                throw new \LogicException('Missing warehouse allocation for order SKU.');
+            }
+            foreach ($sourceBySku[(int) $product->id] as &$source) {
+                $take = min($remaining, $source['quantity']);
+                if ($take > 0) {
+                    $products[] = array_replace($baseLine, [
+                        'quantity' => $take, 'warehouseExternalId' => $source['warehouseExternalId'],
+                    ]);
+                    $source['quantity'] -= $take;
+                    $remaining -= $take;
+                }
+            }
+            unset($source);
+            if ($remaining !== 0) {
+                throw new \LogicException('Warehouse allocation does not cover order quantities.');
+            }
         }
 
         return $products;

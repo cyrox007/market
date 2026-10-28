@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * Delivery from multiple physical sources, restricted to a fully expanded bundle.
  *
- * A line is fulfilled by ONE warehouse; different components may use different
+ * A SKU quantity can be split across warehouses; components may use different
  * sources. Each source must independently cover the destination and have its
  * own usable delivery tariff. We never pretend goods can be transferred for
  * free or silently use the lead warehouse's stock for the entire bundle.
@@ -27,7 +27,7 @@ class MultiWarehouseBundleDelivery
         if (! config('bundles.multi_warehouse_enabled', false)) {
             return [];
         }
-        if (count($quantities) < 2 || ! empty($selection['additional_services'])
+        if (count($quantities) < 1 || ! empty($selection['additional_services'])
             || ! empty($selection['requires_assembly'])
             || ! empty($selection['delivery_handling_type_id'])) {
             // Cross-warehouse assembly/lifting/transfers require a separate tariff.
@@ -67,13 +67,14 @@ class MultiWarehouseBundleDelivery
                     }
                 } elseif ($warehouse->stock_mode === 'quantity') {
                     // The caller has already reduced quantity to free stock.
-                    if (($stocks[$id]->quantity ?? 0) < $count) {
+                    if (($stocks[$id]->quantity ?? 0) < 1) {
                         continue;
                     }
                 } else {
                     continue;
                 }
-                $eligible[(int) $id] = (int) $count;
+                $eligible[(int) $id] = $warehouse->stock_mode === 'quantity'
+                    ? min((int) $count, (int) $stocks[$id]->quantity) : (int) $count;
             }
             if ($eligible === []) {
                 continue;
@@ -93,13 +94,19 @@ class MultiWarehouseBundleDelivery
         }
 
         // Stable greedy set-cover: minimize shipments first, then published transport
-        // rates. Never split the same SKU across warehouses in a single bundle order.
+        // rates. Each source contributes only its physically available units.
         $pending = $quantities;
         $allocations = [];
         while ($pending !== []) {
             $best = null;
             foreach ($sources as $warehouseId => $source) {
-                $coverage = array_intersect_key($pending, $source['eligible']);
+                $coverage = [];
+                foreach ($pending as $skuId => $remaining) {
+                    $take = min($remaining, $source['eligible'][$skuId] ?? 0);
+                    if ($take > 0) {
+                        $coverage[$skuId] = $take;
+                    }
+                }
                 if (! $coverage) {
                     continue;
                 }
@@ -153,8 +160,11 @@ class MultiWarehouseBundleDelivery
                     );
                 }
             }
-            foreach (array_keys($best['items']) as $skuId) {
-                unset($pending[$skuId]);
+            foreach ($best['items'] as $skuId => $taken) {
+                $pending[$skuId] -= $taken;
+                if ($pending[$skuId] === 0) {
+                    unset($pending[$skuId]);
+                }
             }
             unset($sources[$best['id']]);
         }

@@ -260,7 +260,7 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $this->assertEquals(1, $second->productStocks()->first()->quantity);
     }
 
-    public function test_public_quote_hides_nested_fingerprints_and_single_sku_is_not_split(): void
+    public function test_public_quote_hides_nested_fingerprints_and_splits_sku_across_sources(): void
     {
         $this->fakeAddress();
         [$root, $offer, $wardrobe, $top] = $this->kit();
@@ -275,13 +275,65 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $this->assertStringNotContainsString('profile_fingerprint', $response->getContent());
         $this->assertStringNotContainsString('warehouse_fingerprint', $response->getContent());
 
-        // Same SKU, quantity=2 is not satisfied by two one-unit warehouses.
+        // Same SKU can be supplied by two one-unit warehouses.
         $second = $this->warehouse($wardrobe, 1, 100, 'Другие шкафы');
         $result = app(WarehouseDeliveryQuote::class)->calculate('house', [
             ['product_id' => $wardrobe->id, 'quantity' => 2],
             ['product_id' => $top->id, 'quantity' => 1],
         ], null, ['allow_multi_warehouse' => true]);
-        $this->assertFalse($result['available']);
+        $this->assertTrue($result['available']);
+        $this->assertCount(3, $result['selected']['warehouse_allocations']);
+    }
+
+    public function test_split_sku_reserves_and_releases_every_source(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $first = $this->warehouse($sku, 1, 100, 'A');
+        $second = $this->warehouse($sku, 1, 200, 'B');
+        $quote = app(WarehouseDeliveryQuote::class)->calculate('house', [
+            ['product_id' => $sku->id, 'quantity' => 2],
+        ], null, ['allow_multi_warehouse' => true])['selected'];
+        $this->assertEquals(300, $quote['delivery_cost']);
+        $this->assertSame(1, app(SellableBundle::class)->availableSets([
+            ['product_id' => $sku->id, 'quantity' => 2],
+        ]));
+        $order = Order::factory()->create([
+            'fulfillment_snapshot' => $quote, 'cooling_until' => now()->addHour(),
+            'status' => \App\Models\Order\OrderStatus::MANAGER_PROCESSING->value,
+        ]);
+        DB::transaction(fn () => app(WarehouseOrderStock::class)->reserve($order));
+        $this->assertEquals(1, $first->productStocks()->first()->reserved_quantity);
+        $this->assertEquals(1, $second->productStocks()->first()->reserved_quantity);
+        app(WarehouseOrderStock::class)->release($order);
+        $this->assertEquals(0, $first->productStocks()->first()->reserved_quantity);
+        $this->assertEquals(0, $second->productStocks()->first()->reserved_quantity);
+    }
+
+    public function test_split_checkout_exports_each_source_quantity_without_merging_skus(): void
+    {
+        Queue::fake();
+        [$root, $offer, $sku, $top] = $this->kit();
+        $first = $this->warehouse($sku, 1, 100, 'A');
+        $second = $this->warehouse($sku, 1, 200, 'B');
+        $this->warehouse($top, 2, 300, 'C');
+        PaymentMethod::create([
+            'name' => 'Cash', 'code' => 'cash', 'gateway' => 'manual',
+            'is_active' => true, 'is_enabled' => true,
+        ]);
+        $response = $this->postJson('/api/v1/orders', [
+            'bundle_id' => $root->id, 'primary_sku_id' => $offer->id, 'bundle_quantity' => 2,
+            'items' => [['product_id' => $sku->id, 'quantity' => 2], ['product_id' => $top->id, 'quantity' => 2]],
+            'expected_subtotal' => 3000, 'directory_external_id' => 'house', 'delivery_type' => 'delivery',
+            'payment_method' => 'cash', 'contact_name' => 'Buyer', 'contact_phone' => '+79001234567',
+            'contact_email' => 'split@example.test', 'accept_offer' => true, 'accept_personal_data' => true,
+        ])->assertCreated();
+        $order = Order::findOrFail($response->json('order.id'));
+        $payload = app(BuildOrderSyncPayloadAction::class)->execute($order);
+        $parts = collect($payload['products'])->filter(fn ($line) => $line['modifications'] === ['1c-w-white']);
+        $this->assertCount(2, $parts);
+        $this->assertEqualsCanonicalizing([$first->external_id, $second->external_id], $parts->pluck('warehouseExternalId')->all());
+        $this->assertSame([1, 1], $parts->pluck('quantity')->values()->all());
+        $this->assertEquals(3000, collect($payload['products'])->sum(fn ($line) => $line['quantity'] * $line['promoPrice']));
     }
 
     public function test_pickup_does_not_promise_unconfigured_inter_warehouse_transfer(): void
