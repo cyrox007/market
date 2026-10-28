@@ -211,6 +211,7 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $order = Order::factory()->create([
             'fulfillment_snapshot' => $snapshot,
             'cooling_until' => now()->addHour(),
+            'status' => \App\Models\Order\OrderStatus::MANAGER_PROCESSING->value,
         ]);
 
         DB::transaction(fn () => app(WarehouseOrderStock::class)->reserve($order));
