@@ -66,6 +66,22 @@ class ProductBundleTest extends TestCase
         ]);
     }
 
+    public function test_sellable_component_list_is_separate_from_editorial_bundle(): void
+    {
+        $root = Product::factory()->create(['state' => 'active', 'is_sellable_bundle' => true]);
+        $sku = Product::factory()->create(['state' => 'active', 'sku' => 'TOP-RED']);
+        $root->sellableBundleComponents()->attach($sku->id, ['quantity' => 2, 'sort_order' => 1]);
+
+        $this->getJson('/api/v1/products/'.$root->slug)
+            ->assertOk()
+            ->assertJsonPath('product.is_sellable_bundle', true)
+            ->assertJsonPath('product.sellable_bundle_components.0.id', $sku->id)
+            ->assertJsonPath('product.sellable_bundle_components.0.sku', 'TOP-RED')
+            ->assertJsonPath('product.sellable_bundle_components.0.quantity', 2);
+        $this->getJson('/api/v1/products/'.$root->id.'/bundle')
+            ->assertOk()->assertJsonPath('data', []);
+    }
+
     public function test_bundle_returns_404_for_missing_product(): void
     {
         $this->getJson('/api/v1/products/999999/bundle')->assertNotFound();

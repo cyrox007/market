@@ -489,6 +489,17 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
+     * Concrete SKUs forming a sellable kit. This is deliberately separate
+     * from editorial bundleProducts (which are just product recommendations).
+     */
+    public function sellableBundleComponents(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'sellable_bundle_components', 'product_id', 'component_product_id')
+            ->withPivot('quantity', 'sort_order')->withTimestamps()
+            ->orderBy('sellable_bundle_components.sort_order')->orderBy('sellable_bundle_components.id');
+    }
+
+    /**
      * Товары, входящие в набор / комплект (односторонняя связь).
      */
     public function bundleProducts(): BelongsToMany
