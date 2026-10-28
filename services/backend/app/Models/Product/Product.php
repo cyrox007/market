@@ -489,6 +489,17 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
+     * Parent catalogue groups used to configure every sellable variation separately.
+     * The group itself never becomes an order line.
+     */
+    public function sellableBundleGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'sellable_bundle_groups', 'product_id', 'component_group_id')
+            ->withPivot('sort_order')->withTimestamps()
+            ->orderBy('sellable_bundle_groups.sort_order')->orderBy('sellable_bundle_groups.id');
+    }
+
+    /**
      * Concrete SKUs forming a sellable kit. This is deliberately separate
      * from editorial bundleProducts (which are just product recommendations).
      */
