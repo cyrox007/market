@@ -41,21 +41,104 @@ class SellableBundleCheckoutTest extends TestCase
         app(SellableBundle::class)->composition($root->id, null, 501);
     }
 
-    public function test_variable_main_product_requires_a_selected_primary_variant(): void
+    private function variableKit(): array
     {
-        $root = Product::factory()->create(['name' => 'Шкаф с цветом', 'is_variable' => true, 'is_sellable_bundle' => true]);
-        $blue = Product::factory()->create(['parent_product_id' => $root->id, 'sku' => 'WARDROBE-BLUE', 'price' => 2000]);
-        $extra = Product::factory()->create(['sku' => 'MEZZ-ONLY', 'price' => 500]);
-        $root->sellableBundleComponents()->attach($extra->id, ['quantity' => 1, 'sort_order' => 1]);
+        $kit = Product::factory()->create([
+            'name' => 'Шкаф + антресоль', 'is_variable' => true, 'is_sellable_bundle' => true,
+            'price' => 0, 'stock' => 0,
+        ]);
+        $wardrobes = Product::factory()->create(['name' => 'Шкаф Бруно', 'is_variable' => true]);
+        $mezzanines = Product::factory()->create(['name' => 'Антресоль Бруно', 'is_variable' => true]);
+        $kit->sellableBundleGroups()->attach([
+            $wardrobes->id => ['sort_order' => 0],
+            $mezzanines->id => ['sort_order' => 1],
+        ]);
+        $offers = [];
+        foreach (['white' => ['Белый', 1500, 700], 'graphite' => ['Графит', 1800, 850]] as $key => $row) {
+            [$color, $wardrobePrice, $mezzPrice] = $row;
+            $virtual = Product::factory()->create([
+                'name' => 'Комплект '.$color, 'parent_product_id' => $kit->id,
+                'price' => 99999, 'stock' => 0, 'sku' => 'KIT-'.$key,
+            ]);
+            $wardrobe = Product::factory()->create([
+                'name' => 'Шкаф '.$color, 'parent_product_id' => $wardrobes->id,
+                'price' => $wardrobePrice, 'stock' => 5, 'sku' => 'WARD-'.$key,
+                'external_id' => '1c-ward-'.$key,
+            ]);
+            $mezz = Product::factory()->create([
+                'name' => 'Антресоль '.$color, 'parent_product_id' => $mezzanines->id,
+                'price' => $mezzPrice, 'stock' => 5, 'sku' => 'MEZZ-'.$key,
+                'external_id' => '1c-mezz-'.$key,
+            ]);
+            app(SellableBundle::class)->saveOfferComposition($virtual, [
+                ['group_id' => $wardrobes->id, 'product_id' => $wardrobe->id, 'quantity' => 1],
+                ['group_id' => $mezzanines->id, 'product_id' => $mezz->id, 'quantity' => 1],
+            ]);
+            $offers[$key] = [$virtual, $wardrobe, $mezz];
+        }
+        return [$kit, $wardrobes, $mezzanines, $offers];
+    }
 
-        $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $root->id, 'quantity' => 1])
+    public function test_color_offer_owns_concrete_components_not_virtual_main_sku(): void
+    {
+        [$kit, $wardrobes, $mezzanines, $offers] = $this->variableKit();
+        [$white, $whiteWardrobe, $whiteMezz] = $offers['white'];
+        [$graphite, $graphiteWardrobe, $graphiteMezz] = $offers['graphite'];
+
+        $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $kit->id, 'quantity' => 1])
             ->assertUnprocessable();
-        $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $root->id,
-            'primary_sku_id' => $blue->id, 'quantity' => 2])
-            ->assertOk()->assertJsonPath('items.0.product_id', $blue->id)
+        $whiteQuote = $this->postJson('/api/v1/orders/one-click', [
+            'bundle_id' => $kit->id, 'primary_sku_id' => $white->id, 'quantity' => 2,
+        ])->assertOk();
+        $whiteQuote->assertJsonPath('subtotal', 4400)
+            ->assertJsonPath('items.0.product_id', $whiteWardrobe->id)
             ->assertJsonPath('items.0.quantity', 2)
-            ->assertJsonPath('items.1.product_id', $extra->id)
-            ->assertJsonPath('subtotal', 5000);
+            ->assertJsonPath('items.1.product_id', $whiteMezz->id)
+            ->assertJsonPath('items.1.quantity', 2);
+        $this->assertNotContains($white->id, array_column($whiteQuote->json('items'), 'product_id'));
+        $this->postJson('/api/v1/orders/one-click', [
+            'bundle_id' => $kit->id, 'primary_sku_id' => $graphite->id, 'quantity' => 1,
+        ])->assertOk()->assertJsonPath('subtotal', 2650)
+            ->assertJsonPath('items.0.product_id', $graphiteWardrobe->id)
+            ->assertJsonPath('items.1.product_id', $graphiteMezz->id);
+    }
+
+    public function test_mismatched_color_or_missing_group_rejects_the_entire_variant(): void
+    {
+        [$kit, $wardrobes, $mezzanines, $offers] = $this->variableKit();
+        [$white, $whiteWardrobe] = $offers['white'];
+        $other = $offers['graphite'][2];
+        try {
+            app(SellableBundle::class)->saveOfferComposition($white, [
+                ['group_id' => $wardrobes->id, 'product_id' => $whiteWardrobe->id, 'quantity' => 1],
+                ['group_id' => $mezzanines->id, 'product_id' => $whiteWardrobe->id, 'quantity' => 1],
+            ]);
+            $this->fail('Нельзя указывать SKU шкафа в группе антресолей.');
+        } catch (ValidationException) {
+            // Previous valid mapping remains unchanged when save is rejected.
+        }
+        $this->assertCount(2, app(SellableBundle::class)->composition($kit->id, $white->id)['items']);
+
+        $white->sellableBundleComponents()->detach($offers['white'][2]->id);
+        $this->postJson('/api/v1/orders/one-click', [
+            'bundle_id' => $kit->id, 'primary_sku_id' => $white->id, 'quantity' => 1,
+        ])->assertUnprocessable();
+        // Other colors remain independent.
+        $this->postJson('/api/v1/orders/one-click', [
+            'bundle_id' => $kit->id, 'primary_sku_id' => $offers['graphite'][0]->id, 'quantity' => 1,
+        ])->assertOk();
+    }
+
+    public function test_parent_detail_contains_color_specific_components_and_prices(): void
+    {
+        [$kit, , , $offers] = $this->variableKit();
+        $response = $this->getJson('/api/v1/products/'.$kit->slug)->assertOk();
+        $byId = collect($response->json('product.variants'))->keyBy('id');
+        $this->assertSame(2200, (int) $byId[$offers['white'][0]->id]['price']);
+        $this->assertSame(2650, (int) $byId[$offers['graphite'][0]->id]['price']);
+        $this->assertSame($offers['white'][1]->id, $byId[$offers['white'][0]->id]['bundle_components'][0]['product_id']);
+        $this->assertSame($offers['graphite'][2]->id, $byId[$offers['graphite'][0]->id]['bundle_components'][1]['product_id']);
+        $this->assertSame([], $response->json('product.sellable_bundle_components'));
     }
 
     public function test_inactive_or_ambiguous_components_block_checkout(): void
