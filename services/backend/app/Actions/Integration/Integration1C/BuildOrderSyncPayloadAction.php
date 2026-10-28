@@ -39,7 +39,10 @@ class BuildOrderSyncPayloadAction
                 ->filter(fn (array $node): bool => filled($node['kladrCode'] ?? null))
                 ->map(fn (array $node): array => ['kind' => $node['kind'], 'code' => (string) $node['kladrCode']])
                 ->values()->all(),
-            'warehouseExternalId' => $order->fulfillment_snapshot['warehouse_external_id'] ?? null,
+            // A multi-source kit has no single warehouse. Do not report the
+            // lead warehouse as the source for ALL SKU lines.
+            'warehouseExternalId' => ($order->fulfillment_snapshot['multi_warehouse'] ?? false)
+                ? null : ($order->fulfillment_snapshot['warehouse_external_id'] ?? null),
             'phone' => (string) ($order->contact_phone ?? ''),
             'email' => $this->emailNormalizer->normalize($order->contact_email, (int) $order->id),
             'pickFromStore' => (bool) ($order->delivery_type === 'pickup'),
@@ -159,6 +162,12 @@ class BuildOrderSyncPayloadAction
     private function buildProducts(Order $order): array
     {
         $products = [];
+        $sourceBySku = [];
+        foreach ($order->fulfillment_snapshot['warehouse_allocations'] ?? [] as $source) {
+            foreach ($source['items'] ?? [] as $line) {
+                $sourceBySku[(int) $line['product_id']] = (string) $source['warehouse_external_id'];
+            }
+        }
 
         foreach ($order->items as $item) {
             $product = $item->product;
@@ -187,6 +196,7 @@ class BuildOrderSyncPayloadAction
                 'quantity' => (int) $item->quantity,
                 'price' => round($catalogUnit, 2),
                 'promoPrice' => round($paidUnit, 2),
+                ...($sourceBySku ? ['warehouseExternalId' => $sourceBySku[(int) $product->id] ?? null] : []),
             ];
         }
 
