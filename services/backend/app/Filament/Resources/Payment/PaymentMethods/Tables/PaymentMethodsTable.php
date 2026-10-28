@@ -38,8 +38,8 @@ class PaymentMethodsTable
                 TextColumn::make('is_active')
                     ->label('На сайте')
                     ->badge()
-                    ->formatStateUsing(fn ($state, $record) => $record->isGloballyActive() ? 'Активен' : 'Отключён')
-                    ->color(fn ($state, $record) => $record->isGloballyActive() ? 'success' : 'danger'),
+                    ->formatStateUsing(fn ($state, $record) => $record->is_coming_soon ? 'Скоро' : ($record->isGloballyActive() ? 'Активен' : 'Отключён'))
+                    ->color(fn ($state, $record) => $record->is_coming_soon ? 'warning' : ($record->isGloballyActive() ? 'success' : 'danger')),
 
                 TextColumn::make('sort_order')
                     ->label('Порядок')

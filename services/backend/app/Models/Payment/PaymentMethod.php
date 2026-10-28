@@ -28,6 +28,7 @@ class PaymentMethod extends Model implements PaymentMethodContract
         'description',
         'icon',
         'is_active',
+        'is_coming_soon',
         'is_enabled',
         'sort_order',
         'gateway',
@@ -38,6 +39,7 @@ class PaymentMethod extends Model implements PaymentMethodContract
     {
         return [
             'is_active' => 'boolean',
+            'is_coming_soon' => 'boolean',
             'is_enabled' => 'boolean',
             'sort_order' => 'integer',
             'configuration' => 'array',
@@ -48,6 +50,10 @@ class PaymentMethod extends Model implements PaymentMethodContract
     {
         // Один переключатель «Активен» в админке управляет обоими флагами.
         static::saving(function (self $method): void {
+            if ($method->is_coming_soon) {
+                $method->is_active = false;
+                $method->is_enabled = false;
+            }
             if ($method->isDirty('is_active')) {
                 $method->is_enabled = (bool) $method->is_active;
             }
@@ -56,7 +62,7 @@ class PaymentMethod extends Model implements PaymentMethodContract
 
     public function isGloballyActive(): bool
     {
-        return (bool) $this->is_active && (bool) $this->is_enabled;
+        return ! $this->is_coming_soon && (bool) $this->is_active && (bool) $this->is_enabled;
     }
 
     public function hasPayments(): bool
@@ -111,7 +117,7 @@ class PaymentMethod extends Model implements PaymentMethodContract
 
     public function scopeActive($query)
     {
-        return $query->where('is_active', true)->where('is_enabled', true);
+        return $query->where('is_active', true)->where('is_enabled', true)->where('is_coming_soon', false);
     }
 
     public function scopeOrdered($query)
