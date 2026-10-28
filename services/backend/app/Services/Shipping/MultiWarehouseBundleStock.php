@@ -91,33 +91,61 @@ class MultiWarehouseBundleStock
             throw ValidationException::withMessages(['cart' => 'Состав складской отгрузки не совпадает с заказом.']);
         }
 
-        // Validate + lock ALL stock rows before updating any one of them.
+        // Validate and lock every SKU before changing any physical or reserved stock.
         $stocks = [];
+        $backordered = [];
+        $lockedProducts = Product::whereIn('id', array_column($lines, 'product_id'))
+            ->lockForUpdate()->get()->keyBy('id');
         foreach ($lines as $line) {
+            $sku = $lockedProducts->get($line['product_id']);
+            if (! $sku || $sku->getRawOriginal('state') !== Product::ACTIVE) {
+                throw ValidationException::withMessages(['cart' => 'Компонент больше недоступен.']);
+            }
             $id = $line['warehouse_id'];
             if ($line['stock_mode'] === 'availability') {
                 $availability = $sources[$id]->productAvailabilities()
                     ->where('product_id', $line['product_id'])->lockForUpdate()->first();
                 if (! $availability?->available_to_order) {
-                    throw ValidationException::withMessages(['cart' => 'Один из компонентов больше недоступен под заказ.']);
+                    if (! $sku->backorder || empty($order->bundle_snapshot)) {
+                        throw ValidationException::withMessages(['cart' => 'Один из компонентов больше недоступен под заказ.']);
+                    }
+                    $backordered[] = ['product_id' => $sku->id, 'warehouse_id' => $id, 'quantity' => $line['quantity']];
                 }
                 continue;
             }
             $stock = ProductWarehouseStock::where('warehouse_id', $id)
                 ->where('product_id', $line['product_id'])->lockForUpdate()->first();
-            if (! $stock || app(\App\Services\Inventory\CartStockReservations::class)
-                ->available($id, $line['product_id'], (float) $stock->quantity) < $line['quantity']) {
-                throw ValidationException::withMessages(['cart' => 'Остатки составляющих на складах изменились. Обновите заказ.']);
+            $free = $stock ? app(\App\Services\Inventory\CartStockReservations::class)
+                ->available($id, $line['product_id'], (float) $stock->quantity) : 0;
+            if ($free < $line['quantity']) {
+                if (! $sku->backorder || empty($order->bundle_snapshot)) {
+                    throw ValidationException::withMessages(['cart' => 'Остатки составляющих на складах изменились. Обновите заказ.']);
+                }
+                $backordered[] = ['product_id' => $sku->id, 'warehouse_id' => $id, 'quantity' => $line['quantity']];
+            }
+            if (! $stock) {
+                // A zero-quantity row records demand, NOT fabricated physical inventory.
+                DB::table('product_warehouse_stocks')->insertOrIgnore([
+                    'warehouse_id' => $id, 'product_id' => $sku->id,
+                    'quantity' => 0, 'reserved_quantity' => 0,
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $stock = ProductWarehouseStock::where('warehouse_id', $id)
+                    ->where('product_id', $sku->id)->lockForUpdate()->firstOrFail();
             }
             $stocks[$id.':'.$line['product_id']] = $stock;
         }
 
+        $reserveForLater = (bool) $order->cooling_until || $backordered !== []
+            || ! empty($quote['contains_backorder']);
+        $quote['backorder_items'] = $backordered;
+        $quote['contains_backorder'] = $backordered !== [];
         foreach ($lines as $line) {
             if ($line['stock_mode'] !== 'quantity') {
                 continue;
             }
             $stock = $stocks[$line['warehouse_id'].':'.$line['product_id']];
-            if ($order->cooling_until) {
+            if ($reserveForLater) {
                 $stock->increment('reserved_quantity', $line['quantity']);
                 $quote['reservation_version'] = 2;
             } else {
