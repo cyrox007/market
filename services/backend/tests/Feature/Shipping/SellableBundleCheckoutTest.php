@@ -41,6 +41,31 @@ class SellableBundleCheckoutTest extends TestCase
         app(SellableBundle::class)->composition($root->id, null, 501);
     }
 
+    public function test_variable_main_product_requires_a_selected_primary_variant(): void
+    {
+        $root = Product::factory()->create(['name' => 'Шкаф с цветом', 'is_variable' => true, 'is_sellable_bundle' => true]);
+        $blue = Product::factory()->create(['parent_product_id' => $root->id, 'sku' => 'WARDROBE-BLUE', 'price' => 2000]);
+        $extra = Product::factory()->create(['sku' => 'MEZZ-ONLY', 'price' => 500]);
+        $root->sellableBundleComponents()->attach($extra->id, ['quantity' => 1, 'sort_order' => 1]);
+
+        $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $root->id, 'quantity' => 1])
+            ->assertUnprocessable();
+        $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $root->id,
+            'primary_sku_id' => $blue->id, 'quantity' => 2])
+            ->assertOk()->assertJsonPath('items.0.product_id', $blue->id)
+            ->assertJsonPath('items.0.quantity', 2)
+            ->assertJsonPath('items.1.product_id', $extra->id)
+            ->assertJsonPath('subtotal', 5000);
+    }
+
+    public function test_inactive_or_ambiguous_components_block_checkout(): void
+    {
+        [$root, , $extra] = $this->kit();
+        $extra->update(['state' => 'inactive']);
+        $this->postJson('/api/v1/orders/one-click', ['bundle_id' => $root->id, 'quantity' => 1])
+            ->assertUnprocessable();
+    }
+
     public function test_one_click_returns_server_priced_items_for_complete_kit(): void
     {
         [$root, , $extra] = $this->kit();
