@@ -115,8 +115,10 @@ class GuestMailTemplateEditorTest extends TestCase
         $this->actingAs($user);
         Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
 
+        $this->assertSame('Шаблоны писем', \App\Filament\Resources\Mail\MailTemplateResource::getNavigationLabel());
+
         Livewire::test(ListMailTemplates::class)
             ->assertStatus(200)
-            ->assertSee('Шаблоны писем');
+            ->assertSee('Подтверждение гостевого заказа');
     }
 }
