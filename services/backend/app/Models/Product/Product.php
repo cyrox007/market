@@ -143,7 +143,18 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public static function syncParentPriceFromVariants(self $parent): void
     {
-        $minPrice = $parent->variants()->active()->min('price');
+        // A virtual kit offer without a complete component mapping must not make
+        // the catalogue's minimum price 0 ₽ (or its stale manual price).
+        if ($parent->is_sellable_bundle && $parent->isVariable()) {
+            $required = $parent->sellableBundleGroups()->count();
+            $minPrice = $required > 0
+                ? $parent->variants()->active()
+                    ->whereHas('sellableBundleComponents', fn ($q) => $q, '=', $required)
+                    ->min('price')
+                : null;
+        } else {
+            $minPrice = $parent->variants()->active()->min('price');
+        }
         if ($minPrice !== null) {
             $parent->updateQuietly(['price' => (float) $minPrice]);
         }
