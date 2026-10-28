@@ -249,6 +249,8 @@ class OrderController extends Controller
             }
             // Автоматическая регистрация пользователя, если не авторизован
             $user = $request->user();
+            // Capture checkout identity before optional automatic registration.
+            $guestCheckout = $user === null;
             $autoRegistered = false;
             $autoRegisteredPassword = null;
 
@@ -343,6 +345,7 @@ class OrderController extends Controller
             try {
                 $order = Order::create([
                     'user_id' => $user?->id,
+                    'guest_checkout' => $guestCheckout,
                     'status' => $initialStatus->value,
                     'cooling_until' => now()->addMinutes(60),
                     'integration_state' => 'cooling',

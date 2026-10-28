@@ -52,6 +52,37 @@ class MailEventsSeeder extends Seeder
             ]
         );
 
+        // Отдельное событие для заказа без владельца учётной записи.
+        $guestOrderCreated = MailEvent::firstOrCreate(
+            ['code' => 'order.created.guest'],
+            [
+                'name' => 'Заказ без регистрации',
+                'description' => 'Подтверждение заказа с защищённой ссылкой для неавторизованного покупателя',
+                'is_active' => true,
+            ]
+        );
+
+        if (! $guestOrderCreated->templates()->exists()) {
+            $guestOrderCreated->templates()->create([
+                'name' => 'Подтверждение гостевого заказа',
+                'subject' => 'Ваш заказ №{{order_number}} создан',
+                'body' => <<<'HTML'
+<p>Здравствуйте, {{contact_name}}!</p>
+<p>Ваш заказ <strong>№{{order_number}}</strong> успешно создан в магазине «Светофор мебели».</p>
+<p>Сумма заказа: <strong>{{order_total}}</strong><br>Статус: {{order_status}}<br>Оплата: {{payment_method}}<br>Получение: {{delivery_type}}<br>Дата: {{order_date}}</p>
+<p>Ссылка для открытия заказа с другого устройства добавляется ниже автоматически.</p>
+<p>Благодарим за покупку!</p>
+HTML,
+                'variables' => [
+                    'contact_name', 'order_number', 'order_total', 'order_subtotal',
+                    'order_delivery_cost', 'order_assembly_cost', 'order_status',
+                    'payment_method', 'delivery_type', 'order_date',
+                ],
+                'is_active' => true,
+                'is_default' => true,
+            ]);
+        }
+
         // Событие регистрации пользователя
         $userRegistered = MailEvent::firstOrCreate(
             ['code' => 'user.registered'],
