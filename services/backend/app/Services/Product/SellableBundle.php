@@ -232,6 +232,50 @@ class SellableBundle
      */
     public function availableSets(array $items): int
     {
+        if (! config('bundles.multi_warehouse_enabled', false)) {
+            return $this->singleWarehouseAvailableSets($items);
+        }
+        if ($items === []) {
+            return 0;
+        }
+        // Every concrete SKU has its own stock. Different SKU groups may be
+        // sourced from different warehouses; NEVER count the virtual kit offer.
+        // A single SKU is not split across warehouses during fulfillment.
+        $units = collect($items)->groupBy('product_id')->map(fn ($rows): int => (int) $rows->sum('quantity'));
+        $warehouses = \App\Models\Inventory\Warehouse::query()->where('is_active', true)
+            ->with([
+                'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+                'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+            ])->get();
+        $availableSets = PHP_INT_MAX;
+        foreach ($units as $skuId => $unitsPerSet) {
+            $bestForSku = 0;
+            foreach ($warehouses as $warehouse) {
+                if ($warehouse->stock_mode === 'availability') {
+                    $source = $warehouse->productAvailabilities->firstWhere('product_id', $skuId);
+                    if ($source?->available_to_order) {
+                        // Factory availability is a boolean, not a finite count.
+                        $bestForSku = max($bestForSku, 1);
+                    }
+                } elseif ($warehouse->stock_mode === 'quantity') {
+                    $stock = $warehouse->productStocks->firstWhere('product_id', $skuId);
+                    if ($stock) {
+                        $free = app(\App\Services\Inventory\CartStockReservations::class)
+                            ->available((int) $warehouse->id, (int) $skuId, (float) $stock->quantity);
+                        $bestForSku = max($bestForSku, (int) floor($free / $unitsPerSet));
+                    }
+                }
+            }
+            $availableSets = min($availableSets, $bestForSku);
+            if ($availableSets === 0) {
+                return 0;
+            }
+        }
+        return $availableSets === PHP_INT_MAX ? 0 : $availableSets;
+    }
+
+    private function singleWarehouseAvailableSets(array $items): int
+    {
         if ($items === []) {
             return 0;
         }
@@ -269,6 +313,7 @@ class SellableBundle
         }
         return max(0, $best);
     }
+
 
     public function assertMatches(array $composition, array $submitted): void
     {

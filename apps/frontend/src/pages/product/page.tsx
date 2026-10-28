@@ -900,6 +900,8 @@ export default function Product() {
     return productPageSkeleton;
   }
 
+  if (!product) return productPageSkeleton;
+
   // Фото галереи: при выборе цвета/размера — фото вариации, если у неё есть фото; иначе всегда галерея основного товара
   const variantForImages = getVariantForImages();
   const hasVariantImages = variantForImages?.images && variantForImages.images.length > 0;

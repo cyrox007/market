@@ -69,13 +69,14 @@ export default function WarehouseCheckout() {
     let active = true;
     setCalculating(true);
     api.shipping.quote({ directory_external_id: building, ...(direct ? { items } : {}), warehouse_id: warehouse,
+      ...(isBundle ? { bundle_id: bundleId, primary_sku_id: primarySkuId, bundle_quantity: quantity } : {}),
       requires_assembly: assembly, delivery_handling_type_id: handling, delivery_floor: floor,
       additional_services: additional.map((id) => ({ id })) }).then((r) => {
         if (active) { setQuote(r); setError(r.available ? '' : 'Доставка по выбранному адресу недоступна для всего заказа.'); }
       }).catch((e) => { if (active) setError(e?.data?.message || 'Не удалось рассчитать доставку.'); })
       .finally(() => { if (active) setCalculating(false); });
     return () => { active = false; };
-  }, [mode, building, itemsKey, warehouse, assembly, handling, floor, additional, quoteRevision]);
+  }, [mode, building, itemsKey, warehouse, assembly, handling, floor, additional, quoteRevision, isBundle, bundleId, primarySkuId, quantity]);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (busy || calculating || !consent || !selectable(methods.find(method => method.code === payment)) || !items.length) return;

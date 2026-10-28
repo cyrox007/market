@@ -436,6 +436,14 @@ class ProductDetailResource extends JsonResource
             }
         }
 
+        // The virtual offer has no warehouse stock. Its global availability
+        // comes from each physical component, potentially at different sources.
+        if ($sourceProduct->is_sellable_bundle && $sourceProduct->isVariable() && $isVariant) {
+            $resolvedStock = (int) ($kitCurrentVariant['stock'] ?? 0);
+            $rawStock = $resolvedStock;
+            $inStock = $resolvedStock > 0;
+        }
+
         // Детализация остатков по складам
         $stocks = [];
         if ($this->relationLoaded('warehouseStocks')) {
@@ -448,9 +456,18 @@ class ProductDetailResource extends JsonResource
             })->values()->toArray();
         }
 
+        if ($sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()) {
+            $stocks = []; // Never present the virtual SKU as a stock source.
+        }
         $stockLabel = StockCategoryHelper::formatStockDisplay($resolvedStock);
 
         $priority = app(WarehousePriorityResolver::class)->resolve($this->resource, $region);
+        if ($sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()) {
+            $priority['nearest_stock'] = null;
+            $priority['nearest_warehouse_name'] = null;
+            $priority['nearest_distance_km'] = null;
+            $priority['stocks'] = [];
+        }
         if ($sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()) {
             $productPrice = $kitCurrentVariant['price'] ?? $productPriceFromCheapestVariant ?? 0;
         }

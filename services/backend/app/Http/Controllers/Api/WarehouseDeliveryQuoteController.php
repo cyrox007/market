@@ -22,6 +22,9 @@ class WarehouseDeliveryQuoteController extends Controller
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.variant_id' => 'nullable|integer|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1|max:1000',
+            'bundle_id' => 'nullable|integer|exists:products,id',
+            'primary_sku_id' => 'nullable|integer|exists:products,id',
+            'bundle_quantity' => 'required_with:bundle_id|integer|min:1|max:1000',
             'warehouse_id' => 'nullable|integer|exists:warehouses,id',
             'requires_assembly' => 'sometimes|boolean',
             'delivery_handling_type_id' => 'nullable|integer|exists:delivery_handling_types,id',
@@ -43,6 +46,15 @@ class WarehouseDeliveryQuoteController extends Controller
             return response()->json(['message' => 'Выберите здание из справочника.'], 422);
         }
         try {
+            $isBundle = isset($data['bundle_id']);
+            if ($isBundle) {
+                $composition = app(\App\Services\Product\SellableBundle::class)->composition(
+                    (int) $data['bundle_id'],
+                    isset($data['primary_sku_id']) ? (int) $data['primary_sku_id'] : null,
+                    (int) $data['bundle_quantity']
+                );
+                app(\App\Services\Product\SellableBundle::class)->assertMatches($composition, $data['items'] ?? []);
+            }
             $lines = isset($data['items']) ? app(\App\Services\Shipping\FulfillmentLines::class)->resolve($data['items']) : $quotes->cartLines(Cart::getItems());
             // Direct checkout and the cart must use the same PricingEngine as final order creation.
             // Never trust client totals; price the resolved concrete SKU lines on the server.
@@ -52,8 +64,14 @@ class WarehouseDeliveryQuoteController extends Controller
                 : Cart::getItems();
             $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($pricingItems, $region);
             $data['_cart_subtotal'] = collect($pricedItems)->sum(fn ($line) => $line['price'] * $line['quantity']);
-            $result = $quotes->calculate($id, $lines, isset($data['region_id']) ? ShippingLocation::find($data['region_id']) : null,
-                array_merge($data, ['preview' => isset($data['items'])]));
+            $data['_priced_unit_prices'] = collect($pricedItems)->pluck('price', 'product_id')->all();
+            $result = $quotes->calculate($id, $lines, $region,
+                array_merge($data, [
+                    'preview' => isset($data['items']),
+                    // Direct checkout already limits multiple lines to a single
+                    // kit. The quote endpoint also accepts explicit bundle ids.
+                    'allow_multi_warehouse' => $isBundle,
+                ]));
         } catch (\Illuminate\Validation\ValidationException $error) {
             throw $error;
         } catch (\RuntimeException $error) {
