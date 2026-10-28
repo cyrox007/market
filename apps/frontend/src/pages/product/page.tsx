@@ -525,7 +525,9 @@ export default function Product() {
       setAddToCartError(null);
       const selectedSku = getSelectedVariant();
       const offer = new URLSearchParams(window.location.search).get('offer');
-      navigate('/checkout?product_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity + (offer ? '&offer=' + encodeURIComponent(offer) : ''));
+      navigate(product.is_sellable_bundle
+        ? '/checkout?bundle_id=' + product.id + '&primary_sku_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity
+        : '/checkout?product_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity + (offer ? '&offer=' + encodeURIComponent(offer) : ''));
     } catch (err: any) {
       console.error('Failed to add to cart:', err);
       const msg =
@@ -538,6 +540,10 @@ export default function Product() {
 
   const handleAddToCart = async () => {
     if (!product || !slug || product.slug !== slug) return;
+    if (product.is_sellable_bundle) {
+      await handleBuyNow();
+      return;
+    }
 
     if (product.is_variable && !product.is_variant && product.variation_attributes?.length) {
       const variationAttrs = getVariationAttributesForCart();
@@ -1450,7 +1456,7 @@ export default function Product() {
                     }
                   }
 
-                  if (currentCartQuantity > 0) {
+                  if (currentCartQuantity > 0 && !product.is_sellable_bundle) {
                     return (
                       <>
                         <button
@@ -1552,27 +1558,31 @@ export default function Product() {
                       ) : !isProductAvailable ? (
                         'Недоступно'
                       ) : (
-                        'Добавить в корзину'
+                        product.is_sellable_bundle ? 'Купить весь комплект' : 'Добавить в корзину'
                       )}
                     </button>
                   );
                 })()}
               </div>
 
-              <button
-                onClick={handleBuyNow}
-                className="w-full bg-red-200 text-red-700 py-3 rounded-lg font-semibold hover:bg-red-300 transition-colors whitespace-nowrap"
-              >
-                Купить сейчас
-              </button>
+              {!product.is_sellable_bundle && (
+                <button
+                  onClick={handleBuyNow}
+                  className="w-full bg-red-200 text-red-700 py-3 rounded-lg font-semibold hover:bg-red-300 transition-colors whitespace-nowrap"
+                >
+                  Купить сейчас
+                </button>
+              )}
 
-              <button
-                onClick={() => navigate('/checkout')}
-                className="w-full bg-white border-2 border-gray-300 text-gray-900 py-3 rounded-lg font-semibold hover:border-red-600 hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
-              >
-                <Calendar className="size-[1em] text-lg" />
-                Оплата частями
-              </button>
+              {!product.is_sellable_bundle && (
+                <button
+                  onClick={() => navigate('/checkout')}
+                  className="w-full bg-white border-2 border-gray-300 text-gray-900 py-3 rounded-lg font-semibold hover:border-red-600 hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <Calendar className="size-[1em] text-lg" />
+                  Оплата частями
+                </button>
+              )}
             </div>
           </div>
         </div>
