@@ -215,6 +215,20 @@ class ProductDetailResource extends JsonResource
                 $variantSpecs = $variant->buildEffectiveSpecificationsForApi();
                 $rawVariantStock = $warehouseStockResolver->resolveForProduct($variant, $region);
                 $variantStock = $rawVariantStock === null ? null : (int) round((float) $rawVariantStock);
+                $kitQuote = null;
+                if ($sourceProduct->is_sellable_bundle) {
+                    try {
+                        $kitQuote = app(\App\Services\Product\SellableBundle::class)
+                            ->quote((int) $sourceProduct->id, (int) $variant->id, 1, $region);
+                        $variantStock = app(\App\Services\Product\SellableBundle::class)
+                            ->availableSets($kitQuote['items']);
+                        $variantPrice = $kitQuote['subtotal'];
+                    } catch (\Illuminate\Validation\ValidationException $error) {
+                        // Incomplete or stale variants are visible for selection, but cannot be sold.
+                        $variantStock = 0;
+                        $variantPrice = 0;
+                    }
+                }
 
                 $colors = $variant->getColorsArray();
                 return [
@@ -225,12 +239,16 @@ class ProductDetailResource extends JsonResource
                     'url' => '/product/'.$variant->slug,
                     'sku' => $variant->sku,
                     'price' => $variantPrice,
-                    'old_price' => app(\App\Services\Pricing\PricingEngine::class)->oldPrice($variant, $region, $variantPrice),
+                    'old_price' => $sourceProduct->is_sellable_bundle
+                        ? null : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($variant, $region, $variantPrice),
                     'stock' => $variantStock,
-                    'stock_known' => $rawVariantStock !== null,
+                    'stock_known' => $sourceProduct->is_sellable_bundle || $rawVariantStock !== null,
+                    'is_bundle_configured' => $kitQuote !== null,
+                    'bundle_components' => $kitQuote === null ? [] : $kitQuote['priced_components'],
                     'stock_label' => $variantStock === null ? null : StockCategoryHelper::formatStockDisplay($variantStock),
                     'in_stock' => $variantStock > 0,
-                    'available_to_order' => $warehouseStockResolver->availableToOrder($variant, $region),
+                    'available_to_order' => $sourceProduct->is_sellable_bundle
+                        ? $variantStock > 0 : $warehouseStockResolver->availableToOrder($variant, $region),
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
                     'images' => $variant->images_urls ?: $sourceProduct->images_urls,
                     'description' => $variant->getEffectiveDescription(),
@@ -241,7 +259,10 @@ class ProductDetailResource extends JsonResource
             })->values()->toArray();
 
             if (!$isVariant && !empty($variants)) {
-                $cheapest = collect($variants)->sortBy('price')->first();
+                $eligibleVariants = $sourceProduct->is_sellable_bundle
+                    ? collect($variants)->where('is_bundle_configured', true)
+                    : collect($variants);
+                $cheapest = $eligibleVariants->sortBy('price')->first();
                 if ($cheapest) {
                     $productPriceFromCheapestVariant = (float) $cheapest['price'];
                     $skuFromCheapestVariant = $cheapest['sku'] ?? '';
@@ -315,6 +336,10 @@ class ProductDetailResource extends JsonResource
                 'price' => $productPrice,
             ]);
         }
+
+        // A virtual kit offer has no independent price or warehouse stock.
+        $kitCurrentVariant = ($isVariant && $sourceProduct->is_sellable_bundle)
+            ? collect($variants)->firstWhere('id', $this->id) : null;
 
         // Получаем срок доставки для невариативных товаров
         if (!$isVariable && $region) {
@@ -426,7 +451,11 @@ class ProductDetailResource extends JsonResource
         $stockLabel = StockCategoryHelper::formatStockDisplay($resolvedStock);
 
         $priority = app(WarehousePriorityResolver::class)->resolve($this->resource, $region);
-        $effectiveOldPrice = isset($cheapest) ? ($cheapest['old_price'] ?? null) : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $productPrice);
+        if ($sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()) {
+            $productPrice = $kitCurrentVariant['price'] ?? $productPriceFromCheapestVariant ?? 0;
+        }
+        $effectiveOldPrice = $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
+            ? null : (isset($cheapest) ? ($cheapest['old_price'] ?? null) : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($this->resource, $region, $productPrice));
         $displayCategories = $this->taxons->isNotEmpty() ? $this->taxons : $sourceProduct->taxons;
 
         return [
@@ -446,11 +475,18 @@ class ProductDetailResource extends JsonResource
             'main_image' => $this->image_hd_url ?: $this->main_image_url ?: $sourceProduct->image_hd_url ?: $sourceProduct->main_image_url,
             'main_image_fullhd' => $this->image_fullhd_url ?: $this->main_image_url ?: $sourceProduct->image_fullhd_url ?: $sourceProduct->main_image_url,
             'thumbnail' => $this->thumbnail_url ?: $sourceProduct->thumbnail_url,
-            'in_stock' => $inStock,
-            'stock' => $rawStock === null ? null : $resolvedStock,
-            'stock_known' => $rawStock !== null,
+            'in_stock' => $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
+                ? ($kitCurrentVariant ? $kitCurrentVariant['in_stock'] : collect($variants)->contains('in_stock', true))
+                : $inStock,
+            'stock' => $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
+                ? ($kitCurrentVariant ? $kitCurrentVariant['stock'] : null)
+                : ($rawStock === null ? null : $resolvedStock),
+            'stock_known' => $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
+                ? (bool) $kitCurrentVariant : $rawStock !== null,
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
-            'available_to_order' => $warehouseStockResolver->availableToOrder($this->resource, $region),
+            'available_to_order' => $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
+                ? ($kitCurrentVariant ? $kitCurrentVariant['in_stock'] : collect($variants)->contains('in_stock', true))
+                : $warehouseStockResolver->availableToOrder($this->resource, $region),
             'nearest_distance_km' => $priority['nearest_distance_km'],
             'nearest_stock' => $priority['nearest_stock'],
             'nearest_warehouse_name' => $priority['nearest_warehouse_name'],
@@ -467,12 +503,15 @@ class ProductDetailResource extends JsonResource
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
             'is_sellable_bundle' => (bool) $sourceProduct->is_sellable_bundle,
+            // A variable root has no physical components. Every selected offer owns them.
             'sellable_bundle_components' => $sourceProduct->is_sellable_bundle
-                ? $sourceProduct->sellableBundleComponents()->get()
-                    ->map(fn (Product $sku): array => [
-                        'id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
-                        'quantity' => (int) $sku->pivot->quantity,
-                    ])->all()
+                ? ($sourceProduct->isVariable()
+                    ? ($kitCurrentVariant['bundle_components'] ?? [])
+                    : $sourceProduct->sellableBundleComponents()->get()
+                        ->map(fn (Product $sku): array => [
+                            'id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
+                            'quantity' => (int) $sku->pivot->quantity,
+                        ])->all())
                 : [],
             'parent_id' => $this->when($isVariant, $this->parent_product_id),
             'variants' => $variants, // ВАЖНО: Все вариации для сравнения на фронтенде
