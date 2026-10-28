@@ -89,6 +89,24 @@ class GuestMailTemplateEditorTest extends TestCase
         $this->assertStringNotContainsString('#access=', json_encode($log->toArray()));
     }
 
+    public function test_auto_registered_checkout_still_uses_guest_notification(): void
+    {
+        Mail::fake();
+        $registered = User::factory()->create();
+        $order = Order::factory()->create([
+            'user_id' => $registered->id,
+            'guest_checkout' => true,
+            'guest_token_hash' => hash('sha256', str_repeat('b', 64)),
+            'contact_email' => 'guest@example.test',
+        ]);
+
+        $event = MailEvent::where('code', 'order.created.guest')->firstOrFail();
+        app(SendOrderCreatedMail::class)->handle(new OrderCreated($order));
+
+        Mail::assertSent(OrderCreatedMail::class);
+        $this->assertSame($event->id, MailEventLog::firstOrFail()->mail_event_id);
+    }
+
     public function test_template_editor_has_own_navigation_and_requires_mail_event_permission(): void
     {
         Role::findOrCreate('super_admin', 'web');

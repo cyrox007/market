@@ -44,7 +44,7 @@ class SendOrderCreatedMail implements ShouldQueue
 
             // Отправляем письмо через сервис
             $sent = $this->mailEventService->sendMailable(
-                $order->user_id === null ? 'order.created.guest' : 'order.created',
+                ($order->guest_checkout || $order->user_id === null) ? 'order.created.guest' : 'order.created',
                 $order->contact_email,
                 $mailable,
                 $variables
