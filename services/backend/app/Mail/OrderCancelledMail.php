@@ -39,10 +39,12 @@ class OrderCancelledMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            text: 'mail.order-cancelled',
+            view: 'mail.template-html',
+            text: 'mail.template-text',
             with: [
                 'order' => $this->order,
                 'customBody' => $this->customBody,
+                'fallbackBody' => 'Ваш заказ отменён.',
             ],
         );
     }

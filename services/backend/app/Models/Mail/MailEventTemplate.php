@@ -56,20 +56,22 @@ class MailEventTemplate extends Model
      *
      * @param array<string, mixed> $variables
      */
-    public function replaceVariables(array $variables): array
+    public function replaceVariables(array $variables, bool $html = false): array
     {
         $subject = $this->subject;
-        $body = $this->body;
+        $body = $html ? '<div>'.\App\Services\Mail\MailTemplateContent::html($this->body).'</div>' : $this->body;
+        $subjectValues = [];
+        $bodyValues = [];
 
         foreach ($variables as $key => $value) {
             $placeholder = '{{' . $key . '}}';
-            $subject = str_replace($placeholder, (string) $value, $subject);
-            $body = str_replace($placeholder, (string) $value, $body);
+            $subjectValues[$placeholder] = (string) $value;
+            $bodyValues[$placeholder] = $html ? e((string) $value) : (string) $value;
         }
 
         return [
-            'subject' => $subject,
-            'body' => $body,
+            'subject' => strtr($subject, $subjectValues),
+            'body' => strtr($body, $bodyValues),
         ];
     }
 

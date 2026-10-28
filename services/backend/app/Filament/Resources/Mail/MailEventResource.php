@@ -6,7 +6,6 @@ use App\Filament\Resources\Mail\Pages\CreateMailEvent;
 use App\Filament\Resources\Mail\Pages\EditMailEvent;
 use App\Filament\Resources\Mail\Pages\ListMailEvents;
 use App\Filament\Resources\Mail\Pages\ViewMailEvent;
-use App\Filament\Resources\Mail\RelationManagers\MailEventTemplatesRelationManager;
 use App\Filament\Resources\Mail\Schemas\MailEventForm;
 use App\Filament\Resources\Mail\Schemas\MailEventInfolist;
 use App\Filament\Resources\Mail\Tables\MailEventsTable;
@@ -53,9 +52,9 @@ class MailEventResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            MailEventTemplatesRelationManager::class,
-        ];
+        // Шаблоны управляются в отдельном пункте «Шаблоны писем»,
+        // чтобы редактор не дублировался внутри формы почтового события.
+        return [];
     }
 
     public static function getPages(): array

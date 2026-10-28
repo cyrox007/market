@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { api, type Order } from '../../../lib/api';
+import { consumeGuestOrderLink } from '../../../lib/guest-order-access';
 import OrderStatusBadge from '../../../components/orders/OrderStatusBadge';
 import OrderTracking from '../../../components/orders/OrderTracking';
 import OrderItemsList from '../../../components/orders/OrderItemsList';
@@ -43,6 +44,8 @@ export default function OrderDetail() {
 
   useEffect(() => {
     if (id) {
+      const cleanUrl = consumeGuestOrderLink(Number(id), window.location.href);
+      if (cleanUrl) window.history.replaceState(window.history.state, '', cleanUrl);
       loadOrder(parseInt(id));
     }
   }, [id]);

@@ -41,12 +41,14 @@ class OrderStatusChangedMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            text: 'mail.order-status-changed',
+            view: 'mail.template-html',
+            text: 'mail.template-text',
             with: [
                 'order' => $this->order,
                 'oldStatus' => $this->oldStatus,
                 'newStatus' => $this->newStatus,
                 'customBody' => $this->customBody,
+                'fallbackBody' => 'Статус вашего заказа изменён.',
             ],
         );
     }

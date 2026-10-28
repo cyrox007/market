@@ -17,3 +17,15 @@ export function guestOrderHeaders(id: number): Record<string, string> {
   return entry && entry.expires > Date.now() && /^[a-f0-9]{64}$/.test(entry.token)
     ? { 'X-Order-Token': entry.token } : {};
 }
+
+/** Import an email capability, then return a URL without the secret fragment. */
+export function consumeGuestOrderLink(id: number, href: string): string | null {
+  const url = new URL(href);
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  if (!fragment.has('access')) return null;
+  const token = fragment.get('access');
+  if (token && /^[a-f0-9]{64}$/.test(token)) saveGuestOrderToken(id, token);
+  fragment.delete('access');
+  const rest = fragment.toString();
+  return url.pathname + url.search + (rest ? `#${rest}` : '');
+}

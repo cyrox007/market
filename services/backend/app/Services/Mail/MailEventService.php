@@ -40,7 +40,7 @@ class MailEventService
             }
 
             // Заменяем переменные в шаблоне
-            $replaced = $template->replaceVariables($variables);
+            $replaced = $template->replaceVariables($variables, html: true);
             $subject = $replaced['subject'];
             $body = $replaced['body'];
 
@@ -57,7 +57,7 @@ class MailEventService
 
             // Отправляем письмо
             try {
-                Mail::raw($body, function ($message) use ($recipientEmail, $subject) {
+                Mail::send(['html' => 'mail.template-html', 'text' => 'mail.template-text'], ['customBody' => $body], function ($message) use ($recipientEmail, $subject) {
                     $message->to($recipientEmail)
                         ->subject($subject);
                 });
@@ -91,6 +91,11 @@ class MailEventService
      */
     public function sendMailable(string $eventCode, string $recipientEmail, $mailable, array $variables = []): bool
     {
+        if (method_exists($mailable, 'requiresConfidentialTransport') && $mailable->requiresConfidentialTransport()
+            && $this->usesLogTransport((string) ($mailable->mailer ?? config('mail.default')))) {
+            Log::warning('Confidential order email was not sent: configure a non-logging mail transport.', ['event' => $eventCode]);
+            return false;
+        }
         try {
             // Находим событие
             $event = MailEvent::findByCode($eventCode);
@@ -107,7 +112,7 @@ class MailEventService
             }
 
             // Заменяем переменные в шаблоне
-            $replaced = $template->replaceVariables($variables);
+            $replaced = $template->replaceVariables($variables, html: true);
             $subject = $replaced['subject'];
             $body = $replaced['body'];
 
@@ -148,6 +153,24 @@ class MailEventService
             ]);
             return false;
         }
+    }
+
+    private function usesLogTransport(string $mailer, array $visited = []): bool
+    {
+        if (in_array($mailer, $visited, true)) {
+            return true;
+        }
+        $visited[] = $mailer;
+        $config = config('mail.mailers.'.$mailer, []);
+        if (($config['transport'] ?? $mailer) === 'log') {
+            return true;
+        }
+        foreach ($config['mailers'] ?? [] as $child) {
+            if ($this->usesLogTransport((string) $child, $visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
