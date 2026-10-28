@@ -89,13 +89,18 @@ class ProductVariantsRelationManager extends RelationManager
                         ->numeric()
                         ->prefix('₽')
                         ->required()
-                        ->default(fn() => $parentProduct->price)
-                        ->helperText('Цена вариации'),
+                        ->disabled(fn (): bool => (bool) $parentProduct->is_sellable_bundle)
+                        ->dehydrated(fn (): bool => ! $parentProduct->is_sellable_bundle)
+                        ->default(fn() => $parentProduct->is_sellable_bundle ? 0 : $parentProduct->price)
+                        ->helperText($parentProduct->is_sellable_bundle
+                            ? 'Цена комплекта формируется суммой цен конкретных SKU в модальном редакторе «Состав комплекта».'
+                            : 'Цена вариации'),
 
                     TextInput::make('original_price')
                         ->label('Старая цена')
                         ->numeric()
                         ->prefix('₽')
+                        ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle)
                         ->helperText('Цена до скидки'),
 
                     TextInput::make('stock')
@@ -103,11 +108,13 @@ class ProductVariantsRelationManager extends RelationManager
                         ->numeric()
                         ->default(0)
                         ->required()
-                        ->visible(fn (): bool => ! ProductStockSettings::getInstance()->warehouse_accounting_enabled)
+                        ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle
+                            && ! ProductStockSettings::getInstance()->warehouse_accounting_enabled)
                         ->helperText('Используется, если складской учёт выключен в настройках остатков.'),
 
                     Toggle::make('backorder')
                         ->label('Разрешить предзаказ')
+                        ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle)
                         ->default(false),
 
                     Select::make('state')
@@ -312,7 +319,8 @@ class ProductVariantsRelationManager extends RelationManager
                     ->helperText('Остатки по складам. Склады подтягиваются из 1С при синхронизации (stockId).'),
             ])
             ->collapsible()
-            ->collapsed();
+            ->collapsed()
+            ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle);
 
         $components[] = Section::make('Изображения торгового предложения')
             ->description('Загрузка главного изображения и галереи для этого торгового предложения')
@@ -577,6 +585,12 @@ class ProductVariantsRelationManager extends RelationManager
 
                         $data['parent_product_id'] = $parentProduct->id;
                         $data['is_variable'] = false; // Торговые предложения не вариативные
+                        if ($parentProduct->is_sellable_bundle) {
+                            $data['price'] = 0;
+                            $data['stock'] = 0;
+                            $data['backorder'] = false;
+                            $data['external_id'] = null;
+                        }
 
                         // Shared data is inherited at read time, not snapshotted into the offer.
 
