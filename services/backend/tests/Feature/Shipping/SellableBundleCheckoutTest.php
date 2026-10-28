@@ -296,6 +296,72 @@ class SellableBundleCheckoutTest extends TestCase
         $this->assertEquals(0, $warehouse->productStocks()->where('product_id', $mezz->id)->first()->reserved_quantity);
     }
 
+    public function test_zero_stock_backorder_component_allows_bundle_order_without_physical_stock(): void
+    {
+        Queue::fake();
+        Http::fake(fn ($request) => Http::response([
+            'target' => str_ends_with($request->url(), '/region48')
+                ? ['kind' => 'region', 'externalId' => 'region48', 'name' => 'Липецкая область']
+                : ['kind' => 'building', 'externalId' => 'house', 'name' => '1'],
+            'path' => [['kind' => 'region', 'externalId' => 'region48', 'name' => 'Липецкая область'],
+                ['kind' => 'locality', 'externalId' => 'lipetsk', 'name' => 'Липецк']],
+            'label' => 'Липецк, тестовый дом 1',
+        ]));
+        [$root, , , $offers] = $this->variableKit();
+        [$virtual, $wardrobe, $mezz] = $offers['white'];
+        $wardrobe->update(['backorder' => false]);
+        $mezz->update(['backorder' => true, 'stock' => 0]);
+        $warehouse = Warehouse::create(['name' => 'Central', 'is_active' => true, 'stock_mode' => 'quantity']);
+        $warehouse->productStocks()->create(['product_id' => $wardrobe->id, 'quantity' => 2]);
+        $warehouse->productStocks()->create(['product_id' => $mezz->id, 'quantity' => 0]);
+        $warehouse->deliveryProfiles()->create([
+            'name' => 'Область', 'coverage_type' => 'locations',
+            'directory_territories' => [['region_id' => 'region48']],
+            'base_price' => 500, 'service_tariffs' => [],
+        ]);
+        PaymentMethod::create(['name' => 'Cash', 'code' => 'cash', 'gateway' => 'manual',
+            'is_active' => true, 'is_enabled' => true]);
+        $composition = app(SellableBundle::class)->composition($root->id, $virtual->id);
+        $this->assertSame(1, app(SellableBundle::class)->availableSets($composition['items']));
+
+        $this->getJson('/api/v1/products/'.$root->slug)->assertOk()
+            ->assertJsonPath('product.variants.0.in_stock', true);
+        $preview = $this->postJson('/api/v1/shipping/quote', [
+            'directory_external_id' => 'house',
+            'bundle_id' => $root->id, 'primary_sku_id' => $virtual->id,
+            'bundle_quantity' => 1, 'items' => $composition['items'],
+        ])->assertOk()->assertJsonPath('selected.contains_backorder', true)
+            ->assertJsonPath('selected.delivery_estimate_unavailable', true);
+
+        $created = $this->postJson('/api/v1/orders', [
+            'bundle_id' => $root->id, 'primary_sku_id' => $virtual->id, 'bundle_quantity' => 1,
+            'items' => $composition['items'], 'expected_subtotal' => 2200,
+            'directory_external_id' => 'house', 'delivery_type' => 'delivery',
+            'warehouse_id' => $warehouse->id, 'payment_method' => 'cash',
+            'contact_name' => 'Test', 'contact_phone' => '+79001234567',
+            'contact_email' => 'backorder@example.test',
+            'accept_offer' => true, 'accept_personal_data' => true,
+        ])->assertCreated();
+        $order = Order::findOrFail($created->json('order.id'));
+        $this->assertSame(true, $order->fulfillment_snapshot['contains_backorder']);
+        $this->assertSame(1, $warehouse->productStocks()->where('product_id', $mezz->id)->first()->reserved_quantity);
+        $this->assertSame(0.0, (float) $warehouse->productStocks()->where('product_id', $mezz->id)->first()->quantity);
+        $this->assertSame(0, (int) $virtual->fresh()->stock);
+        $this->assertSame([$wardrobe->id, $mezz->id], $order->items->pluck('product_id')->all());
+        $this->withHeader('X-Order-Token', $created->json('guest_order_token'))
+            ->postJson('/api/v1/order-access/'.$order->id.'/cancel')->assertOk();
+        $this->assertSame(0, (int) $warehouse->productStocks()->where('product_id', $mezz->id)->first()->reserved_quantity);
+
+        // Same stock and composition, without the flag: the kit must not be offered.
+        $mezz->update(['backorder' => false]);
+        $this->assertSame(0, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->postJson('/api/v1/shipping/quote', [
+            'directory_external_id' => 'house', 'bundle_id' => $root->id,
+            'primary_sku_id' => $virtual->id, 'bundle_quantity' => 1,
+            'items' => $composition['items'],
+        ])->assertOk()->assertJsonPath('available', false);
+    }
+
     public function test_inactive_or_ambiguous_components_block_checkout(): void
     {
         [$root, , $extra] = $this->kit();
