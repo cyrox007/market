@@ -32,6 +32,40 @@ class ProductBundleTest extends TestCase
         $this->assertNotContains($unrelated->id, $ids);
     }
 
+    public function test_bundle_and_related_for_variant_use_root_product_links(): void
+    {
+        $owner = Product::factory()->create(['state' => 'active', 'is_variable' => true]);
+        $variant = Product::factory()->create(['state' => 'active', 'parent_product_id' => $owner->id]);
+        $component = Product::factory()->create(['state' => 'active']);
+        $recommendation = Product::factory()->create(['state' => 'active']);
+        $owner->attachBundleProducts([$component->id]);
+        $owner->attachRelatedProduct($recommendation);
+
+        $this->assertSame(
+            $this->getJson('/api/v1/products/'.$owner->id.'/bundle')->assertOk()->json('data'),
+            $this->getJson('/api/v1/products/'.$variant->id.'/bundle')->assertOk()->json('data')
+        );
+        $this->assertSame(
+            $this->getJson('/api/v1/products/'.$owner->id.'/related')->assertOk()->json('data'),
+            $this->getJson('/api/v1/products/'.$variant->id.'/related')->assertOk()->json('data')
+        );
+    }
+
+    public function test_bundle_refuses_indirect_cycles(): void
+    {
+        $a = Product::factory()->create();
+        $b = Product::factory()->create();
+        $c = Product::factory()->create();
+
+        $this->assertSame([$b->id], $a->attachBundleProducts([$b->id])['attached']);
+        $this->assertSame([$c->id], $b->attachBundleProducts([$c->id])['attached']);
+        $this->assertSame([], $c->attachBundleProducts([$a->id])['attached']);
+        $this->assertDatabaseMissing('product_bundle_products', [
+            'product_id' => $c->id,
+            'bundle_product_id' => $a->id,
+        ]);
+    }
+
     public function test_bundle_returns_404_for_missing_product(): void
     {
         $this->getJson('/api/v1/products/999999/bundle')->assertNotFound();

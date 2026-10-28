@@ -921,10 +921,6 @@ export default function Product() {
   // Derived state: все данные для отображения вычисляются из product + selectedVariant
   const displayPrice = selectedVariant?.price ?? product?.price;
   const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
-  const bundleSetTotalPrice =
-    bundleProducts.length === 0
-      ? null
-      : (displayPrice ?? 0) + bundleProducts.reduce((sum, item) => sum + (item.price ?? 0), 0);
   const stockBadge = product
     ? resolveProductStockBadge({
         product,
@@ -1381,7 +1377,7 @@ export default function Product() {
             {/* Price */}
             <div
               className="mb-6 text-center"
-              key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
+              key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}`}
             >
               <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
                 <span className="text-2xl sm:text-3xl font-bold text-red-600">
@@ -1398,30 +1394,18 @@ export default function Product() {
                   {formatPrice(displayOldPrice)}
                 </span>
               )}
-              {bundleSetTotalPrice !== null && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm text-gray-600">
-                    Готовый комплект:{' '}
-                    <span className="font-semibold text-red-600">
-                      {formatPrice(bundleSetTotalPrice)}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Этот товар и {bundleProducts.length}{' '}
-                    {bundleProducts.length === 1
-                      ? 'позиция'
-                      : bundleProducts.length < 5
-                        ? 'позиции'
-                        : 'позиций'}{' '}
-                    <button
-                      type="button"
-                      onClick={scrollToProductBundle}
-                      className="text-red-600 hover:text-red-700 hover:underline font-medium cursor-pointer"
-                    >
-                      ниже
-                    </button>
-                  </p>
-                </div>
+              {bundleProducts.length > 0 && (
+                <p className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                  Состав набора показан ниже. Пока его товары добавляются в корзину отдельно;
+                  общая цена набора здесь не рассчитывается.{' '}
+                  <button
+                    type="button"
+                    onClick={scrollToProductBundle}
+                    className="text-red-600 hover:text-red-700 hover:underline cursor-pointer"
+                  >
+                    Смотреть состав
+                  </button>
+                </p>
               )}
             </div>
 

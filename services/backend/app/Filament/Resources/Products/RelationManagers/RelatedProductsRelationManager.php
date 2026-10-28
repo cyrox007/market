@@ -7,7 +7,9 @@ use App\Models\Product\Product;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
@@ -26,6 +28,9 @@ class RelatedProductsRelationManager extends RelationManager
     {
         return $table
             ->columns([
+                TextColumn::make('pivot.sort_order')
+                    ->label('#')
+                    ->numeric(),
                 SpatieMediaLibraryImageColumn::make('image')
                     ->collection('images')
                     ->conversion('thumb')
@@ -57,6 +62,28 @@ class RelatedProductsRelationManager extends RelationManager
                     ->alignEnd(),
             ])
             ->headerActions([
+                Action::make('recommendationMode')
+                    ->label('Режим рекомендаций')
+                    ->icon('heroicon-o-adjustments-horizontal')
+                    ->fillForm(fn (): array => ['related_products_mode' => $this->getOwnerRecord()->related_products_mode ?? 'legacy'])
+                    ->form([
+                        Select::make('related_products_mode')
+                            ->label('Режим отображения')
+                            ->options([
+                                'legacy' => 'Автоматически (как раньше: ручные связи имеют приоритет)',
+                                'manual' => 'Только вручную выбранные товары',
+                                'automatic' => 'Автоматическая подборка',
+                                'off' => 'Выключено',
+                            ])
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        $owner = $this->getOwnerRecord();
+                        $mode = $data['related_products_mode'] === 'legacy' ? null : $data['related_products_mode'];
+                        $owner->update(['related_products_mode' => $mode]);
+                        Product::flushAllProductCaches();
+                        Notification::make()->title('Режим рекомендаций сохранён')->success()->send();
+                    }),
                 Action::make('attach')
                     ->label('Добавить сопутствующий товар')
                     ->icon('heroicon-o-plus')
@@ -122,6 +149,18 @@ class RelatedProductsRelationManager extends RelationManager
                     }),
             ])
             ->actions([
+                EditAction::make('order')
+                    ->label('Порядок')
+                    ->form([
+                        TextInput::make('sort_order')->label('Порядок')->integer()->minValue(0)->required(),
+                    ])
+                    ->fillForm(fn (Product $record): array => ['sort_order' => (int) $record->pivot->sort_order])
+                    ->action(function (Product $record, array $data): void {
+                        $this->getOwnerRecord()->relatedProducts()->updateExistingPivot($record->id, [
+                            'sort_order' => (int) $data['sort_order'],
+                        ]);
+                        Product::flushAllProductCaches();
+                    }),
                 Action::make('detach')
                     ->label('Убрать из сопутствующих')
                     ->icon('heroicon-o-trash')
