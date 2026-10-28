@@ -4,7 +4,7 @@ namespace App\Filament\Resources\Mail\Pages;
 
 use App\Filament\Resources\Mail\MailTemplateResource;
 use App\Filament\Resources\Mail\Schemas\MailTemplateForm;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Resources\Pages\CreateRecord;
 
 class CreateMailTemplate extends CreateRecord
 {
