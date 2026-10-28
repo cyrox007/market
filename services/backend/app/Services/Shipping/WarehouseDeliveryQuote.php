@@ -66,6 +66,9 @@ class WarehouseDeliveryQuote
                 $product->isVariant() ? ($product->parentProduct ?? $product) : $product,
                 $priceRegion, $product->isVariant() ? $product : null);
             $unitPrices[(int) $product->id] = (float) ($price ?? $product->price);
+            if (isset($selection['_priced_unit_prices'][$product->id])) {
+                $unitPrices[(int) $product->id] = (float) $selection['_priced_unit_prices'][$product->id];
+            }
             $amount += $unitPrices[(int) $product->id] * $quantities[$product->id];
         }
         $options = [];

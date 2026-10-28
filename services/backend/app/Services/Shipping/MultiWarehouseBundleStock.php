@@ -22,7 +22,7 @@ class MultiWarehouseBundleStock
     private function allocations(array $quote): array
     {
         $allocations = $quote['warehouse_allocations'] ?? [];
-        if (count($allocations) < 2 || ! is_array($allocations)) {
+        if (! is_array($allocations) || count($allocations) < 2) {
             throw ValidationException::withMessages(['delivery' => 'Не указан корректный состав складской отгрузки.']);
         }
         usort($allocations, fn ($a, $b) => ((int) $a['warehouse_id']) <=> ((int) $b['warehouse_id']));
@@ -74,6 +74,9 @@ class MultiWarehouseBundleStock
 
     public function reserve(Order $order, array $quote): array
     {
+        if (! config('bundles.multi_warehouse_enabled', false)) {
+            throw ValidationException::withMessages(['delivery' => 'Отгрузка с нескольких складов пока недоступна.']);
+        }
         $allocations = $this->allocations($quote);
         $sources = [];
         foreach ($allocations as $source) {

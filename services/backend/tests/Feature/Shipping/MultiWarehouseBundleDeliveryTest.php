@@ -21,6 +21,7 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['bundles.multi_warehouse_enabled' => true]);
         $this->fakeAddress();
     }
 
@@ -52,6 +53,35 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
             ['group_id' => $tops->id, 'product_id' => $top->id, 'quantity' => 1],
         ]);
         return [$root, $offer, $wardrobe, $top];
+    }
+
+    public function test_disabled_rollout_does_not_offer_cross_warehouse_stock_or_delivery(): void
+    {
+        config(['bundles.multi_warehouse_enabled' => false]);
+        [$root, $offer, $wardrobe, $top] = $this->kit();
+        $this->warehouse($wardrobe, 3, 100, 'Шкафы');
+        $this->warehouse($top, 3, 200, 'Антресоли');
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $this->assertSame(0, app(SellableBundle::class)->availableSets($composition['items']));
+        $quote = app(WarehouseDeliveryQuote::class)->calculate('house', $composition['items'], null, ['allow_multi_warehouse' => true]);
+        $this->assertFalse($quote['available']);
+    }
+
+    public function test_source_free_delivery_threshold_uses_discounted_checkout_prices(): void
+    {
+        [$root, $offer, $wardrobe, $top] = $this->kit();
+        $first = $this->warehouse($wardrobe, 3, 100, 'Шкафы');
+        $this->warehouse($top, 3, 200, 'Антресоли');
+        $first->deliveryProfiles()->first()->update(['free_delivery_threshold' => 900]);
+        $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
+        $quote = app(WarehouseDeliveryQuote::class)->calculate('house', $composition['items'], null, [
+            'allow_multi_warehouse' => true,
+            '_priced_unit_prices' => [$wardrobe->id => 800, $top->id => 500],
+        ]);
+        $this->assertEquals(300, $quote['selected']['delivery_cost']);
+        $this->assertFalse($quote['selected']['service_options']['assembly']['available']);
+        $this->assertSame([], $quote['selected']['service_options']['handling']);
+        $this->assertSame([], $quote['selected']['service_options']['additional']);
     }
 
     private function warehouse(Product $sku, int $quantity, int $deliveryCost, string $name): Warehouse

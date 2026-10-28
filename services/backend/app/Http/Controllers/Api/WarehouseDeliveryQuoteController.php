@@ -64,13 +64,13 @@ class WarehouseDeliveryQuoteController extends Controller
                 : Cart::getItems();
             $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($pricingItems, $region);
             $data['_cart_subtotal'] = collect($pricedItems)->sum(fn ($line) => $line['price'] * $line['quantity']);
+            $data['_priced_unit_prices'] = collect($pricedItems)->pluck('price', 'product_id')->all();
             $result = $quotes->calculate($id, $lines, $region,
                 array_merge($data, [
                     'preview' => isset($data['items']),
                     // Direct checkout already limits multiple lines to a single
                     // kit. The quote endpoint also accepts explicit bundle ids.
-                    'allow_multi_warehouse' => $isBundle
-                        || (isset($data['items']) && count($data['items']) > 1),
+                    'allow_multi_warehouse' => $isBundle,
                 ]));
         } catch (\Illuminate\Validation\ValidationException $error) {
             throw $error;

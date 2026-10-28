@@ -24,6 +24,9 @@ class MultiWarehouseBundleDelivery
      */
     public function options(Collection $warehouses, array $quantities, array $destination, ?array $point, array $unitPrices, array $selection): array
     {
+        if (! config('bundles.multi_warehouse_enabled', false)) {
+            return [];
+        }
         if (count($quantities) < 2 || ! empty($selection['additional_services'])
             || ! empty($selection['requires_assembly'])
             || ! empty($selection['delivery_handling_type_id'])) {
@@ -180,7 +183,10 @@ class MultiWarehouseBundleDelivery
             'handling_cost' => 0.0, 'assembly_cost' => 0.0,
             'additional_services_cost' => 0.0, 'additional_services' => [],
             'requires_assembly' => false, 'assembly_days' => null,
-            'service_options' => app(WarehouseServices::class)->options($profile),
+            'service_options' => [
+                'assembly' => ['available' => false, 'required' => false, 'price' => null, 'days' => null],
+                'handling' => [], 'additional' => [],
+            ],
             'total_fulfillment_cost' => $transport,
             'base_price' => $transport, 'free_delivery_threshold' => null,
             'transit_days_min' => $maxMin, 'transit_days_max' => $maxMax,
