@@ -83,10 +83,42 @@ class SellableBundle
                 $sync[$row['product_id']] = ['quantity' => $row['quantity'], 'sort_order' => $i];
             }
             $offer->sellableBundleComponents()->sync($sync);
+            $offer->setRelation('parentProduct', $root);
+            $this->syncBasePrice($offer);
             $root->flushCache();
             $offer->flushCache();
             Product::flushAllProductCaches();
         });
+    }
+
+    /**
+     * Base catalogue price (before region/customer promotions) of the virtual offer.
+     * Kept in products.price for search/listings; checkout always recalculates from
+     * real SKUs through PricingEngine instead of trusting this denormalized value.
+     */
+    public function syncBasePrice(Product $offer): void
+    {
+        if (! $offer->isVariant() || ! $offer->parentProduct?->isVariable()) {
+            return;
+        }
+        $rows = $offer->sellableBundleComponents()->get();
+        if ($rows->isEmpty()) {
+            return;
+        }
+        $price = round((float) $rows->sum(fn (Product $sku) => (float) $sku->price * (int) $sku->pivot->quantity), 2);
+        $offer->updateQuietly(['price' => $price, 'stock' => 0, 'backorder' => false]);
+        Product::syncParentPriceFromVariants($offer->parentProduct);
+    }
+
+    public function syncOffersUsingComponent(int $componentSkuId): void
+    {
+        $offerIds = DB::table('sellable_bundle_components')
+            ->where('component_product_id', $componentSkuId)->pluck('product_id');
+        foreach (Product::with('parentProduct')->whereIn('id', $offerIds)->get() as $offer) {
+            if ($offer->isVariant() && $offer->parentProduct?->isVariable()) {
+                $this->syncBasePrice($offer);
+            }
+        }
     }
 
     /** @return array{bundle_id:int,primary_sku_id:int,bundle_quantity:int,items:array,components:array} */

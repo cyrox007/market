@@ -65,6 +65,16 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         });
         static::deleted(fn () => \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid()));
 
+        // Базовая цена виртуального предложения зависит от цен физических SKU.
+        // Точную региональную цену оформления всё равно рассчитывает PricingEngine.
+        static::saved(function (self $product): void {
+            if ($product->wasChanged('price') && ! $product->is_sellable_bundle
+                && ! $product->parentProduct?->is_sellable_bundle) {
+                app(\App\Services\Product\SellableBundle::class)
+                    ->syncOffersUsingComponent((int) $product->id);
+            }
+        });
+
         // Сбрасываем кэш при изменении вариаций и синхронизируем цену родителя
         static::saved(function ($product) {
             if ($product->isVariant() && $product->parent_product_id) {
