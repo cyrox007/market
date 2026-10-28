@@ -904,7 +904,13 @@ class ProductController extends Controller
 
         $eager = $this->relatedListEagerLoad();
 
-        return Product::cached("related_{$id}", function () use ($parentProduct, $eager) {
+        // Null keeps legacy semantics: existing hand-picked links take precedence,
+        // and an unconfigured product uses the automatic recommendations.
+        $mode = $parentProduct->related_products_mode;
+        return Product::cached("related_v2_{$id}", function () use ($parentProduct, $eager, $mode) {
+            if ($mode === 'off') {
+                return collect();
+            }
             $manualRelated = $parentProduct->relatedProducts()
                 ->whereNull('parent_product_id')
                 ->active()
@@ -912,26 +918,30 @@ class ProductController extends Controller
                 ->limit(4)
                 ->get();
 
-            if ($manualRelated->isNotEmpty()) {
+            if ($mode === 'manual' || ($mode === null && $manualRelated->isNotEmpty())) {
                 return $manualRelated;
             }
 
+            // Avoid recommending components already shown in the kit below.
+            $excludedIds = array_merge(
+                [(int) $parentProduct->getKey()],
+                $parentProduct->bundleProducts()->pluck('products.id')->map(fn ($id) => (int) $id)->all()
+            );
             $categoryIds = $parentProduct->taxons->pluck('id');
             if ($categoryIds->isNotEmpty()) {
-                $categoryRelated = Product::where('id', '!=', $parentProduct->id)
+                $categoryRelated = Product::whereNotIn('id', $excludedIds)
                     ->whereNull('parent_product_id')
                     ->whereHas('taxons', fn ($query) => $query->whereIn('taxons.id', $categoryIds))
                     ->active()
                     ->with($eager)
                     ->limit(4)
                     ->get();
-
                 if ($categoryRelated->isNotEmpty()) {
                     return $categoryRelated;
                 }
             }
 
-            return Product::where('id', '!=', $parentProduct->id)
+            return Product::whereNotIn('id', $excludedIds)
                 ->whereNull('parent_product_id')
                 ->active()
                 ->with($eager)
@@ -1197,10 +1207,9 @@ class ProductController extends Controller
             $this->regionRuleService->preloadRulesForLocation($location);
         }
 
-        $product = Product::query()
-            ->whereNull('parent_product_id')
-            ->active()
-            ->findOrFail($id);
+        $product = Product::with('parentProduct')->active()->findOrFail($id);
+        $product = $this->resolveParentProductForLists($product);
+        abort_unless($this->productHasActiveState($product), 404);
 
         $request->merge(['_list_view' => true]);
 
@@ -1227,7 +1236,9 @@ class ProductController extends Controller
             $this->regionRuleService->preloadRulesForLocation($location);
         }
 
-        $product = Product::with(['taxons', 'relatedProducts', 'manufacturer'])->findOrFail($id);
+        $product = Product::with(['parentProduct', 'taxons', 'relatedProducts', 'manufacturer'])->active()->findOrFail($id);
+        $product = $this->resolveParentProductForLists($product);
+        abort_unless($this->productHasActiveState($product), 404);
 
         $request->merge(['_list_view' => true]);
 

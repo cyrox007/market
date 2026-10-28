@@ -525,7 +525,9 @@ export default function Product() {
       setAddToCartError(null);
       const selectedSku = getSelectedVariant();
       const offer = new URLSearchParams(window.location.search).get('offer');
-      navigate('/checkout?product_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity + (offer ? '&offer=' + encodeURIComponent(offer) : ''));
+      navigate(product.is_sellable_bundle
+        ? '/checkout?bundle_id=' + product.id + '&primary_sku_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity
+        : '/checkout?product_id=' + (selectedSku?.id || product.id) + '&quantity=' + quantity + (offer ? '&offer=' + encodeURIComponent(offer) : ''));
     } catch (err: any) {
       console.error('Failed to add to cart:', err);
       const msg =
@@ -538,6 +540,10 @@ export default function Product() {
 
   const handleAddToCart = async () => {
     if (!product || !slug || product.slug !== slug) return;
+    if (product.is_sellable_bundle) {
+      await handleBuyNow();
+      return;
+    }
 
     if (product.is_variable && !product.is_variant && product.variation_attributes?.length) {
       const variationAttrs = getVariationAttributesForCart();
@@ -921,10 +927,6 @@ export default function Product() {
   // Derived state: все данные для отображения вычисляются из product + selectedVariant
   const displayPrice = selectedVariant?.price ?? product?.price;
   const displayOldPrice = selectedVariant?.old_price ?? product?.old_price;
-  const bundleSetTotalPrice =
-    bundleProducts.length === 0
-      ? null
-      : (displayPrice ?? 0) + bundleProducts.reduce((sum, item) => sum + (item.price ?? 0), 0);
   const stockBadge = product
     ? resolveProductStockBadge({
         product,
@@ -1381,7 +1383,7 @@ export default function Product() {
             {/* Price */}
             <div
               className="mb-6 text-center"
-              key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}-${bundleSetTotalPrice ?? 0}`}
+              key={`price-${product?.id}-${displayPrice}-${selectedVariant?.id || 'main'}`}
             >
               <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
                 <span className="text-2xl sm:text-3xl font-bold text-red-600">
@@ -1398,30 +1400,24 @@ export default function Product() {
                   {formatPrice(displayOldPrice)}
                 </span>
               )}
-              {bundleSetTotalPrice !== null && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm text-gray-600">
-                    Готовый комплект:{' '}
-                    <span className="font-semibold text-red-600">
-                      {formatPrice(bundleSetTotalPrice)}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Этот товар и {bundleProducts.length}{' '}
-                    {bundleProducts.length === 1
-                      ? 'позиция'
-                      : bundleProducts.length < 5
-                        ? 'позиции'
-                        : 'позиций'}{' '}
-                    <button
-                      type="button"
-                      onClick={scrollToProductBundle}
-                      className="text-red-600 hover:text-red-700 hover:underline font-medium cursor-pointer"
-                    >
-                      ниже
-                    </button>
-                  </p>
-                </div>
+              {product.is_sellable_bundle && (
+                <p className="mt-2 text-xs text-gray-600">
+                  Указана цена основного изделия. Стоимость всего комплекта из выбранных SKU
+                  рассчитывается на следующем шаге до подтверждения заказа.
+                </p>
+              )}
+              {bundleProducts.length > 0 && !product.is_sellable_bundle && (
+                <p className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                  Состав набора показан ниже. Пока его товары добавляются в корзину отдельно;
+                  общая цена набора здесь не рассчитывается.{' '}
+                  <button
+                    type="button"
+                    onClick={scrollToProductBundle}
+                    className="text-red-600 hover:text-red-700 hover:underline cursor-pointer"
+                  >
+                    Смотреть состав
+                  </button>
+                </p>
               )}
             </div>
 
@@ -1466,7 +1462,7 @@ export default function Product() {
                     }
                   }
 
-                  if (currentCartQuantity > 0) {
+                  if (currentCartQuantity > 0 && !product.is_sellable_bundle) {
                     return (
                       <>
                         <button
@@ -1568,27 +1564,31 @@ export default function Product() {
                       ) : !isProductAvailable ? (
                         'Недоступно'
                       ) : (
-                        'Добавить в корзину'
+                        product.is_sellable_bundle ? 'Купить весь комплект' : 'Добавить в корзину'
                       )}
                     </button>
                   );
                 })()}
               </div>
 
-              <button
-                onClick={handleBuyNow}
-                className="w-full bg-red-200 text-red-700 py-3 rounded-lg font-semibold hover:bg-red-300 transition-colors whitespace-nowrap"
-              >
-                Купить сейчас
-              </button>
+              {!product.is_sellable_bundle && (
+                <button
+                  onClick={handleBuyNow}
+                  className="w-full bg-red-200 text-red-700 py-3 rounded-lg font-semibold hover:bg-red-300 transition-colors whitespace-nowrap"
+                >
+                  Купить сейчас
+                </button>
+              )}
 
-              <button
-                onClick={() => navigate('/checkout')}
-                className="w-full bg-white border-2 border-gray-300 text-gray-900 py-3 rounded-lg font-semibold hover:border-red-600 hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
-              >
-                <Calendar className="size-[1em] text-lg" />
-                Оплата частями
-              </button>
+              {!product.is_sellable_bundle && (
+                <button
+                  onClick={() => navigate('/checkout')}
+                  className="w-full bg-white border-2 border-gray-300 text-gray-900 py-3 rounded-lg font-semibold hover:border-red-600 hover:bg-red-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <Calendar className="size-[1em] text-lg" />
+                  Оплата частями
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1786,8 +1786,25 @@ export default function Product() {
         </div>
 
         <div className="space-y-16">
-          {/* Набор / комплект (/bundle) — выше сопутствующих */}
-          {bundleProducts.length > 0 && (
+          {/* Продаваемый состав — только конкретные SKU, не редакторская подборка */}
+          {product.is_sellable_bundle && (
+            <section id="product-bundle" className="mb-10 scroll-mt-20 rounded-2xl border p-6">
+              <h2 className="text-2xl font-bold mb-4">Что входит в комплект</h2>
+              <p className="mb-3 text-sm text-gray-600">
+                Основной товар: {product.name}, 1 шт. {selectedVariant ? '(выбранное торговое предложение)' : ''}
+              </p>
+              {(product.sellable_bundle_components || []).map((component) => (
+                <p key={component.id} className="py-2 border-b text-sm">
+                  {component.name} · SKU {component.sku} × {component.quantity} шт.
+                </p>
+              ))}
+              <p className="mt-4 text-sm text-gray-600">
+                Все позиции проверяются по остаткам одного склада и оформляются одним заказом.
+              </p>
+            </section>
+          )}
+          {/* Редакторская подборка не является продаваемым комплектом */}
+          {!product.is_sellable_bundle && bundleProducts.length > 0 && (
             <div id="product-bundle" className="scroll-mt-20">
               <ProductBundleSection products={bundleProducts} />
             </div>

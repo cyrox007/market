@@ -74,7 +74,7 @@ describe('Sheet', () => {
     // Уезжает с анимацией — убирается после неё
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it('closes on a click on the backdrop, not inside the panel', () => {

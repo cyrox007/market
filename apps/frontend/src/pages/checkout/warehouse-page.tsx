@@ -13,9 +13,13 @@ export default function WarehouseCheckout() {
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const product = Number(search.get('product_id'));
+  const bundleId = Number(search.get('bundle_id'));
+  const primarySkuId = Number(search.get('primary_sku_id'));
   const quantity = Number(search.get('quantity') || 1);
-  const direct = Number.isSafeInteger(product) && product > 0;
-  const [prepared, setPrepared] = useState<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number } | null>(null);
+  const isBundle = Number.isSafeInteger(bundleId) && bundleId > 0;
+  const direct = isBundle || (Number.isSafeInteger(product) && product > 0);
+  const [prepared, setPrepared] = useState<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number; priced_components?: Array<{ product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }> } | null>(null);
+  const prepare = () => isBundle ? api.orders.prepareBundle(bundleId, primarySkuId, quantity) : api.orders.prepare(product, quantity);
   const items = useMemo(() => direct ? prepared?.items || [] : (cart?.items || []).map((i) => ({ product_id: i.product_id, quantity: i.quantity })), [direct, prepared, cart]);
   const itemsKey = JSON.stringify(items);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
@@ -49,9 +53,9 @@ export default function WarehouseCheckout() {
   useEffect(() => {
     if (!direct) return;
     let active = true;
-    api.orders.prepare(product, quantity).then((r) => { if (active) setPrepared(r); }).catch(() => { if (active) setError('Товар недоступен для оформления.'); });
+    prepare().then((r) => { if (active) { setPrepared(r); setError(''); } }).catch(() => { if (active) setError('Состав комплекта недоступен или изменился.'); });
     return () => { active = false; };
-  }, [direct, product, quantity]);
+  }, [direct, product, bundleId, primarySkuId, quantity]);
   useEffect(() => {
     if (!items.length) return;
     let active = true;
@@ -81,8 +85,10 @@ export default function WarehouseCheckout() {
     setBusy(true); setError('');
     try {
       const response = await api.orders.create({ contact_name: contact.name, contact_phone: contact.phone, contact_email: contact.email,
-        payment_method: payment, delivery_type: mode, expected_subtotal: quote?.subtotal ?? subtotal,
-        ...(direct ? { items } : {}), accept_offer: true, accept_personal_data: true,
+        payment_method: payment, delivery_type: mode, expected_subtotal: isBundle ? subtotal : (quote?.subtotal ?? subtotal),
+        ...(direct ? { items } : {}),
+        ...(isBundle ? { bundle_id: bundleId, primary_sku_id: primarySkuId, bundle_quantity: quantity } : {}),
+        accept_offer: true, accept_personal_data: true,
         ...(mode === 'delivery' ? { directory_external_id: building, warehouse_id: selected!.warehouse_id,
           delivery_details: details, requires_assembly: assembly, delivery_handling_type_id: handling, delivery_floor: floor,
           additional_services: additional.map((id) => ({ id })) } : { warehouse_id: pickupPoint!.warehouse_id, store_id: pickupPoint!.store_id }),
@@ -92,7 +98,7 @@ export default function WarehouseCheckout() {
       if (!direct) void reloadCart();
     } catch (e) {
       const problem = e as { status?: number; data?: { message?: string; errors?: Record<string, string[]> } };
-      if (problem.status === 409) { if (direct) setPrepared(await api.orders.prepare(product, quantity)); else await reloadCart(); setQuote(null); setWarehouse(null); setQuoteRevision((value) => value + 1); setError('Цена изменилась. Проверьте сумму и подтвердите заказ повторно.'); }
+      if (problem.status === 409) { if (direct) setPrepared(await prepare()); else await reloadCart(); setQuote(null); setWarehouse(null); setQuoteRevision((value) => value + 1); setError('Цена изменилась. Проверьте сумму и подтвердите заказ повторно.'); }
       else setError(Object.values(problem.data?.errors || {}).flat().join(' ') || problem.data?.message || 'Не удалось создать заказ.');
     } finally { setBusy(false); }
   }
@@ -100,6 +106,19 @@ export default function WarehouseCheckout() {
     <form onSubmit={submit} className="space-y-6">
       {error && <p role="alert" className="text-red-600">{error}</p>}
       {!items.length && <p>Нет товаров для оформления. <Link to="/cart">Перейти в корзину</Link></p>}
+      {isBundle && prepared?.priced_components && (
+        <section className="rounded-2xl border p-6 space-y-3">
+          <h2 className="text-xl font-bold">Состав комплекта</h2>
+          {prepared.priced_components.map((part) => (
+            <div key={part.product_id} className="flex flex-wrap justify-between gap-3 text-sm">
+              <span>{part.name} (SKU: {part.sku}) × {part.quantity}</span>
+              <strong>{part.total.toLocaleString('ru-RU')} ₽</strong>
+            </div>
+          ))}
+          <p className="font-semibold">Стоимость компонентов: {prepared.subtotal.toLocaleString('ru-RU')} ₽</p>
+          <p className="text-xs text-gray-500">Состав и остатки всех SKU проверяются повторно на выбранном складе перед оплатой.</p>
+        </section>
+      )}
       <section className="border rounded-2xl p-6 space-y-4"><h2 className="text-xl font-bold">Контактные данные</h2>
         {(['name', 'phone', 'email'] as const).map((key) => <label key={key} className="block">{{ name: 'Имя', phone: 'Телефон', email: 'Email' }[key]}<input required type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'} value={contact[key]} onChange={(e) => setContact({ ...contact, [key]: e.target.value })} className={field} /></label>)}
       </section>

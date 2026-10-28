@@ -97,13 +97,19 @@ class OrderController extends Controller
             $directCheckout = $request->exists('items');
             if ($directCheckout) {
                 $request->validate([
-                    'items' => 'required|array|size:1',
+                    'items' => 'required|array|min:1|max:30',
+                    'bundle_id' => 'sometimes|integer',
+                    'primary_sku_id' => 'nullable|integer',
+                    'bundle_quantity' => 'required_with:bundle_id|integer|min:1|max:1000',
                     'items.*.product_id' => 'required|integer',
                     'items.*.variant_id' => 'nullable|integer',
                     'items.*.quantity' => 'required|integer|min:1|max:1000',
                     'accept_offer' => 'required|accepted',
                     'accept_personal_data' => 'required|accepted',
                 ]);
+            }
+            if ($directCheckout && ! $request->filled('bundle_id') && count($request->input('items', [])) !== 1) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['items' => 'Отдельно можно оформить только один товар.']);
             }
             if (! $directCheckout && Cart::isEmpty()) {
                 return response()->json([
@@ -203,6 +209,15 @@ class OrderController extends Controller
                 throw \Illuminate\Validation\ValidationException::withMessages(['store_id' => 'Магазин выбирается только для самовывоза.']);
             }
 
+            $bundleComposition = null;
+            if ($directCheckout && $request->filled('bundle_id')) {
+                $bundleComposition = app(\App\Services\Product\SellableBundle::class)->composition(
+                    (int) $request->input('bundle_id'),
+                    $request->filled('primary_sku_id') ? (int) $request->input('primary_sku_id') : null,
+                    (int) $request->input('bundle_quantity')
+                );
+                app(\App\Services\Product\SellableBundle::class)->assertMatches($bundleComposition, $request->input('items'));
+            }
             $cartItems = $directCheckout
                 ? app(\App\Services\Order\DirectCheckout::class)->items($request->input('items'))
                 : Cart::getItems();
@@ -212,6 +227,14 @@ class OrderController extends Controller
                 }
                 $warehouseQuote = ['selected' => app(\App\Services\Shipping\WarehousePickup::class)->select((int) $validated['warehouse_id'],
                     isset($validated['store_id']) ? (int) $validated['store_id'] : null, app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems))];
+            }
+            if ($bundleComposition === null) {
+                foreach ($cartItems as $line) {
+                    $sku = $line->buyable ?? Product::findOrFail($line->product_id);
+                    if ($sku->is_sellable_bundle || $sku->parentProduct?->is_sellable_bundle) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['items' => 'Комплект необходимо оформить целиком.']);
+                    }
+                }
             }
             $subtotal = 0;
 
@@ -343,8 +366,24 @@ class OrderController extends Controller
 
             DB::beginTransaction();
             try {
+                if ($bundleComposition !== null) {
+                    $lockedComposition = app(\App\Services\Product\SellableBundle::class)->composition(
+                        $bundleComposition['bundle_id'], $bundleComposition['primary_sku_id'], $bundleComposition['bundle_quantity']
+                    );
+                    app(\App\Services\Product\SellableBundle::class)->assertMatches($lockedComposition, $bundleComposition['items']);
+                }
+                $bundleSnapshot = $bundleComposition === null ? null : [
+                    'bundle_id' => $bundleComposition['bundle_id'],
+                    'primary_sku_id' => $bundleComposition['primary_sku_id'],
+                    'bundle_quantity' => $bundleComposition['bundle_quantity'],
+                    'components' => collect($bundleComposition['components'])->map(function (array $component) use ($pricedItems, $bundleComposition): array {
+                        $priced = collect($pricedItems)->firstWhere('product_id', $component['product_id']);
+                        return [...$component, 'unit_price' => $priced['price'], 'quantity' => $component['quantity_per_bundle'] * ($bundleComposition['bundle_quantity'] ?? 1)];
+                    })->all(),
+                ];
                 $order = Order::create([
                     'user_id' => $user?->id,
+                    'bundle_snapshot' => $bundleSnapshot,
                     'guest_checkout' => $guestCheckout,
                     'status' => $initialStatus->value,
                     'cooling_until' => now()->addMinutes(60),
@@ -396,7 +435,12 @@ class OrderController extends Controller
                 OrderItem::create([
                     'order_id' => $order->id, 'product_id' => $product->id,
                     'quantity' => $line['quantity'], 'price' => $price, 'total' => $lineTotal,
-                    'pricing_snapshot' => $line['pricing_snapshot'],
+                    'pricing_snapshot' => $bundleComposition !== null
+                        ? [...$line['pricing_snapshot'], 'bundle' => [
+                            'bundle_id' => $bundleComposition['bundle_id'],
+                            'primary_sku_id' => $bundleComposition['primary_sku_id'],
+                            'bundle_quantity' => $bundleComposition['bundle_quantity'],
+                        ]] : $line['pricing_snapshot'],
                 ]);
                 $calculatedSubtotal += $lineTotal;
             }
