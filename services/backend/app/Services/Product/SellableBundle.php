@@ -67,6 +67,9 @@ class SellableBundle
         if ($parts->isEmpty()) {
             throw ValidationException::withMessages(['bundle_id' => 'У комплекта не задан состав.']);
         }
+        if ($parts->count() > 29) {
+            throw ValidationException::withMessages(['bundle_id' => 'В комплекте допускается не более 29 дополнительных SKU.']);
+        }
         foreach ($parts as $sku) {
             if (! $this->componentIsSellable($sku, $root)) {
                 throw ValidationException::withMessages(['bundle_id' => 'Компонент комплекта неактивен или не имеет конкретного SKU.']);

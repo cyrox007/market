@@ -86,6 +86,9 @@ class SellableBundleComponentsRelationManager extends RelationManager
                         if ($owner->sellableBundleComponents()->where('products.id', $sku->id)->exists()) {
                             throw ValidationException::withMessages(['component_product_id' => 'SKU уже есть в составе.']);
                         }
+                        if ($owner->sellableBundleComponents()->count() >= 29) {
+                            throw ValidationException::withMessages(['component_product_id' => 'Не более 29 дополнительных SKU на комплект.']);
+                        }
                         $owner->sellableBundleComponents()->attach($sku->id, [
                             'quantity' => (int) $data['quantity'],
                             'sort_order' => (int) $data['sort_order'],
