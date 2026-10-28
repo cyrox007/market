@@ -261,7 +261,10 @@ class OrderController extends Controller
             if ($directoryDelivery) {
                 $quotes = app(\App\Services\Shipping\WarehouseDeliveryQuote::class);
                 try {
-                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, ['_cart_subtotal' => $subtotal]));
+                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, [
+                        '_cart_subtotal' => $subtotal,
+                        'allow_multi_warehouse' => $bundleComposition !== null,
+                    ]));
                 } catch (\RuntimeException $error) {
                     report($error);
                     return response()->json(['message' => 'Не удалось проверить адрес и тариф доставки. Повторите позже.'], 503);

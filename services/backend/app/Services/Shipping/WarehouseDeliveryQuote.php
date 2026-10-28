@@ -137,6 +137,13 @@ class WarehouseDeliveryQuote
                 break; // The first eligible profile by configured priority wins within a warehouse.
             }
         }
+        // Multi-source delivery is opt-in for complete bundle checkout, and
+        // only considered when no single warehouse can deliver the entire kit.
+        if (! $options && ! empty($selection['allow_multi_warehouse'])) {
+            $options = app(MultiWarehouseBundleDelivery::class)->options(
+                $warehouses, $quantities, $destination, $point, (float) $amount, $selection
+            );
+        }
         $options = collect($options)->sortBy([['total_fulfillment_cost', 'asc'], ['delivery_days_max', 'asc'], ['warehouse_id', 'asc']])->values()->all();
         if (! $options && isset($serviceErrors)) {
             throw $serviceErrors;
@@ -154,7 +161,7 @@ class WarehouseDeliveryQuote
             'address' => $address, 'selected' => $selected, 'options' => $options,
             'estimate' => ($snapshot['target']['kind'] ?? null) !== 'building',
             'pickup' => app(WarehousePickup::class)->options($lines, $point),
-            'reason' => $options ? null : 'Нет склада, который обеспечивает всю корзину и доставляет по этому адресу. Проверьте покрытие и координаты для радиусного тарифа.',
+            'reason' => $options ? null : 'Нет подходящего склада или допустимого распределения компонентов между складами с доставкой по этому адресу.',
         ];
     }
 }
