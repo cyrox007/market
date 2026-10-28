@@ -231,7 +231,8 @@ class OrderController extends Controller
             if ($bundleComposition === null) {
                 foreach ($cartItems as $line) {
                     $sku = $line->buyable ?? Product::findOrFail($line->product_id);
-                    if ($sku->is_sellable_bundle || $sku->parentProduct?->is_sellable_bundle) {
+                    if (($sku->is_sellable_bundle || $sku->parentProduct?->is_sellable_bundle)
+                        && ! isset(($line->configuration ?? [])['bundle_composition'])) {
                         throw \Illuminate\Validation\ValidationException::withMessages(['items' => 'Комплект необходимо оформить целиком.']);
                     }
                 }

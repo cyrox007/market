@@ -185,6 +185,24 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $this->assertNull($quote['selected']);
     }
 
+    public function test_simple_and_variable_bundles_can_share_one_cart_and_one_component(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $simple = Product::factory()->create(['price' => 2000, 'is_sellable_bundle' => true, 'is_variable' => false]);
+        $simple->sellableBundleComponents()->attach($top->id, ['quantity' => 1, 'sort_order' => 0]);
+        $central = $this->warehouse($sku, 5, 100, 'Central');
+        $central->productStocks()->create(['product_id' => $top->id, 'quantity' => 5]);
+        $central->productStocks()->create(['product_id' => $simple->id, 'quantity' => 5]);
+        $this->postJson('/api/v1/cart', ['product_id' => $offer->id, 'quantity' => 1])->assertCreated();
+        $this->postJson('/api/v1/cart', ['product_id' => $simple->id, 'quantity' => 1])->assertCreated();
+        $response = $this->postJson('/api/v1/orders', $this->paymentAndContact() + ['expected_subtotal' => 4000])->assertCreated();
+        $order = Order::findOrFail($response->json('order.id'));
+        $this->assertEquals(4000, $order->subtotal);
+        $this->assertCount(2, $order->bundle_snapshot['bundles']);
+        $this->assertEquals(2, $order->items()->where('product_id', $top->id)->sum('quantity'));
+        $this->assertFalse($order->items()->where('product_id', $offer->id)->exists());
+    }
+
     public function test_multisource_services_are_priced_for_every_shipment(): void
     {
         [$root, $offer, $sku, $top] = $this->kit();
