@@ -19,6 +19,13 @@ class SellableBundleComponentsRelationManager extends RelationManager
     protected static ?string $title = 'Состав продаваемого комплекта (конкретные SKU)';
     protected static ?string $recordTitleAttribute = 'name';
 
+    // For variable kits, component SKUs are configured on every offer (not the root).
+    public static function canViewForRecord($ownerRecord, string $pageClass): bool
+    {
+        return ! $ownerRecord->isVariant() && ! $ownerRecord->isVariable()
+            && parent::canViewForRecord($ownerRecord, $pageClass);
+    }
+
     public function table(Table $table): Table
     {
         return $table

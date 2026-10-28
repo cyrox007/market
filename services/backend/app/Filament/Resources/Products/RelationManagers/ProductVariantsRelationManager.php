@@ -613,6 +613,67 @@ class ProductVariantsRelationManager extends RelationManager
                     }),
             ])
             ->actions([
+                Action::make('editKitComposition')
+                    ->label('Состав комплекта')
+                    ->icon('heroicon-o-cube')
+                    ->color('info')
+                    ->visible(fn (): bool => $this->getOwnerRecord()->sellableBundleGroups()->exists())
+                    ->modalHeading(fn (Product $record): string => 'Комплект: '.$record->name)
+                    ->modalDescription('Каждая группа — ровно один конкретный SKU. Это предложение комплекта не резервируется и не уходит в 1С как отдельная номенклатура.')
+                    ->form(function (Product $record): array {
+                        $root = $this->getOwnerRecord();
+                        $controls = [];
+                        foreach ($root->sellableBundleGroups as $group) {
+                            $controls[] = Section::make($group->name)
+                                ->schema([
+                                    Select::make('sku_'.$group->id)
+                                        ->label('Торговое предложение / SKU')
+                                        ->searchable()
+                                        ->required()
+                                        ->getSearchResultsUsing(function (string $search) use ($group, $root): array {
+                                            return Product::active()->with('parentProduct')
+                                                ->where(fn ($q) => $q->where('parent_product_id', $group->id)
+                                                    ->orWhere('id', $group->id))
+                                                ->where(fn ($q) => $q->where('name', 'like', '%'.$search.'%')
+                                                    ->orWhere('sku', 'like', '%'.$search.'%'))
+                                                ->limit(50)->get()
+                                                ->filter(fn (Product $sku) => app(\App\Services\Product\SellableBundle::class)
+                                                    ->componentIsSellable($sku, $root))
+                                                ->mapWithKeys(fn (Product $sku): array => [
+                                                    $sku->id => $sku->name.' ('.$sku->sku.')',
+                                                ])->all();
+                                        })
+                                        ->getOptionLabelUsing(fn ($value): ?string => ($sku = Product::find($value))
+                                            ? $sku->name.' ('.$sku->sku.')' : null),
+                                    TextInput::make('qty_'.$group->id)
+                                        ->label('Количество')
+                                        ->integer()->minValue(1)->maxValue(1000)->required(),
+                                ])->columns(2);
+                        }
+                        return $controls;
+                    })
+                    ->fillForm(function (Product $record): array {
+                        $values = [];
+                        foreach ($this->getOwnerRecord()->sellableBundleGroups as $group) {
+                            $component = $record->sellableBundleComponents()->get()
+                                ->first(fn (Product $sku): bool => (int) ($sku->parent_product_id ?: $sku->id) === (int) $group->id);
+                            $values['sku_'.$group->id] = $component?->id;
+                            $values['qty_'.$group->id] = (int) ($component?->pivot?->quantity ?? 1);
+                        }
+                        return $values;
+                    })
+                    ->action(function (Product $record, array $data): void {
+                        $rows = [];
+                        foreach ($this->getOwnerRecord()->sellableBundleGroups as $group) {
+                            $rows[] = [
+                                'group_id' => (int) $group->id,
+                                'product_id' => $data['sku_'.$group->id] ?? null,
+                                'quantity' => $data['qty_'.$group->id] ?? null,
+                            ];
+                        }
+                        app(\App\Services\Product\SellableBundle::class)->saveOfferComposition($record, $rows);
+                        Notification::make()->title('Состав предложения сохранён')->success()->send();
+                    }),
                 EditAction::make()
                     ->label('Изменить')
                     ->modalHeading('Редактирование торгового предложения')
