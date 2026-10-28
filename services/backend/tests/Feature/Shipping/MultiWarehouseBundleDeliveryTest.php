@@ -203,6 +203,28 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $this->assertFalse($order->items()->where('product_id', $offer->id)->exists());
     }
 
+    public function test_preorder_bundle_can_be_picked_up_after_arrival_without_fake_reservation(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $central = $this->warehouse($sku, 2, 100, 'Central');
+        $central->update(['pickup_enabled' => true, 'address' => 'Test pickup address']);
+        $central->productStocks()->create(['product_id' => $top->id, 'quantity' => 0]);
+        $top->update(['backorder' => true]);
+        $body = $this->paymentAndContact();
+        unset($body['directory_external_id']);
+        $response = $this->postJson('/api/v1/orders', array_replace($body, [
+            'delivery_type' => 'pickup', 'warehouse_id' => $central->id,
+            'bundle_id' => $root->id, 'primary_sku_id' => $offer->id, 'bundle_quantity' => 1,
+            'items' => app(SellableBundle::class)->composition($root->id, $offer->id)['items'],
+            'expected_subtotal' => 1500,
+        ]))->assertCreated();
+        $order = Order::findOrFail($response->json('order.id'));
+        $this->assertTrue($order->fulfillment_snapshot['has_preorders']);
+        $this->assertNull($order->fulfillment_snapshot['ready']['date_min']);
+        $this->assertEquals(0, $central->productStocks()->where('product_id', $top->id)->value('reserved_quantity'));
+        $this->assertEquals(0, $order->delivery_cost);
+    }
+
     public function test_multisource_services_are_priced_for_every_shipment(): void
     {
         [$root, $offer, $sku, $top] = $this->kit();
