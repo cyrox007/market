@@ -25,7 +25,7 @@ class ProductAttributeSyncService
             $delete->delete();
 
             $insert = [];
-            foreach ($rows as $row) {
+            foreach (array_values($rows) as $position => $row) {
                 $attributeId = isset($row['attribute_id']) ? (int) $row['attribute_id'] : 0;
                 if ($attributeId <= 0) {
                     continue;
@@ -58,7 +58,7 @@ class ProductAttributeSyncService
                         ->all();
 
                     foreach ($validValueIds as $valueId) {
-                        $insert[] = $this->row($product->id, $attributeId, $valueId, null);
+                        $insert[] = $this->row($product->id, $attributeId, $valueId, null, $position);
                     }
 
                     if (! $attribute->is_multiple) {
@@ -68,7 +68,7 @@ class ProductAttributeSyncService
 
                 $customValue = trim((string) ($row['custom_value'] ?? ''));
                 if ($customValue !== '' && $attribute->allow_custom_value) {
-                    $insert[] = $this->row($product->id, $attributeId, null, $customValue);
+                    $insert[] = $this->row($product->id, $attributeId, null, $customValue, $position);
                 }
             }
 
@@ -87,13 +87,14 @@ class ProductAttributeSyncService
     /**
      * @return array<string, mixed>
      */
-    private function row(int $productId, int $attributeId, ?int $attributeValueId, ?string $customValue): array
+    private function row(int $productId, int $attributeId, ?int $attributeValueId, ?string $customValue, int $position): array
     {
         return [
             'product_id' => $productId,
             'attribute_id' => $attributeId,
             'attribute_value_id' => $attributeValueId,
             'custom_value' => $customValue,
+            'sort_order' => $position,
             'created_at' => now(),
             'updated_at' => now(),
         ];

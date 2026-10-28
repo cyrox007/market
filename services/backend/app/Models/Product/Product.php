@@ -227,7 +227,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             'product_product_attributes',
             'product_id',
             'attribute_id'
-        )->withPivot('attribute_value_id', 'custom_value')->withTimestamps();
+        )->withPivot('attribute_value_id', 'custom_value', 'sort_order')->withTimestamps()
+            ->orderBy('product_product_attributes.sort_order')
+            ->orderBy('product_product_attributes.id');
     }
 
     /**

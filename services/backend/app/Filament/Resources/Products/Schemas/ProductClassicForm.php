@@ -206,6 +206,7 @@ class ProductClassicForm extends ProductForm
             ->headerActions([self::applyAttributeTemplateAction()])
             ->schema([
                 Repeater::make('product_attributes')
+                    ->reorderable()
                     ->label('Характеристики')
                     ->extraAttributes(['class' => 'product-attributes-table'])
                     ->table([

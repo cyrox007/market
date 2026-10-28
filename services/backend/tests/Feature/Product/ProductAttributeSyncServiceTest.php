@@ -14,6 +14,30 @@ class ProductAttributeSyncServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_row_order_survives_reload_and_variant_overrides_keep_parent_position(): void
+    {
+        $first = Attribute::create(['name' => 'First', 'slug' => 'first', 'type' => 'text', 'allow_custom_value' => true]);
+        $second = Attribute::create(['name' => 'Second', 'slug' => 'second', 'type' => 'text', 'allow_custom_value' => true]);
+        $parent = Product::factory()->create(['is_variable' => true]);
+        $variant = Product::factory()->create(['parent_product_id' => $parent->id]);
+        $sync = app(ProductAttributeSyncService::class);
+        $sync->sync($parent, [
+            ['attribute_id' => $second->id, 'custom_value' => 'B'],
+            ['attribute_id' => $first->id, 'custom_value' => 'A'],
+        ]);
+        $this->assertSame([$second->id, $first->id], $parent->fresh()->attributes->pluck('id')->all());
+        $this->assertSame(['second', 'first'], array_column($parent->fresh()->buildSpecificationsForApi(), 'slug'));
+        $sync->sync($variant, [['attribute_id' => $first->id, 'custom_value' => 'Override']]);
+        $specs = $variant->fresh()->buildEffectiveSpecificationsForApi();
+        $this->assertSame(['second', 'first'], array_column($specs, 'slug'));
+        $this->assertSame('Override', $specs[1]['value']);
+        $sync->sync($parent, [
+            ['attribute_id' => $first->id, 'custom_value' => 'A'],
+            ['attribute_id' => $second->id, 'custom_value' => 'B'],
+        ]);
+        $this->assertSame(['first', 'second'], array_column($parent->fresh()->buildSpecificationsForApi(), 'slug'));
+    }
+
     public function test_it_persists_predefined_multiple_and_custom_values_and_rejects_foreign_values(): void
     {
         $material = Attribute::create([
