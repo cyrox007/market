@@ -1,5 +1,5 @@
 @if(filled($customBody))
-{!! $customBody !!}
+{!! \App\Services\Mail\MailTemplateContent::plainText((string) $customBody) !!}
 @else
 Ваш заказ № {{ $order->number }} создан.
 Сумма заказа: {{ number_format((float) $order->total, 2, ',', ' ') }} ₽.

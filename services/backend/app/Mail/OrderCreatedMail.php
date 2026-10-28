@@ -39,6 +39,7 @@ class OrderCreatedMail extends Mailable
     public function content(): Content
     {
         return new Content(
+            view: 'mail.order-created-html',
             text: 'mail.order-created',
             with: [
                 'order' => $this->order,
