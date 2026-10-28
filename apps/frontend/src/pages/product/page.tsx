@@ -1786,8 +1786,25 @@ export default function Product() {
         </div>
 
         <div className="space-y-16">
-          {/* Набор / комплект (/bundle) — выше сопутствующих */}
-          {bundleProducts.length > 0 && (
+          {/* Продаваемый состав — только конкретные SKU, не редакторская подборка */}
+          {product.is_sellable_bundle && (
+            <section id="product-bundle" className="mb-10 scroll-mt-20 rounded-2xl border p-6">
+              <h2 className="text-2xl font-bold mb-4">Что входит в комплект</h2>
+              <p className="mb-3 text-sm text-gray-600">
+                Основной товар: {product.name}, 1 шт. {selectedVariant ? '(выбранное торговое предложение)' : ''}
+              </p>
+              {(product.sellable_bundle_components || []).map((component) => (
+                <p key={component.id} className="py-2 border-b text-sm">
+                  {component.name} · SKU {component.sku} × {component.quantity} шт.
+                </p>
+              ))}
+              <p className="mt-4 text-sm text-gray-600">
+                Все позиции проверяются по остаткам одного склада и оформляются одним заказом.
+              </p>
+            </section>
+          )}
+          {/* Редакторская подборка не является продаваемым комплектом */}
+          {!product.is_sellable_bundle && bundleProducts.length > 0 && (
             <div id="product-bundle" className="scroll-mt-20">
               <ProductBundleSection products={bundleProducts} />
             </div>

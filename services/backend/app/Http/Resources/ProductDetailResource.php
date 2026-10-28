@@ -467,6 +467,13 @@ class ProductDetailResource extends JsonResource
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
             'is_sellable_bundle' => (bool) $sourceProduct->is_sellable_bundle,
+            'sellable_bundle_components' => $sourceProduct->is_sellable_bundle
+                ? $sourceProduct->sellableBundleComponents()->get()
+                    ->map(fn (Product $sku): array => [
+                        'id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
+                        'quantity' => (int) $sku->pivot->quantity,
+                    ])->all()
+                : [],
             'parent_id' => $this->when($isVariant, $this->parent_product_id),
             'variants' => $variants, // ВАЖНО: Все вариации для сравнения на фронтенде
             'category' => $this->when(

@@ -610,6 +610,7 @@ export interface Product extends WarehouseStockInfo {
   is_variable?: boolean;
   is_variant?: boolean;
   is_sellable_bundle?: boolean;
+  sellable_bundle_components?: Array<{ id: number; sku: string; name: string; quantity: number }>;
   first_available_variant_id?: number | null;
   variation_attributes?: VariationAttributeOption[];
   colors?: ColorOption[];
