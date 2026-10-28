@@ -141,6 +141,72 @@ class SellableBundleCheckoutTest extends TestCase
         $this->assertSame([], $response->json('product.sellable_bundle_components'));
     }
 
+    public function test_chosen_color_reserves_only_its_parts_and_sends_them_to_1c(): void
+    {
+        Queue::fake();
+        Http::fake(function ($request) {
+            $region = ['kind' => 'region', 'externalId' => 'region48', 'name' => 'Липецкая область'];
+            return Http::response([
+                'target' => str_ends_with($request->url(), '/region48') ? $region
+                    : ['kind' => 'building', 'externalId' => 'house', 'name' => '1'],
+                'path' => [$region, ['kind' => 'locality', 'externalId' => 'lipetsk', 'name' => 'Липецк']],
+                'label' => 'Липецк, тестовый дом 1',
+            ]);
+        });
+        [$kit, , , $offers] = $this->variableKit();
+        [$virtual, $wardrobe, $mezz] = $offers['white'];
+
+        $warehouse = Warehouse::create(['name' => 'Main', 'is_active' => true]);
+        $warehouse->productStocks()->create(['product_id' => $wardrobe->id, 'quantity' => 2]);
+        $warehouse->productStocks()->create(['product_id' => $mezz->id, 'quantity' => 3]);
+        $warehouse->deliveryProfiles()->create([
+            'name' => 'Доставка', 'coverage_type' => 'locations',
+            'directory_territories' => [['region_id' => 'region48']],
+            'base_price' => 500, 'service_tariffs' => [],
+        ]);
+        PaymentMethod::create(['name' => 'Наличные', 'code' => 'cash',
+            'gateway' => 'manual', 'is_active' => true, 'is_enabled' => true]);
+        $body = [
+            'bundle_id' => $kit->id, 'primary_sku_id' => $virtual->id, 'bundle_quantity' => 1,
+            'items' => [
+                ['product_id' => $wardrobe->id, 'quantity' => 1],
+                ['product_id' => $mezz->id, 'quantity' => 1],
+            ],
+            'expected_subtotal' => 2200,
+            'directory_external_id' => 'house', 'delivery_type' => 'delivery',
+            'warehouse_id' => $warehouse->id, 'payment_method' => 'cash',
+            'contact_name' => 'Покупатель', 'contact_phone' => '+79001234567',
+            'contact_email' => 'kit-white@example.test',
+            'accept_offer' => true, 'accept_personal_data' => true,
+        ];
+        $created = $this->withHeader('Idempotency-Key', 'variant-kit-white')
+            ->postJson('/api/v1/orders', $body)->assertCreated();
+
+        $order = Order::findOrFail($created->json('order.id'));
+        $this->assertSame([$wardrobe->id, $mezz->id], $order->items->pluck('product_id')->all());
+        $this->assertNotContains($virtual->id, $order->items->pluck('product_id')->all());
+        $this->assertSame($virtual->id, $order->bundle_snapshot['primary_sku_id']);
+        $this->assertSame($kit->id, $order->bundle_snapshot['bundle_id']);
+        $this->assertSame('WARD-white', $order->bundle_snapshot['components'][0]['sku']);
+        $this->assertSame('MEZZ-white', $order->bundle_snapshot['components'][1]['sku']);
+        $this->assertEquals(2200, $order->subtotal);
+        $this->assertEquals(1, $warehouse->productStocks()->where('product_id', $wardrobe->id)->first()->reserved_quantity);
+        $this->assertEquals(1, $warehouse->productStocks()->where('product_id', $mezz->id)->first()->reserved_quantity);
+
+        $payload = app(BuildOrderSyncPayloadAction::class)->execute($order);
+        $this->assertCount(2, $payload['products']);
+        $this->assertSame(['1c-ward-white'], $payload['products'][0]['modifications']);
+        $this->assertSame(['1c-mezz-white'], $payload['products'][1]['modifications']);
+
+        // Changing this offer's mapping later does not alter ordered SKUs.
+        $virtual->sellableBundleComponents()->updateExistingPivot($mezz->id, ['quantity' => 2]);
+        $this->assertSame(1, $order->fresh()->bundle_snapshot['components'][1]['quantity']);
+        $this->withHeader('X-Order-Token', $created->json('guest_order_token'))
+            ->postJson('/api/v1/order-access/'.$order->id.'/cancel')->assertOk();
+        $this->assertEquals(0, $warehouse->productStocks()->where('product_id', $wardrobe->id)->first()->reserved_quantity);
+        $this->assertEquals(0, $warehouse->productStocks()->where('product_id', $mezz->id)->first()->reserved_quantity);
+    }
+
     public function test_inactive_or_ambiguous_components_block_checkout(): void
     {
         [$root, , $extra] = $this->kit();
