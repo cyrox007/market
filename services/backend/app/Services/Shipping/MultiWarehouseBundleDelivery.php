@@ -63,14 +63,16 @@ class MultiWarehouseBundleDelivery
             $availabilities = $warehouse->productAvailabilities->keyBy('product_id');
             foreach ($quantities as $id => $count) {
                 if ($warehouse->stock_mode === 'availability') {
-                    if (! ($availabilities[$id]->available_to_order ?? false)
-                        && ! in_array((int) $id, $backorderIds, true)) {
+                    if (! isset($availabilities[$id])
+                        || (! $availabilities[$id]->available_to_order
+                            && ! in_array((int) $id, $backorderIds, true))) {
                         continue;
                     }
                 } elseif ($warehouse->stock_mode === 'quantity') {
                     // The caller has already reduced quantity to free stock.
-                    if (($stocks[$id]->quantity ?? 0) < 1
-                        && ! in_array((int) $id, $backorderIds, true)) {
+                    if (! isset($stocks[$id])
+                        || ($stocks[$id]->quantity < 1
+                            && ! in_array((int) $id, $backorderIds, true))) {
                         continue;
                     }
                 } else {

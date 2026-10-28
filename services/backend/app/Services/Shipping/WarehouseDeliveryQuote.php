@@ -93,7 +93,7 @@ class WarehouseDeliveryQuote
             foreach ($quantities as $id => $quantity) {
                 if ($warehouse->stock_mode === 'availability') {
                     if (! ($availability[$id]->available_to_order ?? false)) {
-                        if (! in_array((int) $id, $backorderIds, true)) {
+                        if (! isset($availability[$id]) || ! in_array((int) $id, $backorderIds, true)) {
                             continue 2;
                         }
                         $backordered[] = ['product_id' => (int) $id, 'quantity' => $quantity];
@@ -101,7 +101,7 @@ class WarehouseDeliveryQuote
                     $preparationMin = max($preparationMin, (int) ($availability[$id]->processing_days_min ?? 0));
                     $preparationMax = max($preparationMax, (int) ($availability[$id]->processing_days_max ?? 0));
                 } elseif (($stocks[$id]->quantity ?? 0) < $quantity) {
-                    if (! in_array((int) $id, $backorderIds, true)) {
+                    if (! isset($stocks[$id]) || ! in_array((int) $id, $backorderIds, true)) {
                         continue 2;
                     }
                     $backordered[] = ['product_id' => (int) $id, 'quantity' => $quantity];

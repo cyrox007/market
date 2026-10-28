@@ -270,7 +270,10 @@ class SellableBundle
             // 1 is a catalogue orderability signal, not a fictitious physical unit.
             $availableSets = min($availableSets, max(
                 $bestForSku, (int) floor($freeUnits / $unitsPerSet),
-                $backorderIds->has((int) $skuId) && $warehouses->isNotEmpty() ? 1 : 0
+                $backorderIds->has((int) $skuId)
+                    && $warehouses->contains(fn ($w): bool =>
+                        $w->productStocks->contains('product_id', $skuId)
+                        || $w->productAvailabilities->contains('product_id', $skuId)) ? 1 : 0
             ));
             if ($availableSets === 0) {
                 return 0;
@@ -296,7 +299,7 @@ class SellableBundle
             if ($warehouse->stock_mode === 'availability') {
                 $available = $warehouse->productAvailabilities->keyBy('product_id');
                 if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false)
-                    || $backorderIds->has((int) $id))) {
+                    || ($backorderIds->has((int) $id) && isset($available[$id])))) {
                     $best = max($best, 1);
                 }
                 continue;
@@ -307,11 +310,11 @@ class SellableBundle
             $stocks = $warehouse->productStocks->keyBy('product_id');
             $sets = PHP_INT_MAX;
             foreach ($units as $id => $qty) {
-                if ($backorderIds->has((int) $id)) {
+                $stock = $stocks->get($id);
+                if ($backorderIds->has((int) $id) && $stock) {
                     // No finite inventory bound for an explicitly preordered SKU.
                     continue;
                 }
-                $stock = $stocks->get($id);
                 if (! $stock) {
                     $sets = 0;
                     break;
