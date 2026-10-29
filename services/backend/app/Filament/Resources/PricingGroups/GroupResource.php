@@ -17,6 +17,8 @@ abstract class GroupResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
+    protected static ?int $navigationSort = 80;
+
     public static function form(Schema $schema): Schema
     {
         $customers = static::getModel() === \App\Models\Pricing\PricingCustomerGroup::class;

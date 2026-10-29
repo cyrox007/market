@@ -25,7 +25,7 @@ class MailTemplateResource extends Resource
     protected static ?string $pluralModelLabel = 'Шаблоны писем';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
     protected static string|UnitEnum|null $navigationGroup = 'Настройки';
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 40;
 
     public static function form(Schema $schema): Schema
     {

@@ -37,6 +37,8 @@ class PricingRuleResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
+    protected static ?int $navigationSort = 70;
+
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-tag';
 
     public static function selector(string $field, string $label, string $model): Select

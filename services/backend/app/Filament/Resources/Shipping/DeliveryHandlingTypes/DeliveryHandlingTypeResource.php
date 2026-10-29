@@ -31,6 +31,8 @@ class DeliveryHandlingTypeResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Доставка';
 
+    protected static ?int $navigationSort = 20;
+
     public static function form(Schema $schema): Schema
     {
         return DeliveryHandlingTypeForm::configure($schema);

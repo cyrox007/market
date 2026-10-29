@@ -29,7 +29,7 @@ class RoomResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 20;
 
     public static function form(Schema $schema): Schema
     {

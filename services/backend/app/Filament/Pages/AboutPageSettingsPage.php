@@ -32,7 +32,7 @@ class AboutPageSettingsPage extends Page implements HasForms
 
     protected static string|UnitEnum|null $navigationGroup = 'Контент';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 40;
 
     public ?array $data = [];
 

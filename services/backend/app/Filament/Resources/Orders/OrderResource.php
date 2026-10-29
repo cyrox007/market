@@ -33,7 +33,7 @@ class OrderResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Заказы';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 10;
 
     public static function canCreate(): bool
     {
