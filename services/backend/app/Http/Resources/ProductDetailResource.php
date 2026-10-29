@@ -164,6 +164,7 @@ class ProductDetailResource extends JsonResource
                                 'slug' => $va['value_slug'] ?? null,
                                 'name' => $va['value_name'] ?? $va['value_slug'] ?? null,
                                 'code' => $va['code'] ?? null,
+                                'image' => $va['image'] ?? null,
                             ]);
                         }
                     }
@@ -533,15 +534,14 @@ class ProductDetailResource extends JsonResource
             'is_variable' => $isVariable,
             'is_variant' => $isVariant,
             'is_sellable_bundle' => (bool) $sourceProduct->is_sellable_bundle,
+            'is_bundle_configured' => ! $sourceProduct->is_sellable_bundle ? null
+                : ($simpleKit ? isset($simpleQuote) : ($kitCurrentVariant['is_bundle_configured'] ?? collect($variants)->contains('is_bundle_configured', true))),
+            'units_sold' => (int) ($this->units_sold ?? 0),
             // A variable root has no physical components. Every selected offer owns them.
             'sellable_bundle_components' => $sourceProduct->is_sellable_bundle
                 ? ($sourceProduct->isVariable()
                     ? ($kitCurrentVariant['bundle_components'] ?? [])
-                    : $sourceProduct->sellableBundleComponents()->get()
-                        ->map(fn (Product $sku): array => [
-                            'id' => $sku->id, 'sku' => $sku->sku, 'name' => $sku->name,
-                            'quantity' => (int) $sku->pivot->quantity,
-                        ])->all())
+                    : collect($simpleQuote['priced_components'] ?? [])->map(fn ($row) => ['id' => $row['product_id'], ...$row])->all())
                 : [],
             'parent_id' => $this->when($isVariant, $this->parent_product_id),
             'variants' => $variants, // ВАЖНО: Все вариации для сравнения на фронтенде

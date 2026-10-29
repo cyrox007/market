@@ -12,6 +12,25 @@ use Tests\TestCase;
 
 class ProductResourceVariationAttributesTest extends TestCase
 {
+    public function test_catalogue_list_exposes_saved_color_size_and_texture_preview(): void
+    {
+        $color = Attribute::create(['name' => 'Цвет', 'slug' => 'color', 'type' => 'color', 'is_use_in_variations' => true, 'is_filterable' => true]);
+        $value = AttributeValue::create(['attribute_id' => $color->id, 'value' => 'Дуб', 'slug' => 'oak', 'color_code' => '#aabbcc', 'image_path' => 'attribute-swatches/oak.webp']);
+        $size = Attribute::create(['name' => 'Размер', 'slug' => 'size', 'type' => 'select', 'is_use_in_variations' => true]);
+        $dimension = AttributeValue::create(['attribute_id' => $size->id, 'value' => '120', 'slug' => '120']);
+        $root = Product::factory()->create(['is_variable' => true]);
+        $sku = Product::factory()->create(['parent_product_id' => $root->id, 'units_sold' => 7]);
+        foreach ([[$color, $value], [$size, $dimension]] as [$attribute, $option]) {
+            $sku->attributes()->attach($attribute->id, ['attribute_value_id' => $option->id]);
+        }
+        $data = (new ProductResource($sku->fresh()))->toArray(Request::create('/api/v1/products', 'GET', ['_list_view' => true]));
+        $this->assertSame('Дуб', $data['default_color']['name']);
+        $this->assertSame('120', $data['default_size']['name']);
+        $this->assertSame(7, $data['units_sold']);
+        $this->assertStringEndsWith('/attribute-swatches/oak.webp', $data['colors'][0]['image']);
+        $this->assertSame($data['colors'][0]['image'], $data['default_color']['image']);
+    }
+
     public function test_resource_uses_canonical_variation_color_and_size_and_keeps_dimensions_as_specs(): void
     {
         $color = Attribute::create([

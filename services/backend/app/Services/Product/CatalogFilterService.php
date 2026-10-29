@@ -285,14 +285,14 @@ class CatalogFilterService
                 ->join('products as sku', 'sku.id', '=', 'facet.sku_id')
                 ->leftJoin('product_attribute_values as val', 'val.id', '=', 'facet.attribute_value_id')
                 ->whereIn('facet.sku_id', $skus)
-                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, COUNT(DISTINCT sku.id) as product_count')
-                ->groupBy('facet.attribute_value_id', 'facet.custom_value', 'val.value', 'val.slug', 'val.color_code')
+                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, val.image_path, COUNT(DISTINCT sku.id) as product_count')
+                ->groupBy('facet.attribute_value_id', 'facet.custom_value', 'val.value', 'val.slug', 'val.color_code', 'val.image_path')
                 ->get()->map(function ($v) {
                     $name = trim((string) ($v->value ?? $v->custom_value));
 
                     return ['id' => $v->attribute_value_id, 'name' => $name, 'value' => $name,
                         'slug' => $v->slug ?: (Str::slug($name) ?: 'value-'.substr(sha1(mb_strtolower($name)), 0, 12)),
-                        'code' => $v->color_code, 'count' => (int) $v->product_count];
+                        'code' => $v->color_code, 'image' => $v->image_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($v->image_path) : null, 'count' => (int) $v->product_count];
                 })->filter(fn ($v) => $v['name'] !== '')->sortBy('name')->values()->all();
             if ($attribute->slug === Attribute::SLUG_COLOR) {
                 $meta['colors'] = $values;

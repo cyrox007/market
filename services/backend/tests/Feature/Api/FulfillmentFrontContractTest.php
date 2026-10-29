@@ -223,6 +223,19 @@ class FulfillmentFrontContractTest extends TestCase
         $this->assertNull($text['text']);
     }
 
+    public function test_missing_delivery_profiles_do_not_claim_zero_delivery_cities(): void
+    {
+        $category = Category::factory()->create(['regional_text_template' => 'Доставляем в {delivery_cities_count} городов']);
+        $sku = Product::factory()->create();
+        $sku->taxons()->attach($category);
+        $warehouse = $this->warehouse($sku);
+        $warehouse->deliveryProfiles()->delete();
+        $text = app(\App\Services\Product\CategoryRegionalText::class)->render($category, \Illuminate\Http\Request::create('/'));
+        $this->assertNull($text['delivery_cities_count']);
+        $this->assertNull($text['text']);
+        $this->assertSame('delivery_not_configured', $text['count_source']);
+    }
+
     public function test_preparation_does_not_use_obsolete_lead_limits(): void
     {
         $sku = Product::factory()->create();

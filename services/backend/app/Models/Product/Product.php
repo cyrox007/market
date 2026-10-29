@@ -477,6 +477,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                 'value' => $value->value,
                 'slug' => $value->slug,
                 'color_code' => $value->color_code,
+                'image' => $value->image_url ?? null,
             ])->values()->all();
     }
 
@@ -796,6 +797,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                     'name' => $av->value,
                     'slug' => $av->slug,
                     'color_code' => $attribute->type === 'color' ? ($av->color_code ?? null) : null,
+                    'image_url' => $av->image_url,
                 ]);
             }
         }
@@ -897,7 +899,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         if (!$this->isVariant()) {
             return [];
         }
-        $this->loadMissing('attributes.values');
+        $this->loadMissing('attributes', 'attributeValues');
         $rows = $this->getRelation('attributes');
         $out = [];
         foreach ($rows as $attr) {
@@ -917,7 +919,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             if (empty($row->attribute_value_id)) {
                 continue;
             }
-            $av = $attr->values->firstWhere('id', $row->attribute_value_id);
+            $av = $this->getRelation('attributeValues')->firstWhere('id', $row->attribute_value_id);
             if (!$av) {
                 continue;
             }
@@ -926,6 +928,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                 'value_slug' => $av->slug,
                 'value_name' => $av->value,
                 'code' => $attr->type === 'color' ? ($av->color_code ?? null) : null,
+                'image' => $av->image_url,
             ];
         }
         return $out;

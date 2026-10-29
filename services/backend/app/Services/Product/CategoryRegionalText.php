@@ -39,11 +39,13 @@ class CategoryRegionalText
             ->with(['deliveryProfiles' => fn ($p) => $p->active()->whereNotNull('service_tariffs')])->get();
         $cities = [];
         $complete = true;
+        $hasProfiles = false;
         foreach ($warehouses as $warehouse) {
             foreach ($warehouse->deliveryProfiles as $profile) {
                 if (! empty($profile->constraints)) {
                     continue;
                 }
+                $hasProfiles = true;
                 if ($profile->coverage_type !== 'locations') {
                     $complete = false;
 
@@ -60,13 +62,13 @@ class CategoryRegionalText
                 }
             }
         }
-        $count = $complete ? count($cities) : null;
+        $count = $complete && $hasProfiles ? count($cities) : null;
         $needsCity = str_contains($template, '{city}');
         $needsCount = str_contains($template, '{delivery_cities_count}');
         $text = ($needsCity && ! $city) || ($needsCount && $count === null) ? null
             : strtr(strip_tags($template), ['{category_name}' => strip_tags($category->name), '{city}' => strip_tags($city['name'] ?? ''), '{delivery_cities_count}' => (string) $count]);
 
         return ['text' => $text, 'city' => $city['name'] ?? null, 'delivery_cities_count' => $count,
-            'count_source' => $complete ? 'active_stock_sources_explicit_localities' : 'unknown_for_region_or_radius_coverage'];
+            'count_source' => ! $hasProfiles ? 'delivery_not_configured' : ($complete ? 'active_stock_sources_explicit_localities' : 'unknown_for_region_or_radius_coverage')];
     }
 }

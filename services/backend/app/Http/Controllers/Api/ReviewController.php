@@ -30,14 +30,6 @@ class ReviewController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        \Log::info('Reviews fetched', [
-            'product_id' => $productId,
-            'is_variant' => $product->isVariant(),
-            'target_product_id' => $targetProductId,
-            'reviews_count' => $reviews->count(),
-            'reviews' => $reviews->map(fn($r) => ['id' => $r->id, 'name' => $r->name, 'is_approved' => $r->is_approved])->toArray(),
-        ]);
-
         // Возвращаем в формате { data: [...] } для консистентности с другими API
         return response()->json([
             'data' => ReviewResource::collection($reviews)->resolve(),
@@ -56,7 +48,7 @@ class ReviewController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'required|string|min:10|max:5000',
+            'comment' => 'required|string|min:25|max:1000',
         ]);
 
         // Если это вариация, используем ID родительского товара для отзыва
@@ -83,7 +75,6 @@ class ReviewController extends Controller
                 'requested_product_id' => $productId,
                 'is_variant' => $product->isVariant(),
                 'target_product_id' => $targetProductId,
-                'name' => $review->name,
                 'is_approved' => $review->is_approved,
             ]);
 

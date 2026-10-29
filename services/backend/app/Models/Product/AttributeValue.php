@@ -35,12 +35,18 @@ class AttributeValue extends Model
         'value',
         'slug',
         'color_code',
+        'image_path',
         'sort_order',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
     ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($this->image_path) : null;
+    }
 
     /**
      * Получить характеристику
