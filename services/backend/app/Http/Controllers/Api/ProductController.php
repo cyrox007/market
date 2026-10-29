@@ -547,15 +547,13 @@ class ProductController extends Controller
 
     /**
      * Получить товары для кэширования (вынесено в отдельный метод для переиспользования).
-     * Для списка грузим только назначенные значения характеристик; весь справочник вариантов не загружаем.
+     * Для списка каталога ($listView = true) не грузим attributeValues — меньше БД и payload.
      */
     protected function fetchProductsForCache(\Illuminate\Database\Eloquent\Builder $query, int $perPage, Request $request, bool $listView = false)
     {
         $with = [
             'taxons',
             'parentProduct.media',
-            'attributes',
-            'attributeValues',
             'parentProduct.taxons',
             'parentProduct.manufacturer',
             'warehouseStocks.warehouse',
@@ -982,7 +980,6 @@ class ProductController extends Controller
             return Product::with([
                 'taxons',
                 'variants' => fn ($q) => $q->active()->orderBy('id'),
-                'attributes',
                 'attributeValues.attribute',
                 'manufacturer',
                 'media',
@@ -1025,7 +1022,6 @@ class ProductController extends Controller
             return Product::with([
                 'taxons',
                 'variants' => fn ($q) => $q->active()->orderBy('id'),
-                'attributes',
                 'attributeValues.attribute',
                 'manufacturer',
                 'media',
@@ -1069,7 +1065,6 @@ class ProductController extends Controller
             $roots = Product::with([
                 'taxons',
                 'variants' => fn ($q) => $q->active()->orderBy('id'),
-                'attributes',
                 'attributeValues.attribute',
                 'manufacturer',
                 'media',

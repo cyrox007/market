@@ -119,26 +119,18 @@ class ProductResource extends JsonResource
 
         $isListView = (bool) $request->get('_list_view', false);
 
-        // Catalogue cards need selected color/size and a compact canonical palette.
-        $colorValues = $variationAttributeService->colors($this->resource);
-        $colors = $colorValues->take(10)->map(function ($value) {
-            return [
-                'id' => $value->id ?? null,
-                'name' => $value->value ?? $value->name ?? null,
-                'slug' => $value->slug ?? Str::slug($value->value ?? $value->name ?? ''),
-                'code' => $value->color_code ?? null,
-                'image' => $value->image_url ?? null,
-            ];
-        })->values()->toArray();
-
-        if ($this->isVariant()) {
-            $selected = $variationAttributeService->selectedForVariant($this->resource);
-            $defaultColor = $selected['color'] ?? ($colors[0] ?? null);
-            $defaultSize = $selected['size'];
-        } elseif (! $this->isVariable()) {
-            $defaultColor = $colors[0] ?? null;
-            $size = $variationAttributeService->sizes($this->resource)->first();
-            $defaultSize = $size ? ['id' => $size->id, 'name' => $size->value, 'slug' => $size->slug, 'value' => $size->value] : null;
+        // Для списка карточек не рассчитываем палитру цветов — эти данные не используются в ProductCard.
+        $colors = [];
+        if (!$isListView) {
+            $colorValues = $variationAttributeService->colors($this->resource);
+            $colors = $colorValues->take(10)->map(function ($value) {
+                return [
+                    'id' => $value->id ?? null,
+                    'name' => $value->value ?? $value->name ?? null,
+                    'slug' => $value->slug ?? Str::slug($value->value ?? $value->name ?? ''),
+                    'code' => $value->color_code ?? null,
+                ];
+            })->values()->toArray();
         }
 
         // В режиме списка не грузим и не сериализуем полные характеристики — снижает размер ответа и нагрузку
@@ -239,8 +231,8 @@ class ProductResource extends JsonResource
             'is_bundle_configured' => $bundleConfigured,
             'units_sold' => (int) ($this->units_sold ?? 0),
             'first_available_variant_id' => $firstAvailableVariantId,
-            'default_color' => $defaultColor,
-            'default_size' => $defaultSize,
+            'default_color' => $isListView ? null : $defaultColor,
+            'default_size' => $isListView ? null : $defaultSize,
             'colors' => $colors,
             'specifications' => $specifications,
             'specification_names' => $specificationNames,

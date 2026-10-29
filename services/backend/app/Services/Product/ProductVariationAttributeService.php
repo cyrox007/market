@@ -44,8 +44,7 @@ class ProductVariationAttributeService
      */
     public function valuesForSimpleProduct(Product $product, string $slug): Collection
     {
-        $product->loadMissing('attributes', 'attributeValues');
-        $attribute = $product->getRelation('attributes')->firstWhere('slug', $slug);
+        $attribute = Attribute::query()->where('slug', $slug)->first();
         if (! $attribute) {
             return collect();
         }
@@ -72,7 +71,6 @@ class ProductVariationAttributeService
                 'name' => $color['value_name'],
                 'slug' => $color['value_slug'],
                 'code' => $color['code'] ?? null,
-                'image' => $color['image'] ?? null,
             ] : null,
             'size' => $size ? [
                 'id' => null,
@@ -88,10 +86,10 @@ class ProductVariationAttributeService
      */
     private function simpleProductAttributeValues(Product $product, string $slug, bool $withColorCode): Collection
     {
-        $product->loadMissing('attributes', 'attributeValues');
+        $product->loadMissing('attributes.values');
         $rows = $product->getRelation('attributes')->where('slug', $slug);
 
-        return $rows->map(function ($attribute) use ($withColorCode, $product) {
+        return $rows->map(function ($attribute) use ($withColorCode) {
             $pivot = $attribute->pivot;
 
             if ($pivot?->custom_value !== null && $pivot->custom_value !== '') {
@@ -104,7 +102,7 @@ class ProductVariationAttributeService
                 ];
             }
 
-            $value = $product->getRelation('attributeValues')->firstWhere('id', $pivot?->attribute_value_id);
+            $value = $attribute->values->firstWhere('id', $pivot?->attribute_value_id);
             if (! $value) {
                 return null;
             }
@@ -115,7 +113,6 @@ class ProductVariationAttributeService
                 'name' => $value->value,
                 'slug' => $value->slug,
                 'color_code' => $withColorCode ? $value->color_code : null,
-                'image_url' => $value->image_url,
             ];
         })->filter()->values();
     }

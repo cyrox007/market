@@ -39,8 +39,7 @@ class IndividualSkuCatalogTest extends TestCase
         $this->assertSame([$red->id, $simple->id], array_column($first->json('data'), 'id'));
         $first->assertJsonPath('data.0.slug', $red->slug)->assertJsonPath('data.0.sku', $red->sku)->assertJsonPath('data.0.parent_id', $parent->id);
         $this->assertSame(100.0, (float) $first->json('data.0.price'));
-        $first->assertJsonPath('data.0.default_color.name', 'red')->assertJsonPath('data.0.colors.0.name', 'red')
-            ->assertJsonPath('meta.fulfillment.delivery_quote_endpoint', '/api/v1/shipping/quote');
+        $first->assertJsonPath('meta.fulfillment.delivery_quote_endpoint', '/api/v1/shipping/quote');
         $this->getJson($url.'&page=2')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $blue->id);
         $this->getJson('/api/v1/products/count?category_slug='.$category->slug)->assertExactJson(['total' => 3]);
     }

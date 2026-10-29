@@ -64,13 +64,6 @@ class AttributeValuesRelationManager extends RelationManager
         ];
 
         if ($isColor) {
-            $components[] = \Filament\Forms\Components\FileUpload::make('image_path')
-                ->label('Изображение цвета или текстуры')->image()->disk('public')
-                ->directory('attribute-swatches')->visibility('public')
-                ->imageResizeMode('cover')->imageCropAspectRatio('1:1')
-                ->imageResizeTargetWidth('128')->imageResizeTargetHeight('128')
-                ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])->maxSize(2048)
-                ->helperText('Необязательно. Превью материала для палитры; если его нет, используется HEX.');
             $components[] = ColorPicker::make('color_code')
                 ->label('HEX цвета')
                 ->helperText('Цвет чипа на карточке товара');

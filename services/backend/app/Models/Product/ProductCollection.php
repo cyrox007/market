@@ -134,8 +134,7 @@ class ProductCollection extends Model
                 ->with([
                     'taxons',
                     'variants' => fn ($q) => $q->active()->orderBy('id'),
-                    'attributes',
-                'attributeValues.attribute',
+                    'attributeValues.attribute',
                     'manufacturer',
                     'media',
                 ])
@@ -166,8 +165,7 @@ class ProductCollection extends Model
                 ->with([
                     'taxons',
                     'variants' => fn ($q) => $q->active()->orderBy('id'),
-                    'attributes',
-                'attributeValues.attribute',
+                    'attributeValues.attribute',
                     'manufacturer',
                     'media',
                 ]);

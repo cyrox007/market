@@ -164,7 +164,6 @@ class ProductDetailResource extends JsonResource
                                 'slug' => $va['value_slug'] ?? null,
                                 'name' => $va['value_name'] ?? $va['value_slug'] ?? null,
                                 'code' => $va['code'] ?? null,
-                                'image' => $va['image'] ?? null,
                             ]);
                         }
                     }
