@@ -8,6 +8,7 @@ import {
   resolveProductIdForCart,
 } from '../utils/cartProduct';
 import type { Product } from '../lib/api';
+import { availabilityOf } from '../lib/availability';
 
 const TOAST_DEBOUNCE_MS = 1200;
 
@@ -21,17 +22,17 @@ type CartProductInput = Pick<
   | 'is_variant'
   | 'first_available_variant_id'
   | 'in_stock'
+  | 'available_to_order'
+  | 'stock_known'
 > & {
   stock?: number | null;
-  backorder?: boolean;
   thumbnail?: string | null;
   image?: string | null;
   sku?: string;
 };
 
 /** Больше остатка не накликать; под заказ — без ограничения */
-const stockLimit = (product: CartProductInput) =>
-  product.backorder ? undefined : (product.stock ?? undefined);
+const stockLimit = (product: CartProductInput) => availabilityOf(product).maxQuantity;
 
 /**
  * Добавление в корзину с toast и единой обработкой ошибок.
@@ -70,7 +71,7 @@ export function useCartActions() {
         showCartToast('Выберите параметры на странице товара', 'error');
         return null;
       }
-      if (!product.in_stock) {
+      if (availabilityOf(product).status === 'out') {
         showCartToast('Товар недоступен для заказа', 'error');
         return null;
       }

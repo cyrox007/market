@@ -73,4 +73,19 @@ describe('useCartActions', () => {
     expect(api.cart.add.mock.calls.map(([body]) => body.quantity)).toEqual([3]);
     expect(result.current.cart?.items[0]?.id).toBe(55);
   });
+
+  it('кладёт товар под заказ без остатка, а не отвечает «недоступен»', async () => {
+    const { result } = renderHook(() => useCartActions(), { wrapper });
+    await waitFor(() => expect(result.current.cart).not.toBeNull());
+
+    act(() => {
+      void result.current.addProductToCart(
+        { ...product, in_stock: false, stock: 0, available_to_order: true } as Product,
+        1,
+      );
+    });
+
+    expect(showCartToast).not.toHaveBeenCalledWith('Товар недоступен для заказа', 'error');
+    expect(result.current.cart?.items[0]?.quantity).toBe(1);
+  });
 });

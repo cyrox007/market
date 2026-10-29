@@ -33,4 +33,25 @@ describe('ProductCard', () => {
 
     expect(onIncreaseCart).toHaveBeenCalledTimes(5);
   });
+
+  const cartButton = (overrides: Partial<Product>) => {
+    render(
+      <MemoryRouter>
+        <ProductCard product={{ ...product, ...overrides }} onAddToCart={vi.fn()} />
+      </MemoryRouter>,
+    );
+    return screen.getByRole('button', { name: 'В корзину' });
+  };
+
+  it('«в корзину» доступна, когда остатка нет, но бэк разрешает заказ', () => {
+    expect(
+      cartButton({ in_stock: false, stock: 0, backorder: false, available_to_order: true }),
+    ).toBeEnabled();
+  });
+
+  it('«в корзину» недоступна при флаге «под заказ», если бэк заказ не разрешает', () => {
+    expect(
+      cartButton({ in_stock: false, stock: 0, backorder: true, available_to_order: false }),
+    ).toBeDisabled();
+  });
 });

@@ -7,9 +7,8 @@ export interface StockFields {
   stock?: number | null;
   /** false — магазин не знает остаток: число не показываем */
   stock_known?: boolean | null;
+  /** Решает бэк по складам региона; флаг backorder без склада под заказ не в счёт */
   available_to_order?: boolean | null;
-  /** У варианта в типах строка, бэк варианту поле не отдаёт — считаем только true */
-  backorder?: boolean | string | null;
 }
 
 export interface Availability {
@@ -23,16 +22,19 @@ export interface Availability {
 export function availabilityOf(item: StockFields): Availability {
   const stock = Math.max(0, Math.floor(Number(item.stock) || 0));
   const known = item.stock_known !== false && stock > 0;
+  const orderable = item.available_to_order === true;
 
   if (item.in_stock === true) {
     return {
       status: 'in_stock',
       stock: known ? stock : null,
-      maxQuantity: known ? stock : undefined,
+      maxQuantity: known && !orderable ? stock : undefined,
     };
   }
-  if (item.available_to_order === true || item.backorder === true) {
+  if (orderable) {
     return { status: 'backorder', stock: null, maxQuantity: undefined };
   }
   return { status: 'out', stock: null, maxQuantity: 0 };
 }
+
+export const canOrder = (item: StockFields) => availabilityOf(item).status !== 'out';

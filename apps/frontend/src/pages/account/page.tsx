@@ -16,6 +16,7 @@ import CheckoutAddress from '../../components/CheckoutAddress';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import Icon from '../../components/ui/icons/Icon';
+import { canOrder } from '../../lib/availability';
 import {
   Bell,
   Calendar,
@@ -860,7 +861,7 @@ export default function Account() {
                                 fill="currentColor"
                               />
                             </button>
-                            {!product.in_stock && (
+                            {!canOrder(product) && (
                               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                                 <span className="bg-white px-4 py-2 rounded-lg font-medium">
                                   Нет в наличии
@@ -885,7 +886,7 @@ export default function Account() {
                                 to={`/product/${product.slug}`}
                                 className="flex-1 bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:bg-gray-300 whitespace-nowrap text-center"
                               >
-                                {product.in_stock ? 'В корзину' : 'Недоступно'}
+                                {canOrder(product) ? 'В корзину' : 'Недоступно'}
                               </Link>
                             </div>
                           </div>

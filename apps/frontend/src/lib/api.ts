@@ -689,6 +689,10 @@ export interface Product extends WarehouseStockInfo {
   stock: number;
   stock_label?: string | null;
   backorder?: boolean;
+  /** false — остаток бэку неизвестен, число не показываем */
+  stock_known?: boolean;
+  /** Можно ли заказать по складам региона — решает бэк, флаг backorder сам по себе нет */
+  available_to_order?: boolean;
   rating: number;
   reviews_count: number;
   is_variable?: boolean;

@@ -9,6 +9,7 @@ import type { Product, WishlistItem } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import { ArrowLeftRight, ChevronRight, Heart, ImageIcon, LoaderCircle } from 'lucide-react';
+import { canOrder } from '../../lib/availability';
 
 export default function Favorites() {
   const [items, setItems] = useState<WishlistItem[]>([]);
@@ -140,7 +141,7 @@ export default function Favorites() {
                         <Heart className="size-[1em] text-xl text-white" />
                       </button>
                     </div>
-                    {!isVariableParent(product) && (!product.in_stock || product.stock === 0) && (
+                    {!isVariableParent(product) && !canOrder(product) && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
                         <span className="bg-white px-4 py-2 rounded-lg font-medium">
                           Нет в наличии
@@ -172,22 +173,22 @@ export default function Favorites() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (product.in_stock) {
+                          if (canOrder(product)) {
                             handleAddToCart(product);
                           }
                         }}
-                        disabled={!product.in_stock}
+                        disabled={!canOrder(product)}
                         className={`w-full py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${
                           getCartQuantityForProduct(cart?.items, product) > 0
                             ? 'bg-green-600 text-white hover:bg-green-700'
-                            : product.in_stock
+                            : canOrder(product)
                               ? 'bg-red-600 text-white hover:bg-red-700'
                               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         }`}
                       >
                         {getCartQuantityForProduct(cart?.items, product) > 0
                           ? `В корзине (${getCartQuantityForProduct(cart?.items, product)})`
-                          : product.in_stock
+                          : canOrder(product)
                             ? 'В корзину'
                             : 'Недоступно'}
                       </button>

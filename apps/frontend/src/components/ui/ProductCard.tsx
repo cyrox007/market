@@ -7,6 +7,7 @@ import { ColorSwatches, Price, QuantityStepper } from './composites';
 import type { ColorSwatch } from './composites';
 import type { Product } from '../../lib/api';
 import { isVariableParent, needsVariantChoice } from '../../utils/cartProduct';
+import { availabilityOf } from '../../lib/availability';
 import { cn } from '../../lib/cn';
 
 interface ProductCardProps {
@@ -80,7 +81,8 @@ function ProductCard({
   // image_hd в списке товаров API отдаёт null намеренно — в цепочке он лишний
   const image = product.thumbnail || product.image;
   const swatches = toSwatches(product);
-  const unavailable = !variableParent && !product.in_stock && !product.backorder;
+  const availability = availabilityOf(product);
+  const unavailable = !variableParent && availability.status === 'out';
   // Как в Price: зачёркнутая цена видна, когда old_price задан
   const onSale = product.old_price != null;
 
@@ -215,7 +217,7 @@ function ProductCard({
               <QuantityStepper
                 value={cartQuantity}
                 min={0}
-                max={product.backorder ? undefined : (product.stock ?? undefined)}
+                max={availability.maxQuantity}
                 onChange={handleQuantityChange}
               />
             ) : (
@@ -292,6 +294,7 @@ function areEqual(prev: ProductCardProps, next: ProductCardProps): boolean {
     prev.product.price === next.product.price &&
     prev.product.old_price === next.product.old_price &&
     prev.product.in_stock === next.product.in_stock &&
+    prev.product.available_to_order === next.product.available_to_order &&
     prev.product.is_variable === next.product.is_variable &&
     prev.product.is_variant === next.product.is_variant &&
     prev.product.first_available_variant_id === next.product.first_available_variant_id &&
