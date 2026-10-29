@@ -130,4 +130,37 @@ describe('состав комплекта', () => {
       { key: '8', productId: 8, name: 'Матрас', sku: 'P-8', quantity: 2, total: null },
     ]);
   });
+
+  it('простой: бэк уже прислал основное изделие в составе — второй раз не добавляем', () => {
+    const kit = product({
+      id: 159,
+      sku: 'SV-KIT-0002',
+      name: 'Кровать «Лофт»',
+      is_sellable_bundle: true,
+      sellable_bundle_components: [
+        {
+          id: 159,
+          product_id: 159,
+          sku: 'SV-KIT-0002',
+          name: 'Кровать «Лофт»',
+          quantity: 1,
+          unit_price: 31990,
+          total: 31990,
+        },
+        {
+          id: 5,
+          product_id: 5,
+          sku: 'SV-MAT-001',
+          name: 'Матрас',
+          quantity: 1,
+          unit_price: 21990,
+          total: 21990,
+        },
+      ],
+    });
+    expect(bundleParts(kit, null).map((p) => [p.productId, p.total])).toEqual([
+      [159, 31990],
+      [5, 21990],
+    ]);
+  });
 });

@@ -46,7 +46,8 @@ export function bundleParts(
     // Состав в товаре — у открытого предложения; у соседнего он свой
     return !selectedVariant || selectedVariant.id === product.id ? own.map(toPart) : [];
   }
-  // Простой комплект: основное изделие — тоже часть заказа
+  // Простой комплект: основное изделие — тоже часть заказа; новый бэк кладёт его в состав сам
+  if (own.some((c) => (c.product_id ?? c.id) === product.id)) return own.map(toPart);
   return [
     {
       key: String(product.id),

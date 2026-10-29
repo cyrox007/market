@@ -27,17 +27,15 @@ const EN = [
   'december',
 ];
 
-/** Бэк отдаёт `d F Y` по-английски («28 September 2026», market-docs/15) — показываем «28 сентября 2026» */
+/** Дата отзыва по-русски: бэк отдаёт ISO, раньше — `d F Y` по-английски («28 September 2026») */
 export function formatReviewDate(raw: string): string {
   const named = raw.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
   if (named) {
     const month = EN.indexOf(named[2].toLowerCase());
     if (month >= 0) return `${Number(named[1])} ${RU[month]} ${named[3]}`;
   }
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    const date = new Date(raw);
-    if (!Number.isNaN(date.getTime()))
-      return `${date.getDate()} ${RU[date.getMonth()]} ${date.getFullYear()}`;
-  }
+  // Дата из самой строки: через Date день зависел бы от пояса сервера и браузера
+  const iso = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso && RU[Number(iso[2]) - 1]) return `${Number(iso[3])} ${RU[Number(iso[2]) - 1]} ${iso[1]}`;
   return raw;
 }
