@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { apiErrorMessage } from '../../lib/api-error';
 import { safeNext, withNext } from '../../lib/safe-next';
 import { useAuth } from '../../hooks/useAuth';
 import { usePageSeo } from '../../hooks/usePageSeo';
@@ -45,7 +46,7 @@ export default function Login() {
       await login(email, password);
       navigate(next ?? '/account');
     } catch (err: any) {
-      setError(err?.data?.message || err?.message || 'Ошибка входа. Проверьте email и пароль.');
+      setError(apiErrorMessage(err, 'Ошибка входа. Проверьте email и пароль.'));
     } finally {
       setIsLoading(false);
     }

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ImageIcon } from 'lucide-react';
+import { ImageIcon } from 'lucide-react';
 import { cn } from '../../../lib/cn';
 import { prefersReducedMotion } from '../../../lib/motion';
+import { MoreThumbsButton, ThumbImage } from './Thumbs';
 
 interface Props {
   images: string[];
@@ -108,33 +109,19 @@ function DesktopGallery({ images, productName, selectedIndex, onSelectIndex, onO
                         : 'border border-surface-stroke/[0.08] hover:opacity-80',
                     )}
                   >
-                    <img
-                      src={src}
-                      alt=""
-                      loading={i < WINDOW ? 'eager' : 'lazy'}
-                      decoding="async"
-                      className="absolute inset-0 size-full object-cover"
-                    />
-                    {active && (
-                      <span aria-hidden="true" className="absolute inset-0 bg-black/[0.32]" />
-                    )}
+                    <ThumbImage src={src} active={active} loading={i < WINDOW ? 'eager' : 'lazy'} />
                   </button>
                 </li>
               );
             })}
           </ul>
           {canScroll && (
-            <button
-              type="button"
-              aria-label="Следующие фото"
+            <MoreThumbsButton
+              label="Следующие фото"
+              direction="down"
               onClick={() => setOffset(shown >= lastOffset ? 0 : shown + 1)}
-              className={cn(
-                'absolute inset-x-0 bottom-0 flex h-9 items-center justify-center rounded-swatch',
-                'bg-surface-grey text-ink backdrop-blur-[2px] transition-colors hover:bg-surface-border',
-              )}
-            >
-              <ChevronDown aria-hidden="true" className="size-6" />
-            </button>
+              className="inset-x-0 bottom-0 h-9"
+            />
           )}
         </div>
       )}

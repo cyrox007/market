@@ -4,11 +4,13 @@ import { Check, ChevronsRight, Copy, ShoppingCart, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { QuantityStepper } from '../../../components/ui/composites';
 import { Badge, Button, Tooltip } from '../../../components/ui/primitives';
+import type { BadgeVariant } from '../../../components/ui/primitives/Badge';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
 import { cn } from '../../../lib/cn';
 import { plural } from '../../../lib/plural';
 import type { VariantAttributeView } from '../hooks/useVariantSelection';
 import { availabilityOf } from '../lib/availability';
+import type { AvailabilityStatus } from '../lib/availability';
 import { bundleParts } from '../lib/bundle';
 import { formatPrice, formatRating } from '../lib/productText';
 import { isSellableOffer } from '../lib/variants';
@@ -43,6 +45,12 @@ interface Props {
 }
 
 const COPIED_MS = 2000;
+
+const STATUS_BADGE: Record<AvailabilityStatus, { variant: BadgeVariant; text: string }> = {
+  in_stock: { variant: 'info', text: 'В наличии' },
+  backorder: { variant: 'new', text: 'Под заказ' },
+  out: { variant: 'neutral', text: 'Нет в наличии' },
+};
 
 /** Колонка покупки справа от галереи (Figma 669:43396, 919:75723) */
 export default function BuyBlock({
@@ -98,21 +106,9 @@ export default function BuyBlock({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {availability.status === 'in_stock' && (
-          <Badge variant="info" size="status">
-            В наличии
-          </Badge>
-        )}
-        {availability.status === 'backorder' && (
-          <Badge variant="new" size="status">
-            Под заказ
-          </Badge>
-        )}
-        {availability.status === 'out' && (
-          <Badge variant="neutral" size="status">
-            Нет в наличии
-          </Badge>
-        )}
+        <Badge variant={STATUS_BADGE[availability.status].variant} size="status">
+          {STATUS_BADGE[availability.status].text}
+        </Badge>
         {availability.stock !== null && (
           <Badge variant="neutral" size="status">
             {city ? `Остаток в г. ${city}: ` : 'Остаток: '}

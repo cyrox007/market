@@ -20,12 +20,8 @@ const PHONE_DIGITS = 11;
 type FieldError = 'name' | 'phone' | 'consent';
 
 /**
- * «Купить в один клик» (Figma 595:40888, макет `56-макеты-товара/one-click-modal.png`).
- *
- * Отправляет не заявку, а ведёт в прямое оформление выбранного SKU, минуя корзину:
- * `POST /orders/one-click` считает цену, заказ создаёт оформление (`POST /orders` с `items`,
- * `accept_offer`, `accept_personal_data`) — market-docs/frontend-fulfillment-contract.md.
- * Введённое в окне едет на страницу оформления, чтобы покупатель не набирал заново.
+ * «Купить в один клик» (Figma 595:40888): не заявка, а прямое оформление выбранного SKU
+ * без корзины; введённое едет на оформление, чтобы не набирать заново (market-docs/64).
  */
 export default function OneClickModal({ open, onClose, productId, quantity, bundle = null }: Props) {
   const navigate = useNavigate();

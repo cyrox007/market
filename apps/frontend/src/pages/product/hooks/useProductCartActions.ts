@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCart } from '../../../hooks/useCart';
+import { apiErrorMessage } from '../../../lib/api-error';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
 import type { BuyBlockCart } from '../components/BuyBlock';
 import { availabilityOf } from '../lib/availability';
@@ -15,11 +16,6 @@ interface Options {
   selectedVariant: ProductVariant | null;
   cartAttributes: () => CartAttributes;
 }
-
-const messageOf = (err: any, fallback: string) => {
-  const msg = err?.data?.message || (err instanceof Error ? err.message : fallback);
-  return typeof msg === 'string' ? msg : fallback;
-};
 
 /** Корзина со страницы товара: добавить, ± количество (до остатка), сообщение об ошибке */
 export function useProductCartActions({
@@ -56,12 +52,13 @@ export function useProductCartActions({
       if (result.was_adjusted) showError(result.message);
     } catch (err: any) {
       console.error('Failed to add to cart:', err);
-      const apiMessage = err?.data?.message;
-      if (typeof apiMessage === 'string') showError(apiMessage);
-      else if (err?.status === 404)
-        showError('Выбранная комбинация недоступна. Проверьте параметры.');
-      else if (err?.status === 422) showError('Товар недоступен для заказа');
-      else showError(messageOf(err, 'Ошибка добавления в корзину'));
+      const fallback =
+        err?.status === 404
+          ? 'Выбранная комбинация недоступна. Проверьте параметры.'
+          : err?.status === 422
+            ? 'Товар недоступен для заказа'
+            : 'Ошибка добавления в корзину';
+      showError(apiErrorMessage(err, fallback));
     } finally {
       setIsBusy(false);
     }
@@ -80,7 +77,7 @@ export function useProductCartActions({
       else await updateQuantity(cartItem.id, next);
     } catch (err: any) {
       console.error('Failed to change cart quantity:', err);
-      showError(messageOf(err, 'Ошибка изменения количества'));
+      showError(apiErrorMessage(err, 'Ошибка изменения количества'));
     } finally {
       setIsBusy(false);
     }

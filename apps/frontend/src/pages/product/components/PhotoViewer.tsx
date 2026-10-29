@@ -5,6 +5,7 @@ import PresencePortal from '../../../components/ui/primitives/PresencePortal';
 import { useDialog } from '../../../components/ui/primitives/useDialog';
 import { transitionMs, useCloseUnlessLeaving } from '../../../components/ui/primitives/usePresence';
 import { cn } from '../../../lib/cn';
+import { MoreThumbsButton, ThumbImage } from './Thumbs';
 
 interface Props {
   open: boolean;
@@ -220,31 +221,21 @@ function ThumbRow({
                 : 'border border-surface-stroke/[0.08] hover:opacity-80',
             )}
           >
-            <img
-              src={src}
-              alt=""
-              loading="lazy"
-              className="absolute inset-0 size-full object-cover"
-            />
-            {i === current && (
-              <span aria-hidden="true" className="absolute inset-0 bg-black/[0.32]" />
-            )}
+            <ThumbImage src={src} active={i === current} />
           </button>
         ))}
       </div>
       {canScroll && (
-        <button
-          type="button"
-          aria-label="Ещё превью"
+        <MoreThumbsButton
+          label="Ещё превью"
+          direction="right"
           onClick={() => {
             // Шаг — от превью до соседнего: размер и промежуток зависят от ширины экрана
             const [a, b] = Array.from(rowRef.current?.children ?? []) as HTMLElement[];
             rowRef.current?.scrollBy({ left: b.offsetLeft - a.offsetLeft, behavior: 'smooth' });
           }}
-          className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-swatch bg-surface-grey text-ink backdrop-blur-[2px] transition-colors hover:bg-surface-border"
-        >
-          <ChevronRight aria-hidden="true" className="size-6" />
-        </button>
+          className="inset-y-0 right-0 w-9"
+        />
       )}
     </div>
   );

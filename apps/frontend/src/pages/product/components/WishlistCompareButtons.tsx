@@ -6,6 +6,7 @@ import {
   productIdForWishlist,
   useWishlistAndCompare,
 } from '../../../hooks/useWishlistAndCompare';
+import { apiErrorMessage } from '../../../lib/api-error';
 import { isVariableParent } from '../lib/variants';
 
 interface Props {
@@ -45,7 +46,7 @@ export default function WishlistCompareButtons({ product, selectedVariant }: Pro
           } catch (error: any) {
             console.error('Failed to toggle compare:', error);
             if (error.status === 422) {
-              alert(error.data?.message || 'Не удалось добавить товар в сравнение.');
+              alert(apiErrorMessage(error, 'Не удалось добавить товар в сравнение.'));
             }
           }
         }}

@@ -5,6 +5,7 @@ import starFilled from '../../../assets/icons/review-star-filled.svg';
 import Button from '../../../components/ui/primitives/Button';
 import Modal from '../../../components/ui/primitives/Modal';
 import { api } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api-error';
 import { cn } from '../../../lib/cn';
 
 const MIN = 25;
@@ -49,8 +50,7 @@ export default function ReviewModal({ open, onClose, productId, authorName }: Pr
       await api.reviews.create(productId, { name: authorName, rating, comment });
       setSent(true);
     } catch (err) {
-      const e = err as { data?: { message?: string } };
-      setError(e.data?.message || 'Не удалось отправить отзыв. Попробуйте ещё раз.');
+      setError(apiErrorMessage(err, 'Не удалось отправить отзыв. Попробуйте ещё раз.'));
     } finally {
       setSending(false);
     }
