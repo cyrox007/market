@@ -24,6 +24,8 @@ class CatalogTransferPage extends Page
 
     protected static string|UnitEnum|null $navigationGroup = 'Интеграции';
 
+    protected static ?int $navigationSort = 10;
+
     protected static ?string $slug = 'catalog-transfer';
 
     protected string $view = 'filament.pages.catalog-transfer';

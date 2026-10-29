@@ -29,7 +29,7 @@ class ContactSettingsPage extends Page implements HasForms
 
     protected static string|UnitEnum|null $navigationGroup = 'Настройки';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 10;
 
     public ?array $data = [];
 

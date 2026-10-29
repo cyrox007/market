@@ -19,6 +19,8 @@ class PrivatePriceLinkResource extends Resource
     protected static ?string $pluralModelLabel = 'Цены по закрытым ссылкам';
     protected static string|\UnitEnum|null $navigationGroup = 'Продажи';
 
+    protected static ?int $navigationSort = 20;
+
     public static function canViewAny(): bool { return (bool) auth()->user()?->hasRole('super_admin'); }
     public static function canCreate(): bool { return static::canViewAny(); }
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool { return static::canViewAny(); }

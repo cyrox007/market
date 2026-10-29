@@ -32,7 +32,7 @@ class InteriorIdeaResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Контент';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 60;
 
     public static function form(Schema $schema): Schema
     {

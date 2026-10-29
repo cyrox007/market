@@ -30,7 +30,7 @@ class WarehouseResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Доставка';
 
-    protected static ?int $navigationSort = 35;
+    protected static ?int $navigationSort = 40;
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
