@@ -1,5 +1,5 @@
 import type { CatalogSort } from '../lib/catalog-query';
-import type { Category, ProductListParams, ProductListResponse } from '../lib/api';
+import type { Category, ProductListParams, ProductListResponse, Review } from '../lib/api';
 
 /** SEO для текущей страницы (товар, категория и т.д.) — подставляется в <head> при SSR */
 export interface SeoMetaSSR {
@@ -30,6 +30,8 @@ export interface SSRContext {
     bundle?: { data: any[] };
     related?: { data: any[] };
   };
+  /** Отзывы товара для HTML — грузятся следом за товаром, если они есть */
+  productReviews?: { productId: number; data: Review[] };
   /** Регион покупателя. Сервер его не определяет: /regions/detect удалён на бэкенде (27.10) */
   region?: any;
   /** Дерево категорий для шапки — грузится на всех маршрутах */

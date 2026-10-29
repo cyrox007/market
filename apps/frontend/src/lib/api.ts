@@ -5,12 +5,38 @@ import { retryWithoutDirectory, toProductListSearch } from './product-list-searc
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
+const API_TIMEOUT_MS = 20_000;
+
+// Очередь сессии и вход не обрываем: сервер доработает запрос и запишет сессию поверх следующего
+const NO_TIMEOUT_PREFIXES = ['/cart', '/wishlist', '/compare', '/counters', '/orders', '/auth'];
+
+const needsTimeout = (endpoint: string) =>
+  !NO_TIMEOUT_PREFIXES.some(
+    (prefix) =>
+      endpoint === prefix || endpoint.startsWith(`${prefix}/`) || endpoint.startsWith(`${prefix}?`),
+  );
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   // Убеждаемся, что endpoint начинается с /, а API_BASE_URL не заканчивается на /
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const cleanBaseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   const url = endpoint.startsWith('http') ? endpoint : `${cleanBaseUrl}${cleanEndpoint}`;
 
+  const controller = !options?.signal && needsTimeout(cleanEndpoint) ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), API_TIMEOUT_MS) : undefined;
+  try {
+    return await request<T>(url, { ...options, signal: controller?.signal ?? options?.signal });
+  } catch (err) {
+    if (controller?.signal.aborted) {
+      throw Object.assign(new Error(`API Timeout after ${API_TIMEOUT_MS}ms`), { status: 504 });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function request<T>(url: string, options: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -42,7 +68,10 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
     const error = new Error(`API Error: ${response.status} ${errorMessage}`) as any;
     error.status = response.status;
-    error.retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || Number(errorData?.retry_after) || 60);
+    error.retryAfter = Math.max(
+      1,
+      Number(response.headers.get('Retry-After')) || Number(errorData?.retry_after) || 60,
+    );
     error.data = errorData;
     throw error;
   }
@@ -58,7 +87,8 @@ export interface LocationParams {
 
 const locationSearch = (params?: LocationParams, query = new URLSearchParams()) => {
   if (params?.region_id) query.append('region_id', params.region_id.toString());
-  if (params?.directory_external_id) query.append('directory_external_id', params.directory_external_id);
+  if (params?.directory_external_id)
+    query.append('directory_external_id', params.directory_external_id);
   return query.toString() ? `?${query}` : '';
 };
 
@@ -80,8 +110,30 @@ export interface CustomerLocality {
   coordinatePrecision?: string | null;
 }
 
+/** Ответ `POST /shipping/quote` — то, что нужно странице товара (market-docs/frontend-fulfillment-contract.md) */
+export interface ReadyRange {
+  days_min: number;
+  days_max: number;
+  date_min?: string;
+  date_max?: string;
+  /** «Сегодня» / «Завтра» — бэк ставит только при точном сроке 0 / 1 */
+  label?: string | null;
+}
+
+export interface ShippingQuote {
+  /** false — доставки нет, самовывоз при этом может быть */
+  available: boolean;
+  selected: { delivery: ReadyRange } | null;
+  options: { delivery: ReadyRange }[];
+  pickup: { ready: ReadyRange }[];
+}
+
 /** Регион справочника адресов (ГАР) — первый шаг выбора пункта */
-export interface DirectoryRegion { externalId: string; name: string; label: string }
+export interface DirectoryRegion {
+  externalId: string;
+  name: string;
+  label: string;
+}
 
 export const api = {
   /** Справочник адресов: регион, затем пункт внутри него (бэкендер, 21.10) */
@@ -106,13 +158,33 @@ export const api = {
     },
   },
   localities: {
-    search: (q: string, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>(`/localities?q=${encodeURIComponent(q)}`, { signal }),
-    detect: (latitude: number, longitude: number, signal?: AbortSignal) => fetchAPI<{ data: CustomerLocality[] }>('/localities/detect', { method: 'POST', body: JSON.stringify({ latitude, longitude }), signal }),
-    get: (id: string) => fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(`/localities/${encodeURIComponent(id)}`),
+    search: (q: string, signal?: AbortSignal) =>
+      fetchAPI<{ data: CustomerLocality[] }>(`/localities?q=${encodeURIComponent(q)}`, { signal }),
+    detect: (latitude: number, longitude: number, signal?: AbortSignal) =>
+      fetchAPI<{ data: CustomerLocality[] }>('/localities/detect', {
+        method: 'POST',
+        body: JSON.stringify({ latitude, longitude }),
+        signal,
+      }),
+    get: (id: string) =>
+      fetchAPI<{ data: CustomerLocality; shippingLocation: ShippingLocation | null }>(
+        `/localities/${encodeURIComponent(id)}`,
+      ),
   },
   shipping: {
-    quote: (data: unknown) => fetchAPI<WarehouseQuote>('/shipping/quote', { method: 'POST', body: JSON.stringify(data) }),
-    pickupOptions: (items: Array<{ product_id: number; quantity: number }>) => fetchAPI<{ pickup: PickupOption[] }>('/shipping/pickup-options', { method: 'POST', body: JSON.stringify({ items }) }),
+    /**
+     * Расчёт по складам: доставка и самовывоз одним ответом
+     * (market-docs/frontend-fulfillment-contract.md). Карточке товара нужны сроки
+     * (`ShippingQuote`), оформлению — стоимость и услуги (`WarehouseQuote`),
+     * поэтому форма ответа задаётся на месте вызова.
+     */
+    quote: <T = WarehouseQuote>(data: unknown) =>
+      fetchAPI<T>('/shipping/quote', { method: 'POST', body: JSON.stringify(data) }),
+    pickupOptions: (items: Array<{ product_id: number; quantity: number }>) =>
+      fetchAPI<{ pickup: PickupOption[] }>('/shipping/pickup-options', {
+        method: 'POST',
+        body: JSON.stringify({ items }),
+      }),
   },
   cart: {
     get: (params?: { region_id?: number }) => {
@@ -120,7 +192,13 @@ export const api = {
       if (params?.region_id) query.append('region_id', params.region_id.toString());
       return fetchAPI<Cart>(`/cart?${query.toString()}`);
     },
-    add: (data: { product_id: number; quantity?: number; region_id?: number; color?: string; size?: string }) =>
+    add: (data: {
+      product_id: number;
+      quantity?: number;
+      region_id?: number;
+      color?: string;
+      size?: string;
+    }) =>
       fetchAPI<{
         item: CartItem;
         message: string;
@@ -131,7 +209,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (itemId: number, data: { quantity: number; region_id?: number; color?: string; size?: string }) =>
+    update: (
+      itemId: number,
+      data: { quantity: number; region_id?: number; color?: string; size?: string },
+    ) =>
       fetchAPI<{
         item: CartItem;
         message: string;
@@ -374,6 +455,9 @@ export const api = {
     },
     get: (slug: string) => fetchAPI<{ article: Article }>(`/articles/${slug}`),
   },
+  contact: {
+    get: () => fetchAPI<{ contact: ContactInfo }>('/contact'),
+  },
   stores: {
     list: (params?: { city?: string }) => {
       const query = new URLSearchParams();
@@ -610,7 +694,8 @@ export interface Product extends WarehouseStockInfo {
   is_variable?: boolean;
   is_variant?: boolean;
   is_sellable_bundle?: boolean;
-  sellable_bundle_components?: Array<{ id: number; sku: string; name: string; quantity: number }>;
+  /** Простой комплект: `{id, sku, name, quantity}`; вариативный — состав выбранного предложения с ценами */
+  sellable_bundle_components?: BundleComponent[];
   first_available_variant_id?: number | null;
   variation_attributes?: VariationAttributeOption[];
   colors?: ColorOption[];
@@ -655,12 +740,18 @@ export interface SelectedVariationItem {
 export interface ProductVariant extends WarehouseStockInfo {
   id: number;
   sku: string;
+  /** У предложения своя страница: каталог ведёт на неё (market-docs/catalog-individual-sku-api.md) */
+  slug?: string | null;
   price: number;
   old_price?: number | null;
   stock: number;
   stock_label?: string | null;
   in_stock: boolean;
+  /** false — остаток бэку неизвестен, число не показываем */
+  stock_known?: boolean;
+  available_to_order?: boolean;
   color?: { name: string; slug: string; code?: string | null } | null;
+  colors?: { id: number; value: string; slug: string; color_code: string | null }[];
   size?: { name: string; slug: string; value: string } | null;
   images: string[];
   variation_attributes?: SelectedVariationItem[];
@@ -668,6 +759,20 @@ export interface ProductVariant extends WarehouseStockInfo {
   excerpt?: string | null;
   specifications?: { name: string; value: string; slug: string }[] | Record<string, string> | null;
   backorder?: string | null;
+  /** Предложение комплекта: false — состав не настроен, цена 0, продать нельзя */
+  is_bundle_configured?: boolean;
+  bundle_components?: BundleComponent[];
+}
+
+/** Реальный SKU в составе комплекта (market-docs/66) */
+export interface BundleComponent {
+  id?: number;
+  product_id?: number;
+  sku: string;
+  name: string;
+  quantity: number;
+  unit_price?: number;
+  total?: number;
 }
 
 export interface ProductFeatureBlock {
@@ -690,8 +795,35 @@ export interface ProductDeliveryBlock {
   bg_color: string;
 }
 
+export interface WarehouseStock {
+  warehouse_id: number;
+  warehouse_name: string;
+  quantity: number;
+  distance_km: number | null;
+}
+
+export interface ProductDocument {
+  id: number;
+  title: string;
+  url: string;
+  file_name: string;
+  mime_type: string;
+  extension: string;
+  size: number;
+}
+
 export interface ProductDetail extends Product {
   images: string[];
+  /** false — остаток бэку неизвестен, число не показываем */
+  stock_known?: boolean;
+  /** destination — остаток для региона покупателя, global — по всем складам */
+  stock_scope?: 'destination' | 'global';
+  available_to_order?: boolean;
+  nearest_stock?: number | null;
+  nearest_warehouse_name?: string | null;
+  nearest_distance_km?: number | null;
+  stocks?: WarehouseStock[];
+  documents?: ProductDocument[];
   image_hd?: string | null;
   colors?: ColorOption[];
   sizes?: SizeOption[];
@@ -834,6 +966,17 @@ export interface Article {
   } | null;
   full_path?: string | null;
   seo?: SeoMeta | null;
+}
+
+/** `GET /contact` — настройки «Контакты» из админки; поля, которые не заполнены, — пустые массивы и null */
+export interface ContactInfo {
+  company_name: string | null;
+  address: string | null;
+  phones: { phone?: string | null }[];
+  emails: { email?: string | null }[];
+  social_networks: { name?: string | null; url?: string | null }[];
+  map_embed: string | null;
+  working_hours: { day?: string | null; hours?: string | null }[];
 }
 
 export interface Store {

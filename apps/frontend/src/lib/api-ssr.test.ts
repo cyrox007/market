@@ -32,4 +32,16 @@ describe('createSSRApi', () => {
     expect(calledUrl).not.toContain('&order=');
     expect(calledUrl).not.toContain('attr_material=');
   });
+
+  it('reviews.list — одобренные отзывы товара по id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+      headers: { get: () => 'application/json' },
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    await createSSRApi({ headers: {} } as any).reviews.list(82);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/products\/82\/reviews$/);
+  });
 });

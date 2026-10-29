@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { safeNext, withNext } from '../../lib/safe-next';
 import { useAuth } from '../../hooks/useAuth';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
@@ -10,6 +11,8 @@ import PublicAuthNotice from '../../components/auth/PublicAuthNotice';
 
 export default function Register() {
   const navigate = useNavigate();
+  // Вернуть туда, откуда пришли (товар с окном отзыва, market-docs/57-задачи/11)
+  const next = safeNext(useSearchParams()[0].get('next'));
   const { register, isAuthenticated } = useAuth();
   const access = usePublicAuthSettings();
   const [registrationComplete, setRegistrationComplete] = useState(false);
@@ -26,9 +29,9 @@ export default function Register() {
   // Редирект, если уже авторизован
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/account');
+      navigate(next ?? '/account');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, next]);
 
   usePageSeo({
     title: buildTitle('Регистрация'),
@@ -80,7 +83,7 @@ export default function Register() {
       };
 
       await register(registerData);
-      if (access.loginEnabled) navigate('/account');
+      if (access.loginEnabled) navigate(next ?? '/account');
       else setRegistrationComplete(true);
     } catch (err: any) {
       const errorMessage = err?.data?.message || (
@@ -215,7 +218,7 @@ export default function Register() {
           {access.loginEnabled && <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Уже есть аккаунт?{' '}
-              <Link to="/login" className="text-red-600 hover:text-red-700 font-medium">
+              <Link to={withNext('/login', next)} className="text-red-600 hover:text-red-700 font-medium">
                 Войти
               </Link>
             </p>

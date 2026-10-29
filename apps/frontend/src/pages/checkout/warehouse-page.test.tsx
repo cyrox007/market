@@ -87,3 +87,22 @@ it('does not silently resubmit after a changed price', async () => {
   await waitFor(() => expect(reload).toHaveBeenCalled());
   expect(api.orders.create).toHaveBeenCalledTimes(1);
 });
+it('prefills the one-click form and sends its comment with the direct item', async () => {
+  vi.mocked(api.orders.prepare).mockResolvedValue({ items: [{ product_id: 42, quantity: 2 }], subtotal: 2000 });
+  render(<MemoryRouter initialEntries={[{ pathname: '/checkout', search: '?product_id=42&quantity=2',
+    state: { oneClick: { name: 'Иванов Иван', phone: '+7 (912) 345-67-89', comment: 'Позвоните после 18' } } }]}><Checkout /></MemoryRouter>);
+  expect(screen.getByLabelText('Имя')).toHaveValue('Иванов Иван');
+  expect(screen.getByLabelText('Телефон')).toHaveValue('+7 (912) 345-67-89');
+  expect(screen.getByLabelText('Комментарий к заказу')).toHaveValue('Позвоните после 18');
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'buyer@example.test' } });
+  fireEvent.click(screen.getByRole('checkbox'));
+  await waitFor(() => expect(screen.getByRole('option', { name: 'Наличные' })).toBeTruthy());
+  fireEvent.click(screen.getByText('Выбрать дом'));
+  await screen.findByText('Итого: 1500 ₽');
+  fireEvent.click(screen.getByRole('button', { name: 'Оформить заказ' }));
+  await waitFor(() => expect(api.orders.create).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(api.orders.create).mock.calls[0][0]).toMatchObject({
+    items: [{ product_id: 42, quantity: 2 }], comment: 'Позвоните после 18',
+    contact_name: 'Иванов Иван', accept_offer: true, accept_personal_data: true,
+  });
+});

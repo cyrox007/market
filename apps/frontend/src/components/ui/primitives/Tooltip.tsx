@@ -10,6 +10,8 @@ interface TooltipProps {
    * Нужно, когда кнопка стоит не у края и подсказка вылезла бы за обрезку контейнера
    */
   alignToParent?: boolean;
+  /** Показать без наведения — например, подтверждение после нажатия на телефоне */
+  open?: boolean;
   className?: string;
 }
 
@@ -19,7 +21,13 @@ interface TooltipProps {
  * Подпись для читалки должна быть у самого элемента — тултип от неё скрыт.
  * Замеры — market-docs/28-tooltip.md
  */
-export default function Tooltip({ text, children, alignToParent = false, className }: TooltipProps) {
+export default function Tooltip({
+  text,
+  children,
+  alignToParent = false,
+  open = false,
+  className,
+}: TooltipProps) {
   return (
     <span className={cn('group/tip inline-flex', !alignToParent && 'relative', className)}>
       {children}
@@ -28,7 +36,8 @@ export default function Tooltip({ text, children, alignToParent = false, classNa
         className={cn(
           'pointer-events-none absolute right-0 top-full z-10 mt-2 whitespace-nowrap',
           'rounded-lg bg-brand-green px-3 py-1.5 text-12 font-semibold leading-none text-ink-inverse',
-          'translate-y-1 opacity-0 transition duration-150 motion-reduce:transition-none',
+          'transition duration-150 motion-reduce:transition-none',
+          open ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
           '[@media(hover:hover)]:group-hover/tip:translate-y-0 [@media(hover:hover)]:group-hover/tip:opacity-100',
           'group-has-[:focus-visible]/tip:translate-y-0 group-has-[:focus-visible]/tip:opacity-100',
         )}

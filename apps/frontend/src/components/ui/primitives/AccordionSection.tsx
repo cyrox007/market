@@ -1,7 +1,10 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { ReactNode, TransitionEvent } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../../lib/cn';
+import { prefersReducedMotion } from '../../../lib/motion';
+
+const EXPAND_MS = 300;
 
 interface AccordionSectionProps {
   title: ReactNode;
@@ -49,6 +52,16 @@ export default function AccordionSection({
       setSettled(isOpen);
     }
   };
+  // Без перехода transitionend не придёт: «уменьшить движение» — сразу, иначе запасной таймер
+  useEffect(() => {
+    if (!isOpen || settled) return;
+    if (prefersReducedMotion()) {
+      setSettled(true);
+      return;
+    }
+    const timer = setTimeout(() => setSettled(true), EXPAND_MS + 50);
+    return () => clearTimeout(timer);
+  }, [isOpen, settled]);
 
   return (
     <div className={cn('flex flex-col', className)}>

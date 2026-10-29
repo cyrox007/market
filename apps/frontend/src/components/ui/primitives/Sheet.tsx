@@ -1,12 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
-import { focusableIn } from './focusable';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 import PresencePortal from './PresencePortal';
 import { transitionMs, useCloseUnlessLeaving } from './usePresence';
-import { HISTORY_KEY, isSheetHistoryEntry } from './sheetHistory';
+import { useDialog } from './useDialog';
 
-export type SheetSide = 'left' | 'bottom';
+/** center — окно посередине; его выбирает Modal по ширине экрана */
+export type SheetSide = 'left' | 'bottom' | 'center';
 
 interface SheetProps {
   open: boolean;
@@ -28,8 +28,6 @@ interface SheetProps {
 const PULL_TO_CLOSE = 80;
 
 const MOTION = { enterMs: 300, leaveMs: 200 };
-
-let openSheets = 0;
 
 /** Модальная панель: слева или шторкой снизу; «Назад» телефона её закрывает (market-docs/45, 54) */
 export default function Sheet(props: SheetProps) {
@@ -68,66 +66,11 @@ function SheetPanel({
     if (body) setGutter(body.offsetWidth - body.clientWidth);
   }, []);
   const isBottom = side === 'bottom';
-  const padX = isBottom ? 16 : 32;
+  const isCenter = side === 'center';
+  const padX = isBottom ? 16 : isCenter ? 24 : 32;
   const onCloseRef = useCloseUnlessLeaving(onClose, leaving);
 
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus({ preventScroll: true });
-
-    // overflow на <html>, не position: fixed на body — тот увёл бы липкую шапку за экран
-    const root = document.documentElement;
-    const previousOverflow = root.style.overflow;
-    root.style.overflow = 'hidden';
-
-    const handleKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current();
-    };
-    document.addEventListener('keydown', handleKey);
-
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      root.style.overflow = previousOverflow;
-      opener?.focus({ preventScroll: true });
-    };
-  }, [onCloseRef]);
-
-  // Своя запись в истории: «Назад» снимает её и закрывает шторку, а не уводит со страницы
-  useEffect(() => {
-    openSheets += 1;
-    if (!isSheetHistoryEntry()) {
-      window.history.pushState({ ...window.history.state, [HISTORY_KEY]: true }, '');
-    }
-    const handlePop = () => onCloseRef.current();
-    window.addEventListener('popstate', handlePop);
-    return () => {
-      openSheets -= 1;
-      window.removeEventListener('popstate', handlePop);
-      // Отложено: при повторном монтировании (StrictMode) запись остаётся за новой шторкой
-      setTimeout(() => {
-        if (openSheets === 0 && isSheetHistoryEntry()) window.history.back();
-      });
-    };
-  }, [onCloseRef]);
-
-  const trapTab = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab' || !panelRef.current) return;
-    const items = focusableIn(panelRef.current);
-    if (items.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    const first = items[0];
-    const last = items[items.length - 1];
-    const active = document.activeElement;
-    if (event.shiftKey && (active === first || active === panelRef.current)) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && (active === last || active === panelRef.current)) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
+  const trapTab = useDialog(panelRef, onCloseRef);
 
   const setPull = (dy: number) => {
     const panel = panelRef.current;
@@ -157,7 +100,13 @@ function SheetPanel({
   };
 
   return (
-    <div className={cn('fixed inset-0 z-50', leaving && 'pointer-events-none')}>
+    <div
+      className={cn(
+        'fixed inset-0 z-50',
+        isCenter && 'flex items-center justify-center p-4',
+        leaving && 'pointer-events-none',
+      )}
+    >
       <div
         data-testid="sheet-backdrop"
         aria-hidden="true"
@@ -175,21 +124,28 @@ function SheetPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        data-variant={side}
         tabIndex={-1}
         onKeyDown={trapTab}
         className={cn(
-          'absolute flex flex-col bg-surface outline-none',
-          'transition-transform motion-reduce:transition-none',
+          'flex flex-col bg-surface outline-none',
+          'motion-reduce:transition-none',
+          isCenter ? 'relative transition-[opacity,transform]' : 'absolute transition-transform',
           leaving ? 'ease-in' : 'ease-out',
-          isBottom
+          isCenter
             ? cn(
-                'inset-x-0 bottom-0 max-h-[90vh] rounded-t-card',
-                shown ? 'translate-y-0' : 'translate-y-full',
+                'max-h-[90vh] w-[534px] max-w-full rounded-card shadow-card',
+                shown ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
               )
-            : cn(
-                'inset-y-0 left-0 w-[400px] max-w-full shadow-drawer',
-                shown ? 'translate-x-0' : '-translate-x-full',
-              ),
+            : isBottom
+              ? cn(
+                  'inset-x-0 bottom-0 max-h-[90vh] rounded-t-card',
+                  shown ? 'translate-y-0' : 'translate-y-full',
+                )
+              : cn(
+                  'inset-y-0 left-0 w-[400px] max-w-full shadow-drawer',
+                  shown ? 'translate-x-0' : '-translate-x-full',
+                ),
           className,
         )}
         style={transitionMs(MOTION, leaving)}
@@ -210,12 +166,16 @@ function SheetPanel({
         <div
           className={cn(
             'flex shrink-0 items-center justify-between gap-4',
-            isBottom ? 'px-4 pb-4' : 'pb-4 pl-8 pr-6 pt-6',
+            isBottom ? 'px-4 pb-4' : isCenter ? 'px-6 pb-4 pt-6' : 'pb-4 pl-8 pr-6 pt-6',
           )}
         >
           <h2
             id={titleId}
-            className={cn('min-w-0 font-bold text-ink', isBottom ? 'text-20' : 'text-24')}
+            className={cn(
+              'min-w-0 text-ink',
+              isCenter ? 'text-20 font-semibold leading-none' : 'font-bold',
+              isBottom ? 'text-20' : !isCenter && 'text-24',
+            )}
           >
             {title}
           </h2>
@@ -240,7 +200,7 @@ function SheetPanel({
           <div
             className={cn(
               'shrink-0 border-t border-surface-border',
-              isBottom ? 'px-4 pb-4 pt-4' : 'px-8 pb-6 pt-4',
+              isBottom ? 'px-4 pb-4 pt-4' : isCenter ? 'px-6 pb-6 pt-4' : 'px-8 pb-6 pt-4',
             )}
           >
             {footer}

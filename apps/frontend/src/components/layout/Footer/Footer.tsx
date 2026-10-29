@@ -117,7 +117,7 @@ function Contacts() {
         <Users className={`${CONTACT_ICON} text-ink-inverse`} aria-hidden="true" />
         <div className="flex items-center gap-2">
           <a
-            href="https://vk.com"
+            href={FOOTER_CONTACTS.vk}
             target="_blank"
             rel="noreferrer"
             aria-label="ВКонтакте"
@@ -126,7 +126,7 @@ function Contacts() {
             <VkIcon className="size-6" />
           </a>
           <a
-            href="https://wa.me/78002228586"
+            href={FOOTER_CONTACTS.whatsapp}
             target="_blank"
             rel="noreferrer"
             aria-label="WhatsApp"

@@ -1,0 +1,191 @@
+import { useState } from 'react';
+import { prefersReducedMotion } from '../../lib/motion';
+import type { Product, ProductDetail } from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
+import { useRegion } from '../../hooks/useRegion';
+import BuyBlock from './components/BuyBlock';
+import DeliveryInfo from './components/DeliveryInfo';
+import Gallery from './components/Gallery';
+import PhotoViewer from './components/PhotoViewer';
+import OneClickModal from './components/OneClickModal';
+import ProductContacts from './components/ProductContacts';
+import ProductBreadcrumbs from './components/ProductBreadcrumbs';
+import { ReviewsEmpty } from './components/ProductEmptyState';
+import ReviewModal from './components/ReviewModal';
+import ReviewsSection from './components/ReviewsSection';
+import ProductTabs, { PRODUCT_DETAILS_ID, type ProductTabId } from './components/ProductTabs';
+import RelatedProducts from './components/RelatedProducts';
+import WishlistCompareButtons from './components/WishlistCompareButtons';
+import { useDeliveryQuote } from './hooks/useDeliveryQuote';
+import { useProductContacts } from './hooks/useProductContacts';
+import { useProductCartActions } from './hooks/useProductCartActions';
+import { useProductReviews } from './hooks/useProductReviews';
+import { useWriteReview } from './hooks/useWriteReview';
+import { useVariantSelection } from './hooks/useVariantSelection';
+import { isVariableParent } from './lib/variants';
+import { bundleCheckout } from './lib/bundle';
+import { getSpecificationsArray } from './lib/productText';
+
+interface Props {
+  product: ProductDetail;
+  related: Product[];
+  isRefreshing: boolean;
+}
+
+/** Страница одного товара; на другой товар — новый экземпляр (key), состояние не переносится */
+export default function ProductContent({ product, related, isRefreshing }: Props) {
+  const selection = useVariantSelection(product);
+  const { selectedVariant } = selection;
+  const cart = useProductCartActions({
+    product,
+    selectedVariant,
+    cartAttributes: selection.cartAttributes,
+  });
+  const { locality, region } = useRegion();
+  const city = locality?.name ?? region?.name ?? null;
+  const delivery = useDeliveryQuote(product, selectedVariant, cart.quantity);
+  const reviewsCount = product.reviews_count ?? 0;
+  const reviews = useProductReviews(product.id, reviewsCount);
+  const contacts = useProductContacts(city);
+  const auth = useAuth();
+  const review = useWriteReview(auth);
+  const writeReview = review.start;
+
+  const [tab, setTab] = useState<ProductTabId>('description');
+  // «Купить в 1 клик» открывается и когда товара нет в наличии
+  const [oneClickOpen, setOneClickOpen] = useState(false);
+  // SKU для прямого оформления: у вариативного родителя без выбранного варианта его нет
+  const oneClickSku =
+    isVariableParent(product) && !selectedVariant ? null : (selectedVariant?.id ?? product.id);
+
+  // Фото варианта, если они есть; иначе — товара
+  const images = selectedVariant?.images?.length
+    ? selectedVariant.images
+    : product.images?.length
+      ? product.images
+      : product.image_hd
+        ? [product.image_hd]
+        : product.image
+          ? [product.image]
+          : [];
+  const [image, setImage] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [prevVariantId, setPrevVariantId] = useState(selectedVariant?.id);
+  if (prevVariantId !== selectedVariant?.id) {
+    setPrevVariantId(selectedVariant?.id);
+    setImage(0);
+  }
+
+  // Наследование делает бэк: у предложения приходит своё описание, иначе родительское,
+  // и пустая разметка вроде `<p></p>` своим не считается (market-docs/61).
+  // Фолбэк на родителя остаётся страховкой на случай старого ответа в кэше.
+  const description = selectedVariant?.description ?? product.description;
+  const variantSpecs = getSpecificationsArray(selectedVariant?.specifications);
+  const specifications =
+    variantSpecs.length > 0
+      ? variantSpecs
+      : getSpecificationsArray(
+          product.specifications,
+          (product as { specification_names?: Record<string, string> }).specification_names,
+        );
+
+  const goToReviews = () => {
+    setTab('reviews');
+    document
+      .getElementById(PRODUCT_DETAILS_ID)
+      ?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  };
+
+  return (
+    // overflow-x-clip: «Похожие» выходят за колонку до края экрана, а полоса прокрутки входит в 100vw
+    <div className="min-h-screen overflow-x-clip bg-surface">
+      <div className="max-w-[1280px] mx-auto px-4 py-6">
+        <ProductBreadcrumbs product={product} />
+
+        <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_441.5px]">
+          <div className="min-w-0">
+            <Gallery
+              images={images}
+              productName={product.name ?? 'Товар'}
+              selectedIndex={image}
+              onSelectIndex={setImage}
+              onOpen={(i) => {
+                setImage(i);
+                setViewerOpen(true);
+              }}
+            />
+            <PhotoViewer
+              open={viewerOpen}
+              images={images}
+              productName={product.name ?? 'Товар'}
+              index={image}
+              onIndexChange={setImage}
+              onClose={() => setViewerOpen(false)}
+            />
+          </div>
+
+          <BuyBlock
+            product={product}
+            selectedVariant={selectedVariant}
+            attributes={selection.attributes}
+            onSelectValue={selection.selectValue}
+            disabled={isRefreshing}
+            city={city}
+            cart={cart}
+            onGoToReviews={goToReviews}
+            onOneClick={() => setOneClickOpen(true)}
+            delivery={<DeliveryInfo city={city} {...delivery} />}
+            titleActions={
+              <WishlistCompareButtons product={product} selectedVariant={selectedVariant} />
+            }
+          />
+        </div>
+
+        <ProductTabs
+          activeTab={tab}
+          onTabChange={setTab}
+          description={description}
+          specifications={specifications}
+          reviewsCount={reviewsCount}
+          reviews={
+            reviewsCount > 0 ? (
+              <ReviewsSection
+                rating={product.rating ?? 0}
+                count={reviewsCount}
+                reviews={reviews.reviews}
+                status={reviews.status}
+                onWriteReview={writeReview}
+                onRetry={reviews.retry}
+              />
+            ) : (
+              <ReviewsEmpty onWriteReview={writeReview} />
+            )
+          }
+        />
+
+        <ProductContacts contacts={contacts} />
+
+        <OneClickModal
+          open={oneClickOpen}
+          onClose={() => setOneClickOpen(false)}
+          productId={oneClickSku}
+          quantity={Math.max(1, cart.quantity)}
+          bundle={bundleCheckout(product, selectedVariant)}
+        />
+
+        {auth.user && (
+          <ReviewModal
+            open={review.open}
+            onClose={review.close}
+            productId={product.id}
+            authorName={auth.user.name}
+          />
+        )}
+
+        <div className="space-y-16">
+          <RelatedProducts products={related} />
+        </div>
+      </div>
+    </div>
+  );
+}

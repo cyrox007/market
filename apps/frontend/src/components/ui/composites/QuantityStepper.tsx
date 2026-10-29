@@ -9,6 +9,9 @@ interface QuantityStepperProps {
   onChange?: (value: number) => void;
   decrementLabel?: string;
   incrementLabel?: string;
+  /** yellow — страница товара: жёлтые круги, значение в рамке (market-docs/56, cart-in-cart.png) */
+  tone?: 'card' | 'yellow';
+  disabled?: boolean;
   className?: string;
 }
 
@@ -34,17 +37,20 @@ export default function QuantityStepper({
   onChange,
   decrementLabel = 'Уменьшить количество',
   incrementLabel = 'Увеличить количество',
+  tone = 'card',
+  disabled = false,
   className,
 }: QuantityStepperProps) {
-  const canDecrement = value > min;
-  const canIncrement = max === undefined || value < max;
+  const canDecrement = !disabled && value > min;
+  const canIncrement = !disabled && (max === undefined || value < max);
+  const yellow = tone === 'yellow';
 
   return (
     <div className={cn('inline-flex items-center gap-2', className)}>
       <IconButton
         label={decrementLabel}
-        variant="grey"
-        elevated
+        variant={yellow ? 'yellow' : 'grey'}
+        elevated={!yellow}
         disabled={!canDecrement}
         onClick={() => onChange?.(value - 1)}
       >
@@ -53,14 +59,18 @@ export default function QuantityStepper({
 
       <span
         aria-live="polite"
-        className="inline-flex h-10 w-[55px] shrink-0 items-center justify-center rounded-btn bg-surface text-14 text-ink"
+        className={cn(
+          'inline-flex h-10 w-[55px] shrink-0 items-center justify-center rounded-btn bg-surface text-14 text-ink',
+          yellow && 'border border-surface-stroke/[0.08]',
+        )}
       >
         {value}
       </span>
 
       <IconButton
         label={incrementLabel}
-        elevated
+        variant={yellow ? 'yellow' : 'white'}
+        elevated={!yellow}
         disabled={!canIncrement}
         onClick={() => onChange?.(value + 1)}
       >

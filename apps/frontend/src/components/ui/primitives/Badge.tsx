@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
 export type BadgeVariant = 'sale' | 'new' | 'info' | 'soft' | 'neutral';
-export type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
+export type BadgeSize = 'xs' | 'sm' | 'md' | 'lg' | 'status';
 export type BadgeShape = 'badge' | 'pill';
 
 interface BadgeOwnProps {
@@ -29,10 +29,12 @@ const VARIANT: Record<BadgeVariant, string> = {
  * ⚠️ Кегли `xs` и `sm` не замерены. Замеры — market-docs/09-ui-primitives-stage-1.md.
  */
 const SIZE: Record<BadgeSize, string> = {
-  xs: 'px-2.5 py-[5px] text-10',
-  sm: 'px-3 py-1.5 text-12',
-  md: 'px-3 py-2 text-12 max-vsm:py-1.5',
-  lg: 'px-4 py-2 text-12 max-vsm:px-3 max-vsm:py-1.5',
+  xs: 'px-2.5 py-[5px] text-10 font-medium',
+  sm: 'px-3 py-1.5 text-12 font-medium',
+  md: 'px-3 py-2 text-12 font-medium max-vsm:py-1.5',
+  lg: 'px-4 py-2 text-12 font-medium max-vsm:px-3 max-vsm:py-1.5',
+  // Плашки наличия на странице товара: шире и жирнее sm
+  status: 'px-4 py-1.5 text-12 font-semibold',
 };
 
 const SHAPE: Record<BadgeShape, string> = {
@@ -54,7 +56,7 @@ export default function Badge({
       {...rest}
       className={cn(
         // Регистр задаётся текстом, а не компонентом: в макете есть и капс, и обычный
-        'inline-flex items-center gap-1 font-medium whitespace-nowrap',
+        'inline-flex items-center gap-1 whitespace-nowrap',
         VARIANT[variant],
         SIZE[size],
         SHAPE[shape],

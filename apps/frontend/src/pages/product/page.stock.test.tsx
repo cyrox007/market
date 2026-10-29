@@ -159,6 +159,13 @@ const mergedProduct = {
 describe('Product page — плашка наличия вариативной карточки', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // jsdom без matchMedia, а окно «1 клик» по нему выбирает вид (Modal → Sheet)
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
   });
 
   it('показывает «В наличии» по остатку выбранного варианта, а не по nearest_stock карточки', async () => {

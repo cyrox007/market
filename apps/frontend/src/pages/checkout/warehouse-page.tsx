@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type PaymentMethod, type PickupOption, type WarehouseQuote } from '../../lib/api';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
@@ -34,7 +34,10 @@ export default function WarehouseCheckout() {
   const [handling, setHandling] = useState<number | null>(null);
   const [floor, setFloor] = useState(1);
   const [additional, setAdditional] = useState<number[]>([]);
-  const [contact, setContact] = useState({ name: user?.name || '', phone: user?.phone || '', email: user?.email || '' });
+  // «Купить в один клик» ведёт сюда и передаёт уже введённое, чтобы не набирать заново
+  const oneClick = (useLocation().state as { oneClick?: { name?: string; phone?: string; comment?: string } } | null)?.oneClick;
+  const [contact, setContact] = useState({ name: oneClick?.name || user?.name || '', phone: oneClick?.phone || user?.phone || '', email: user?.email || '' });
+  const [comment, setComment] = useState(oneClick?.comment || '');
   const [details, setDetails] = useState({ apartment: '', entrance: '', intercom: '' });
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -86,6 +89,7 @@ export default function WarehouseCheckout() {
     try {
       const response = await api.orders.create({ contact_name: contact.name, contact_phone: contact.phone, contact_email: contact.email,
         payment_method: payment, delivery_type: mode, expected_subtotal: isBundle ? subtotal : (quote?.subtotal ?? subtotal),
+        ...(comment.trim() ? { comment: comment.trim() } : {}),
         ...(direct ? { items } : {}),
         ...(isBundle ? { bundle_id: bundleId, primary_sku_id: primarySkuId, bundle_quantity: quantity } : {}),
         accept_offer: true, accept_personal_data: true,
@@ -121,6 +125,7 @@ export default function WarehouseCheckout() {
       )}
       <section className="border rounded-2xl p-6 space-y-4"><h2 className="text-xl font-bold">Контактные данные</h2>
         {(['name', 'phone', 'email'] as const).map((key) => <label key={key} className="block">{{ name: 'Имя', phone: 'Телефон', email: 'Email' }[key]}<input required type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'} value={contact[key]} onChange={(e) => setContact({ ...contact, [key]: e.target.value })} className={field} /></label>)}
+        <label className="block">Комментарий к заказу<textarea value={comment} maxLength={1000} onChange={(e) => setComment(e.target.value)} className={field} /></label>
       </section>
       <section className="border rounded-2xl p-6 space-y-4"><h2 className="text-xl font-bold">Получение заказа</h2>
         <label className="block">Способ получения<select value={mode} onChange={(e) => { setMode(e.target.value as 'delivery' | 'pickup'); setQuote(null); }} className={field}><option value="delivery">Доставка</option><option value="pickup">Самовывоз</option></select></label>

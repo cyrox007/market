@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { apiErrorMessage } from '../../lib/api-error';
+import { safeNext, withNext } from '../../lib/safe-next';
 import { useAuth } from '../../hooks/useAuth';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
@@ -9,6 +11,8 @@ import PublicAuthNotice from '../../components/auth/PublicAuthNotice';
 
 export default function Login() {
   const navigate = useNavigate();
+  // Вернуть туда, откуда пришли (товар с окном отзыва, market-docs/57-задачи/11)
+  const next = safeNext(useSearchParams()[0].get('next'));
   const { login, isAuthenticated } = useAuth();
   const access = usePublicAuthSettings();
   const [email, setEmail] = useState('');
@@ -19,9 +23,9 @@ export default function Login() {
   // Редирект, если уже авторизован
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/account');
+      navigate(next ?? '/account');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, next]);
 
   usePageSeo({
     title: buildTitle('Вход'),
@@ -40,9 +44,9 @@ export default function Login() {
 
     try {
       await login(email, password);
-      navigate('/account');
+      navigate(next ?? '/account');
     } catch (err: any) {
-      setError(err?.data?.message || err?.message || 'Ошибка входа. Проверьте email и пароль.');
+      setError(apiErrorMessage(err, 'Ошибка входа. Проверьте email и пароль.'));
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +120,7 @@ export default function Login() {
           <div className="mt-6 text-center space-y-2">
             {access.registrationEnabled && <p className="text-sm text-gray-600">
               Нет аккаунта?{' '}
-              <Link to="/register" className="text-red-600 hover:text-red-700 font-medium">
+              <Link to={withNext('/register', next)} className="text-red-600 hover:text-red-700 font-medium">
                 Зарегистрироваться
               </Link>
             </p>}

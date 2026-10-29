@@ -1,10 +1,8 @@
-import { useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import type { Swiper as SwiperType } from 'swiper';
 import CategoryCard from './CategoryCard';
 import type { CategoryCardItem } from './CategoryCard';
-import { IconButton } from '../../../../components/ui/primitives';
+import { CarouselArrow, CarouselFade } from '../../../../components/ui/composites/Carousel';
+import { useCarouselEdges } from '../../../../components/ui/composites/useCarouselEdges';
 import { cn } from '../../../../lib/cn';
 
 import 'swiper/css';
@@ -35,19 +33,12 @@ const EDGE = {
 };
 
 export default function CategoryCarousel({ items = [], className }: CategoryCarouselProps) {
-  const swiperRef = useRef<SwiperType | null>(null);
-  const [isBeginning, setBeginning] = useState(true);
-  const [isEnd, setEnd] = useState(false);
-  const [slideWidth, setSlideWidth] = useState(0);
+  const { isBeginning, isEnd, slideWidth, swiperProps, prev, next } = useCarouselEdges();
 
   if (!items.length) return null;
 
-  const sync = (instance: SwiperType) => {
-    setBeginning(instance.isBeginning);
-    setEnd(instance.isEnd);
-    // Полоса вдвое шире карточки: узкой не хватает, чтобы увести край в белый
-    setSlideWidth((instance.slidesSizesGrid?.[0] ?? 0) * 2);
-  };
+  // Полоса вдвое шире карточки: узкой не хватает, чтобы увести край в белый
+  const fadeWidth = slideWidth * 2;
 
   return (
     <section className={cn(FULL_WIDTH, 'relative pt-[54px] max-md:pt-8', className)}>
@@ -74,15 +65,7 @@ export default function CategoryCarousel({ items = [], className }: CategoryCaro
               slidesOffsetAfter: EDGE.base.after,
             },
           }}
-          onSwiper={(instance) => {
-            swiperRef.current = instance;
-            sync(instance);
-          }}
-          onSlideChange={sync}
-          onResize={sync}
-          // Непрерывное событие: при медленном перетаскивании слайд ещё не сменился,
-          // а края уже пройдены — без него затухание запаздывает до отпускания кнопки
-          onProgress={sync}
+          {...swiperProps}
         >
           {items.map((item) => (
             <SwiperSlide key={item.id} className="max-vsm:!w-[150px]">
@@ -91,65 +74,30 @@ export default function CategoryCarousel({ items = [], className }: CategoryCaro
           ))}
         </Swiper>
 
-        <Fade side="left" hidden={isBeginning} width={slideWidth} />
-        <Fade side="right" hidden={isEnd} width={slideWidth} />
+        <CarouselFade
+          side="left"
+          hidden={isBeginning}
+          width={fadeWidth}
+          className="max-md:hidden"
+        />
+        <CarouselFade side="right" hidden={isEnd} width={fadeWidth} className="max-md:hidden" />
 
         <CarouselArrow
           side="prev"
           hidden={isBeginning}
-          onClick={() => swiperRef.current?.slidePrev()}
+          label="Предыдущие категории"
+          onClick={prev}
+          // Центр по картинке, а не по карточке: под ней ещё зазор 8 и строка подписи 17
+          className="top-[calc(50%-12.5px)] left-[114px] max-md:left-4 max-vsm:left-2"
         />
-        <CarouselArrow side="next" hidden={isEnd} onClick={() => swiperRef.current?.slideNext()} />
+        <CarouselArrow
+          side="next"
+          hidden={isEnd}
+          label="Следующие категории"
+          onClick={next}
+          className="top-[calc(50%-12.5px)] right-[114px] max-md:right-4 max-vsm:right-2"
+        />
       </div>
     </section>
-  );
-}
-
-function Fade({ side, hidden, width }: { side: 'left' | 'right'; hidden: boolean; width: number }) {
-  return (
-    <div
-      aria-hidden="true"
-      style={width ? { width } : undefined}
-      className={cn(
-        // z-10 обязателен: Swiper объявляет себе z-index 1 и иначе перекрывает затухание
-        // За пределы: сверху 1, слева 1, справа 2 — иначе по краю остаётся волосок карточки
-        'pointer-events-none absolute -top-px bottom-0 z-10 w-24 transition-opacity duration-slow max-md:hidden',
-        side === 'left'
-          ? '-left-px bg-gradient-to-r from-surface via-surface/80 to-transparent'
-          : '-right-0.5 bg-gradient-to-l from-surface via-surface/80 to-transparent',
-        hidden && 'opacity-0',
-      )}
-    />
-  );
-}
-
-function CarouselArrow({
-  side,
-  hidden,
-  onClick,
-}: {
-  side: 'prev' | 'next';
-  hidden: boolean;
-  onClick: () => void;
-}) {
-  const isPrev = side === 'prev';
-  return (
-    <IconButton
-      variant="white"
-      size="md"
-      elevated
-      label={isPrev ? 'Предыдущие категории' : 'Следующие категории'}
-      onClick={onClick}
-      className={cn(
-        // Центр по картинке, а не по карточке: под ней ещё зазор 8 и строка подписи 17
-        'absolute top-[calc(50%-12.5px)] z-10 -translate-y-1/2',
-        isPrev
-          ? 'left-[114px] max-md:left-4 max-vsm:left-2'
-          : 'right-[114px] max-md:right-4 max-vsm:right-2',
-        hidden && 'pointer-events-none opacity-0',
-      )}
-    >
-      {isPrev ? <ChevronLeft className="size-5" /> : <ChevronRight className="size-5" />}
-    </IconButton>
   );
 }
