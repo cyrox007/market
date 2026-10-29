@@ -80,7 +80,9 @@ class RelatedProductsRelationManager extends RelationManager
                     ->action(function (array $data): void {
                         $owner = $this->getOwnerRecord();
                         $mode = $data['related_products_mode'] === 'legacy' ? null : $data['related_products_mode'];
-                        $owner->update(['related_products_mode' => $mode]);
+                        // Vanilo Product mass-assignment does not include this
+                        // extension attribute; update() silently discards it.
+                        $owner->forceFill(['related_products_mode' => $mode])->save();
                         Product::flushAllProductCaches();
                         Notification::make()->title('Режим рекомендаций сохранён')->success()->send();
                     }),

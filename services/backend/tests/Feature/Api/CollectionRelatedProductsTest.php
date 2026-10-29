@@ -86,13 +86,13 @@ class CollectionRelatedProductsTest extends TestCase
         $root->attachRelatedProduct($manual);
         $this->assertSame([$manual->id], $this->relatedIds($root));
 
-        $root->update(['related_products_mode' => 'off']);
+        $root->forceFill(['related_products_mode' => 'off'])->save();
         $this->assertSame([], $this->relatedIds($root));
 
-        $root->update(['related_products_mode' => 'manual']);
+        $root->forceFill(['related_products_mode' => 'manual'])->save();
         $this->assertSame([$manual->id], $this->relatedIds($root));
 
-        $root->update(['related_products_mode' => 'automatic']);
+        $root->forceFill(['related_products_mode' => 'automatic'])->save();
         $this->assertSame([$other->id], $this->relatedIds($root));
 
         // A different product is not switched to manual by the root's rule.

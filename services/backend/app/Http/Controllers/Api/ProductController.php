@@ -908,7 +908,12 @@ class ProductController extends Controller
         // Null keeps legacy semantics: existing hand-picked links take precedence,
         // and an unconfigured product uses the automatic recommendations.
         $mode = $parentProduct->related_products_mode;
-        return Product::cached("related_v3_{$id}", function () use ($parentProduct, $eager, $mode) {
+        // This per-revision key is essential when the cache backend does not
+        // support tags (e.g. file/database). Both product edits and collection
+        // edits rotate catalog_filters_revision, so old recommendations cannot
+        // survive a change in collection membership or manual/off mode.
+        $revision = (string) Cache::get('catalog_filters_revision', '0');
+        return Product::cached("related_v3_{$id}_{$revision}", function () use ($parentProduct, $eager, $mode) {
             if ($mode === 'off') {
                 return collect();
             }
