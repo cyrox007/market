@@ -27,7 +27,8 @@ export default function RelatedProducts({ products }: { products: Product[] }) {
       </h2>
       <div className="relative">
         <div className="relative mr-[max(calc(50%-50vw),-96px)]" data-product-shop>
-          <Swiper spaceBetween={16} slidesPerView="auto" {...swiperProps}>
+          {/* Запас сверху: Swiper обрезает по краю, а карточка под курсором поднимается на 6 и даёт тень */}
+          <Swiper spaceBetween={16} slidesPerView="auto" className="-mt-6 !pt-6" {...swiperProps}>
             {products.map((item, index) => (
               <SwiperSlide key={item.id} className="!w-[298px]">
                 <ProductCardConnected product={item} priority={index < 4} />
@@ -36,14 +37,14 @@ export default function RelatedProducts({ products }: { products: Product[] }) {
           </Swiper>
           <CarouselFade side="right" hidden={isEnd} width={100} veil className="max-md:hidden" />
         </div>
-        {/* По центру фото: оно квадратное, 298 */}
+        {/* По центру фото (квадрат 298) с учётом запаса 24 сверху у Swiper */}
         <CarouselArrow
           side="prev"
           hidden={isBeginning}
           glass
           label="Предыдущие товары"
           onClick={prev}
-          className="left-0 top-[149px] max-vsm:hidden"
+          className="left-0 top-[173px] max-vsm:hidden"
         />
         <CarouselArrow
           side="next"
@@ -51,7 +52,7 @@ export default function RelatedProducts({ products }: { products: Product[] }) {
           glass
           label="Следующие товары"
           onClick={next}
-          className="right-0 top-[149px] max-vsm:hidden"
+          className="right-0 top-[173px] max-vsm:hidden"
         />
       </div>
     </section>
