@@ -11,6 +11,19 @@ class ReviewControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_review_dates_are_iso_and_length_limits_match_the_design(): void
+    {
+        $product = Product::factory()->create();
+        $review = Review::factory()->create(['product_id' => $product->id, 'is_approved' => true]);
+        $this->getJson('/api/v1/products/'.$product->id.'/reviews')->assertOk()
+            ->assertJsonPath('data.0.created_at', $review->created_at->toIso8601String());
+        foreach ([24 => 422, 25 => 201, 1000 => 201, 1001 => 422] as $length => $status) {
+            $this->postJson('/api/v1/products/'.$product->id.'/reviews', [
+                'name' => 'Покупатель', 'rating' => 5, 'comment' => str_repeat('я', $length),
+            ])->assertStatus($status);
+        }
+    }
+
     public function test_can_list_approved_reviews_for_product(): void
     {
         $product = Product::factory()->create([
@@ -211,7 +224,7 @@ class ReviewControllerTest extends TestCase
             ->assertJsonValidationErrors(['comment']);
     }
 
-    public function test_validation_comment_must_be_at_least_10_characters(): void
+    public function test_validation_comment_must_be_at_least_25_characters(): void
     {
         $product = Product::factory()->create([
             'state' => 'active',

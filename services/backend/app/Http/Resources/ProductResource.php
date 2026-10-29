@@ -44,6 +44,7 @@ class ProductResource extends JsonResource
         $isVariableKit = $kitRoot?->isVariable() && (bool) $kitRoot->is_sellable_bundle;
         $isSimpleKit = ! $this->isVariant() && ! $this->isVariable() && (bool) $this->is_sellable_bundle;
         $kitAvailableSets = 0;
+        $bundleConfigured = null;
         $deliveryDays = null;
         $defaultColor = null;
         $defaultSize = null;
@@ -76,6 +77,7 @@ class ProductResource extends JsonResource
                         'price' => $regionRuleService->getPriceForRegion($this->resource, $region, $variant)];
                 });
                 $pricedVariants = $variantsWithPrices->filter(fn ($row) => $row['price'] !== null);
+                if ($isVariableKit) { $bundleConfigured = $pricedVariants->isNotEmpty(); }
                 $minPrice = $pricedVariants->min('price');
                 if ($minPrice !== null) {
                     $price = (float) $minPrice;
@@ -160,9 +162,11 @@ class ProductResource extends JsonResource
         if (($isVariableKit && $this->isVariant()) || $isSimpleKit) {
             try {
                 $kit = app(\App\Services\Product\SellableBundle::class)->quote((int) $kitRoot->id, $isSimpleKit ? null : (int) $this->id, 1, $region);
+                $bundleConfigured = true;
                 $price = $kit['subtotal'];
                 $kitAvailableSets = app(\App\Services\Product\SellableBundle::class)->availableSets($kit['items']);
             } catch (\Illuminate\Validation\ValidationException $error) {
+                $bundleConfigured = false;
                 $price = 0;
                 $kitAvailableSets = 0;
             }
@@ -223,6 +227,9 @@ class ProductResource extends JsonResource
             'reviews_count' => $this->reviews_count ?? 0,
             'is_variable' => $this->isVariable(),
             'is_variant' => $this->isVariant(),
+            'is_sellable_bundle' => (bool) $kitRoot?->is_sellable_bundle,
+            'is_bundle_configured' => $bundleConfigured,
+            'units_sold' => (int) ($this->units_sold ?? 0),
             'first_available_variant_id' => $firstAvailableVariantId,
             'default_color' => $isListView ? null : $defaultColor,
             'default_size' => $isListView ? null : $defaultSize,

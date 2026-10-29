@@ -39,8 +39,23 @@ class IndividualSkuCatalogTest extends TestCase
         $this->assertSame([$red->id, $simple->id], array_column($first->json('data'), 'id'));
         $first->assertJsonPath('data.0.slug', $red->slug)->assertJsonPath('data.0.sku', $red->sku)->assertJsonPath('data.0.parent_id', $parent->id);
         $this->assertSame(100.0, (float) $first->json('data.0.price'));
+        $first->assertJsonPath('meta.fulfillment.delivery_quote_endpoint', '/api/v1/shipping/quote');
         $this->getJson($url.'&page=2')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $blue->id);
         $this->getJson('/api/v1/products/count?category_slug='.$category->slug)->assertExactJson(['total' => 3]);
+    }
+
+    public function test_manual_featured_selection_does_not_require_fabricated_sales(): void
+    {
+        [, $parent, $red, $blue] = $this->items();
+        $red->update(['units_sold' => 0]);
+        $blue->update(['units_sold' => 0]);
+        $collection = \App\Models\Product\ProductCollection::create([
+            'name' => 'Популярные', 'slug' => 'featured', 'is_auto' => false, 'is_active' => true, 'limit' => 8,
+        ]);
+        $collection->products()->attach($parent->id, ['sort_order' => 0]);
+        $response = $this->getJson('/api/v1/products/featured')->assertOk()->assertJsonCount(2, 'data');
+        $this->assertSame([$red->id, $blue->id], array_column($response->json('data'), 'id'));
+        $this->assertSame([0, 0], array_column($response->json('data'), 'units_sold'));
     }
 
     public function test_search_and_filters_apply_to_the_same_offer(): void
