@@ -908,7 +908,7 @@ class ProductController extends Controller
         // Null keeps legacy semantics: existing hand-picked links take precedence,
         // and an unconfigured product uses the automatic recommendations.
         $mode = $parentProduct->related_products_mode;
-        return Product::cached("related_v2_{$id}", function () use ($parentProduct, $eager, $mode) {
+        return Product::cached("related_v3_{$id}", function () use ($parentProduct, $eager, $mode) {
             if ($mode === 'off') {
                 return collect();
             }
@@ -928,6 +928,14 @@ class ProductController extends Controller
                 [(int) $parentProduct->getKey()],
                 $parentProduct->bundleProducts()->pluck('products.id')->map(fn ($id) => (int) $id)->all()
             );
+            // Collection-wide, opt-in recommendations take precedence over
+            // category suggestions, but not explicit manual/off decisions.
+            $collectionRelated = app(\App\Services\Catalog\CollectionRelatedProducts::class)
+                ->forProduct($parentProduct, $eager, $excludedIds);
+            if ($collectionRelated->isNotEmpty()) {
+                return $collectionRelated;
+            }
+
             $categoryIds = $parentProduct->taxons->pluck('id');
             if ($categoryIds->isNotEmpty()) {
                 $categoryRelated = Product::whereNotIn('id', $excludedIds)
