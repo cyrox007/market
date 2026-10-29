@@ -60,7 +60,7 @@ class ContactSettingsPage extends Page implements HasForms
         $socialNetworks = array_values($socialNetworks);
         $workingHours = array_values($workingHours);
 
-        $this->data = [
+        $this->form->fill([
             'company_name' => $settings->company_name ?? null,
             'address' => $settings->address ?? null,
             'phones' => $phones,
@@ -68,7 +68,7 @@ class ContactSettingsPage extends Page implements HasForms
             'social_networks' => $socialNetworks,
             'map_embed' => $settings->map_embed ?? null,
             'working_hours' => $workingHours,
-        ];
+        ]);
     }
 
     public function form(Schema $schema): Schema
