@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { api, type Order } from '../../../lib/api';
+import { consumeGuestOrderLink } from '../../../lib/guest-order-access';
 import OrderStatusBadge from '../../../components/orders/OrderStatusBadge';
 import OrderTracking from '../../../components/orders/OrderTracking';
 import OrderItemsList from '../../../components/orders/OrderItemsList';
@@ -43,6 +44,8 @@ export default function OrderDetail() {
 
   useEffect(() => {
     if (id) {
+      const cleanUrl = consumeGuestOrderLink(Number(id), window.location.href);
+      if (cleanUrl) window.history.replaceState(window.history.state, '', cleanUrl);
       loadOrder(parseInt(id));
     }
   }, [id]);
@@ -390,6 +393,15 @@ export default function OrderDetail() {
           {order.items && order.items.length > 0 && (
             <div className="mb-8">
               <h2 className="text-2xl font-bold mb-4">Состав заказа</h2>
+              {order.bundle_snapshot && (
+                <div className="mb-4 rounded-xl border border-red-100 bg-red-50 p-4 text-sm">
+                  <strong>Комплект × {order.bundle_snapshot.bundle_quantity}</strong>
+                  <p className="mt-1 text-gray-700">
+                    Все перечисленные ниже SKU оформлены как один комплект. Состав и цены
+                    зафиксированы на момент покупки и не изменяются при редактировании каталога.
+                  </p>
+                </div>
+              )}
               <OrderItemsList items={order.items} />
             </div>
           )}

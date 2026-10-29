@@ -36,6 +36,8 @@ class Order extends Model implements Payable
 
     protected $fillable = [
         'user_id',
+        'bundle_snapshot',
+        'guest_checkout',
         'number',
         'cooling_until', 'integration_sent_at', 'integration_state', 'guest_token_hash',
         'status',
@@ -71,6 +73,8 @@ class Order extends Model implements Payable
     {
         return [
             'checkout_snapshot' => 'array',
+            'bundle_snapshot' => 'array',
+            'guest_checkout' => 'boolean',
             'cooling_until' => 'datetime', 'integration_sent_at' => 'datetime',
             'fulfillment_snapshot' => 'array',
             'total' => 'decimal:2',
@@ -104,7 +108,7 @@ class Order extends Model implements Payable
         });
         static::saving(function (Order $order): void {
             if ($order->exists && $order->getRawOriginal('checkout_snapshot') !== null) {
-                foreach (['number', 'payment_method', 'delivery_type', 'address_id', 'address_snapshot', 'checkout_snapshot', 'cooling_until'] as $field) {
+                foreach (['number', 'payment_method', 'delivery_type', 'address_id', 'address_snapshot', 'checkout_snapshot', 'bundle_snapshot', 'cooling_until'] as $field) {
                     if ($order->isDirty($field)) {
                         throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Данные оформленного заказа зафиксированы. Изменение адреса или исходного платежа запрещено.']);
                     }

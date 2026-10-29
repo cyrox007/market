@@ -82,6 +82,7 @@ class EditProduct extends EditRecord
                 Action::make('viewOnSite')
                     ->label('Просмотр на сайте')
                     ->icon('heroicon-o-eye')
+                    ->visible(fn (): bool => ! $this->record->isVariable() || $this->record->isVariant())
                     ->url(fn () => url('/product/'.$this->record->slug))
                     ->openUrlInNewTab(),
 

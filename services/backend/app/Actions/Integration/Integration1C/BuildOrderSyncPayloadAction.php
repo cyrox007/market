@@ -39,7 +39,10 @@ class BuildOrderSyncPayloadAction
                 ->filter(fn (array $node): bool => filled($node['kladrCode'] ?? null))
                 ->map(fn (array $node): array => ['kind' => $node['kind'], 'code' => (string) $node['kladrCode']])
                 ->values()->all(),
-            'warehouseExternalId' => $order->fulfillment_snapshot['warehouse_external_id'] ?? null,
+            // A multi-source kit has no single warehouse. Do not report the
+            // lead warehouse as the source for ALL SKU lines.
+            'warehouseExternalId' => ($order->fulfillment_snapshot['multi_warehouse'] ?? false)
+                ? null : ($order->fulfillment_snapshot['warehouse_external_id'] ?? null),
             'phone' => (string) ($order->contact_phone ?? ''),
             'email' => $this->emailNormalizer->normalize($order->contact_email, (int) $order->id),
             'pickFromStore' => (bool) ($order->delivery_type === 'pickup'),
@@ -159,6 +162,20 @@ class BuildOrderSyncPayloadAction
     private function buildProducts(Order $order): array
     {
         $products = [];
+        $sourceBySku = [];
+        $allocations = $order->fulfillment_snapshot['warehouse_allocations'] ?? [];
+        if ($allocations === [] && collect($order->fulfillment_snapshot['items'] ?? [])->sum('preorder_quantity') > 0) {
+            $allocations = [$order->fulfillment_snapshot];
+        }
+        foreach ($allocations as $source) {
+            foreach ($source['items'] ?? [] as $line) {
+                $sourceBySku[(int) $line['product_id']][] = [
+                    'warehouseExternalId' => (string) $source['warehouse_external_id'],
+                    'quantity' => (int) $line['quantity'],
+                    'preorder_quantity' => (int) ($line['preorder_quantity'] ?? 0),
+                ];
+            }
+        }
 
         foreach ($order->items as $item) {
             $product = $item->product;
@@ -181,13 +198,38 @@ class BuildOrderSyncPayloadAction
 
             [$catalogUnit, $paidUnit] = $this->resolveLinePrices($product, $item);
 
-            $products[] = [
+            $baseLine = [
                 'productId' => $this->normalizeExternalId($productExternalId),
                 'modifications' => $modifications,
                 'quantity' => (int) $item->quantity,
                 'price' => round($catalogUnit, 2),
                 'promoPrice' => round($paidUnit, 2),
             ];
+            if (! $sourceBySku) {
+                $products[] = $baseLine;
+                continue;
+            }
+            $remaining = (int) $item->quantity;
+            if (! isset($sourceBySku[(int) $product->id])) {
+                throw new \LogicException('Missing warehouse allocation for order SKU.');
+            }
+            foreach ($sourceBySku[(int) $product->id] as &$source) {
+                $take = min($remaining, $source['quantity']);
+                if ($take > 0) {
+                    $preordered = max(0, $take - ($source['quantity'] - $source['preorder_quantity']));
+                    $products[] = array_replace($baseLine, [
+                        'quantity' => $take, 'warehouseExternalId' => $source['warehouseExternalId'],
+                        ...($preordered > 0 ? ['preorderQuantity' => $preordered] : []),
+                    ]);
+                    $source['quantity'] -= $take;
+                    $source['preorder_quantity'] -= $preordered;
+                    $remaining -= $take;
+                }
+            }
+            unset($source);
+            if ($remaining !== 0) {
+                throw new \LogicException('Warehouse allocation does not cover order quantities.');
+            }
         }
 
         return $products;
@@ -199,6 +241,9 @@ class BuildOrderSyncPayloadAction
     private function resolveLinePrices(Product $product, OrderItem $item): array
     {
         $paidUnit = (float) $item->price;
+        if (isset($item->pricing_snapshot['bundle_pricing'])) {
+            return [max($paidUnit, (float) $item->pricing_snapshot['bundle_pricing']['base_unit_price']), $paidUnit];
+        }
         $original = $product->getOriginalPrice();
         if ($original !== null && $original > $paidUnit) {
             return [$original, $paidUnit];

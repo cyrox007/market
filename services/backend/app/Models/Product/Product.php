@@ -52,6 +52,13 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     {
         parent::boot();
 
+        static::saved(function (self $product): void {
+            if ($product->wasChanged('bundle_price') && $product->isVariant()
+                && $product->parentProduct?->is_sellable_bundle) {
+                app(\App\Services\Product\SellableBundle::class)->syncBasePrice($product);
+            }
+        });
+
         static::bootCacheable();
 
         // Сбрасываем кэш при любом изменении/создании товара (flushCache также вызывается из трейта Cacheable)
@@ -64,6 +71,16 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             }
         });
         static::deleted(fn () => \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid()));
+
+        // Базовая цена виртуального предложения зависит от цен физических SKU.
+        // Точную региональную цену оформления всё равно рассчитывает PricingEngine.
+        static::saved(function (self $product): void {
+            if ($product->wasChanged('price') && ! $product->is_sellable_bundle
+                && ! $product->parentProduct?->is_sellable_bundle) {
+                app(\App\Services\Product\SellableBundle::class)
+                    ->syncOffersUsingComponent((int) $product->id);
+            }
+        });
 
         // Сбрасываем кэш при изменении вариаций и синхронизируем цену родителя
         static::saved(function ($product) {
@@ -133,7 +150,18 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public static function syncParentPriceFromVariants(self $parent): void
     {
-        $minPrice = $parent->variants()->active()->min('price');
+        // A virtual kit offer without a complete component mapping must not make
+        // the catalogue's minimum price 0 ₽ (or its stale manual price).
+        if ($parent->is_sellable_bundle && $parent->isVariable()) {
+            $required = $parent->sellableBundleGroups()->count();
+            $minPrice = $required > 0
+                ? $parent->variants()->active()
+                    ->whereHas('sellableBundleComponents', fn ($q) => $q, '=', $required)
+                    ->min('price')
+                : null;
+        } else {
+            $minPrice = $parent->variants()->active()->min('price');
+        }
         if ($minPrice !== null) {
             $parent->updateQuietly(['price' => (float) $minPrice]);
         }
@@ -199,7 +227,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             'product_product_attributes',
             'product_id',
             'attribute_id'
-        )->withPivot('attribute_value_id', 'custom_value')->withTimestamps();
+        )->withPivot('attribute_value_id', 'custom_value', 'sort_order')->withTimestamps()
+            ->orderBy('product_product_attributes.sort_order')
+            ->orderBy('product_product_attributes.id');
     }
 
     /**
@@ -431,7 +461,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             'product_related_products',
             'product_id',
             'related_product_id'
-        )->withTimestamps();
+        )->withTimestamps()->withPivot('sort_order')
+            ->orderBy('product_related_products.sort_order')
+            ->orderBy('product_related_products.id');
     }
 
     /**
@@ -458,9 +490,14 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             return;
         }
 
-        // Привязываем в обоих направлениях без дублирования
-        $this->relatedProducts()->syncWithoutDetaching([$related->getKey()]);
-        $related->relatedProducts()->syncWithoutDetaching([$this->getKey()]);
+        // Порядок на каждой стороне связи независимый.
+        foreach ([[$this, $related], [$related, $this]] as [$source, $destination]) {
+            if ($source->relatedProducts()->where('products.id', $destination->getKey())->exists()) {
+                continue;
+            }
+            $last = (int) ($source->relatedProducts()->max('product_related_products.sort_order') ?? 0);
+            $source->relatedProducts()->attach($destination->getKey(), ['sort_order' => $last + 1]);
+        }
 
         // Сбрасываем кэши, чтобы блок "С этим товаром покупают" обновился
         static::flushAllProductCaches();
@@ -479,6 +516,28 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         $related->relatedProducts()->detach($this->getKey());
 
         static::flushAllProductCaches();
+    }
+
+    /**
+     * Parent catalogue groups used to configure every sellable variation separately.
+     * The group itself never becomes an order line.
+     */
+    public function sellableBundleGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'sellable_bundle_groups', 'product_id', 'component_group_id')
+            ->withPivot('sort_order')->withTimestamps()
+            ->orderBy('sellable_bundle_groups.sort_order')->orderBy('sellable_bundle_groups.id');
+    }
+
+    /**
+     * Concrete SKUs forming a sellable kit. This is deliberately separate
+     * from editorial bundleProducts (which are just product recommendations).
+     */
+    public function sellableBundleComponents(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'sellable_bundle_components', 'product_id', 'component_product_id')
+            ->withPivot('quantity', 'sort_order')->withTimestamps()
+            ->orderBy('sellable_bundle_components.sort_order')->orderBy('sellable_bundle_components.id');
     }
 
     /**
@@ -512,7 +571,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
 
         foreach ($productIds as $rawId) {
             $id = (int) $rawId;
-            if ($id <= 0 || $id === $ownerId || in_array($id, $existingIds, true)) {
+            if ($id <= 0 || $id === $ownerId || in_array($id, $existingIds, true)
+                || ! Product::whereKey($id)->whereNull('parent_product_id')->exists()
+                || $this->bundleWouldCycle($id)) {
                 $skipped[] = $id;
 
                 continue;
@@ -536,6 +597,33 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         ]);
 
         return ['attached' => $attached, 'skipped' => $skipped];
+    }
+
+    /**
+     * Проверить цепочку связей до добавления нового элемента.
+     * Учитывает уже существующие связи и предотвращает A → B → ... → A.
+     */
+    private function bundleWouldCycle(int $candidateId): bool
+    {
+        $ownerId = (int) $this->getKey();
+        $pending = [$candidateId];
+        $visited = [];
+
+        while ($pending !== []) {
+            $current = array_pop($pending);
+            if ($current === $ownerId) {
+                return true;
+            }
+            if (isset($visited[$current])) {
+                continue;
+            }
+            $visited[$current] = true;
+            $next = \Illuminate\Support\Facades\DB::table('product_bundle_products')
+                ->where('product_id', $current)->pluck('bundle_product_id')->map(fn ($id) => (int) $id)->all();
+            array_push($pending, ...$next);
+        }
+
+        return false;
     }
 
     public function detachBundleProduct(Product $bundleProduct): void

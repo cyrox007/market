@@ -89,13 +89,18 @@ class ProductVariantsRelationManager extends RelationManager
                         ->numeric()
                         ->prefix('₽')
                         ->required()
-                        ->default(fn() => $parentProduct->price)
-                        ->helperText('Цена вариации'),
+                        ->disabled(fn (): bool => (bool) $parentProduct->is_sellable_bundle)
+                        ->dehydrated(fn (): bool => ! $parentProduct->is_sellable_bundle)
+                        ->default(fn() => $parentProduct->is_sellable_bundle ? 0 : $parentProduct->price)
+                        ->helperText($parentProduct->is_sellable_bundle
+                            ? 'Цена комплекта формируется суммой цен конкретных SKU в модальном редакторе «Состав комплекта».'
+                            : 'Цена вариации'),
 
                     TextInput::make('original_price')
                         ->label('Старая цена')
                         ->numeric()
                         ->prefix('₽')
+                        ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle)
                         ->helperText('Цена до скидки'),
 
                     TextInput::make('stock')
@@ -103,11 +108,13 @@ class ProductVariantsRelationManager extends RelationManager
                         ->numeric()
                         ->default(0)
                         ->required()
-                        ->visible(fn (): bool => ! ProductStockSettings::getInstance()->warehouse_accounting_enabled)
+                        ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle
+                            && ! ProductStockSettings::getInstance()->warehouse_accounting_enabled)
                         ->helperText('Используется, если складской учёт выключен в настройках остатков.'),
 
                     Toggle::make('backorder')
                         ->label('Разрешить предзаказ')
+                        ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle)
                         ->default(false),
 
                     Select::make('state')
@@ -312,7 +319,8 @@ class ProductVariantsRelationManager extends RelationManager
                     ->helperText('Остатки по складам. Склады подтягиваются из 1С при синхронизации (stockId).'),
             ])
             ->collapsible()
-            ->collapsed();
+            ->collapsed()
+            ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle);
 
         $components[] = Section::make('Изображения торгового предложения')
             ->description('Загрузка главного изображения и галереи для этого торгового предложения')
@@ -577,6 +585,12 @@ class ProductVariantsRelationManager extends RelationManager
 
                         $data['parent_product_id'] = $parentProduct->id;
                         $data['is_variable'] = false; // Торговые предложения не вариативные
+                        if ($parentProduct->is_sellable_bundle) {
+                            $data['price'] = 0;
+                            $data['stock'] = 0;
+                            $data['backorder'] = false;
+                            $data['external_id'] = null;
+                        }
 
                         // Shared data is inherited at read time, not snapshotted into the offer.
 
@@ -613,6 +627,65 @@ class ProductVariantsRelationManager extends RelationManager
                     }),
             ])
             ->actions([
+                Action::make('viewOnSite')
+                    ->label('Просмотр на сайте')
+                    ->icon('heroicon-o-eye')
+                    ->url(fn (Product $record): string => url('/product/'.$record->slug))
+                    ->openUrlInNewTab(),
+                Action::make('editKitComposition')
+                    ->label('Состав комплекта')
+                    ->icon('heroicon-o-cube')
+                    ->color('info')
+                    ->visible(fn (): bool => $this->getOwnerRecord()->sellableBundleGroups()->exists())
+                    ->modalHeading(fn (Product $record): string => 'Комплект: '.$record->name)
+                    ->modalDescription('Каждая группа — ровно один конкретный SKU. Это предложение комплекта не резервируется и не уходит в 1С как отдельная номенклатура.')
+                    ->form(function (Product $record): array {
+                        $root = $this->getOwnerRecord();
+                        $controls = [\App\Filament\Forms\BundlePriceField::make()];
+                        foreach ($root->sellableBundleGroups as $group) {
+                            $controls[] = Section::make($group->name)
+                                ->schema([
+                                    Select::make('sku_'.$group->id)
+                                        ->label('Торговое предложение / SKU')
+                                        ->searchable()
+                                        ->required()
+                                        ->options(fn (): array => self::kitSkuOptions($group, $root))
+                                        ->preload()
+                                        ->getSearchResultsUsing(fn (string $search): array => self::kitSkuOptions($group, $root, $search))
+                                        ->getOptionLabelUsing(fn ($value): ?string => ($sku = Product::find($value))
+                                            ? $sku->name.' ('.$sku->sku.')' : null),
+                                    TextInput::make('qty_'.$group->id)
+                                        ->label('Количество')
+                                        ->integer()->minValue(1)->maxValue(1000)->required(),
+                                ])->columns(2);
+                        }
+                        return $controls;
+                    })
+                    ->fillForm(function (Product $record): array {
+                        $values = ['bundle_price' => $record->bundle_price];
+                        foreach ($this->getOwnerRecord()->sellableBundleGroups as $group) {
+                            $component = $record->sellableBundleComponents()->get()
+                                ->first(fn (Product $sku): bool => (int) ($sku->parent_product_id ?: $sku->id) === (int) $group->id);
+                            $values['sku_'.$group->id] = $component?->id;
+                            $values['qty_'.$group->id] = (int) ($component?->pivot?->quantity ?? 1);
+                        }
+                        return $values;
+                    })
+                    ->action(function (Product $record, array $data): void {
+                        $rows = [];
+                        foreach ($this->getOwnerRecord()->sellableBundleGroups as $group) {
+                            $rows[] = [
+                                'group_id' => (int) $group->id,
+                                'product_id' => $data['sku_'.$group->id] ?? null,
+                                'quantity' => $data['qty_'.$group->id] ?? null,
+                            ];
+                        }
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $rows, $data): void {
+                            $record->forceFill(['bundle_price' => $data['bundle_price'] ?? null])->save();
+                            app(\App\Services\Product\SellableBundle::class)->saveOfferComposition($record, $rows);
+                        });
+                        Notification::make()->title('Состав предложения сохранён')->success()->send();
+                    }),
                 EditAction::make()
                     ->label('Изменить')
                     ->modalHeading('Редактирование торгового предложения')
@@ -764,5 +837,15 @@ class ProductVariantsRelationManager extends RelationManager
         $products = Product::query()->whereIn('id', $ids)->with('taxons')->get();
 
         return app(AttachProductsToVariableProductAction::class)->newCategoryNames($owner, $products);
+    }
+    private static function kitSkuOptions(Product $group, Product $root, string $search = ''): array
+    {
+        return Product::active()->with('parentProduct')
+            ->where(fn ($query) => $query->where('parent_product_id', $group->id)->orWhere('id', $group->id))
+            ->when($search !== '', fn ($query) => $query->where(fn ($filter) =>
+                $filter->where('name', 'like', '%'.$search.'%')->orWhere('sku', 'like', '%'.$search.'%')))
+            ->orderBy('name')->orderBy('id')->limit(50)->get()
+            ->filter(fn (Product $sku) => app(\App\Services\Product\SellableBundle::class)->componentIsSellable($sku, $root))
+            ->mapWithKeys(fn (Product $sku): array => [$sku->id => $sku->name.' ('.$sku->sku.')'])->all();
     }
 }

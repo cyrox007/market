@@ -7,6 +7,8 @@ class RefundTaskResource extends \Filament\Resources\Resource
     protected static ?string $navigationLabel = 'Возвраты после отмены';
     protected static ?string $pluralModelLabel = 'Возвраты после отмены';
     protected static string|\UnitEnum|null $navigationGroup = 'Заказы';
+
+    protected static ?int $navigationSort = 30;
     public static function canViewAny(): bool { return (bool) auth()->user()?->can('viewAny', \App\Models\Order\Order::class); }
     public static function canCreate(): bool { return false; }
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool { return false; }

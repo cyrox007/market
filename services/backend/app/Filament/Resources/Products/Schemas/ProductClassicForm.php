@@ -206,6 +206,7 @@ class ProductClassicForm extends ProductForm
             ->headerActions([self::applyAttributeTemplateAction()])
             ->schema([
                 Repeater::make('product_attributes')
+                    ->reorderable()
                     ->label('Характеристики')
                     ->extraAttributes(['class' => 'product-attributes-table'])
                     ->table([
@@ -267,24 +268,7 @@ class ProductClassicForm extends ProductForm
                                         return $attrId && Attribute::find($attrId)?->type === 'color';
                                     }),
                             ])
-                            ->createOptionUsing(function (array $data, $get) {
-                                $attributeId = $get('attribute_id');
-                                if (! $attributeId) {
-                                    return null;
-                                }
-                                $slug = Str::slug($data['value']);
-                                $base = $slug;
-                                $i = 2;
-                                while (AttributeValue::where('attribute_id', $attributeId)->where('slug', $slug)->exists()) {
-                                    $slug = $base . '-' . $i++;
-                                }
-                                return AttributeValue::create([
-                                    'attribute_id' => $attributeId,
-                                    'value' => $data['value'],
-                                    'slug' => $slug,
-                                    'color_code' => $data['color_code'] ?? null,
-                                ])->id;
-                            }),
+                            ->createOptionUsing(fn (array $data, $get): int => \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create($data, $get('attribute_id'))),
 
                         TextInput::make('custom_value')
                             ->label('Своё значение')

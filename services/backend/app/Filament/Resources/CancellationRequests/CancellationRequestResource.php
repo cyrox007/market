@@ -7,6 +7,8 @@ class CancellationRequestResource extends \Filament\Resources\Resource
     protected static ?string $navigationLabel = 'Заявки на отмену';
     protected static ?string $pluralModelLabel = 'Заявки на отмену';
     protected static string|\UnitEnum|null $navigationGroup = 'Заказы';
+
+    protected static ?int $navigationSort = 20;
     public static function canViewAny(): bool { return (bool) auth()->user()?->can('viewAny', \App\Models\Order\Order::class); }
     public static function canCreate(): bool { return false; }
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool { return false; }

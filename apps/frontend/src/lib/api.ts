@@ -235,6 +235,11 @@ export const api = {
   },
   orders: {
     prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
+    prepareBundle: (bundle_id: number, primary_sku_id: number, quantity: number) => fetchAPI<{
+      items: Array<{ product_id: number; quantity: number }>;
+      subtotal: number;
+      priced_components: Array<{ product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }>;
+    }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ bundle_id, primary_sku_id, quantity }) }),
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
     get: (id: number) => fetchAPI<{ order: Order }>(`/order-access/${id}`, { headers: guestOrderHeaders(id) }),
     create: async (data: any) => {
@@ -688,6 +693,8 @@ export interface Product extends WarehouseStockInfo {
   reviews_count: number;
   is_variable?: boolean;
   is_variant?: boolean;
+  is_sellable_bundle?: boolean;
+  sellable_bundle_components?: Array<{ id: number; sku: string; name: string; quantity: number }>;
   first_available_variant_id?: number | null;
   variation_attributes?: VariationAttributeOption[];
   colors?: ColorOption[];
@@ -1130,6 +1137,12 @@ export interface Order {
   status: string;
   status_label: string;
   subtotal: number;
+  bundle_snapshot?: {
+    bundle_id: number;
+    primary_sku_id: number;
+    bundle_quantity: number;
+    components: Array<{ product_id: number; quantity: number; quantity_per_bundle: number; role: string; unit_price: number }>;
+  } | null;
   total: number;
   delivery_cost: number;
   assembly_cost: number;
@@ -1263,6 +1276,10 @@ export interface PaymentMethod {
   description?: string | null;
   icon?: string | null;
   is_active: boolean;
+  is_coming_soon?: boolean;
+  selectable?: boolean;
+  availability?: 'available' | 'coming_soon';
+  availability_label?: string | null;
   sort_order: number;
 }
 

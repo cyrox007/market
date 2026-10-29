@@ -34,6 +34,8 @@ class ProductCollectionResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
+    protected static ?int $navigationSort = 40;
+
     public static function form(Schema $schema): Schema
     {
         return ProductCollectionForm::configure($schema);

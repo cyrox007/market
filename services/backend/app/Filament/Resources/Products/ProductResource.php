@@ -35,6 +35,8 @@ class ProductResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
+    protected static ?int $navigationSort = 10;
+
     public static function form(Schema $schema): Schema
     {
         return ProductClassicForm::configure($schema);
@@ -60,6 +62,8 @@ class ProductResource extends Resource
             \App\Filament\Resources\Products\RelationManagers\VariantRegionRulesRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\RelatedProductsRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductBundleProductsRelationManager::class,
+            \App\Filament\Resources\Products\RelationManagers\SellableBundleComponentsRelationManager::class,
+            \App\Filament\Resources\Products\RelationManagers\SellableBundleGroupsRelationManager::class,
         ];
     }
 

@@ -38,6 +38,8 @@ class CarrierResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Доставка';
 
+    protected static ?int $navigationSort = 10;
+
     public static function form(Schema $schema): Schema
     {
         return CarrierForm::configure($schema);

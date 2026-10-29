@@ -39,6 +39,8 @@ class AttributeTemplateResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Товары';
 
+    protected static ?int $navigationSort = 60;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedQueueList;
 
     public static function form(Schema $schema): Schema

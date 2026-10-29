@@ -15,6 +15,8 @@ class PublicAuthSettingsPage extends Page
     protected static ?string $navigationLabel = 'Вход и регистрация на сайте';
     protected static ?string $title = 'Вход и регистрация на сайте';
     protected static string|UnitEnum|null $navigationGroup = 'Настройки';
+
+    protected static ?int $navigationSort = 20;
     protected static ?string $slug = 'public-auth-settings';
 
     public bool $registrationEnabled = true;

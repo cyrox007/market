@@ -61,6 +61,7 @@ class OrderItemResource extends JsonResource
             'product_id' => $this->product_id,
             'product' => new ProductResource($product),
             'quantity' => (int) $this->quantity,
+            'bundle' => $this->pricing_snapshot['bundle'] ?? null,
             'price' => (float) $this->price, // Цена уже сохранена с учетом правил при создании заказа
             'total' => (float) $this->total,
             'delivery_days' => $deliveryDays,

@@ -50,9 +50,10 @@ class AddToCartAction
                 $item = Cart::addItem($product, $limit->quantity, ['attributes' => ['configuration' => ['private_offer_hash' => $offer?->token_hash]]], true);
             }
 
-            app(\App\Services\Inventory\CartStockReservations::class)->reserve($product, $otherQuantity + $previous + $limit->quantity);
+            app(\App\Services\Product\CartFulfillment::class)->rememberSelection($item, $product);
+            app(\App\Services\Product\CartFulfillment::class)->reserveCart();
             return new CartQuantityResult($item, $requested, $limit->quantity, $previous, $stock, $limit->reason);
-        });
+        }, 3);
 
         // Менеджер корзины держит загруженные позиции — освежаем после правки строки
         Cart::model()?->load('items');

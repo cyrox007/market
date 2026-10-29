@@ -39,12 +39,19 @@ class OrderCreatedMail extends Mailable
     public function content(): Content
     {
         return new Content(
+            view: 'mail.order-created-html',
             text: 'mail.order-created',
             with: [
                 'order' => $this->order,
                 'customBody' => $this->customBody,
+                'orderAccessUrl' => app(\App\Services\Order\GuestOrderAccess::class)->emailUrl($this->order),
             ],
         );
+    }
+
+    public function requiresConfidentialTransport(): bool
+    {
+        return app(\App\Services\Order\GuestOrderAccess::class)->emailUrl($this->order) !== null;
     }
 
     /**
