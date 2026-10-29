@@ -18,7 +18,10 @@ class WarehousePickup
         return [...$option, 'mode' => 'pickup', 'stock_mode' => 'quantity', 'profile_id' => null,
             'delivery_cost' => 0.0, 'assembly_cost' => 0.0, 'base_price' => 0.0,
             'delivery_days_min' => $option['ready']['days_min'], 'delivery_days_max' => $option['ready']['days_max'],
-            'items' => collect($lines)->groupBy('product_id')->map(fn ($rows, $id) => ['product_id' => (int) $id, 'quantity' => $rows->sum('quantity')])->values()->all()];
+            'items' => collect($option['items'])->map(fn ($item) => [
+                'product_id' => $item['product_id'], 'quantity' => $item['requested_quantity'],
+                'preorder_quantity' => max(0, (int) $item['requested_quantity'] - (int) floor($item['available_quantity'])),
+            ])->values()->all()];
     }
 
     public function options(array $lines, ?array $point = null): array
@@ -28,6 +31,7 @@ class WarehousePickup
             return [];
         }
         $quantities = collect($lines)->groupBy('product_id')->map(fn ($rows) => $rows->sum('quantity'));
+        $backorders = \App\Models\Product\Product::whereIn('id', $quantities->keys())->pluck('backorder', 'id');
         $warehouses = Warehouse::where('is_active', true)->where('source_type', 'physical')->where('stock_mode', 'quantity')
             ->where(fn ($q) => $q->where('pickup_enabled', true)->orWhereHas('stores', fn ($s) => $s->where('is_active', true)->where('pickup_enabled', true)))
             ->with(['physicalSite', 'stores' => fn ($s) => $s->where('is_active', true)->where('pickup_enabled', true),
@@ -38,9 +42,10 @@ class WarehousePickup
             foreach ($stocks as $stock) {
                 $stock->quantity = app(\App\Services\Inventory\CartStockReservations::class)->available($warehouse->id, $stock->product_id, (float) $stock->quantity);
             }
-            if ($quantities->contains(fn ($quantity, $id) => ($stocks[$id]->quantity ?? 0) < $quantity)) {
+            if ($quantities->contains(fn ($quantity, $id) => ($stocks[$id]->quantity ?? 0) < $quantity && ! (isset($stocks[$id]) && ($backorders[$id] ?? false)))) {
                 continue;
             }
+            $hasPreorders = $quantities->contains(fn ($qty, $id) => ($stocks[$id]->quantity ?? 0) < $qty);
             $stores = $warehouse->stores->filter(fn (Store $store) => $store->physical_site_id && (int) $store->physical_site_id === (int) $warehouse->physical_site_id);
             $points = $stores->isNotEmpty() ? $stores : ($warehouse->pickup_enabled ? collect([null]) : collect());
             foreach ($points as $store) {
@@ -57,7 +62,10 @@ class WarehousePickup
                     'hours' => $store?->hours, 'opening_hours' => $store?->opening_hours,
                     'timezone' => $store?->timezone ?? 'Europe/Moscow',
                     'distance_km' => $point ? app(WarehouseDistance::class)->kilometres($warehouse, $point['latitude'], $point['longitude']) : null,
-                    'pickup_cost' => 0.0, 'ready' => app(FulfillmentDates::class)->range((int) $warehouse->processing_days_min, max((int) $warehouse->processing_days_min, (int) $warehouse->processing_days_max)),
+                    'pickup_cost' => 0.0, 'has_preorders' => $hasPreorders,
+                    'ready' => $hasPreorders ? ['days_min' => null, 'days_max' => null, 'date_min' => null, 'date_max' => null,
+                        'day_type' => 'calendar', 'timezone' => 'Europe/Moscow', 'label' => 'Срок поставки уточняется', 'requires_confirmation' => true]
+                        : app(FulfillmentDates::class)->range((int) $warehouse->processing_days_min, max((int) $warehouse->processing_days_min, (int) $warehouse->processing_days_max)),
                     'items' => $quantities->map(fn ($quantity, $id) => ['product_id' => (int) $id, 'requested_quantity' => $quantity, 'available_quantity' => (float) $stocks[$id]->quantity])->values()->all()];
             }
         }

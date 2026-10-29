@@ -50,7 +50,7 @@ class MultiWarehouseBundleStock
         return $warehouse;
     }
 
-    private function lines(array $allocations): array
+    private function lines(array $allocations, bool $demand = false): array
     {
         $seen = [];
         $result = [];
@@ -58,14 +58,16 @@ class MultiWarehouseBundleStock
             foreach ($allocation['items'] ?? [] as $line) {
                 $skuId = (int) ($line['product_id'] ?? 0);
                 $qty = (int) ($line['quantity'] ?? 0);
-                if ($skuId < 1 || $qty < 1 || isset($seen[$allocation['warehouse_id'].':'.$skuId])) {
+                $preorder = (int) ($line['preorder_quantity'] ?? 0);
+                if ($skuId < 1 || $qty < 1 || $preorder < 0 || $preorder > $qty || isset($seen[$allocation['warehouse_id'].':'.$skuId])) {
                     throw ValidationException::withMessages(['cart' => 'Некорректные складские позиции комплекта.']);
                 }
                 $seen[$allocation['warehouse_id'].':'.$skuId] = true;
                 $result[] = [
                     'warehouse_id' => (int) $allocation['warehouse_id'],
                     'stock_mode' => $allocation['stock_mode'],
-                    'product_id' => $skuId, 'quantity' => $qty,
+                    'product_id' => $skuId, 'quantity' => $demand ? $qty : $qty - $preorder,
+                    'ordered_quantity' => $qty, 'preorder_quantity' => $preorder,
                 ];
             }
         }
@@ -83,9 +85,10 @@ class MultiWarehouseBundleStock
             $warehouse = $this->verifySource($source);
             $sources[$warehouse->id] = $warehouse;
         }
-        $lines = $this->lines($allocations);
+        $quote['demand_reservation'] = true;
+        $lines = $this->lines($allocations, true);
         // Confirm the plan still accounts for every component, no extras.
-        $planned = collect($lines)->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('quantity'))->sortKeys()->all();
+        $planned = collect($lines)->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('ordered_quantity'))->sortKeys()->all();
         $requested = collect($quote['items'])->pluck('quantity', 'product_id')->sortKeys()->all();
         if ($planned !== $requested) {
             throw ValidationException::withMessages(['cart' => 'Состав складской отгрузки не совпадает с заказом.']);
@@ -100,6 +103,9 @@ class MultiWarehouseBundleStock
             $sku = $lockedProducts->get($line['product_id']);
             if (! $sku || $sku->getRawOriginal('state') !== Product::ACTIVE) {
                 throw ValidationException::withMessages(['cart' => 'Компонент больше недоступен.']);
+            }
+            if ($line['preorder_quantity'] > 0 && ! $sku->backorder) {
+                throw ValidationException::withMessages(['cart' => 'Предзаказ компонента отключён.']);
             }
             $id = $line['warehouse_id'];
             if ($line['stock_mode'] === 'availability') {
@@ -117,6 +123,9 @@ class MultiWarehouseBundleStock
                 ->where('product_id', $line['product_id'])->lockForUpdate()->first();
             $free = $stock ? app(\App\Services\Inventory\CartStockReservations::class)
                 ->available($id, $line['product_id'], (float) $stock->quantity) : 0;
+            if ($free < $line['quantity'] - $line['preorder_quantity']) {
+                throw ValidationException::withMessages(['cart' => 'Остатки составляющих изменились. Пересчитайте доставку.']);
+            }
             if ($free < $line['quantity']) {
                 if (! $sku->backorder || ! collect($quote['backorder_items'] ?? [])->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id && (int) ($pending['warehouse_id'] ?? 0) === (int) $id)) {
                     throw ValidationException::withMessages(['cart' => 'Остатки составляющих на складах изменились. Обновите заказ.']);
@@ -162,6 +171,7 @@ class MultiWarehouseBundleStock
             }
             app(\App\Services\Inventory\CartStockReservations::class)->release($line['product_id']);
         }
+        if ($order->cooling_until) { $quote['reservation_version'] = 2; }
         $quote['stock_state'] = 'reserved';
         return $quote;
     }
@@ -169,7 +179,7 @@ class MultiWarehouseBundleStock
     /** Called while the order row is locked in the caller's DB transaction. */
     public function release(array $quote): array
     {
-        foreach ($this->lines($this->allocations($quote)) as $line) {
+        foreach ($this->lines($this->allocations($quote), ! empty($quote['demand_reservation'])) as $line) {
             if ($line['stock_mode'] !== 'quantity') {
                 continue;
             }
@@ -201,7 +211,7 @@ class MultiWarehouseBundleStock
 
     public function consume(array $quote): array
     {
-        $lines = $this->lines($this->allocations($quote));
+        $lines = $this->lines($this->allocations($quote), ! empty($quote['demand_reservation']));
         $stocks = [];
         foreach ($lines as $line) {
             if ($line['stock_mode'] === 'availability') {

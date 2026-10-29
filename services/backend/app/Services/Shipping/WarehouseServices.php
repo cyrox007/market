@@ -35,6 +35,40 @@ class WarehouseServices
         ];
     }
 
+    /** Only services available at every source can be selected for the whole order. */
+    public function combineOptions(array $sources): array
+    {
+        $allAssembly = collect($sources)->every(fn ($s) => $s['assembly']['available']);
+        $result = ['assembly' => [
+            'available' => $allAssembly,
+            'required' => collect($sources)->contains(fn ($s) => $s['assembly']['required']),
+            'price' => $allAssembly ? round(collect($sources)->sum(fn ($s) => $s['assembly']['price']), 2) : null,
+            'days' => collect($sources)->max(fn ($s) => $s['assembly']['days']),
+        ], 'handling' => [], 'additional' => []];
+        foreach (['handling', 'additional'] as $kind) {
+            foreach ($sources[0][$kind] ?? [] as $option) {
+                $rates = collect($sources)->map(fn ($s) => collect($s[$kind])->firstWhere('id', $option['id']));
+                if ($rates->contains(null)) { continue; }
+                if ($kind === 'additional') {
+                    $option['price'] = round($rates->sum('price'), 2);
+                } else {
+                    foreach (['base_price', 'elevator_price'] as $key) {
+                        unset($option[$key]);
+                        if ($rates->every(fn ($r) => isset($r[$key]))) { $option[$key] = round($rates->sum($key), 2); }
+                    }
+                    $floors = [];
+                    foreach ($rates->first()['floor_prices'] ?? [] as $floor) {
+                        $prices = $rates->map(fn ($r) => collect($r['floor_prices'] ?? [])->firstWhere('floor', $floor['floor']));
+                        if (! $prices->contains(null)) { $floors[] = ['floor' => $floor['floor'], 'price' => round($prices->sum('price'), 2)]; }
+                    }
+                    $option['floor_prices'] = $floors;
+                }
+                $result[$kind][] = $option;
+            }
+        }
+        return $result;
+    }
+
     public function validateTariffs(array $tariffs): array
     {
         return Validator::make($tariffs, [

@@ -3,12 +3,11 @@
 namespace App\Services\Shipping;
 
 use App\Models\Inventory\Warehouse;
-use App\Services\Inventory\CartStockReservations;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Delivery from multiple physical sources, restricted to a fully expanded bundle.
+ * Delivery of physical SKU quantities from multiple warehouse sources.
  *
  * A SKU quantity can be split across warehouses; components may use different
  * sources. Each source must independently cover the destination and have its
@@ -27,30 +26,24 @@ class MultiWarehouseBundleDelivery
         if (! config('bundles.multi_warehouse_enabled', false)) {
             return [];
         }
-        if (count($quantities) < 1 || ! empty($selection['additional_services'])
-            || ! empty($selection['requires_assembly'])
-            || ! empty($selection['delivery_handling_type_id'])) {
-            // Cross-warehouse assembly/lifting/transfers require a separate tariff.
-            return [];
-        }
+        if ($quantities === []) { return []; }
 
-        $backorderIds = array_map('intval', $selection['component_backorder_ids'] ?? []);
+        $backorders = \App\Models\Product\Product::whereIn('id', array_keys($quantities))->pluck('backorder', 'id');
         $sources = [];
         foreach ($warehouses as $warehouse) {
             $distance = $point ? app(WarehouseDistance::class)->kilometres(
                 $warehouse, $point['latitude'], $point['longitude']
             ) : null;
 
-            $profile = $warehouse->deliveryProfiles->first(function ($profile) use ($warehouse, $destination, $distance): bool {
+            $profile = $warehouse->deliveryProfiles->first(function ($profile) use ($warehouse, $destination, $distance, $selection): bool {
                 if (! app(WarehouseCoverage::class)->profileMatches($profile, $warehouse, $destination)
                     || ! empty($profile->constraints) || ($profile->price_per_km > 0 && $distance === null)) {
                     return false;
                 }
                 try {
-                    // Multi-source delivery cannot assume any automatic assembly fees.
-                    $services = app(WarehouseServices::class)->calculate($profile, []);
-                    return ! $services['requires_assembly'] && $services['handling_cost'] == 0
-                        && $services['assembly_cost'] == 0 && $services['additional_services_cost'] == 0;
+                    // Every shipment must have explicit tariffs for the selected services.
+                    app(WarehouseServices::class)->calculate($profile, $selection);
+                    return true;
                 } catch (ValidationException $e) {
                     return false;
                 }
@@ -65,23 +58,19 @@ class MultiWarehouseBundleDelivery
                 if ($warehouse->stock_mode === 'availability') {
                     if (! isset($availabilities[$id])
                         || (! $availabilities[$id]->available_to_order
-                            && ! in_array((int) $id, $backorderIds, true))) {
+                            && ! ($backorders[$id] ?? false))) {
                         continue;
                     }
                 } elseif ($warehouse->stock_mode === 'quantity') {
                     // The caller has already reduced quantity to free stock.
-                    if (! isset($stocks[$id])
-                        || ($stocks[$id]->quantity < 1
-                            && ! in_array((int) $id, $backorderIds, true))) {
+                    if (($stocks[$id]->quantity ?? 0) < 1 && ! (isset($stocks[$id]) && ($backorders[$id] ?? false))) {
                         continue;
                     }
                 } else {
                     continue;
                 }
                 $eligible[(int) $id] = $warehouse->stock_mode === 'quantity'
-                    ? (in_array((int) $id, $backorderIds, true) ? (int) $count
-                        : min((int) $count, (int) ($stocks[$id]->quantity ?? 0)))
-                    : (int) $count;
+                    ? (($backorders[$id] ?? false) ? (int) $count : min((int) $count, (int) $stocks[$id]->quantity)) : (int) $count;
             }
             if ($eligible === []) {
                 continue;
@@ -89,6 +78,9 @@ class MultiWarehouseBundleDelivery
             $sources[$warehouse->id] = [
                 'warehouse' => $warehouse, 'profile' => $profile,
                 'eligible' => $eligible, 'distance' => $distance,
+                'physical' => $stocks->map(fn ($stock) => max(0, (int) floor($stock->quantity)))->all(),
+                'services' => app(WarehouseServices::class)->calculate($profile, $selection),
+                'service_options' => app(WarehouseServices::class)->options($profile),
                 'transport' => round((float) $profile->base_price + (float) $profile->price_per_km * ($distance ?? 0), 2),
             ];
         }
@@ -117,13 +109,9 @@ class MultiWarehouseBundleDelivery
                 if (! $coverage) {
                     continue;
                 }
-                $deficit = 0;
-                foreach ($coverage as $skuId => $qty) {
-                    $deficit += max(0, $qty - ($source['warehouse']->stock_mode === 'quantity'
-                        ? (int) ($source['warehouse']->productStocks->firstWhere('product_id', $skuId)?->quantity ?? 0)
-                        : (($source['warehouse']->productAvailabilities->firstWhere('product_id', $skuId)?->available_to_order ?? false) ? $qty : 0)));
-                }
-                $score = [-count($coverage), $deficit, $source['transport'], (int) $warehouseId];
+                $preorders = $source['warehouse']->stock_mode === 'quantity'
+                    ? collect($coverage)->map(fn ($qty, $id) => max(0, $qty - ($source['physical'][$id] ?? 0)))->sum() : 0;
+                $score = [$preorders, -count($coverage), $source['transport'], (int) $warehouseId];
                 if ($best === null || $score < $best['score']) {
                     $best = ['score' => $score, 'id' => $warehouseId, 'source' => $source, 'items' => $coverage];
                 }
@@ -135,6 +123,7 @@ class MultiWarehouseBundleDelivery
             $profile = $best['source']['profile'];
             $items = collect($best['items'])->map(fn (int $quantity, int $id) => [
                 'product_id' => (int) $id, 'quantity' => $quantity,
+                'preorder_quantity' => $warehouse->stock_mode === 'quantity' ? max(0, $quantity - ($best['source']['physical'][$id] ?? 0)) : 0,
             ])->values()->all();
             $sourceSubtotal = 0.0;
             foreach ($best['items'] as $skuId => $qty) {
@@ -167,6 +156,8 @@ class MultiWarehouseBundleDelivery
                 'profile_fingerprint' => hash('sha256', json_encode($profile->getAttributes())),
                 'items' => $items,
                 'transport_cost' => $transportCost,
+                ...$best['source']['services'],
+                'service_options' => $best['source']['service_options'],
                 'processing_days_min' => (int) $warehouse->processing_days_min,
                 'processing_days_max' => (int) $warehouse->processing_days_max,
                 'delivery_days_min' => (int) $profile->delivery_days_min,
@@ -205,6 +196,11 @@ class MultiWarehouseBundleDelivery
         $lead = $allocations[0];
         $warehouse = $warehouses->firstWhere('id', $lead['warehouse_id']);
         $profile = $warehouse->deliveryProfiles->firstWhere('id', $lead['profile_id']);
+        $handling = round(array_sum(array_column($allocations, 'handling_cost')), 2);
+        $assembly = round(array_sum(array_column($allocations, 'assembly_cost')), 2);
+        $additional = round(array_sum(array_column($allocations, 'additional_services_cost')), 2);
+        $additionalRows = collect($allocations)->flatMap(fn ($a) => $a['additional_services'])->groupBy('id')
+            ->map(fn ($rows) => [...$rows->first(), 'price' => round($rows->sum('price'), 2)])->values()->all();
         return [[
             'mode' => 'delivery', 'multi_warehouse' => true,
             'contains_backorder' => $backordered !== [],
@@ -218,15 +214,13 @@ class MultiWarehouseBundleDelivery
             'profile_fingerprint' => $lead['profile_fingerprint'],
             'warehouse_fingerprint' => $lead['warehouse_fingerprint'],
             'warehouse_allocations' => $allocations,
-            'delivery_cost' => $transport, 'transport_cost' => $transport,
-            'handling_cost' => 0.0, 'assembly_cost' => 0.0,
-            'additional_services_cost' => 0.0, 'additional_services' => [],
-            'requires_assembly' => false, 'assembly_days' => null,
-            'service_options' => [
-                'assembly' => ['available' => false, 'required' => false, 'price' => null, 'days' => null],
-                'handling' => [], 'additional' => [],
-            ],
-            'total_fulfillment_cost' => $transport,
+            'delivery_cost' => round($transport + $handling, 2), 'transport_cost' => $transport,
+            'handling_cost' => $handling, 'assembly_cost' => $assembly,
+            'additional_services_cost' => $additional, 'additional_services' => $additionalRows,
+            'requires_assembly' => collect($allocations)->contains('requires_assembly', true),
+            'assembly_days' => collect($allocations)->max('assembly_days'),
+            'service_options' => app(WarehouseServices::class)->combineOptions(array_column($allocations, 'service_options')),
+            'total_fulfillment_cost' => round($transport + $handling + $assembly + $additional, 2),
             'base_price' => $transport, 'free_delivery_threshold' => null,
             'transit_days_min' => $maxMin, 'transit_days_max' => $maxMax,
             'processing_days_min' => 0, 'processing_days_max' => 0,

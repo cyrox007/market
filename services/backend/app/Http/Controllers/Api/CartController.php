@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use Illuminate\Support\Facades\DB;
+
 use App\Actions\Cart\AddToCartAction;
 use App\Actions\Cart\Exceptions\CartItemNotFoundException;
 use App\Actions\Cart\Exceptions\CartProductUnavailableException;
@@ -195,9 +197,7 @@ class CartController extends Controller
         ]);
 
         $product = Product::findOrFail($validated['product_id']);
-        if ($product->is_sellable_bundle || $product->parentProduct?->is_sellable_bundle) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['product_id' => 'Товар настроен как единый комплект. Используйте кнопку «Купить комплект».']);
-        }
+
 
         if ($product->isVariant()) {
             // Уже вариация — используем как есть
@@ -370,11 +370,10 @@ class CartController extends Controller
             return response()->json(['message' => 'Товар не найден в корзине'], 404);
         }
 
-        Cart::removeItem($item);
-        $remaining = (int) Cart::model()->items()->where('product_id', $item->product_id)->sum('quantity');
-        if ($remaining > 0) {
-            app(\App\Services\Inventory\CartStockReservations::class)->reserve(Product::findOrFail($item->product_id), $remaining);
-        } else app(\App\Services\Inventory\CartStockReservations::class)->release((int) $item->product_id);
+        DB::transaction(function () use ($item): void {
+            Cart::removeItem($item);
+            app(\App\Services\Product\CartFulfillment::class)->reserveCart();
+        }, 3);
 
         return response()->json([
             'message' => 'Товар удален из корзины',

@@ -50,19 +50,30 @@ class CartStockReservations
         DB::transaction(function () use ($owner, $sku, $quantity): void {
             $previous = DB::table('cart_stock_reservations')->where('owner_hash', $owner)->where('product_id', $sku->id)->lockForUpdate()->first();
             $candidates = app(WarehouseStockResolver::class)->eligibleStocks($sku, null)->sortBy('warehouse_id');
+            $remaining = $quantity;
+            $allocations = [];
             foreach ($candidates as $candidate) {
                 $stock = ProductWarehouseStock::whereKey($candidate->id)->lockForUpdate()->first();
-                if (! $stock || $this->available($stock->warehouse_id, $sku->id, (float) $stock->quantity) < $quantity) { continue; }
-                $expires = $previous && $previous->expires_at > now()->toDateTimeString() ? $previous->expires_at : now()->addMinutes(30);
-                DB::table('cart_stock_reservations')->updateOrInsert(['owner_hash' => $owner, 'product_id' => $sku->id],
-                    ['warehouse_id' => $stock->warehouse_id, 'quantity' => $quantity, 'expires_at' => $expires, 'updated_at' => now(), 'created_at' => $previous?->created_at ?? now()]);
-                \Illuminate\Support\Facades\Cache::forever('fulfillment_revision', (string) \Illuminate\Support\Str::uuid());
-                return;
+                if (! $stock) { continue; }
+                $take = min($remaining, max(0, (int) floor($this->available($stock->warehouse_id, $sku->id, (float) $stock->quantity))));
+                if ($take > 0) {
+                    $allocations[] = ['warehouse_id' => $stock->warehouse_id, 'quantity' => $take];
+                    $remaining -= $take;
+                }
+                if ($remaining === 0) { break; }
             }
-            if (app(WarehouseStockResolver::class)->availableToOrder($sku, null)) {
-                $this->release($sku->id); return; // Factory availability is not a finite physical stock.
+            if ($remaining > 0 && ! $sku->backorder && ! app(WarehouseStockResolver::class)->availableToOrder($sku, null)) {
+                throw ValidationException::withMessages(['cart' => 'Недостаточно свободного остатка на складах. Обновите корзину.']);
             }
-            throw ValidationException::withMessages(['cart' => 'Недостаточно свободного остатка на одном складе. Обновите корзину.']);
+            $expires = $previous && $previous->expires_at > now()->toDateTimeString() ? $previous->expires_at : now()->addMinutes(30);
+            DB::table('cart_stock_reservations')->where('owner_hash', $owner)->where('product_id', $sku->id)->delete();
+            foreach ($allocations as $allocation) {
+                DB::table('cart_stock_reservations')->insert([
+                    'owner_hash' => $owner, 'product_id' => $sku->id, ...$allocation,
+                    'expires_at' => $expires, 'created_at' => $previous?->created_at ?? now(), 'updated_at' => now(),
+                ]);
+            }
+            \Illuminate\Support\Facades\Cache::forever('fulfillment_revision', (string) \Illuminate\Support\Str::uuid());
         }, 3);
     }
 
@@ -76,7 +87,11 @@ class CartStockReservations
 
     public function forProduct(int $id): ?object
     {
-        return DB::table('cart_stock_reservations')->where('owner_hash', $this->owner())->where('product_id', $id)
-            ->where('expires_at', '>', now())->first(['warehouse_id', 'quantity', 'expires_at']);
+        $rows = DB::table('cart_stock_reservations')->where('owner_hash', $this->owner())->where('product_id', $id)
+            ->where('expires_at', '>', now())->orderBy('warehouse_id')->get(['warehouse_id', 'quantity', 'expires_at']);
+        if ($rows->isEmpty()) { return null; }
+        return (object) ['warehouse_id' => $rows->count() === 1 ? $rows->first()->warehouse_id : null,
+            'quantity' => (int) $rows->sum('quantity'), 'expires_at' => $rows->min('expires_at'),
+            'allocations' => $rows->toArray()];
     }
 }

@@ -62,7 +62,7 @@ class WarehouseDeliveryQuoteController extends Controller
             $pricingItems = isset($data['items'])
                 ? app(\App\Services\Order\DirectCheckout::class)->items($lines)
                 : Cart::getItems();
-            $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($pricingItems, $region);
+            $pricedItems = app(\App\Services\Product\CartFulfillment::class)->pricedItems($pricingItems, $region);
             if ($isBundle) {
                 $pricedItems = app(\App\Services\Product\BundlePricing::class)->apply($composition, $pricedItems);
             }
