@@ -268,6 +268,7 @@ class OrderController extends Controller
                     $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, [
                         '_cart_subtotal' => $subtotal,
                         'allow_multi_warehouse' => true,
+                        'allow_component_backorder' => $bundleComposition !== null,
                         '_priced_unit_prices' => app(\App\Services\Product\BundlePricing::class)->unitPrices($pricedItems),
                     ]));
                 } catch (\RuntimeException $error) {

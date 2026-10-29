@@ -74,6 +74,7 @@ class WarehouseDeliveryQuoteController extends Controller
                     // Direct checkout already limits multiple lines to a single
                     // kit. The quote endpoint also accepts explicit bundle ids.
                     'allow_multi_warehouse' => true,
+                    'allow_component_backorder' => $isBundle,
                 ]));
         } catch (\Illuminate\Validation\ValidationException $error) {
             throw $error;

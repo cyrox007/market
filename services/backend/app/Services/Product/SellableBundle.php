@@ -229,16 +229,61 @@ class SellableBundle
      * Destination-specific delivery/pickup is rechecked by WarehouseDeliveryQuote
      * and locked by WarehouseOrderStock in the order transaction.
      */
+    /** Physical stock and permission to order are separate catalogue signals. */
     public function canOrder(array $items): bool
     {
-        if ($items === []) { return false; }
-        $resolver = app(\App\Services\Inventory\WarehouseStockResolver::class);
-        foreach (collect($items)->groupBy('product_id') as $id => $rows) {
-            $sku = Product::find($id);
-            if (! $sku || (($resolver->resolveForProduct($sku, null) ?? 0) < $rows->sum('quantity')
-                && ! $resolver->availableToOrder($sku, null))) { return false; }
+        $capacity = $this->orderableSets($items);
+        return $capacity === null || $capacity > 0;
+    }
+
+    /** null means that every component can be ordered without a finite stock bound. */
+    public function orderableSets(array $items): ?int
+    {
+        if ($items === []) { return 0; }
+        $units = collect($items)->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('quantity'));
+        $products = Product::whereIn('id', $units->keys())->active()->get()->keyBy('id');
+        if ($products->count() !== $units->count()) { return 0; }
+        $sources = \App\Models\Inventory\Warehouse::where('is_active', true)->with([
+            'productStocks' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+            'productAvailabilities' => fn ($q) => $q->whereIn('product_id', $units->keys()),
+        ])->get();
+        $capacityAt = function ($source, int $id) use ($products): int {
+            $sku = $products[$id];
+            if ($sku->isVariant() && $sku->parentProduct?->getRawOriginal('state') !== Product::ACTIVE) { return 0; }
+            if ($source->stock_mode === 'availability') {
+                $row = $source->productAvailabilities->firstWhere('product_id', $id);
+                return $row && ($row->available_to_order || $sku->backorder) ? PHP_INT_MAX : 0;
+            }
+            if ($source->stock_mode !== 'quantity') { return 0; }
+            $row = $source->productStocks->firstWhere('product_id', $id);
+            if (! $row) { return 0; }
+            if ($sku->backorder) { return PHP_INT_MAX; }
+            return max(0, (int) floor(app(\App\Services\Inventory\CartStockReservations::class)
+                ->available($source->id, $id, (float) $row->quantity)));
+        };
+        if (config('bundles.multi_warehouse_enabled', false)) {
+            $capacity = PHP_INT_MAX;
+            foreach ($units as $id => $quantity) {
+                $total = 0;
+                foreach ($sources as $source) {
+                    $available = $capacityAt($source, (int) $id);
+                    if ($available === PHP_INT_MAX) { $total = PHP_INT_MAX; break; }
+                    $total += $available;
+                }
+                $capacity = min($capacity, $total === PHP_INT_MAX ? PHP_INT_MAX : intdiv($total, $quantity));
+            }
+        } else {
+            $capacity = 0;
+            foreach ($sources as $source) {
+                $at = PHP_INT_MAX;
+                foreach ($units as $id => $quantity) {
+                    $available = $capacityAt($source, (int) $id);
+                    $at = min($at, $available === PHP_INT_MAX ? PHP_INT_MAX : intdiv($available, $quantity));
+                }
+                $capacity = max($capacity, $at);
+            }
         }
-        return true;
+        return $capacity === PHP_INT_MAX ? null : $capacity;
     }
 
     public function availableSets(array $items): int
@@ -260,16 +305,9 @@ class SellableBundle
             ])->get();
         $availableSets = PHP_INT_MAX;
         foreach ($units as $skuId => $unitsPerSet) {
-            $bestForSku = 0;
             $freeUnits = 0;
             foreach ($warehouses as $warehouse) {
-                if ($warehouse->stock_mode === 'availability') {
-                    $source = $warehouse->productAvailabilities->firstWhere('product_id', $skuId);
-                    if ($source?->available_to_order) {
-                        // Factory availability is a boolean, not a finite count.
-                        $bestForSku = max($bestForSku, 1);
-                    }
-                } elseif ($warehouse->stock_mode === 'quantity') {
+                if ($warehouse->stock_mode === 'quantity') {
                     $stock = $warehouse->productStocks->firstWhere('product_id', $skuId);
                     if ($stock) {
                         $free = app(\App\Services\Inventory\CartStockReservations::class)
@@ -278,7 +316,7 @@ class SellableBundle
                     }
                 }
             }
-            $availableSets = min($availableSets, max($bestForSku, (int) floor($freeUnits / $unitsPerSet)));
+            $availableSets = min($availableSets, (int) floor($freeUnits / $unitsPerSet));
             if ($availableSets === 0) {
                 return 0;
             }
@@ -299,13 +337,6 @@ class SellableBundle
             ])->get();
         $best = 0;
         foreach ($warehouses as $warehouse) {
-            if ($warehouse->stock_mode === 'availability') {
-                $available = $warehouse->productAvailabilities->keyBy('product_id');
-                if ($units->every(fn ($qty, $id): bool => (bool) ($available[$id]->available_to_order ?? false))) {
-                    $best = max($best, 1);
-                }
-                continue;
-            }
             if ($warehouse->stock_mode !== 'quantity') {
                 continue;
             }

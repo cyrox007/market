@@ -56,7 +56,9 @@ class MultiWarehouseBundleDelivery
             $availabilities = $warehouse->productAvailabilities->keyBy('product_id');
             foreach ($quantities as $id => $count) {
                 if ($warehouse->stock_mode === 'availability') {
-                    if (! ($availabilities[$id]->available_to_order ?? false)) {
+                    if (! isset($availabilities[$id])
+                        || (! $availabilities[$id]->available_to_order
+                            && ! ($backorders[$id] ?? false))) {
                         continue;
                     }
                 } elseif ($warehouse->stock_mode === 'quantity') {
@@ -132,7 +134,17 @@ class MultiWarehouseBundleDelivery
                 && $sourceSubtotal >= (float) $profile->free_delivery_threshold) {
                 $transportCost = 0.0;
             }
+            $backordered = [];
+            foreach ($best['items'] as $skuId => $qty) {
+                $physical = $warehouse->stock_mode === 'quantity'
+                    ? (float) ($warehouse->productStocks->firstWhere('product_id', $skuId)?->quantity ?? 0)
+                    : (($warehouse->productAvailabilities->firstWhere('product_id', $skuId)?->available_to_order ?? false) ? $qty : 0);
+                if ($physical < $qty) {
+                    $backordered[] = ['product_id' => (int) $skuId, 'quantity' => (int) $qty];
+                }
+            }
             $allocations[] = [
+                'backorder_items' => $backordered,
                 'warehouse_id' => (int) $warehouse->id,
                 'warehouse_name' => $warehouse->name,
                 'warehouse_external_id' => $warehouse->external_id,
@@ -178,6 +190,9 @@ class MultiWarehouseBundleDelivery
         $transport = round(array_sum(array_column($allocations, 'transport_cost')), 2);
         $maxMin = max(array_map(fn ($a): int => $a['processing_days_min'] + $a['delivery_days_min'], $allocations));
         $maxMax = max(array_map(fn ($a): int => $a['processing_days_max'] + $a['delivery_days_max'], $allocations));
+        $backordered = collect($allocations)->flatMap(fn ($a) => collect($a['backorder_items'])->map(fn ($item) => [
+            ...$item, 'warehouse_id' => $a['warehouse_id'],
+        ]))->values()->all();
         $lead = $allocations[0];
         $warehouse = $warehouses->firstWhere('id', $lead['warehouse_id']);
         $profile = $warehouse->deliveryProfiles->firstWhere('id', $lead['profile_id']);
@@ -188,6 +203,9 @@ class MultiWarehouseBundleDelivery
             ->map(fn ($rows) => [...$rows->first(), 'price' => round($rows->sum('price'), 2)])->values()->all();
         return [[
             'mode' => 'delivery', 'multi_warehouse' => true,
+            'contains_backorder' => $backordered !== [],
+            'backorder_items' => $backordered,
+            'delivery_estimate_unavailable' => $backordered !== [],
             'warehouse_id' => $lead['warehouse_id'], 'warehouse_name' => $lead['warehouse_name'],
             'warehouse_external_id' => $lead['warehouse_external_id'],
             'stock_mode' => 'multi',
@@ -206,8 +224,9 @@ class MultiWarehouseBundleDelivery
             'base_price' => $transport, 'free_delivery_threshold' => null,
             'transit_days_min' => $maxMin, 'transit_days_max' => $maxMax,
             'processing_days_min' => 0, 'processing_days_max' => 0,
-            'delivery_days_min' => $maxMin, 'delivery_days_max' => $maxMax,
-            'delivery' => app(FulfillmentDates::class)->range($maxMin, $maxMax),
+            'delivery_days_min' => $backordered ? null : $maxMin,
+            'delivery_days_max' => $backordered ? null : $maxMax,
+            'delivery' => $backordered ? null : app(FulfillmentDates::class)->range($maxMin, $maxMax),
             'distance_km' => null, 'distance_type' => 'per_warehouse',
             'items' => collect($quantities)->map(fn (int $qty, int $sku) => [
                 'product_id' => (int) $sku, 'quantity' => $qty,

@@ -12,8 +12,8 @@ class WarehouseOrderStock
 {
     private function physicalItems(array $quote): \Illuminate\Support\Collection
     {
-        return collect($quote['items'])->map(function (array $item): array {
-            $item['quantity'] -= (int) ($item['preorder_quantity'] ?? 0);
+        return collect($quote['items'])->map(function (array $item) use ($quote): array {
+            if (empty($quote['demand_reservation'])) { $item['quantity'] -= (int) ($item['preorder_quantity'] ?? 0); }
             return $item;
         })->filter(fn ($item) => $item['quantity'] > 0)->sortBy('product_id');
     }
@@ -28,6 +28,9 @@ class WarehouseOrderStock
         if (($quote['stock_mode'] ?? null) === 'multi') {
             $order->update(['fulfillment_snapshot' => app(MultiWarehouseBundleStock::class)->reserve($order, $quote)]);
             return;
+        }
+        if (($quote['mode'] ?? null) === 'pickup') {
+            $quote['backorder_items'] = collect($quote['items'])->filter(fn ($item) => ($item['preorder_quantity'] ?? 0) > 0)->values()->all();
         }
         $warehouse = \App\Models\Inventory\Warehouse::lockForUpdate()->find($quote['warehouse_id']);
         if ($warehouse?->physical_site_id) {
@@ -55,27 +58,69 @@ class WarehouseOrderStock
             }
         }
         if ($quote['stock_mode'] === 'availability') {
+            $quotedBackorders = $quote['backorder_items'] ?? [];
+            $quote['backorder_items'] = [];
+            $quote['contains_backorder'] = false;
             foreach ($quote['items'] as $item) {
                 $availability = $warehouse->productAvailabilities()->where('product_id', $item['product_id'])->lockForUpdate()->first();
                 if (! $availability?->available_to_order) {
-                    throw ValidationException::withMessages(['cart' => 'Товар больше недоступен под заказ.']);
+                    $sku = Product::lockForUpdate()->findOrFail($item['product_id']);
+                    if (! $sku->backorder || ! collect($quotedBackorders)->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id)) {
+                        throw ValidationException::withMessages(['cart' => 'Товар больше недоступен под заказ.']);
+                    }
+                    $quote['backorder_items'][] = ['product_id' => (int) $sku->id,
+                        'quantity' => (int) $item['quantity'], 'warehouse_id' => (int) $warehouse->id];
+                    $quote['contains_backorder'] = true;
+                    $quote['reservation_version'] = 2;
                 }
             }
         }
         if ($quote['stock_mode'] === 'quantity') {
-            foreach ($quote['items'] as $item) {
-                if (($item['preorder_quantity'] ?? 0) > 0 && ! Product::lockForUpdate()->findOrFail($item['product_id'])->backorder) {
-                    throw ValidationException::withMessages(['cart' => 'Предзаказ товара отключён. Пересчитайте заказ.']);
+            $quote['demand_reservation'] = true;
+            $stocks = [];
+            $products = Product::whereIn('id', array_column($quote['items'], 'product_id'))
+                ->lockForUpdate()->get()->keyBy('id');
+            $backordered = [];
+            foreach (collect($quote['items'])->sortBy('product_id') as $item) {
+                $sku = $products->get($item['product_id']);
+                if (! $sku || $sku->getRawOriginal('state') !== Product::ACTIVE) {
+                    throw ValidationException::withMessages(['cart' => 'Компонент больше недоступен.']);
                 }
-            }
-            if ($order->cooling_until) { $quote['reservation_version'] = 2; }
-            foreach ($this->physicalItems($quote) as $item) {
                 $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
                     ->where('product_id', $item['product_id'])->lockForUpdate()->first();
-                if (! $stock || app(\App\Services\Inventory\CartStockReservations::class)->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity) < $item['quantity']) {
+                $free = $stock ? app(\App\Services\Inventory\CartStockReservations::class)
+                    ->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity) : 0;
+                if (($item['preorder_quantity'] ?? 0) > 0 && ! $sku->backorder) {
+                    throw ValidationException::withMessages(['cart' => 'Предзаказ товара отключён. Пересчитайте заказ.']);
+                }
+                if ($free < (int) $item['quantity'] - (int) ($item['preorder_quantity'] ?? 0)) {
                     throw ValidationException::withMessages(['cart' => 'Остатки выбранного склада изменились. Пересчитайте доставку.']);
                 }
-                if ($order->cooling_until) {
+                if ($free < $item['quantity']) {
+                    if (! $sku->backorder || ! collect($quote['backorder_items'] ?? [])->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id)) {
+                        throw ValidationException::withMessages(['cart' => 'Остатки выбранного склада изменились. Пересчитайте доставку.']);
+                    }
+                    $backordered[] = ['product_id' => (int) $sku->id,
+                        'quantity' => (int) $item['quantity'], 'warehouse_id' => (int) $warehouse->id];
+                }
+                if (! $stock) {
+                    DB::table('product_warehouse_stocks')->insertOrIgnore([
+                        'warehouse_id' => $warehouse->id, 'product_id' => $sku->id,
+                        'quantity' => 0, 'reserved_quantity' => 0,
+                        'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                    $stock = ProductWarehouseStock::where('warehouse_id', $warehouse->id)
+                        ->where('product_id', $sku->id)->lockForUpdate()->firstOrFail();
+                }
+                $stocks[$item['product_id']] = $stock;
+            }
+            $reserveForLater = (bool) $order->cooling_until || $backordered !== []
+                || ! empty($quote['contains_backorder']);
+            $quote['backorder_items'] = $backordered;
+            $quote['contains_backorder'] = $backordered !== [];
+            foreach (collect($quote['items'])->sortBy('product_id') as $item) {
+                $stock = $stocks[$item['product_id']];
+                if ($reserveForLater) {
                     $stock->increment('reserved_quantity', $item['quantity']);
                     $quote['reservation_version'] = 2;
                 } else {
@@ -83,7 +128,7 @@ class WarehouseOrderStock
                 }
                 app(\App\Services\Inventory\CartStockReservations::class)->release((int) $item['product_id']);
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
-                if (! $order->cooling_until && $product->stock !== null) {
+                if (! $reserveForLater && $product->stock !== null) {
                     $quote['global_stock_deltas'][$item['product_id']] = min(max(0, (float) $product->stock), $item['quantity']);
                     $product->update(['stock' => max(0, (float) $product->stock - $item['quantity'])]);
                 }
@@ -113,6 +158,9 @@ class WarehouseOrderStock
                     $stock = ProductWarehouseStock::where('warehouse_id', $quote['warehouse_id'])
                         ->where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
                     if (($quote['reservation_version'] ?? 1) === 2) {
+                        if ($stock->reserved_quantity < $item['quantity']) {
+                            throw ValidationException::withMessages(['stock' => 'Резерв для отмены изменился.']);
+                        }
                         $stock->decrement('reserved_quantity', $item['quantity']);
                     } else {
                         $stock->increment('quantity', $item['quantity']);
@@ -138,6 +186,18 @@ class WarehouseOrderStock
             if (($quote['stock_state'] ?? null) !== 'reserved' || ($quote['reservation_version'] ?? 1) !== 2) { return; }
             if (($quote['stock_mode'] ?? null) === 'multi') {
                 $locked->update(['fulfillment_snapshot' => app(MultiWarehouseBundleStock::class)->consume($quote)]);
+                return;
+            }
+            if (($quote['stock_mode'] ?? null) === 'availability') {
+                foreach ($quote['items'] as $item) {
+                    $availability = \App\Models\Inventory\SourceProductAvailability::where('warehouse_id', $quote['warehouse_id'])
+                        ->where('product_id', $item['product_id'])->lockForUpdate()->first();
+                    if (! $availability?->available_to_order) {
+                        throw ValidationException::withMessages(['stock' => 'Компонент под заказ ещё не доступен у поставщика.']);
+                    }
+                }
+                $quote['stock_state'] = 'consumed';
+                $locked->update(['fulfillment_snapshot' => $quote]);
                 return;
             }
             foreach ($this->physicalItems($quote) as $item) {

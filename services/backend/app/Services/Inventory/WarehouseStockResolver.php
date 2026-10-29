@@ -55,7 +55,8 @@ class WarehouseStockResolver
         if ($product->backorder && $this->eligibleStocks($product, $location, $destination)->isNotEmpty()) {
             return true;
         }
-        return \App\Models\Inventory\SourceProductAvailability::where('product_id', $product->id)->where('available_to_order', true)
+        return \App\Models\Inventory\SourceProductAvailability::where('product_id', $product->id)
+            ->when(! $product->backorder, fn ($q) => $q->where('available_to_order', true))
             ->whereHas('warehouse', fn ($q) => $q->where('is_active', true)->where('stock_mode', 'availability'))
             ->with(['warehouse.physicalSite', 'warehouse.deliveryProfiles'])->get()
             ->contains(function ($row) use ($destination): bool {
