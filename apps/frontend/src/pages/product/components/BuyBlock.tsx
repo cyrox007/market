@@ -9,7 +9,10 @@ import { cn } from '../../../lib/cn';
 import { plural } from '../../../lib/plural';
 import type { VariantAttributeView } from '../hooks/useVariantSelection';
 import { availabilityOf } from '../lib/availability';
+import { bundleParts } from '../lib/bundle';
 import { formatPrice, formatRating } from '../lib/productText';
+import { isSellableOffer } from '../lib/variants';
+import BundleComposition from './BundleComposition';
 import VariantPicker from './VariantPicker';
 
 export interface BuyBlockCart {
@@ -62,6 +65,8 @@ export default function BuyBlock({
   const oldPrice = item.old_price && item.old_price > price ? item.old_price : null;
   const discount = oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
   const reviews = product.reviews_count ?? 0;
+  const notForSale = Boolean(selectedVariant && !isSellableOffer(selectedVariant));
+  const parts = notForSale ? [] : bundleParts(product, selectedVariant);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -114,25 +119,33 @@ export default function BuyBlock({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-1.5 whitespace-nowrap">
-          <span className={cn('text-24 font-bold', oldPrice ? 'text-brand-red' : 'text-ink')}>
-            {formatPrice(price)}
+      {notForSale ? (
+        <p className="text-16 font-medium text-ink-secondary animate-fadeIn motion-reduce:animate-none">
+          Этот вариант комплекта пока не продаётся
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            <span className={cn('text-24 font-bold', oldPrice ? 'text-brand-red' : 'text-ink')}>
+              {formatPrice(price)}
+            </span>
+            {oldPrice && (
+              <span className="text-14 font-medium text-ink-secondary line-through">
+                {formatPrice(oldPrice)}
+              </span>
+            )}
           </span>
-          {oldPrice && (
-            <span className="text-14 font-medium text-ink-secondary line-through">
-              {formatPrice(oldPrice)}
+          {discount > 0 && (
+            <span className="rounded-pill bg-brand-yellow px-2 py-0.5 text-14 text-ink">
+              -{discount} %
             </span>
           )}
-        </span>
-        {discount > 0 && (
-          <span className="rounded-pill bg-brand-yellow px-2 py-0.5 text-14 text-ink">
-            -{discount} %
-          </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <VariantPicker attributes={attributes} onSelect={onSelectValue} disabled={disabled} />
+
+      {parts.length > 0 && <BundleComposition key={selectedVariant?.id} parts={parts} />}
 
       {delivery}
 
@@ -182,7 +195,14 @@ export default function BuyBlock({
             Добавить в корзину
           </Button>
         )}
-        <Button size="lg" variant="outline" shape="rounded" fullWidth onClick={onOneClick}>
+        <Button
+          size="lg"
+          variant="outline"
+          shape="rounded"
+          fullWidth
+          disabled={notForSale}
+          onClick={onOneClick}
+        >
           Купить в 1 клик
         </Button>
       </div>

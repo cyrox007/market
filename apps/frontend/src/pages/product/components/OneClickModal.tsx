@@ -10,6 +10,8 @@ interface Props {
   /** SKU к оформлению: выбранный вариант, иначе сам товар; null — вариант ещё не выбран */
   productId: number | null;
   quantity: number;
+  /** Продаваемый комплект оформляется целиком, по корню и выбранному предложению (market-docs/66) */
+  bundle?: { bundleId: number; primarySkuId: number } | null;
 }
 
 /** Телефон считается полным, когда набраны все цифры маски +7 (999) 999-99-99 */
@@ -25,7 +27,7 @@ type FieldError = 'name' | 'phone' | 'consent';
  * `accept_offer`, `accept_personal_data`) — market-docs/frontend-fulfillment-contract.md.
  * Введённое в окне едет на страницу оформления, чтобы покупатель не набирал заново.
  */
-export default function OneClickModal({ open, onClose, productId, quantity }: Props) {
+export default function OneClickModal({ open, onClose, productId, quantity, bundle = null }: Props) {
   const navigate = useNavigate();
   // Закрытая цена по ссылке живёт в ?offer: без него оформление посчитает обычную цену
   const offerParam = useSearchParams()[0].get('offer');
@@ -59,8 +61,15 @@ export default function OneClickModal({ open, onClose, productId, quantity }: Pr
     setNoVariant(!productId);
     if (!productId) return;
 
-    const search = new URLSearchParams({ product_id: String(productId), quantity: String(quantity) });
-    if (offerParam) search.set('offer', offerParam);
+    // Закрытую цену бэк к комплекту не применяет
+    const search = bundle
+      ? new URLSearchParams({
+          bundle_id: String(bundle.bundleId),
+          primary_sku_id: String(bundle.primarySkuId),
+          quantity: String(quantity),
+        })
+      : new URLSearchParams({ product_id: String(productId), quantity: String(quantity) });
+    if (offerParam && !bundle) search.set('offer', offerParam);
     navigate(`/checkout?${search}`, {
       state: { oneClick: { name: name.trim(), phone, comment: comment.trim() } },
     });

@@ -694,7 +694,8 @@ export interface Product extends WarehouseStockInfo {
   is_variable?: boolean;
   is_variant?: boolean;
   is_sellable_bundle?: boolean;
-  sellable_bundle_components?: Array<{ id: number; sku: string; name: string; quantity: number }>;
+  /** Простой комплект: `{id, sku, name, quantity}`; вариативный — состав выбранного предложения с ценами */
+  sellable_bundle_components?: BundleComponent[];
   first_available_variant_id?: number | null;
   variation_attributes?: VariationAttributeOption[];
   colors?: ColorOption[];
@@ -758,6 +759,20 @@ export interface ProductVariant extends WarehouseStockInfo {
   excerpt?: string | null;
   specifications?: { name: string; value: string; slug: string }[] | Record<string, string> | null;
   backorder?: string | null;
+  /** Предложение комплекта: false — состав не настроен, цена 0, продать нельзя */
+  is_bundle_configured?: boolean;
+  bundle_components?: BundleComponent[];
+}
+
+/** Реальный SKU в составе комплекта (market-docs/66) */
+export interface BundleComponent {
+  id?: number;
+  product_id?: number;
+  sku: string;
+  name: string;
+  quantity: number;
+  unit_price?: number;
+  total?: number;
 }
 
 export interface ProductFeatureBlock {

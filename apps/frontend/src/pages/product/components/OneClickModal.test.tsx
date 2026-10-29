@@ -33,13 +33,26 @@ function CheckoutProbe() {
   return <p>{`checkout ${search} ${JSON.stringify((state as { oneClick?: unknown })?.oneClick ?? null)}`}</p>;
 }
 
-const setup = (url = '/product/divan', productId: number | null = 42, quantity = 1) =>
+const setup = (
+  url = '/product/divan',
+  productId: number | null = 42,
+  quantity = 1,
+  bundle: { bundleId: number; primarySkuId: number } | null = null,
+) =>
   render(
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route
           path="/product/:slug"
-          element={<OneClickModal open onClose={onClose} productId={productId} quantity={quantity} />}
+          element={
+            <OneClickModal
+              open
+              onClose={onClose}
+              productId={productId}
+              quantity={quantity}
+              bundle={bundle}
+            />
+          }
         />
         <Route path="/checkout" element={<CheckoutProbe />} />
       </Routes>
@@ -134,6 +147,16 @@ describe('окно «Купить в один клик»', () => {
     fireEvent.click(submit());
 
     expect(screen.getByText(/^checkout/)).toHaveTextContent('?product_id=42&quantity=1&offer=7');
+  });
+
+  it('комплект — оформление всего состава: корень, выбранное предложение, без offer', () => {
+    setup('/product/skaf?offer=7', 25814, 2, { bundleId: 25817, primarySkuId: 25814 });
+    fillValid();
+    fireEvent.click(submit());
+
+    expect(screen.getByText(/^checkout/)).toHaveTextContent(
+      'checkout ?bundle_id=25817&primary_sku_id=25814&quantity=2 ',
+    );
   });
 
   it('вариант не выбран — просим выбрать, перехода нет', () => {

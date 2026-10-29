@@ -86,3 +86,16 @@ describe('выбор значения', () => {
     expect(chooseValue(VARIANTS, GREY_120, 'color', 'red')).toBe(GREY_120);
   });
 });
+
+describe('предложение комплекта без состава', () => {
+  const unset = (v: ProductVariant) => ({ ...v, is_bundle_configured: false }) as ProductVariant;
+
+  it('значение с ним — недоступно: купить такое сочетание нельзя', () => {
+    expect(isValueAvailable([GREY_120, unset(BEIGE_120)], GREY_120, 'color', 'beige')).toBe(false);
+  });
+
+  it('по умолчанию не выбирается, если есть настроенное', () => {
+    const kits = [unset(GREY_90), BLUE_90];
+    expect(defaultVariant(kits)).toBe(BLUE_90);
+  });
+});

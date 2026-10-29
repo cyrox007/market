@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import { formatPrice } from '../lib/productText';
 import BuyBlock, { type BuyBlockCart } from './BuyBlock';
 
 const product = {
@@ -200,5 +201,84 @@ describe('блок покупки', () => {
   it('ошибка корзины видна', () => {
     renderBlock({ cart: cart({ error: 'Товар недоступен для заказа' }) });
     expect(screen.getByRole('alert')).toHaveTextContent('Товар недоступен для заказа');
+  });
+});
+
+describe('продаваемый комплект', () => {
+  const part = (product_id: number, sku: string, name: string, total: number) => ({
+    product_id,
+    sku,
+    name,
+    quantity: 1,
+    unit_price: total,
+    total,
+  });
+  const kit = {
+    ...product,
+    id: 25813,
+    name: 'Шкаф-купе с антресолью Бруно 1',
+    is_variant: true,
+    parent_id: 25817,
+    is_sellable_bundle: true,
+    old_price: null,
+  } as unknown as ProductDetail;
+  const offer = (configured: boolean) =>
+    ({
+      id: 25814,
+      sku: '382978',
+      price: configured ? 22730 : 0,
+      in_stock: false,
+      stock: 0,
+      available_to_order: configured,
+      is_bundle_configured: configured,
+      bundle_components: configured
+        ? [
+            part(25622, '312558', 'Шкаф-купе Бруно 1', 16780),
+            part(25809, '382516', 'Антресоль Бруно', 5950),
+          ]
+        : [],
+    }) as unknown as ProductVariant;
+
+  it('состав выбранного предложения: части, артикулы, количество и цены', () => {
+    renderBlock({ product: kit, selectedVariant: offer(true) });
+    const list = screen.getByRole('region', { name: 'Состав комплекта' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('Шкаф-купе Бруно 1');
+    expect(rows[0]).toHaveTextContent('Арт. 312558 · 1 шт.');
+    expect(rows[0]).toHaveTextContent(/16\s780\s₽/);
+    expect(rows[1]).toHaveTextContent('Антресоль Бруно');
+  });
+
+  it('предложение без состава — без цены 0 ₽, купить нельзя', () => {
+    renderBlock({ product: kit, selectedVariant: offer(false) });
+    expect(screen.queryByText(formatPrice(0))).not.toBeInTheDocument();
+    expect(screen.getByText('Этот вариант комплекта пока не продаётся')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Состав комплекта' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Добавить в корзину' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Купить в 1 клик' })).toBeDisabled();
+  });
+
+  it('простой комплект: основное изделие в составе, цена — за весь комплект', () => {
+    renderBlock({
+      product: {
+        ...product,
+        is_sellable_bundle: true,
+        sellable_bundle_components: [{ id: 8, sku: 'P-8', name: 'Матрас', quantity: 2 }],
+      } as unknown as ProductDetail,
+    });
+    const rows = within(screen.getByRole('region', { name: 'Состав комплекта' })).getAllByRole(
+      'listitem',
+    );
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringContaining('Кухонный гарнитур «Акапелла»'),
+      expect.stringContaining('Арт. P-8 · 2 шт.'),
+    ]);
+    expect(screen.getByText('Цена указана за весь комплект.')).toBeInTheDocument();
+  });
+
+  it('обычный товар — без состава', () => {
+    renderBlock();
+    expect(screen.queryByRole('region', { name: 'Состав комплекта' })).not.toBeInTheDocument();
   });
 });

@@ -22,6 +22,7 @@ import { useProductCartActions } from './hooks/useProductCartActions';
 import { useProductReviews } from './hooks/useProductReviews';
 import { useWriteReview } from './hooks/useWriteReview';
 import { useVariantSelection } from './hooks/useVariantSelection';
+import { bundleCheckout } from './lib/bundle';
 import { getSpecificationsArray } from './lib/productText';
 
 interface Props {
@@ -171,6 +172,7 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           onClose={() => setOneClickOpen(false)}
           productId={oneClickSku}
           quantity={Math.max(1, cart.quantity)}
+          bundle={bundleCheckout(product, selectedVariant)}
         />
 
         {auth.user && (
