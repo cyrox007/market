@@ -53,7 +53,7 @@ class WarehouseOrderStock
                 $availability = $warehouse->productAvailabilities()->where('product_id', $item['product_id'])->lockForUpdate()->first();
                 if (! $availability?->available_to_order) {
                     $sku = Product::lockForUpdate()->findOrFail($item['product_id']);
-                    if (! $sku->backorder || empty($order->bundle_snapshot)) {
+                    if (! $sku->backorder || ! collect($quote['backorder_items'] ?? [])->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id)) {
                         throw ValidationException::withMessages(['cart' => 'Товар больше недоступен под заказ.']);
                     }
                     $quote['backorder_items'][] = ['product_id' => (int) $sku->id,
@@ -78,7 +78,7 @@ class WarehouseOrderStock
                 $free = $stock ? app(\App\Services\Inventory\CartStockReservations::class)
                     ->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity) : 0;
                 if ($free < $item['quantity']) {
-                    if (! $sku->backorder || empty($order->bundle_snapshot)) {
+                    if (! $sku->backorder || ! collect($quote['backorder_items'] ?? [])->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id)) {
                         throw ValidationException::withMessages(['cart' => 'Остатки выбранного склада изменились. Пересчитайте доставку.']);
                     }
                     $backordered[] = ['product_id' => (int) $sku->id,

@@ -71,9 +71,8 @@ class WarehouseDeliveryQuote
             }
             $amount += $unitPrices[(int) $product->id] * $quantities[$product->id];
         }
-        $backorderIds = ! empty($selection['allow_component_backorder'])
-            ? $products->filter(fn (Product $sku): bool => (bool) $sku->backorder)->keys()->map(fn ($id) => (int) $id)->all()
-            : [];
+        $backorderIds = $products->filter(fn (Product $sku): bool => (bool) $sku->backorder)
+            ->keys()->map(fn ($id) => (int) $id)->all();
         $options = [];
         if (array_key_exists('_cart_subtotal', $selection)) { $amount = (float) $selection['_cart_subtotal']; }
         $warehouses = Warehouse::where('is_active', true)->with([

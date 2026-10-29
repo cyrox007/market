@@ -26,6 +26,36 @@ class SellableBundleCheckoutTest extends TestCase
         return [$root, $extraParent, $extra];
     }
 
+    public function test_preorder_permission_never_changes_physical_bundle_stock_or_imposes_a_one_set_limit(): void
+    {
+        Http::fake(fn () => Http::response([]));
+        [$root, , $extra] = $this->kit();
+        $root->update(['backorder' => false]);
+        $extra->update(['backorder' => true]);
+        $warehouse = Warehouse::create(['name' => 'Central', 'is_active' => true, 'stock_mode' => 'quantity']);
+        $warehouse->productStocks()->create(['product_id' => $root->id, 'quantity' => 10]);
+        $part = $warehouse->productStocks()->create(['product_id' => $extra->id, 'quantity' => 0]);
+        $bundle = app(SellableBundle::class);
+        $items = $bundle->composition($root->id, null)['items'];
+        foreach ([false, true] as $multi) {
+            config(['bundles.multi_warehouse_enabled' => $multi]);
+            $this->assertSame(0, $bundle->availableSets($items));
+            $this->assertSame(10, $bundle->orderableSets($items));
+            $this->assertTrue($bundle->canOrder($items));
+        }
+        $this->getJson('/api/v1/products/'.$root->slug)->assertOk()
+            ->assertJsonPath('product.stock', 0)->assertJsonPath('product.in_stock', false)
+            ->assertJsonPath('product.available_to_order', true);
+        $part->update(['quantity' => 6]);
+        $this->assertSame(3, $bundle->availableSets($items));
+        $extra->update(['backorder' => false]);
+        $this->assertSame(3, $bundle->availableSets($items));
+        $this->assertSame(3, $bundle->orderableSets($items));
+        $part->update(['quantity' => 0]);
+        $this->assertFalse($bundle->canOrder($items));
+        $this->assertSame(0, $bundle->availableSets($items));
+    }
+
     public function test_a_concrete_sku_and_quantity_are_required_for_kit(): void
     {
         [$root, $extraParent, $extra] = $this->kit();
@@ -322,10 +352,12 @@ class SellableBundleCheckoutTest extends TestCase
         PaymentMethod::create(['name' => 'Cash', 'code' => 'cash', 'gateway' => 'manual',
             'is_active' => true, 'is_enabled' => true]);
         $composition = app(SellableBundle::class)->composition($root->id, $virtual->id);
-        $this->assertGreaterThanOrEqual(1, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->assertSame(0, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->assertTrue(app(SellableBundle::class)->canOrder($composition['items']));
 
         $this->getJson('/api/v1/products/'.$root->slug)->assertOk()
-            ->assertJsonPath('product.variants.0.in_stock', true);
+            ->assertJsonPath('product.variants.0.in_stock', false)
+            ->assertJsonPath('product.variants.0.available_to_order', true);
         $preview = $this->postJson('/api/v1/shipping/quote', [
             'directory_external_id' => 'house',
             'bundle_id' => $root->id, 'primary_sku_id' => $virtual->id,

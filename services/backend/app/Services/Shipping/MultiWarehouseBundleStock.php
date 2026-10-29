@@ -106,7 +106,7 @@ class MultiWarehouseBundleStock
                 $availability = $sources[$id]->productAvailabilities()
                     ->where('product_id', $line['product_id'])->lockForUpdate()->first();
                 if (! $availability?->available_to_order) {
-                    if (! $sku->backorder || empty($order->bundle_snapshot)) {
+                    if (! $sku->backorder || ! collect($quote['backorder_items'] ?? [])->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id && (int) ($pending['warehouse_id'] ?? 0) === (int) $id)) {
                         throw ValidationException::withMessages(['cart' => 'Один из компонентов больше недоступен под заказ.']);
                     }
                     $backordered[] = ['product_id' => $sku->id, 'warehouse_id' => $id, 'quantity' => $line['quantity']];
@@ -118,7 +118,7 @@ class MultiWarehouseBundleStock
             $free = $stock ? app(\App\Services\Inventory\CartStockReservations::class)
                 ->available($id, $line['product_id'], (float) $stock->quantity) : 0;
             if ($free < $line['quantity']) {
-                if (! $sku->backorder || empty($order->bundle_snapshot)) {
+                if (! $sku->backorder || ! collect($quote['backorder_items'] ?? [])->contains(fn ($pending) => (int) $pending['product_id'] === (int) $sku->id && (int) ($pending['warehouse_id'] ?? 0) === (int) $id)) {
                     throw ValidationException::withMessages(['cart' => 'Остатки составляющих на складах изменились. Обновите заказ.']);
                 }
                 $backordered[] = ['product_id' => $sku->id, 'warehouse_id' => $id, 'quantity' => $line['quantity']];

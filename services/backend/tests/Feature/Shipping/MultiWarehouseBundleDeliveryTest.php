@@ -55,6 +55,47 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         return [$root, $offer, $wardrobe, $top];
     }
 
+    public function test_zero_stock_regular_sku_can_be_ordered_when_backorder_is_enabled(): void
+    {
+        Queue::fake();
+        $sku = Product::factory()->create(['price' => 500, 'stock' => 0, 'backorder' => true]);
+        $warehouse = $this->warehouse($sku, 0, 100, 'Central');
+        $this->getJson('/api/v1/products/'.$sku->slug)->assertOk()
+            ->assertJsonPath('product.stock', 0)->assertJsonPath('product.in_stock', false)
+            ->assertJsonPath('product.available_to_order', true);
+        PaymentMethod::create(['name' => 'Test payment', 'code' => 'cash', 'gateway' => 'manual', 'is_active' => true, 'is_enabled' => true]);
+        $response = $this->postJson('/api/v1/orders', [
+            'items' => [['product_id' => $sku->id, 'quantity' => 2]],
+            'expected_subtotal' => 1000, 'directory_external_id' => 'house', 'delivery_type' => 'delivery',
+            'payment_method' => 'cash', 'contact_name' => 'Buyer', 'contact_phone' => '+79001234567',
+            'contact_email' => 'backorder@example.test', 'accept_offer' => true, 'accept_personal_data' => true,
+        ])->assertCreated();
+        $this->assertEquals(0, $warehouse->productStocks()->first()->quantity);
+        $this->assertTrue(Order::findOrFail($response->json('order.id'))->fulfillment_snapshot['contains_backorder']);
+    }
+
+    public function test_stock_loss_after_quote_requires_recalculation_instead_of_preserving_false_dates(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $warehouse = $this->warehouse($sku, 2, 100, 'Central');
+        $part = $warehouse->productStocks()->create(['product_id' => $top->id, 'quantity' => 1]);
+        $top->update(['backorder' => true]);
+        $items = app(SellableBundle::class)->composition($root->id, $offer->id)['items'];
+        $quote = app(WarehouseDeliveryQuote::class)->calculate('house', $items)['selected'];
+        $this->assertFalse($quote['contains_backorder']);
+        $part->update(['quantity' => 0]);
+        $order = Order::factory()->create(['fulfillment_snapshot' => $quote,
+            'bundle_snapshot' => ['bundle_id' => $root->id], 'cooling_until' => now()->addHour(),
+            'status' => \App\Models\Order\OrderStatus::MANAGER_PROCESSING->value]);
+        try {
+            DB::transaction(fn () => app(WarehouseOrderStock::class)->reserve($order));
+            $this->fail('Changed stock must require a new quote');
+        } catch (ValidationException $error) {
+            $this->assertArrayHasKey('cart', $error->errors());
+        }
+        $this->assertEquals(0, $warehouse->productStocks()->sum('reserved_quantity'));
+    }
+
     public function test_disabled_rollout_does_not_offer_cross_warehouse_stock_or_delivery(): void
     {
         config(['bundles.multi_warehouse_enabled' => false]);
@@ -344,7 +385,8 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $first = $this->warehouse($wardrobe, 2, 100, 'Шкафы');
         $second = $this->warehouse($top, 0, 200, 'Антресоли под заказ');
         $composition = app(SellableBundle::class)->composition($root->id, $offer->id);
-        $this->assertSame(1, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->assertSame(0, app(SellableBundle::class)->availableSets($composition['items']));
+        $this->assertTrue(app(SellableBundle::class)->canOrder($composition['items']));
         $quote = app(WarehouseDeliveryQuote::class)->calculate('house', $composition['items'], null, [
             'allow_multi_warehouse' => true,
             'allow_component_backorder' => true,
