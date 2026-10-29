@@ -68,16 +68,25 @@ class ProductBundleTest extends TestCase
 
     public function test_sellable_component_list_is_separate_from_editorial_bundle(): void
     {
-        $root = Product::factory()->create(['state' => 'active', 'is_sellable_bundle' => true]);
-        $sku = Product::factory()->create(['state' => 'active', 'sku' => 'TOP-RED']);
+        $root = Product::factory()->create(['state' => 'active', 'is_sellable_bundle' => true, 'price' => 1500]);
+        $sku = Product::factory()->create(['state' => 'active', 'sku' => 'TOP-RED', 'price' => 700]);
         $root->sellableBundleComponents()->attach($sku->id, ['quantity' => 2, 'sort_order' => 1]);
 
         $this->getJson('/api/v1/products/'.$root->slug)
             ->assertOk()
             ->assertJsonPath('product.is_sellable_bundle', true)
-            ->assertJsonPath('product.sellable_bundle_components.0.id', $sku->id)
-            ->assertJsonPath('product.sellable_bundle_components.0.sku', 'TOP-RED')
-            ->assertJsonPath('product.sellable_bundle_components.0.quantity', 2);
+            ->assertJsonCount(2, 'product.sellable_bundle_components')
+            ->assertJsonPath('product.sellable_bundle_components.0.product_id', $root->id)
+            ->assertJsonPath('product.sellable_bundle_components.0.quantity', 1)
+            ->assertJsonPath('product.sellable_bundle_components.0.unit_price', 1500)
+            ->assertJsonPath('product.sellable_bundle_components.0.total', 1500)
+            ->assertJsonPath('product.sellable_bundle_components.1.id', $sku->id)
+            ->assertJsonPath('product.sellable_bundle_components.1.product_id', $sku->id)
+            ->assertJsonPath('product.sellable_bundle_components.1.sku', 'TOP-RED')
+            ->assertJsonPath('product.sellable_bundle_components.1.quantity', 2)
+            ->assertJsonPath('product.sellable_bundle_components.1.unit_price', 700)
+            ->assertJsonPath('product.sellable_bundle_components.1.total', 1400)
+            ->assertJsonPath('product.price', 2900);
         $this->getJson('/api/v1/products/'.$root->id.'/bundle')
             ->assertOk()->assertJsonPath('data', []);
     }
