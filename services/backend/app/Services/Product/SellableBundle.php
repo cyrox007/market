@@ -221,7 +221,11 @@ class SellableBundle
                 'quantity' => $quantity, 'unit_price' => $total / $quantity, 'total' => $total,
                 'price_allocations' => $group->map(fn ($row) => ['quantity' => $row['quantity'], 'unit_price' => $row['price']])->values()->all()];
         })->values()->all();
-        return [...$composition, 'subtotal' => round(array_sum(array_column($rows, 'total')), 2), 'priced_components' => $rows];
+        $subtotal = round(array_sum(array_column($rows, 'total')), 2);
+        if ($subtotal <= 0) {
+            throw ValidationException::withMessages(['bundle_price' => 'Укажите положительную цену комплекта или его составляющих.']);
+        }
+        return [...$composition, 'subtotal' => $subtotal, 'priced_components' => $rows];
     }
 
     /**

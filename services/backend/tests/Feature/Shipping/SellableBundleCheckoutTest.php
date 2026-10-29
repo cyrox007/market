@@ -26,6 +26,24 @@ class SellableBundleCheckoutTest extends TestCase
         return [$root, $extraParent, $extra];
     }
 
+    public function test_simple_bundle_api_returns_priced_primary_and_all_components(): void
+    {
+        [$root, , $extra] = $this->kit();
+        $response = $this->getJson('/api/v1/products/'.$root->slug)->assertOk()
+            ->assertJsonPath('product.is_bundle_configured', true);
+        $rows = $response->json('product.sellable_bundle_components');
+        $this->assertCount(2, $rows);
+        $this->assertSame([$root->id, $extra->id], array_column($rows, 'product_id'));
+        $this->assertEquals(2900, array_sum(array_column($rows, 'total')));
+        $this->assertEquals(1500, $rows[0]['unit_price']);
+        $this->assertSame(2, $rows[1]['quantity']);
+        $root->update(['price' => 0]);
+        $extra->update(['price' => 0]);
+        $this->getJson('/api/v1/products/'.$root->slug)->assertOk()
+            ->assertJsonPath('product.is_bundle_configured', false)
+            ->assertJsonPath('product.price', 0)->assertJsonPath('product.available_to_order', false);
+    }
+
     public function test_preorder_permission_never_changes_physical_bundle_stock_or_imposes_a_one_set_limit(): void
     {
         Http::fake(fn () => Http::response([]));

@@ -459,7 +459,7 @@ class ProductController extends Controller
                 'dimensions' => array_fill_keys(['width', 'depth', 'height'], ['min' => null, 'max' => null, 'unit' => 'mm']),
             ];
             return ProductResource::collection($emptyPaginator)->additional([
-                'meta' => ['filters' => $emptyFilters],
+                'meta' => ['filters' => $emptyFilters, 'fulfillment' => ['delivery_quote_endpoint' => '/api/v1/shipping/quote', 'delivery_days_source' => 'legacy_region_rule']],
             ]);
         };
 
@@ -526,6 +526,7 @@ class ProductController extends Controller
         return ProductResource::collection($products)->additional([
             'meta' => [
                 'filters' => $filtersMeta,
+                'fulfillment' => ['delivery_quote_endpoint' => '/api/v1/shipping/quote', 'delivery_days_source' => 'legacy_region_rule'],
             ],
         ]);
     }

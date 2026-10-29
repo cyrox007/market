@@ -20,12 +20,26 @@ class CartFulfillment
             : null;
     }
 
+    /** JSON object key order is not significant; component order, values and types remain strict. */
+    private function sameSelection(mixed $saved, array $current): bool
+    {
+        if (! is_array($saved)) { return false; }
+        $normalize = static function (array $items): array {
+            return array_map(static function ($item) {
+                if (is_array($item)) { ksort($item); }
+                return $item;
+            }, $items);
+        };
+
+        return $normalize($saved) === $normalize($current);
+    }
+
     public function rememberSelection(object $item, Product $product): void
     {
         $composition = $this->composition($product);
         if ($composition === null) { return; }
         $configuration = $item->configuration ?? [];
-        if (isset($configuration['bundle_selection']) && $configuration['bundle_selection'] !== $composition['items']) {
+        if (isset($configuration['bundle_selection']) && ! $this->sameSelection($configuration['bundle_selection'], $composition['items'])) {
             throw \Illuminate\Validation\ValidationException::withMessages(['cart' => 'Состав комплекта изменился. Удалите его из корзины и добавьте заново.']);
         }
         $item->update(['configuration' => [...$configuration, 'bundle_selection' => $composition['items']]]);
@@ -40,7 +54,7 @@ class CartFulfillment
             $composition = isset($item->id) ? $this->composition($product, (int) $item->quantity) : null;
             if ($composition === null) { $result->push($item); continue; }
             $saved = ($item->configuration ?? [])['bundle_selection'] ?? null;
-            if ($saved !== null && $saved !== $this->composition($product)['items']) {
+            if ($saved !== null && ! $this->sameSelection($saved, $this->composition($product)['items'])) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['cart' => 'Состав комплекта изменился. Удалите его из корзины и добавьте заново.']);
             }
             foreach ($composition['items'] as $component) {
