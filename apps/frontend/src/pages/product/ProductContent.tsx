@@ -22,6 +22,7 @@ import { useProductCartActions } from './hooks/useProductCartActions';
 import { useProductReviews } from './hooks/useProductReviews';
 import { useWriteReview } from './hooks/useWriteReview';
 import { useVariantSelection } from './hooks/useVariantSelection';
+import { isVariableParent } from './lib/variants';
 import { bundleCheckout } from './lib/bundle';
 import { getSpecificationsArray } from './lib/productText';
 
@@ -33,12 +34,12 @@ interface Props {
 
 /** Страница одного товара; на другой товар — новый экземпляр (key), состояние не переносится */
 export default function ProductContent({ product, related, isRefreshing }: Props) {
-  const variants = useVariantSelection(product);
-  const { selectedVariant } = variants;
+  const selection = useVariantSelection(product);
+  const { selectedVariant } = selection;
   const cart = useProductCartActions({
     product,
     selectedVariant,
-    cartAttributes: variants.cartAttributes,
+    cartAttributes: selection.cartAttributes,
   });
   const { locality, region } = useRegion();
   const city = locality?.name ?? region?.name ?? null;
@@ -51,13 +52,11 @@ export default function ProductContent({ product, related, isRefreshing }: Props
   const writeReview = review.start;
 
   const [tab, setTab] = useState<ProductTabId>('description');
-  // «Купить в 1 клик» открывается и когда товара нет в наличии (задача 13)
+  // «Купить в 1 клик» открывается и когда товара нет в наличии
   const [oneClickOpen, setOneClickOpen] = useState(false);
   // SKU для прямого оформления: у вариативного родителя без выбранного варианта его нет
   const oneClickSku =
-    product.is_variable && !product.is_variant && !selectedVariant
-      ? null
-      : (selectedVariant?.id ?? product.id);
+    isVariableParent(product) && !selectedVariant ? null : (selectedVariant?.id ?? product.id);
 
   // Фото варианта, если они есть; иначе — товара
   const images = selectedVariant?.images?.length
@@ -99,7 +98,7 @@ export default function ProductContent({ product, related, isRefreshing }: Props
 
   return (
     // overflow-x-clip: «Похожие» выходят за колонку до края экрана, а полоса прокрутки входит в 100vw
-    <div className="min-h-screen overflow-x-clip bg-white">
+    <div className="min-h-screen overflow-x-clip bg-surface">
       <div className="max-w-[1280px] mx-auto px-4 py-6">
         <ProductBreadcrumbs product={product} />
 
@@ -128,8 +127,8 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           <BuyBlock
             product={product}
             selectedVariant={selectedVariant}
-            attributes={variants.attributes}
-            onSelectValue={variants.selectValue}
+            attributes={selection.attributes}
+            onSelectValue={selection.selectValue}
             disabled={isRefreshing}
             city={city}
             cart={cart}
@@ -137,7 +136,7 @@ export default function ProductContent({ product, related, isRefreshing }: Props
             onOneClick={() => setOneClickOpen(true)}
             delivery={<DeliveryInfo city={city} {...delivery} />}
             titleActions={
-              <WishlistCompareButtons product={product} matchedVariant={selectedVariant} />
+              <WishlistCompareButtons product={product} selectedVariant={selectedVariant} />
             }
           />
         </div>
@@ -148,7 +147,6 @@ export default function ProductContent({ product, related, isRefreshing }: Props
           description={description}
           specifications={specifications}
           reviewsCount={reviewsCount}
-          // Список и сводка — задача 10
           reviews={
             reviewsCount > 0 ? (
               <ReviewsSection

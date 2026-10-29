@@ -115,6 +115,8 @@ describe('выбор варианта на странице товара', () =>
 
     expect(result.current.location.pathname).toBe('/product/divan-blue');
     expect(result.current.location.search).toBe('');
+    // «Назад» не должен перебирать клики по цветам (57, история 25)
+    expect(result.current.navigation).toBe('REPLACE');
   });
 
   it('сервер по ?variant отдаёт выбранный вариант в HTML', () => {

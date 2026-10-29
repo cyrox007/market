@@ -259,6 +259,19 @@ describe('продаваемый комплект', () => {
     expect(screen.getByRole('button', { name: 'Купить в 1 клик' })).toBeDisabled();
   });
 
+  it('непродаваемое предложение: кнопки неактивны по самому признаку, а не по остатку', () => {
+    const inStockButUnset = { ...offer(false), in_stock: true, stock: 3 } as ProductVariant;
+    renderBlock({ product: kit, selectedVariant: inStockButUnset });
+    expect(screen.getByRole('button', { name: 'Добавить в корзину' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Купить в 1 клик' })).toBeDisabled();
+  });
+
+  it('непродаваемое предложение уже в корзине — без счётчика, кнопка неактивна', () => {
+    renderBlock({ product: kit, selectedVariant: offer(false), cart: cart({ quantity: 1 }) });
+    expect(screen.queryByRole('link', { name: /Перейти в корзину/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Добавить в корзину' })).toBeDisabled();
+  });
+
   it('простой комплект: основное изделие в составе, цена — за весь комплект', () => {
     renderBlock({
       product: {
@@ -275,6 +288,24 @@ describe('продаваемый комплект', () => {
       expect.stringContaining('Арт. P-8 · 2 шт.'),
     ]);
     expect(screen.getByText('Цена указана за весь комплект.')).toBeInTheDocument();
+  });
+
+  it('обычный вариант: бэк шлёт is_bundle_configured: false — цена и покупка как обычно', () => {
+    renderBlock({
+      product: { ...product, is_variable: true } as unknown as ProductDetail,
+      selectedVariant: {
+        id: 15,
+        sku: 'V-15',
+        price: 34990,
+        in_stock: true,
+        stock: 5,
+        is_bundle_configured: false,
+        bundle_components: [],
+      } as unknown as ProductVariant,
+    });
+    expect(screen.queryByText('Этот вариант комплекта пока не продаётся')).not.toBeInTheDocument();
+    expect(screen.getByText(/34\s990\s₽/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Купить в 1 клик' })).toBeEnabled();
   });
 
   it('обычный товар — без состава', () => {

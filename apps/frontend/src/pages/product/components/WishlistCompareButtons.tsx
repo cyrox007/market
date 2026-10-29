@@ -6,27 +6,27 @@ import {
   productIdForWishlist,
   useWishlistAndCompare,
 } from '../../../hooks/useWishlistAndCompare';
+import { isVariableParent } from '../lib/variants';
 
 interface Props {
   product: ProductDetail;
-  matchedVariant: ProductVariant | null;
+  selectedVariant: ProductVariant | null;
 }
 
 const ICON =
   'rounded-badge transition-[color,transform] duration-200 hover:text-brand-green active:scale-90 motion-reduce:transition-none';
 
 /** «Сравнить» и «Избранное» у названия (Figma 669:43401) */
-export default function WishlistCompareButtons({ product, matchedVariant }: Props) {
+export default function WishlistCompareButtons({ product, selectedVariant }: Props) {
   const { wishlistProductIds, compareProductIds, toggleWishlist, toggleCompare } =
     useWishlistAndCompare();
   const isInWishlist = wishlistProductIds.includes(productIdForWishlist(product));
   const isInCompare = compareProductIds.includes(productIdForCompare(product));
 
   // У вариативного товара в избранное и сравнение кладём выбранный вариант
-  const targetId =
-    product.is_variable && !product.is_variant
-      ? (matchedVariant?.id ?? product.variants?.[0]?.id ?? product.id)
-      : product.id;
+  const targetId = isVariableParent(product)
+    ? (selectedVariant?.id ?? product.variants?.[0]?.id ?? product.id)
+    : product.id;
 
   // Тексты — как у карточки каталога, они же подпись для читалки
   const compareLabel = isInCompare ? 'Удалить из сравнения' : 'Добавить в сравнение';

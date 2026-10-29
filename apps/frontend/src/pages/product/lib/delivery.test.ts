@@ -69,6 +69,18 @@ describe('строки доставки и самовывоза', () => {
     expect(deliverySummary(quote({})).pickup).toBeNull();
   });
 
+  it('срок неизвестен (часть комплекта под заказ) — подпись бэка, иначе «Срок уточняется»', () => {
+    const unknown = { days_min: null, days_max: null } as unknown as ReturnType<typeof range>;
+    expect(
+      deliverySummary(
+        quote({ options: [{ delivery: { ...unknown, label: 'Срок поставки уточняется' } }] }),
+      ).delivery,
+    ).toBe('Срок поставки уточняется');
+    expect(deliverySummary(quote({ options: [{ delivery: unknown }] })).delivery).toBe(
+      'Срок уточняется',
+    );
+  });
+
   it('расчёта нет — обе строки пусты', () => {
     expect(deliverySummary(undefined)).toEqual({ delivery: null, pickup: null });
   });

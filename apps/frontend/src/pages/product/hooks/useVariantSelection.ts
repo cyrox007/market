@@ -31,11 +31,12 @@ export function useVariantSelection(product: ProductDetail) {
   // Страницу открывают и на родителе, и на самом предложении: каталог отдаёт
   // отдельные позиции и ведёт прямо на них (market-docs/61)
   const variants = product.is_variable || product.is_variant ? (product.variants ?? []) : [];
+  const isKit = Boolean(product.is_sellable_bundle);
 
   const selectedVariant: ProductVariant | null =
     variantFromParam(variants, params.get(VARIANT_PARAM)) ??
     (product.is_variant ? variants.find((v) => v.id === product.id) : undefined) ??
-    defaultVariant(variants);
+    defaultVariant(variants, isKit);
 
   const attributes: VariantAttributeView[] = selectedVariant
     ? (product.variation_attributes ?? [])
@@ -51,7 +52,13 @@ export function useVariantSelection(product: ProductDetail) {
               name: v.name ?? v.slug!,
               code: v.code ?? null,
               selected: v.slug === current?.value_slug,
-              available: isValueAvailable(variants, selectedVariant, a.attribute_slug, v.slug!),
+              available: isValueAvailable(
+                variants,
+                selectedVariant,
+                a.attribute_slug,
+                v.slug!,
+                isKit,
+              ),
             }));
           return {
             slug: a.attribute_slug,
@@ -65,13 +72,13 @@ export function useVariantSelection(product: ProductDetail) {
 
   const selectValue = (attributeSlug: string, valueSlug: string) => {
     if (!selectedVariant) return;
-    const next = chooseValue(variants, selectedVariant, attributeSlug, valueSlug);
+    const next = chooseValue(variants, selectedVariant, attributeSlug, valueSlug, isKit);
     if (next.id === selectedVariant.id) return;
 
     // У каждого предложения своя страница: со страницы предложения уходим на соседнюю,
     // иначе чужой товар показался бы под этим адресом. С родителя — как было, параметром.
     if (product.is_variant && next.slug) {
-      navigate(`/product/${next.slug}`);
+      navigate(`/product/${next.slug}`, { replace: true });
       return;
     }
 
@@ -99,8 +106,6 @@ export function useVariantSelection(product: ProductDetail) {
 
   return {
     selectedVariant,
-    /** Для совместимости с блоком покупки до задачи 04: тот же выбранный вариант */
-    matchedVariant: selectedVariant,
     attributes,
     selectValue,
     cartAttributes,

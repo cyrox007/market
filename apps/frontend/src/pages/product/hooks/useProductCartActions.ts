@@ -3,6 +3,7 @@ import { useCart } from '../../../hooks/useCart';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
 import type { BuyBlockCart } from '../components/BuyBlock';
 import { availabilityOf } from '../lib/availability';
+import { isVariableParent } from '../lib/variants';
 
 const ERROR_MS = 5000;
 
@@ -41,10 +42,9 @@ export function useProductCartActions({
   const cartProductId = selectedVariant?.id ?? product.id;
   const cartItem = (cart?.items ?? []).find((item) => item.product_id === cartProductId);
   const availability = availabilityOf(selectedVariant ?? product);
-  const isVariableParent = Boolean(product.is_variable && !product.is_variant);
 
   const add = async () => {
-    if (isVariableParent && !selectedVariant) {
+    if (isVariableParent(product) && !selectedVariant) {
       return showError('Выберите доступную комбинацию параметров');
     }
     if (availability.status === 'out') return showError('Товар недоступен для заказа');

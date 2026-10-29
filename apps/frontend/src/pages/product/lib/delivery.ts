@@ -7,6 +7,8 @@ const DAYS = ['день', 'дня', 'дней'] as const;
 
 export function formatReady({ days_min: min, days_max: max, label }: ReadyRange): string {
   if (label) return label;
+  // Часть комплекта под заказ: бэк не обещает дату до поступления
+  if (min == null || max == null) return 'Срок уточняется';
   if (min === max) {
     if (min === 0) return 'Сегодня';
     if (min === 1) return 'Завтра';

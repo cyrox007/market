@@ -24,7 +24,7 @@ export function CarouselFade({
       className={cn(
         // z-10 обязателен: Swiper объявляет себе z-index 1 и иначе перекрывает затухание
         // За пределы: сверху 1, слева 1, справа 2 — иначе по краю остаётся волосок карточки
-        'pointer-events-none absolute -top-px bottom-0 z-10 w-24 transition-opacity duration-slow',
+        'pointer-events-none absolute -top-px bottom-0 z-10 w-24 transition-opacity duration-slow motion-reduce:transition-none',
         side === 'left' ? '-left-px bg-gradient-to-r' : '-right-0.5 bg-gradient-to-l',
         veil ? 'from-surface to-surface/[0.58]' : 'from-surface via-surface/80 to-transparent',
         hidden && 'opacity-0',
@@ -59,6 +59,9 @@ export function CarouselArrow({
       elevated={!glass}
       label={label}
       onClick={onClick}
+      // Прозрачная стрелка у края не должна ловить Tab
+      tabIndex={hidden ? -1 : undefined}
+      aria-hidden={hidden || undefined}
       className={cn(
         'absolute z-10 -translate-y-1/2',
         glass && 'shadow-[0_2px_10px_0_rgba(20,20,20,0.1)]',

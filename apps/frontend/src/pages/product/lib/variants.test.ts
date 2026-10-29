@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { ProductVariant } from '../../../lib/api';
-import { chooseValue, defaultVariant, isValueAvailable, variantFromParam } from './variants';
+import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import {
+  chooseValue,
+  defaultVariant,
+  isValueAvailable,
+  isVariableParent,
+  variantFromParam,
+} from './variants';
 
 const attr = (attribute_slug: string, value_slug: string) => ({
   attribute_slug,
@@ -91,11 +97,43 @@ describe('предложение комплекта без состава', () =
   const unset = (v: ProductVariant) => ({ ...v, is_bundle_configured: false }) as ProductVariant;
 
   it('значение с ним — недоступно: купить такое сочетание нельзя', () => {
-    expect(isValueAvailable([GREY_120, unset(BEIGE_120)], GREY_120, 'color', 'beige')).toBe(false);
+    expect(isValueAvailable([GREY_120, unset(BEIGE_120)], GREY_120, 'color', 'beige', true)).toBe(
+      false,
+    );
+  });
+
+  it('у обычного товара бэк тоже шлёт is_bundle_configured: false — значение доступно', () => {
+    expect(isValueAvailable([GREY_120, unset(BEIGE_120)], GREY_120, 'color', 'beige')).toBe(true);
   });
 
   it('по умолчанию не выбирается, если есть настроенное', () => {
     const kits = [unset(GREY_90), BLUE_90];
-    expect(defaultVariant(kits)).toBe(BLUE_90);
+    expect(defaultVariant(kits, true)).toBe(BLUE_90);
+    expect(defaultVariant(kits)).toBe(kits[0]);
+  });
+});
+
+describe('выбор значения у комплекта', () => {
+  const unset = (v: ProductVariant) => ({ ...v, is_bundle_configured: false }) as ProductVariant;
+
+  it('из вариантов с этим значением берёт продаваемый, даже если совпадений меньше', () => {
+    // Серый 120 не продаётся; серый 90 продаётся, но размер другой
+    const kits = [unset(GREY_120), GREY_90, BEIGE_120];
+    expect(chooseValue(kits, BEIGE_120, 'color', 'grey', true)).toBe(GREY_90);
+  });
+
+  it('у обычного товара флаг не учитывается — точное сочетание', () => {
+    const items = [unset(GREY_120), unset(GREY_90), unset(BEIGE_120)];
+    expect(chooseValue(items, items[2], 'color', 'grey')).toBe(items[0]);
+  });
+});
+
+describe('вариативный родитель', () => {
+  it('родитель с вариантами — да; предложение и простой товар — нет', () => {
+    expect(isVariableParent({ is_variable: true, is_variant: false } as ProductDetail)).toBe(true);
+    expect(isVariableParent({ is_variable: false, is_variant: true } as ProductDetail)).toBe(false);
+    expect(isVariableParent({ is_variable: false, is_variant: false } as ProductDetail)).toBe(
+      false,
+    );
   });
 });

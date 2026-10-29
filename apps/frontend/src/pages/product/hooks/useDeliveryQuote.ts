@@ -2,7 +2,9 @@ import useSWR from 'swr';
 import { useRegion } from '../../../hooks/useRegion';
 import { api } from '../../../lib/api';
 import type { ProductDetail, ProductVariant, ShippingQuote } from '../../../lib/api';
+import { bundleQuoteRequest } from '../lib/bundle';
 import { deliverySummary } from '../lib/delivery';
+import { isVariableParent } from '../lib/variants';
 
 /**
  * Сроки доставки и самовывоза для выбранного варианта, количества и населённого пункта.
@@ -16,14 +18,24 @@ export function useDeliveryQuote(
   const { locality, getRegionId } = useRegion();
   const externalId = locality?.externalId ?? null;
   const regionId = getRegionId() ?? undefined;
-  const isVariableParent = Boolean(product.is_variable && !product.is_variant);
+  const isParent = isVariableParent(product);
   // У вариативного родителя бэк требует вариант: сам дешёвый не подставит
-  const variantId = isVariableParent ? selectedVariant?.id : undefined;
+  const variantId = isParent ? selectedVariant?.id : undefined;
   const qty = Math.max(1, quantity);
+  // Виртуальный SKU комплекта своего остатка не имеет — считаем по частям; без состава не считаем
+  const kit = bundleQuoteRequest(product, selectedVariant, qty);
+  const ready = product.is_sellable_bundle ? Boolean(kit) : !isParent || Boolean(variantId);
 
   const key =
-    externalId && (!isVariableParent || variantId)
-      ? (['shipping-quote', externalId, regionId, product.id, variantId, qty] as const)
+    externalId && ready
+      ? ([
+          'shipping-quote',
+          externalId,
+          regionId,
+          product.id,
+          kit?.primary_sku_id ?? variantId,
+          qty,
+        ] as const)
       : null;
 
   const { data } = useSWR(
@@ -32,11 +44,13 @@ export function useDeliveryQuote(
       api.shipping.quote<ShippingQuote>({
         directory_external_id: externalId!,
         region_id: regionId,
-        items: [
-          variantId
-            ? { product_id: product.id, variant_id: variantId, quantity: qty }
-            : { product_id: product.id, quantity: qty },
-        ],
+        ...(kit ?? {
+          items: [
+            variantId
+              ? { product_id: product.id, variant_id: variantId, quantity: qty }
+              : { product_id: product.id, quantity: qty },
+          ],
+        }),
       }),
     {
       revalidateOnFocus: false,

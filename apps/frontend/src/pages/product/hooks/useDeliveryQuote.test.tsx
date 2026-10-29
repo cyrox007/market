@@ -111,4 +111,45 @@ describe('сроки доставки на странице товара', () =>
     await waitFor(() => expect(quote).toHaveBeenCalled());
     expect(result.current).toEqual({ delivery: null, pickup: null });
   });
+  it('комплект: считаем по реальным частям, корень и предложение — отдельно', async () => {
+    const kit = {
+      id: 155,
+      is_variable: false,
+      is_variant: true,
+      parent_id: 154,
+      is_sellable_bundle: true,
+    } as unknown as ProductDetail;
+    const offer = {
+      id: 155,
+      bundle_components: [
+        { product_id: 54, sku: 'T', name: 'Стол', quantity: 1, total: 19990 },
+        { product_id: 59, sku: 'C', name: 'Стул', quantity: 4, total: 17960 },
+      ],
+    } as unknown as ProductVariant;
+    renderHook(() => useDeliveryQuote(kit, offer, 2), { wrapper });
+    await waitFor(() =>
+      expect(quote).toHaveBeenCalledWith({
+        directory_external_id: 'lipetsk',
+        region_id: 9,
+        bundle_id: 154,
+        primary_sku_id: 155,
+        bundle_quantity: 2,
+        items: [
+          { product_id: 54, quantity: 2 },
+          { product_id: 59, quantity: 8 },
+        ],
+      }),
+    );
+  });
+
+  it('комплект без состава — не считаем', () => {
+    const kit = { id: 7, is_variable: true, is_sellable_bundle: true } as unknown as ProductDetail;
+    renderHook(
+      () => useDeliveryQuote(kit, { id: 8, bundle_components: [] } as unknown as ProductVariant, 1),
+      {
+        wrapper,
+      },
+    );
+    expect(quote).not.toHaveBeenCalled();
+  });
 });

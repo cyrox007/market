@@ -24,7 +24,7 @@ export default function Login() {
     if (isAuthenticated) {
       navigate(next ?? '/account');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, next]);
 
   usePageSeo({
     title: buildTitle('Вход'),

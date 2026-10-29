@@ -1,9 +1,12 @@
 import type { BundleComponent, ProductDetail, ProductVariant } from '../../../lib/api';
+import { isVariableParent } from './variants';
 
 /** Продаваемый комплект (market-docs/66): заказ собирается из реальных SKU состава */
 
 export interface BundlePart {
   key: string;
+  /** Реальный SKU части; без него часть не передать в расчёт доставки */
+  productId: number | null;
   name: string;
   sku: string;
   quantity: number;
@@ -18,12 +21,13 @@ export function bundleCheckout(
 ): { bundleId: number; primarySkuId: number } | null {
   if (!product.is_sellable_bundle) return null;
   const bundleId = product.is_variant && product.parent_id ? product.parent_id : product.id;
-  if (product.is_variable && !product.is_variant && !selectedVariant) return null;
+  if (isVariableParent(product) && !selectedVariant) return null;
   return { bundleId, primarySkuId: selectedVariant?.id ?? product.id };
 }
 
 const toPart = (c: BundleComponent): BundlePart => ({
   key: String(c.product_id ?? c.id ?? c.sku),
+  productId: c.product_id ?? c.id ?? null,
   name: c.name,
   sku: c.sku,
   quantity: c.quantity,
@@ -44,7 +48,34 @@ export function bundleParts(
   }
   // Простой комплект: основное изделие — тоже часть заказа
   return [
-    { key: String(product.id), name: product.name, sku: product.sku, quantity: 1, total: null },
+    {
+      key: String(product.id),
+      productId: product.id,
+      name: product.name,
+      sku: product.sku,
+      quantity: 1,
+      total: null,
+    },
     ...own.map(toPart),
   ];
+}
+
+/**
+ * Расчёт доставки комплекта — по его реальным частям: бэк сверяет `items` с составом
+ * выбранного предложения (bundle-multi-warehouse-stock.md, «API: доставка»).
+ */
+export function bundleQuoteRequest(
+  product: ProductDetail,
+  selectedVariant: ProductVariant | null,
+  quantity: number,
+) {
+  const checkout = bundleCheckout(product, selectedVariant);
+  const parts = bundleParts(product, selectedVariant);
+  if (!checkout || !parts.length || parts.some((p) => p.productId === null)) return null;
+  return {
+    bundle_id: checkout.bundleId,
+    primary_sku_id: checkout.primarySkuId,
+    bundle_quantity: quantity,
+    items: parts.map((p) => ({ product_id: p.productId!, quantity: p.quantity * quantity })),
+  };
 }

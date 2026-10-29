@@ -38,7 +38,7 @@ interface Props {
   onOneClick: () => void;
   /** «Сравнить» и «Избранное» справа от названия */
   titleActions?: ReactNode;
-  /** Сроки доставки и самовывоза (задача 05) */
+  /** Сроки доставки и самовывоза — под кнопками */
   delivery?: ReactNode;
 }
 
@@ -65,7 +65,9 @@ export default function BuyBlock({
   const oldPrice = item.old_price && item.old_price > price ? item.old_price : null;
   const discount = oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
   const reviews = product.reviews_count ?? 0;
-  const notForSale = Boolean(selectedVariant && !isSellableOffer(selectedVariant));
+  const notForSale = Boolean(
+    product.is_sellable_bundle && selectedVariant && !isSellableOffer(selectedVariant, true),
+  );
   const parts = notForSale ? [] : bundleParts(product, selectedVariant);
 
   return (
@@ -97,22 +99,22 @@ export default function BuyBlock({
 
       <div className="flex flex-wrap items-center gap-2">
         {availability.status === 'in_stock' && (
-          <Badge variant="info" size="sm" className="px-4 font-semibold">
+          <Badge variant="info" size="status">
             В наличии
           </Badge>
         )}
         {availability.status === 'backorder' && (
-          <Badge variant="new" size="sm" className="px-4 font-semibold">
+          <Badge variant="new" size="status">
             Под заказ
           </Badge>
         )}
         {availability.status === 'out' && (
-          <Badge variant="neutral" size="sm" className="px-4 font-semibold">
+          <Badge variant="neutral" size="status">
             Нет в наличии
           </Badge>
         )}
         {availability.stock !== null && (
-          <Badge variant="neutral" size="sm" className="px-4 font-semibold">
+          <Badge variant="neutral" size="status">
             {city ? `Остаток в г. ${city}: ` : 'Остаток: '}
             {availability.stock} шт.
           </Badge>
@@ -158,7 +160,7 @@ export default function BuyBlock({
             {cart.error}
           </p>
         )}
-        {cart.quantity > 0 ? (
+        {cart.quantity > 0 && !notForSale ? (
           <div className="flex items-center gap-2 animate-fadeIn motion-reduce:animate-none">
             <QuantityStepper
               tone="yellow"
@@ -189,7 +191,7 @@ export default function BuyBlock({
             className="shadow-card"
             leftIcon={<ShoppingCart aria-hidden="true" className="size-5" />}
             isLoading={cart.isBusy}
-            disabled={availability.status === 'out'}
+            disabled={availability.status === 'out' || notForSale}
             onClick={cart.add}
           >
             Добавить в корзину

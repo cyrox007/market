@@ -31,7 +31,7 @@ export default function Register() {
     if (isAuthenticated) {
       navigate(next ?? '/account');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, next]);
 
   usePageSeo({
     title: buildTitle('Регистрация'),

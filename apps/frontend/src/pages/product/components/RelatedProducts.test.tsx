@@ -22,8 +22,10 @@ describe('«Похожие товары»', () => {
 
   it('стрелки «назад» и «вперёд»; в начале «назад» неактивна', () => {
     render(<RelatedProducts products={products} />);
-    expect(screen.getByRole('button', { name: 'Предыдущие товары' })).toHaveClass('opacity-0');
-    expect(screen.getByRole('button', { name: 'Следующие товары' })).toBeInTheDocument();
+    const prev = screen.getByLabelText('Предыдущие товары');
+    expect(prev).toHaveClass('opacity-0');
+    expect(prev).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByLabelText('Следующие товары')).toBeInTheDocument();
   });
 
   it('пусто — блока нет', () => {

@@ -86,7 +86,7 @@ function DesktopGallery({ images, productName, selectedIndex, onSelectIndex, onO
           <ul
             aria-label="Фото товара"
             className="absolute inset-x-0 top-0 flex flex-col gap-3 transition-transform duration-slow ease-out motion-reduce:transition-none"
-            style={{ transform: `translateY(calc(${-shown} * (100cqw + 12px)))` }}
+            style={{ transform: `translateY(calc(${-shown} * (100cqw + ${STRIP_GAP}px)))` }}
           >
             {images.map((src, i) => {
               const inWindow = i >= shown && i < shown + WINDOW;

@@ -28,12 +28,16 @@ const product = (fields: Partial<ProductDetail>) =>
 
 describe('предложение комплекта', () => {
   it('без настроенного состава не продаётся', () => {
-    expect(isSellableOffer(offer(2, false))).toBe(false);
+    expect(isSellableOffer(offer(2, false), true)).toBe(false);
   });
 
   it('с составом и обычный вариант — продаются', () => {
-    expect(isSellableOffer(offer(2))).toBe(true);
-    expect(isSellableOffer({ id: 3 } as ProductVariant)).toBe(true);
+    expect(isSellableOffer(offer(2), true)).toBe(true);
+    expect(isSellableOffer({ id: 3 } as ProductVariant, true)).toBe(true);
+  });
+
+  it('у обычного товара флаг не учитывается: бэк ставит false всем, кто не комплект', () => {
+    expect(isSellableOffer(offer(2, false), false)).toBe(true);
   });
 });
 
@@ -81,8 +85,22 @@ describe('состав комплекта', () => {
       is_sellable_bundle: true,
     });
     expect(bundleParts(kit, offer(25814))).toEqual([
-      { key: '258140', name: 'Часть S-25814', sku: 'S-25814', quantity: 1, total: 16780 },
-      { key: '258141', name: 'Часть A-25814', sku: 'A-25814', quantity: 1, total: 5950 },
+      {
+        key: '258140',
+        productId: 258140,
+        name: 'Часть S-25814',
+        sku: 'S-25814',
+        quantity: 1,
+        total: 16780,
+      },
+      {
+        key: '258141',
+        productId: 258141,
+        name: 'Часть A-25814',
+        sku: 'A-25814',
+        quantity: 1,
+        total: 5950,
+      },
     ]);
   });
 
@@ -95,7 +113,7 @@ describe('состав комплекта', () => {
       sellable_bundle_components: [part(5, 'X', 100)],
     });
     expect(bundleParts(kit, { id: 25813 } as ProductVariant)).toEqual([
-      { key: '5', name: 'Часть X', sku: 'X', quantity: 1, total: 100 },
+      { key: '5', productId: 5, name: 'Часть X', sku: 'X', quantity: 1, total: 100 },
     ]);
   });
 
@@ -108,8 +126,8 @@ describe('состав комплекта', () => {
       sellable_bundle_components: [{ id: 8, sku: 'P-8', name: 'Матрас', quantity: 2 }],
     });
     expect(bundleParts(kit, null)).toEqual([
-      { key: '7', name: 'Кровать', sku: 'M-7', quantity: 1, total: null },
-      { key: '8', name: 'Матрас', sku: 'P-8', quantity: 2, total: null },
+      { key: '7', productId: 7, name: 'Кровать', sku: 'M-7', quantity: 1, total: null },
+      { key: '8', productId: 8, name: 'Матрас', sku: 'P-8', quantity: 2, total: null },
     ]);
   });
 });
