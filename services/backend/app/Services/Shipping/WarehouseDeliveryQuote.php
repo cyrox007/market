@@ -71,6 +71,8 @@ class WarehouseDeliveryQuote
             }
             $amount += $unitPrices[(int) $product->id] * $quantities[$product->id];
         }
+        $backorderIds = $products->filter(fn (Product $sku): bool => (bool) $sku->backorder)
+            ->keys()->map(fn ($id) => (int) $id)->all();
         $options = [];
         if (array_key_exists('_cart_subtotal', $selection)) { $amount = (float) $selection['_cart_subtotal']; }
         $warehouses = Warehouse::where('is_active', true)->with([
@@ -86,15 +88,22 @@ class WarehouseDeliveryQuote
             $availability = $warehouse->productAvailabilities->keyBy('product_id');
             $preparationMin = (int) $warehouse->processing_days_min;
             $preparationMax = (int) $warehouse->processing_days_max;
+            $backordered = [];
             foreach ($quantities as $id => $quantity) {
                 if ($warehouse->stock_mode === 'availability') {
                     if (! ($availability[$id]->available_to_order ?? false)) {
-                        continue 2;
+                        if (! isset($availability[$id]) || ! in_array((int) $id, $backorderIds, true)) {
+                            continue 2;
+                        }
+                        $backordered[] = ['product_id' => (int) $id, 'quantity' => $quantity];
                     }
                     $preparationMin = max($preparationMin, (int) ($availability[$id]->processing_days_min ?? 0));
                     $preparationMax = max($preparationMax, (int) ($availability[$id]->processing_days_max ?? 0));
                 } elseif (($stocks[$id]->quantity ?? 0) < $quantity) {
-                    continue 2;
+                    if (! isset($stocks[$id]) || ! in_array((int) $id, $backorderIds, true)) {
+                        continue 2;
+                    }
+                    $backordered[] = ['product_id' => (int) $id, 'quantity' => $quantity];
                 }
             }
             $distance = $point ? app(WarehouseDistance::class)->kilometres($warehouse, $point['latitude'], $point['longitude']) : null;
@@ -138,6 +147,11 @@ class WarehouseDeliveryQuote
                     'delivery' => app(FulfillmentDates::class)->range($preparationMin + (int) $profile->delivery_days_min, $preparationMax + (int) $profile->delivery_days_max),
                     'distance_km' => $distance, 'distance_type' => 'straight_line',
                     'items' => collect($quantities)->map(fn ($quantity, $id) => ['product_id' => (int) $id, 'quantity' => $quantity])->values()->all(),
+                    'contains_backorder' => $backordered !== [],
+                    'backorder_items' => $backordered,
+                    'delivery_estimate_unavailable' => $backordered !== [],
+                    // Delivery dates are not promised before backordered parts arrive.
+                    ...($backordered ? ['delivery' => null, 'delivery_days_min' => null, 'delivery_days_max' => null] : []),
                 ];
                 break; // The first eligible profile by configured priority wins within a warehouse.
             }
@@ -146,7 +160,8 @@ class WarehouseDeliveryQuote
         // warehouse can deliver the complete order.
         if (! $options && ! empty($selection['allow_multi_warehouse'])) {
             $options = app(MultiWarehouseBundleDelivery::class)->options(
-                $warehouses, $quantities, $destination, $point, $unitPrices, $selection
+                $warehouses, $quantities, $destination, $point, $unitPrices,
+                [...$selection, 'component_backorder_ids' => $backorderIds]
             );
         }
         $options = collect($options)->sortBy([['total_fulfillment_cost', 'asc'], ['delivery_days_max', 'asc'], ['warehouse_id', 'asc']])->values()->all();
