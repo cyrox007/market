@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { usePageSeo } from '../../hooks/usePageSeo';
@@ -21,6 +22,7 @@ import {
 import { VkIcon, WhatsAppIcon } from '../../components/ui/icons/brands';
 
 export default function Contacts() {
+  const [contactPhone, setContactPhone] = useState('');
   usePageSeo({
     title: buildTitle('Контакты'),
     description:
@@ -165,7 +167,7 @@ export default function Contacts() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Телефон *</label>
-                <PhoneInput
+                <PhoneInput value={contactPhone} onChange={(event) => setContactPhone(event.target.value)}
                   type="tel"
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"

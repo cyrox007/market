@@ -1,4 +1,4 @@
-import { OrderItem } from '../../lib/api';
+import type { OrderItem } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { ImageIcon } from 'lucide-react';
 

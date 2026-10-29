@@ -14,6 +14,9 @@ class ProductWarehouseStockObserver
 
     public function updated(ProductWarehouseStock $stock): void
     {
+        if ($stock->wasChanged('reserved_quantity')) {
+            \Illuminate\Support\Facades\Cache::forever('fulfillment_revision', (string) \Illuminate\Support\Str::uuid());
+        }
         if ($stock->wasChanged(['quantity', 'warehouse_id', 'product_id'])) {
             $this->dispatchChanged($stock, 'updated');
         }

@@ -10,6 +10,7 @@ const variant = (id: number, color: string, inStock: boolean) =>
   ({
     id,
     sku: `SKU-${id}`,
+    slug: `divan-${color}`,
     price: 1000 * id,
     in_stock: inStock,
     variation_attributes: [{ attribute_slug: 'color', value_slug: color, value_name: color }],
@@ -36,10 +37,22 @@ const product = {
   ],
 } as unknown as ProductDetail;
 
-const renderAt = (url: string) =>
+/**
+ * Само предложение: каталог теперь ведёт на его страницу, а не на родителя
+ * (market-docs/61). `variants` приходят те же, среди них оно само.
+ */
+const offer = {
+  ...product,
+  id: 11,
+  slug: 'divan-beige',
+  is_variable: false,
+  is_variant: true,
+} as unknown as ProductDetail;
+
+const renderAt = (url: string, item: ProductDetail = product) =>
   renderHook(
     () => ({
-      selection: useVariantSelection(product),
+      selection: useVariantSelection(item),
       location: useLocation(),
       navigation: useNavigationType(),
     }),
@@ -85,6 +98,23 @@ describe('выбор варианта на странице товара', () =>
       ['beige', false, true],
       ['blue', true, true],
     ]);
+  });
+
+  it('открыто само предложение — выбор виден, выбрано оно само', () => {
+    const { result } = renderAt('/product/divan-beige', offer);
+
+    expect(result.current.selection.selectedVariant?.id).toBe(11);
+    const [color] = result.current.selection.attributes;
+    expect(color.selectedName).toBe('Бежевый');
+    expect(color.values.map((v) => v.slug)).toEqual(['grey', 'beige', 'blue']);
+  });
+
+  it('у предложения выбор уводит на страницу соседнего, а не в ?variant', () => {
+    const { result } = renderAt('/product/divan-beige', offer);
+    act(() => result.current.selection.selectValue('color', 'blue'));
+
+    expect(result.current.location.pathname).toBe('/product/divan-blue');
+    expect(result.current.location.search).toBe('');
   });
 
   it('сервер по ?variant отдаёт выбранный вариант в HTML', () => {

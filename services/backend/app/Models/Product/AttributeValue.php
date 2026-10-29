@@ -64,16 +64,16 @@ class AttributeValue extends Model
     }
 
     /**
-     * Получить вариации с этим значением (через product_variant_attributes)
+     * Получить вариации с этим значением (через product_product_attributes)
      */
     public function variantProducts(): BelongsToMany
     {
         return $this->belongsToMany(
             Product::class,
-            'product_variant_attributes',
+            'product_product_attributes',
             'attribute_value_id',
             'product_id'
-        )->withPivot('attribute_id')->withTimestamps();
+        )->withPivot('attribute_id')->withTimestamps()->whereNotNull('products.parent_product_id');
     }
 }
 

@@ -14,7 +14,8 @@ export default function Cart() {
     cart,
     isLoading,
     error,
-    setCartQuantity,
+    updateQuantity,
+    removeFromCart,
     updateVariant,
     reloadCart,
   } = useCart();
@@ -30,7 +31,7 @@ export default function Cart() {
   // Кнопки не блокируются: клики копятся, на сервер уходит итог — market-docs/32
   const handleUpdateQuantity = (productId: number, newQuantity: number) => {
     if (newQuantity < 1) return;
-    setCartQuantity(productId, newQuantity);
+    void updateQuantity(productId, newQuantity).catch(() => reloadCart());
   };
 
   const handleVariantChange = async (
@@ -59,7 +60,7 @@ export default function Cart() {
     }
   };
 
-  const handleRemoveItem = (productId: number) => setCartQuantity(productId, 0);
+  const handleRemoveItem = (itemId: number) => { void removeFromCart(itemId).catch(() => reloadCart()); };
 
   // Подборка из админки (slug: recommended) — один запрос при первом появлении товаров в корзине
   useEffect(() => {
@@ -151,7 +152,7 @@ export default function Cart() {
             <div className="lg:col-span-2 space-y-4">
               {cartItems.map((item) => (
                 // Сервер меняет id строки на каждое изменение — ключ по товару, чтобы строка не пересоздавалась
-                <div key={item.product_id} className="bg-white border border-gray-200 rounded-2xl p-6">
+                <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-6">
                   <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
                     {item.slug ? (
                       <ProductLink
@@ -198,7 +199,7 @@ export default function Cart() {
                           <h3 className="font-bold text-lg flex-1">{item.name}</h3>
                         )}
                         <button
-                          onClick={() => handleRemoveItem(item.product_id)}
+                          onClick={() => handleRemoveItem(item.id)}
                           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
                         >
                           <X className="size-[1em] text-2xl" />
@@ -211,6 +212,7 @@ export default function Cart() {
                         isUpdating={updatingItemId === item.id}
                         onVariantChange={handleVariantChange}
                       />
+                      {item.price_source === 'private_link' && <p className="text-sm text-gray-600">Позиция по закрытой ссылке</p>}
                       {!item.is_variant && (item.color || item.size) && (
                         <div className="text-sm text-gray-600 mb-3">
                           {item.color && <p>Цвет: {item.color.name || item.color.slug}</p>}
@@ -220,14 +222,14 @@ export default function Cart() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-3">
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                           <button
-                            onClick={() => handleUpdateQuantity(item.product_id, item.quantity - 1)}
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
                             <Minus className="size-[1em]" />
                           </button>
                           <span className="w-12 text-center font-medium">{item.quantity}</span>
                           <button
-                            onClick={() => handleUpdateQuantity(item.product_id, item.quantity + 1)}
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                             className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-red-600 cursor-pointer disabled:opacity-50 flex-shrink-0"
                           >
                             <Plus className="size-[1em]" />

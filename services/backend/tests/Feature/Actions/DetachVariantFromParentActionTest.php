@@ -41,7 +41,7 @@ class DetachVariantFromParentActionTest extends TestCase
         $this->assertSame('stol-belyi', $cheap->slug);
         $this->assertSame('ext-1', $cheap->external_id);
         $this->assertSame(3000.0, (float) $cheap->price);
-        $this->assertDatabaseMissing('product_variant_attributes', ['product_id' => $cheap->id]);
+        $this->assertDatabaseHas('product_product_attributes', ['product_id' => $cheap->id]);
 
         $parent->refresh();
         $this->assertTrue($parent->isVariable());

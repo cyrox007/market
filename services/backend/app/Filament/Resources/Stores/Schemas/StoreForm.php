@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Stores\Schemas;
 
-use App\Models\Shipping\ShippingLocation;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
@@ -19,11 +18,10 @@ class StoreForm
     {
         return $schema
             ->components([
-                Section::make('1. Адрес и товары магазина')
-                    ->description('Магазин — страница для покупателей. Остатки хранятся на связанном складе, второй учёт товаров не создаётся.')
+                Section::make('Адрес и связь со складом')->columnSpanFull()->compact()
                     ->schema([
-                        Select::make('store_stock_mode')->label('В этом магазине есть собственные остатки?')
-                            ->options(['showroom' => 'Нет — только магазин / выставочный зал', 'warehouse' => 'Да — товары учитываются на складе этого магазина'])
+                        Select::make('store_stock_mode')->label('Тип магазина')
+                            ->options(['showroom' => 'Самостоятельный магазин', 'warehouse' => 'Магазин со складом'])
                             ->default('showroom')->required()->live()
                             ->afterStateUpdated(fn ($state, $set) => $state === 'showroom' ? $set('warehouse_id', null) : null),
                         Select::make('warehouse_id')->label('Какой склад хранит остатки магазина?')
@@ -39,7 +37,13 @@ class StoreForm
                                     $set('physical_site_id', $warehouse->physical_site_id);
                                 }
                             }),
-                        \App\Filament\Forms\PhysicalSiteSelect::make()->columnSpanFull()
+                        \App\Filament\Forms\PhysicalSiteSelect::make()->key('store_address')->label('Адрес магазина')->required()
+                            ->placeholder('Выберите сохранённый адрес или добавьте новый из справочника')
+                            ->helperText('Новый адрес: кнопка «Выбрать из справочника». Для магазина со складом используется общий адрес.')
+                            ->createOptionAction(fn (\Filament\Actions\Action $action) => $action
+                                ->label('Выбрать из справочника')->icon(null)->button()
+                                ->modalHeading('Адрес магазина из справочника')->modalSubmitActionLabel('Использовать адрес'))
+                            ->columnSpanFull()
                             ->afterStateUpdated(function ($state, $set): void {
                                 $site = $state ? \App\Models\Inventory\PhysicalSite::find($state) : null;
                                 if ($site) {
@@ -48,7 +52,7 @@ class StoreForm
                                 }
                             }),
                     ])->columns(2),
-                Section::make('Основная информация')
+                Section::make('Магазин и контакты')->columnSpanFull()->compact()
                     ->schema([
                         TextInput::make('name')
                             ->label(__('filament/admin_sv/store_resource.name'))
@@ -65,41 +69,27 @@ class StoreForm
                             ->label(__('filament/admin_sv/store_resource.slug'))
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
-                        TextInput::make('city')
-                            ->label(__('filament/admin_sv/store_resource.city'))
-                            ->required(fn ($get): bool => blank($get('physical_site_id')))
-                            ->readOnly(fn ($get): bool => filled($get('physical_site_id')))
-                            ->helperText('При выбранной площадке город берётся из её адреса при сохранении.')
-                            ->maxLength(255),
-                        Select::make('shipping_location_id')
-                            ->label('Регион')
-                            ->relationship('region', 'name', modifyQueryUsing: fn ($query) => $query->where('type', 'region'))
-                            ->searchable()
-                            ->preload()
-                            ->getOptionLabelFromRecordUsing(fn (ShippingLocation $record): string => $record->name)
-                            ->helperText('Выберите регион, к которому относится магазин. Это определяет правила работы с корзиной для товаров в этом регионе.')
-                            ->nullable(),
-                        TextInput::make('address')
-                            ->label(__('filament/admin_sv/store_resource.address'))
-                            ->required(fn ($get): bool => blank($get('physical_site_id')))
-                            ->readOnly(fn ($get): bool => filled($get('physical_site_id')))
-                            ->helperText('При выбранной площадке используется её адрес из ГАР/КЛАДР. Ручные поля оставлены для старых магазинов.')
-                            ->maxLength(500)
-                            ->columnSpanFull(),
                         TextInput::make('phone')
                             ->label(__('filament/admin_sv/store_resource.phone'))
                             ->required()
                             ->tel()
+                            ->telRegex('/^[+0-9()\s.\-]+$/')
+                            ->rule(static fn (): \Closure => static function (string $attribute, mixed $value, \Closure $fail): void {
+                                if (! \App\Support\PhoneNumber::isValidRu(\App\Support\PhoneNumber::normalize((string) $value))) {
+                                    $fail('Введите полный российский номер: +7 (800) 222-85-86 или 8 (800) 222-85-86.');
+                                }
+                            })
+                            ->dehydrateStateUsing(fn ($state) => \App\Support\PhoneNumber::normalize($state))
                             ->maxLength(50)
-                            ->helperText('Формат: +7 (XXX) XXX-XX-XX'),
+                            ->helperText('Можно вводить с +7 или 8, со скобками, пробелами и дефисами.'),
                         TextInput::make('hours')
                             ->label(__('filament/admin_sv/store_resource.hours'))
                             ->maxLength(255)
-                            ->helperText('Например: Пн-Вс: 10:00 - 22:00'),
+                            ->helperText('Текст для покупателей, например: Пн-Вс: 10:00–22:00. Не участвует в проверке доступности самовывоза — заполните расписание ниже.'),
                         Toggle::make('pickup_enabled')->label('Выдавать заказы в этом магазине')->default(true)
                             ->helperText('Самовывоз доступен только при связанном действующем физическом складе с достаточным остатком.'),
                         TextInput::make('timezone')->label('Часовой пояс')->default('Europe/Moscow')->required()->rules(['timezone']),
-                        \Filament\Forms\Components\Repeater::make('opening_hours')->label('График по дням недели')->columnSpanFull()->defaultItems(0)->maxItems(7)
+                        \Filament\Forms\Components\Repeater::make('opening_hours')->label('График по дням недели')->collapsed()->columnSpanFull()->defaultItems(0)->maxItems(7)
                             ->schema([
                                 Select::make('day')->label('День')->options([1 => 'Понедельник', 2 => 'Вторник', 3 => 'Среда', 4 => 'Четверг', 5 => 'Пятница', 6 => 'Суббота', 7 => 'Воскресенье'])->required(),
                                 Toggle::make('is_closed')->label('Выходной')->default(false),
@@ -108,37 +98,13 @@ class StoreForm
                                     TextInput::make('closes')->label('Закрытие')->placeholder('18:00')->required()->rules(['date_format:H:i']),
                                 ])->columns(2)->columnSpanFull(),
                             ])->columns(2)->helperText('1 — понедельник, 7 — воскресенье. Неуказанный день неизвестен, а не выходной. Текстовое hours сохраняется отдельно.'),
-                        TextInput::make('coordinates')
-                            ->visible(fn ($get): bool => blank($get('physical_site_id')))
-                            ->label(__('filament/admin_sv/store_resource.coordinates'))
-                            ->maxLength(255)
-                            ->helperText('Формат: Широта,Долгота (например: 55.751244, 37.618423)')
-                            ->afterStateUpdated(function ($state, $set) {
-                                if ($state) {
-                                    $coords = explode(',', trim($state));
-                                    if (count($coords) === 2) {
-                                        $set('latitude', trim($coords[0]));
-                                        $set('longitude', trim($coords[1]));
-                                    }
-                                }
-                            }),
-                        TextInput::make('latitude')
-                            ->visible(fn ($get): bool => blank($get('physical_site_id')))
-                            ->label(__('filament/admin_sv/store_resource.latitude'))
-                            ->numeric()
-                            ->step(0.00000001)
-                            ->maxLength(10),
-                        TextInput::make('longitude')
-                            ->visible(fn ($get): bool => blank($get('physical_site_id')))
-                            ->label(__('filament/admin_sv/store_resource.longitude'))
-                            ->numeric()
-                            ->step(0.00000001)
-                            ->maxLength(11),
+                        Section::make('Оформление карты')->collapsed()->columnSpanFull()->schema([
                         Textarea::make('yandex_map')
                             ->label(__('filament/admin_sv/store_resource.yandex_map'))
                             ->rows(4)
-                            ->helperText('Код встраивания iframe для Яндекс карты или ссылка на карту. Можно получить на https://yandex.ru/map-constructor/')
+                            ->helperText('Только оформление страницы магазина. Не задаёт адрес, координаты и не участвует в расчёте доставки или самовывоза.')
                             ->columnSpanFull(),
+                        ]),
                         TextInput::make('priority')
                             ->label(__('filament/admin_sv/store_resource.priority'))
                             ->numeric()
@@ -149,6 +115,7 @@ class StoreForm
                             ->default(true),
                     ])->columns(2),
                 Section::make('Описание')
+                    ->columnSpanFull()->collapsed()
                     ->schema([
                         RichEditor::make('description')
                             ->label(__('filament/admin_sv/store_resource.description'))
@@ -157,12 +124,14 @@ class StoreForm
                     ])
                     ->collapsible(),
                 Section::make('SEO настройки')
+                    ->columnSpanFull()->collapsed()
                     ->description('Управление мета данными')
                     ->schema([
                         SEO::make(),
                     ])
                     ->collapsible(),
                 Section::make('Изображение магазина')
+                    ->columnSpanFull()->collapsed()
                     ->description('Загрузка изображения магазина. Изображение автоматически оптимизируется и создаются миниатюры')
                     ->schema([
                         SpatieMediaLibraryFileUpload::make('image')

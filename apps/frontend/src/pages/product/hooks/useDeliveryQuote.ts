@@ -1,7 +1,7 @@
 import useSWR from 'swr';
 import { useRegion } from '../../../hooks/useRegion';
 import { api } from '../../../lib/api';
-import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import type { ProductDetail, ProductVariant, ShippingQuote } from '../../../lib/api';
 import { deliverySummary } from '../lib/delivery';
 
 /**
@@ -29,7 +29,7 @@ export function useDeliveryQuote(
   const { data } = useSWR(
     key,
     () =>
-      api.shipping.quote({
+      api.shipping.quote<ShippingQuote>({
         directory_external_id: externalId!,
         region_id: regionId,
         items: [

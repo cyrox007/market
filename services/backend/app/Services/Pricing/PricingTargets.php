@@ -15,7 +15,7 @@ class PricingTargets
 {
     public function skus(PricingRule $rule, ?ShippingLocation $location): Builder
     {
-        $roots = Product::active()->whereNull('parent_product_id');
+        $roots = Product::query()->catalogItems();
         $filters = (new CatalogFilterService)->forLocation($location)->withoutPricingRules();
         $sku = $filters->skus($roots, [])->select('products.id');
         if ($rule->target_type === 'products' || $rule->target_type === 'groups') {
@@ -30,7 +30,9 @@ class PricingTargets
             $roomQueries = [];
             foreach (Room::whereIn('id', $rule->room_ids ?? [])->with('productCategories')->get() as $room) {
                 $ids = $room->productCategories->flatMap(fn ($cat) => $cat->getAllDescendantIds())->unique()->all();
-                $roomRoots = Product::active()->whereNull('parent_product_id')->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $ids));
+                $roomRoots = Product::query()->catalogItems()->where(fn ($scope) => $scope
+                    ->whereHas('taxons', fn ($q) => $q->whereIn('taxons.id', $ids))
+                    ->orWhereHas('parentProduct.taxons', fn ($q) => $q->whereIn('taxons.id', $ids)));
                 $roomQueries[] = $filters->skus($roomRoots, $filters->filters([], $room->effectiveFilters()))->select('products.id');
             }
             $sku->where(function ($q) use ($roomQueries) {

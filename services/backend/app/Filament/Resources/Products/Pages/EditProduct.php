@@ -22,6 +22,14 @@ class EditProduct extends EditRecord
     protected array $productAttributesData = [];
     protected ?string $manufacturerName = null;
 
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+        if ($this->getRecord()->isVariant()) {
+            $this->redirect(ProductResource::getUrl('edit', ['record' => $this->getRecord()->parent_product_id]));
+        }
+    }
+
     protected function getFormActions(): array
     {
         return [
@@ -192,6 +200,11 @@ class EditProduct extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $product = $this->record;
+        if ($product?->isVariant()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'data.name' => 'Предложение редактируется через «Изменить» в родительской карточке. Откройте её заново.',
+            ]);
+        }
         if ($product && $product->variants()->count() > 0) {
             $data['is_variable'] = true;
         }
@@ -202,6 +215,25 @@ class EditProduct extends EditRecord
         unset($data['product_attributes']);
 
         return $data;
+    }
+
+    protected function handleRecordUpdate(\Illuminate\Database\Eloquent\Model $record, array $data): \Illuminate\Database\Eloquent\Model
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
+            $current = Product::lockForUpdate()->findOrFail($record->getKey());
+            if (array_key_exists('external_id', $data)) {
+                $value = trim((string) $data['external_id']);
+                if (filled($current->external_id) && $value !== (string) $current->external_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'data.external_id' => 'Код 1С уже заполнен. Обновите страницу: менять сохранённый код нельзя.',
+                    ]);
+                }
+                $data['external_id'] = $value === '' ? null : $value;
+            }
+            // Filament keeps the original record instance for afterSave/form state.
+            $record->setRawAttributes($current->getAttributes(), true);
+            return parent::handleRecordUpdate($record, $data);
+        });
     }
 
     protected function mutateFormDataBeforeFill(array $data): array

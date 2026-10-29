@@ -13,15 +13,15 @@ class AuditWarehouseServiceTariffs extends Command
 
     public function handle(): int
     {
-        $rows = WarehouseDeliveryProfile::with('servicesLocation')->orderBy('id')->get()->map(function (WarehouseDeliveryProfile $profile): array {
-            $source = $profile->service_tariffs !== null ? 'profile' : ($profile->services_location_id ? 'legacy' : 'no services');
+        $rows = WarehouseDeliveryProfile::query()->orderBy('id')->get()->map(function (WarehouseDeliveryProfile $profile): array {
+            $source = $profile->service_tariffs !== null ? 'profile' : 'UNCONFIGURED';
 
             return [$profile->id, $profile->warehouse_id, $profile->name, $profile->is_active ? 'yes' : 'no', $source,
                 $profile->services_location_id ?? '-',
-                $profile->services_location_id && ! $profile->servicesLocation ? 'MISSING LEGACY LOCATION' : ''];
+                $profile->service_tariffs === null ? 'PROFILE TARIFFS REQUIRED' : ''];
         });
         $this->table(['Profile', 'Warehouse', 'Name', 'Active', 'Tariff source', 'Legacy location', 'Warning'], $rows);
-        $this->info('Read-only: no prices or profiles were changed. Compare assembly, handling and extra-service quotes before enabling profile tariffs.');
+        $this->info('Read-only: no prices or profiles were changed. Unconfigured profiles cannot calculate shipping. Set profile tariffs explicitly.');
 
         return self::SUCCESS;
     }

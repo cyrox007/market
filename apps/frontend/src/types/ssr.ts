@@ -13,6 +13,7 @@ export interface SeoMetaSSR {
 }
 
 export interface SSRContext {
+  privateOfferContext?: string | null;
   /** SEO текущей страницы (для подстановки в head при SSR) */
   seo?: SeoMetaSSR | null;
   user?: any;
@@ -31,13 +32,12 @@ export interface SSRContext {
   };
   /** Отзывы товара для HTML — грузятся следом за товаром, если они есть */
   productReviews?: { productId: number; data: Review[] };
+  /** Регион покупателя. Сервер его не определяет: /regions/detect удалён на бэкенде (27.10) */
   region?: any;
   /** Дерево категорий для шапки — грузится на всех маршрутах */
   categoryTree?: Category[];
   /** Дерево комнат для шапки — грузится на всех маршрутах */
   roomTree?: Category[];
-  /** Список городов для селектора региона в шапке */
-  regionsList?: any[];
   // Главная страница
   home?: {
     categories?: any[];

@@ -20,7 +20,6 @@ use App\Http\Controllers\Api\RegionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\SberbankCallbackController;
-use App\Http\Controllers\Api\ShippingController;
 use App\Http\Controllers\Api\SliderController;
 use App\Http\Controllers\Api\StockSettingsController;
 use App\Http\Controllers\Api\StoreController;
@@ -102,6 +101,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('stores')->group(function () {
         Route::get('/', [StoreController::class, 'index']);
         Route::get('/cities', [StoreController::class, 'cities']);
+        Route::get('/current', [StoreController::class, 'current'])->middleware('throttle:address-read');
         Route::get('/{slug}', [StoreController::class, 'show']);
     });
 
@@ -111,12 +111,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/detect', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'detect'])->middleware('throttle:address-geo');
         Route::get('/', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'index'])->middleware('throttle:address-read');
         Route::get('/{id}', [\App\Http\Controllers\Api\CustomerLocalityController::class, 'show'])->middleware('throttle:address-read');
-    });
-
-    Route::prefix('regions')->group(function () {
-        Route::get('/', [RegionController::class, 'list']);
-        Route::get('/tree', [RegionController::class, 'tree']);
-        Route::get('/detect', [RegionController::class, 'detect']);
     });
 
     // Contact (public)
@@ -140,16 +134,8 @@ Route::prefix('v1')->group(function () {
 
     // Shipping (public)
     Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('shipping')->group(function () {
-        Route::post('/quote', \App\Http\Controllers\Api\WarehouseDeliveryQuoteController::class)->middleware('api-session');
-        Route::get('/locations', [ShippingController::class, 'getLocations']);
-        Route::get('/locations/tree', [ShippingController::class, 'getLocationTree']);
-        Route::get('/locations/{locationId}', [ShippingController::class, 'getLocationInfo']);
-        Route::get('/delivery-handling-types', [ShippingController::class, 'getDeliveryHandlingTypes']);
-        Route::post('/calculate', [ShippingController::class, 'calculateShipping']);
-        Route::get('/carriers', [ShippingController::class, 'getCarriers']);
-        Route::get('/shipping-methods', [ShippingController::class, 'getShippingMethods']);
-        Route::post('/shipping-methods/calculate', [ShippingController::class, 'calculateShippingMethod']);
-        Route::get('/additional-services', [ShippingController::class, 'getAdditionalServices']);
+        Route::post('/quote', \App\Http\Controllers\Api\WarehouseDeliveryQuoteController::class);
+        Route::post('/pickup-options', \App\Http\Controllers\Api\WarehousePickupController::class);
     });
 
     // Payment Methods (public)
@@ -189,13 +175,22 @@ Route::prefix('v1')->group(function () {
     });
 
     // Orders: создание и payment-config без auth
+    Route::post('/private-offers/activate', [\App\Http\Controllers\Api\PrivateOfferController::class, 'activate'])
+        ->middleware(['api-session', 'throttle:30,1']);
+    Route::get('/private-offers/current', [\App\Http\Controllers\Api\PrivateOfferController::class, 'current'])
+        ->middleware(['api-session', 'throttle:30,1']);
     Route::middleware(['api-session', \App\Http\Middleware\PricingCustomerContext::class])->prefix('orders')->group(function () {
         Route::post('/one-click', \App\Http\Controllers\Api\DirectCheckoutController::class)->middleware('throttle:orders');
-        Route::post('/', [OrderController::class, 'store'])->middleware('throttle:orders');
+        Route::post('/', [OrderController::class, 'store'])->middleware(['throttle:orders', \App\Http\Middleware\CheckoutIdempotency::class]);
         Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
     });
 
     // Protected routes (require authentication)
+    Route::middleware(['api-session', 'throttle:orders'])->prefix('order-access')->group(function () {
+        Route::get('/{id}', [\App\Http\Controllers\Api\OrderAccessController::class, 'show'])->whereNumber('id');
+        Route::post('/{id}/cancel', [\App\Http\Controllers\Api\OrderAccessController::class, 'cancel'])->whereNumber('id');
+        Route::post('/{id}/cancellation-request', [\App\Http\Controllers\Api\OrderAccessController::class, 'requestCancellation'])->whereNumber('id');
+    });
     // Используем api-session для поддержки сессий и auth:sanctum для проверки аутентификации
     Route::middleware(['api-session', 'auth:sanctum'])->group(function () {
         // Auth
@@ -219,7 +214,6 @@ Route::prefix('v1')->group(function () {
         // Orders
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
-            Route::get('/{id}/payment-config', [OrderController::class, 'paymentConfig'])->where('id', '[0-9]+');
             Route::get('/{id}', [OrderController::class, 'show'])->where('id', '[0-9]+');
             Route::post('/{id}/cancel', [OrderController::class, 'cancel'])->where('id', '[0-9]+');
             Route::post('/{id}/repeat', [OrderController::class, 'repeat'])->where('id', '[0-9]+');

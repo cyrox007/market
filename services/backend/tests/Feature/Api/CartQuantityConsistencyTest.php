@@ -15,11 +15,14 @@ use Vanilo\Cart\Events\CartUpdated;
  */
 class CartQuantityConsistencyTest extends TestCase
 {
+    use \Tests\Concerns\WarehouseInventoryFixtures;
+
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->configureWarehouseInventoryFixtures();
 
         // Статический кэш остатков переживает тесты, а ID товаров между ними повторяются
         WarehouseStockResolver::clearCache();

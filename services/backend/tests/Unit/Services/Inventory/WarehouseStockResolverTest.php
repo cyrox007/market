@@ -15,7 +15,7 @@ class WarehouseStockResolverTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_returns_global_stock_when_warehouse_mode_disabled(): void
+    public function test_it_never_returns_legacy_global_stock(): void
     {
         $settings = ProductStockSettings::getInstance();
         $settings->warehouse_accounting_enabled = false;
@@ -26,10 +26,10 @@ class WarehouseStockResolverTest extends TestCase
 
         $resolved = $resolver->resolveForProduct($product, null);
 
-        $this->assertSame(17.0, $resolved);
+        $this->assertSame(0.0, $resolved);
     }
 
-    public function test_it_resolves_stock_for_location_and_its_parent_binding(): void
+    public function test_legacy_location_bindings_do_not_establish_coverage(): void
     {
         $settings = ProductStockSettings::getInstance();
         $settings->warehouse_accounting_enabled = true;
@@ -54,6 +54,6 @@ class WarehouseStockResolverTest extends TestCase
         $resolver = app(WarehouseStockResolver::class);
         $resolved = $resolver->resolveForProduct($product, $child);
 
-        $this->assertSame(12.5, $resolved);
+        $this->assertSame(0.0, $resolved);
     }
 }

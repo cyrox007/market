@@ -7,10 +7,7 @@ export interface RegionContextType {
   locationReady: boolean;
   selectLocality: (locality: CustomerLocality, shippingLocation: ShippingLocation | null) => void;
   region: ShippingLocation | null;
-  regions: ShippingLocation[];
-  loading: boolean;
   selectRegion: (selectedRegion: ShippingLocation | null) => void;
-  reloadRegions: () => Promise<void>;
   getRegionId: () => number | null;
 }
 

@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Products\Tables;
 
-use App\Actions\Inventory\Stock\ResolveWarehouseStockRowAction;
 use App\Actions\Product\BuildMergedProductDraftAction;
 use App\Actions\Product\Data\MergedProductDraft;
 use App\Actions\Product\Data\MergeProductsIntoVariableProductData;
@@ -145,7 +144,7 @@ class ProductsTable
                     ->tooltip(fn(Product $record): ?string => ProductStockSettings::getInstance()->warehouse_accounting_enabled
                         ? ($record->isVariable()
                             ? 'Сумма остатков активных вариаций по складам'
-                            : 'Остаток на привязанном складе (или первом из справочника)')
+                            : 'Сумма остатков действующих складов')
                         : ($record->isVariable()
                             ? 'Сумма остатков активных вариаций'
                             : null)),
@@ -439,27 +438,7 @@ class ProductsTable
      */
     protected static function resolveListStock(Product $record): int
     {
-        $settings = ProductStockSettings::getInstance();
-
-        if ($settings->warehouse_accounting_enabled) {
-            if ($record->isVariable()) {
-                return (int) round(app(WarehouseStockResolver::class)->resolveForProduct($record, null) ?? 0);
-            }
-
-            $row = app(ResolveWarehouseStockRowAction::class)->execute(
-                $record,
-                null,
-                (bool) $settings->fallback_to_first_warehouse,
-            );
-
-            if ($row !== null) {
-                return (int) round((float) $row->quantity);
-            }
-
-            return (int) ($record->getAttributes()['stock'] ?? 0);
-        }
-
-        return (int) ($record->stock ?? 0);
+        return (int) round(app(WarehouseStockResolver::class)->resolveForProduct($record, null) ?? 0);
     }
 
     /**

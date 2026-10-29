@@ -4,20 +4,18 @@ namespace App\Services\Shipping;
 
 use App\Models\Shipping\AdditionalService;
 use App\Models\Shipping\DeliveryHandlingType;
-use App\Models\Shipping\ShippingLocation;
 use App\Models\Shipping\WarehouseDeliveryProfile;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class WarehouseServices
 {
-    public function options(WarehouseDeliveryProfile $profile): ?array
+    public function options(WarehouseDeliveryProfile $profile): array
     {
-        // Null means legacy pricing, not an empty list of available services.
         if ($profile->service_tariffs === null) {
-            return null;
+            throw ValidationException::withMessages(['services' => 'Сохраните тарифы услуг в профиле склада. Старый расчёт по локации отключён.']);
         }
-        $tariffs = $this->validateTariffs($profile->service_tariffs ?? []);
+        $tariffs = $this->validateTariffs($profile->service_tariffs);
         $handling = DeliveryHandlingType::where('is_active', true)->whereIn('id', array_column($tariffs['handling'] ?? [], 'id'))->get()->keyBy('id');
         $additional = AdditionalService::where('is_active', true)->where('price_type', 'fixed')
             ->whereIn('id', array_column($tariffs['additional'] ?? [], 'id'))->get()->keyBy('id');
@@ -72,19 +70,12 @@ class WarehouseServices
         })->validate();
     }
 
-    public function calculate(WarehouseDeliveryProfile|ShippingLocation|null $profile, array $selection): array
+    public function calculate(WarehouseDeliveryProfile $profile, array $selection): array
     {
-        if (! $profile instanceof WarehouseDeliveryProfile) {
-            return app(LegacyWarehouseServices::class)->calculate($profile, $selection);
-        }
         if ($profile->service_tariffs === null) {
-            if ($profile->services_location_id && ! $profile->servicesLocation) {
-                throw ValidationException::withMessages(['services' => 'Прежняя локация тарифов не найдена. Проверьте профиль доставки.']);
-            }
-
-            return app(LegacyWarehouseServices::class)->calculate($profile->servicesLocation, $selection);
+            throw ValidationException::withMessages(['services' => 'Сохраните тарифы услуг в профиле склада. Старый расчёт по локации отключён.']);
         }
-        $tariffs = $this->validateTariffs($profile->service_tariffs ?? []);
+        $tariffs = $this->validateTariffs($profile->service_tariffs);
         $assembly = ! empty($selection['requires_assembly']) || ! empty($tariffs['requires_assembly']);
         $result = ['handling_cost' => 0.0, 'assembly_cost' => 0.0, 'additional_services_cost' => 0.0,
             'additional_services' => [], 'assembly_days' => null, 'requires_assembly' => $assembly];

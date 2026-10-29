@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Actions\Inventory\Validation\ValidateStockAction;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
 use App\Rules\PhoneNumberRule;
@@ -16,12 +15,7 @@ use App\Models\Payment\PaymentMethod;
 use App\Models\Shipping\DeliveryHandlingType;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Product\ProductRegionRuleService;
-use App\Services\Shipping\Contracts\ShippingCostCalculatorInterface;
-use App\Services\Shipping\Contracts\ShippingMethodProviderInterface;
 use App\Services\Payment\Contracts\PaymentMethodAvailabilityInterface;
-use App\Services\Shipping\ShippingCalculationService;
-use App\Services\Shipping\CarrierService;
-use App\Models\Shipping\AdditionalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -38,7 +32,6 @@ use Illuminate\Support\Carbon;
 use Vanilo\Cart\Facades\Cart;
 use Vanilo\Payment\Factories\PaymentFactory;
 use Vanilo\Payment\PaymentGateways;
-use Vanilo\Shipment\Models\ShippingMethod;
 use App\Contracts\Gateway\GatewayLoggerInterface;
 use App\Services\Inventory\StockAvailabilityService;
 use App\Payment\Gateways\RaiffeisenAcquiringGateway;
@@ -47,38 +40,6 @@ use App\Payment\Gateways\SberbankAcquiringGateway;
 
 class OrderController extends Controller
 {
-    private function buildAddressSnapshot(?Address $address, ?array $rawAddress, ?ShippingLocation $shippingLocation): ?string
-    {
-        if ($address) {
-            return $address->full_address;
-        }
-
-        if (!$rawAddress) {
-            return null;
-        }
-
-        $parts = array_filter([
-            $rawAddress['city'] ?? null,
-            $rawAddress['street'] ?? null,
-            !empty($rawAddress['house']) ? ('д. ' . $rawAddress['house']) : null,
-            !empty($rawAddress['apartment']) ? ('кв. ' . $rawAddress['apartment']) : null,
-            !empty($rawAddress['entrance']) ? ('подъезд ' . $rawAddress['entrance']) : null,
-        ], fn ($part) => filled($part));
-
-        $snapshot = implode(', ', $parts);
-
-        if ($shippingLocation?->name) {
-            $snapshot .= ($snapshot ? PHP_EOL : '') . 'Локация доставки: ' . $shippingLocation->name;
-        }
-
-        return $snapshot ?: null;
-    }
-
-    private function normalizeAddressField(?string $value): string
-    {
-        return mb_strtolower(trim((string) ($value ?? '')));
-    }
-
     /**
      * Базовый URL витрины для success/fail URL (как в SberbankAcquiringGateway).
      */
@@ -93,12 +54,7 @@ class OrderController extends Controller
     }
 
     public function __construct(
-        protected ValidateStockAction $validateStockAction,
-        protected ShippingCalculationService $shippingService,
-        protected CarrierService $carrierService,
         protected ProductRegionRuleService $regionRuleService,
-        protected ShippingCostCalculatorInterface $shippingCostCalculator,
-        protected ShippingMethodProviderInterface $shippingMethodProvider,
         protected PaymentMethodAvailabilityInterface $paymentMethodAvailability,
         protected GatewayLoggerInterface $gatewayLog,
         protected StockAvailabilityService $stockAvailabilityService
@@ -170,6 +126,7 @@ class OrderController extends Controller
 
             $validated = $request->validate([
                 'contact_name' => 'required|string|max:255',
+                'expected_subtotal' => 'nullable|numeric|min:0',
                 'contact_phone' => ['required', new PhoneNumberRule],
                 'contact_email' => 'required|email|max:255',
                 'payment_method' => [
@@ -184,35 +141,35 @@ class OrderController extends Controller
                 'delivery_type' => 'required|in:delivery,pickup',
 
                 // Поля для новой системы доставки (сохраняем даже для pickup для информации)
-                'shipping_location_id' => 'nullable|exists:shipping_locations,id',
+                'shipping_location_id' => 'prohibited',
                 'region_id' => 'nullable|exists:shipping_locations,id',
-                'shipping_method_id' => 'nullable|integer',
+                'shipping_method_id' => 'prohibited',
                 'delivery_handling_type_id' => 'nullable|exists:delivery_handling_types,id',
                 'delivery_floor' => 'nullable|integer|min:1|max:20',
                 'requires_assembly' => 'nullable|boolean',
                 'additional_services' => 'nullable|array',
                 'additional_services.*.id' => 'required|exists:additional_services,id',
-                'additional_services.*.price' => 'nullable|numeric|min:0',
+                'additional_services.*.price' => 'prohibited',
 
                 // Старые поля (для обратной совместимости)
                 'delivery_date' => 'nullable|date',
                 'delivery_time' => 'nullable|string|max:255',
-                'address_id' => 'nullable|exists:user_addresses,id',
-                'directory_external_id' => 'nullable|string|max:128',
-                'warehouse_id' => 'nullable|integer|exists:warehouses,id',
+                'address_id' => 'prohibited_if:delivery_type,pickup|nullable|exists:user_addresses,id',
+                'directory_external_id' => 'prohibited_if:delivery_type,pickup|nullable|string|max:128',
+                'warehouse_id' => 'required_if:delivery_type,pickup|nullable|integer|exists:warehouses,id',
                 'store_id' => 'nullable|integer|exists:stores,id',
-                'delivery_details' => 'nullable|array',
+                'delivery_details' => 'prohibited_if:delivery_type,pickup|nullable|array',
                 'delivery_details.apartment' => 'nullable|string|max:100',
                 'delivery_details.room' => 'nullable|string|max:100',
                 'delivery_details.entrance' => 'nullable|string|max:100',
                 'delivery_details.floor' => 'nullable|string|max:100',
                 'delivery_details.intercom' => 'nullable|string|max:100',
-                'delivery_cost' => 'nullable|numeric|min:0',
-                'assembly_cost' => 'nullable|numeric|min:0',
+                'delivery_cost' => 'prohibited',
+                'assembly_cost' => 'prohibited',
                 'comment' => 'nullable|string|max:1000',
 
                 // Адрес доставки (может быть передан для любого типа доставки)
-                'address' => 'nullable|array',
+                'address' => 'prohibited',
                 'address.city' => 'required_with:address|string|max:255',
                 'address.street' => 'required_with:address|string|max:255',
                 'address.house' => 'required_with:address|string|max:255',
@@ -239,36 +196,11 @@ class OrderController extends Controller
                 throw \Illuminate\Validation\ValidationException::withMessages(['delivery' => 'Для тарифа склада адрес задаётся справочником.']);
             }
 
-            // Old clients retain the location-based workflow; classifier addresses use profiles.
-            if ($validated['delivery_type'] === 'delivery' && !$directoryDelivery && empty($validated['shipping_location_id'])) {
-                return response()->json([
-                    'message' => 'Для доставки необходимо указать локацию доставки',
-                    'errors' => ['shipping_location_id' => ['Поле локация доставки обязательно для типа доставки: delivery']],
-                ], 422);
+            if ($validated['delivery_type'] === 'delivery' && ! $directoryDelivery) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['directory_external_id' => 'Выберите здание из адресного справочника для расчёта доставки со склада.']);
             }
-
-            if ($validated['delivery_type'] === 'pickup' && !empty($validated['shipping_location_id'])) {
-                $pickupLocation = ShippingLocation::where('id', $validated['shipping_location_id'])
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($pickupLocation && !$pickupLocation->getEffectivePickupEnabled()) {
-                    return response()->json([
-                        'message' => 'Самовывоз недоступен для выбранной локации',
-                        'errors' => ['shipping_location_id' => ['Для этой локации самовывоз отключен']],
-                    ], 422);
-                }
-            }
-
-            // Проверяем существование shipping_method_id только если он указан и тип доставки delivery
-            if (isset($validated['shipping_method_id']) && $validated['delivery_type'] === 'delivery') {
-                $shippingMethodExists = \Vanilo\Shipment\Models\ShippingMethod::where('id', $validated['shipping_method_id'])->exists();
-                if (!$shippingMethodExists) {
-                    return response()->json([
-                        'message' => 'Указанный метод доставки не найден',
-                        'errors' => ['shipping_method_id' => ['Метод доставки с ID ' . $validated['shipping_method_id'] . ' не существует']],
-                    ], 422);
-                }
+            if ($validated['delivery_type'] === 'delivery' && ! empty($validated['store_id'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['store_id' => 'Магазин выбирается только для самовывоза.']);
             }
 
             $cartItems = $directCheckout
@@ -293,14 +225,20 @@ class OrderController extends Controller
 
             // Проверка остатков
             $subtotal = 0;
-            foreach (app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems) as $pricingLine) {
-                $pricingProduct = Product::findOrFail($pricingLine['product_id']);
-                $subtotal += $this->regionRuleService->getPriceForRegion($pricingProduct->parentProduct ?? $pricingProduct, $region, $pricingProduct->isVariant() ? $pricingProduct : null) * $pricingLine['quantity'];
+            $pricedItems = app(\App\Services\Pricing\PrivateOfferAccess::class)->pricedItems($cartItems, $region);
+            foreach ($pricedItems as $pricingLine) {
+                $subtotal += $pricingLine['price'] * $pricingLine['quantity'];
+                if ($pricingLine['expired_offer'] && ! array_key_exists('expected_subtotal', $validated)) {
+                    return response()->json(['message' => 'Цена по ссылке больше недоступна. Подтвердите актуальную стоимость.', 'code' => 'price_changed'], 409);
+                }
+            }
+            if (isset($validated['expected_subtotal']) && abs((float) $validated['expected_subtotal'] - $subtotal) >= 0.005) {
+                return response()->json(['message' => 'Стоимость товаров изменилась. Обновите расчёт и подтвердите цену.', 'subtotal' => round($subtotal, 2)], 409);
             }
             if ($directoryDelivery) {
                 $quotes = app(\App\Services\Shipping\WarehouseDeliveryQuote::class);
                 try {
-                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, $validated);
+                    $warehouseQuote = $quotes->calculate($directoryId, $quotes->cartLines($cartItems), $region, array_merge($validated, ['_cart_subtotal' => $subtotal]));
                 } catch (\RuntimeException $error) {
                     report($error);
                     return response()->json(['message' => 'Не удалось проверить адрес и тариф доставки. Повторите позже.'], 503);
@@ -309,14 +247,6 @@ class OrderController extends Controller
                     return response()->json(['message' => $warehouseQuote['reason'], 'available' => false], 422);
                 }
             }
-            $stockValidation = $directoryDelivery || $warehousePickup ? ['valid' => true] : $this->validateStockAction->executeForItems($cartItems, isset($validated['shipping_location_id']) ? (int) $validated['shipping_location_id'] : null);
-            if (!$stockValidation['valid']) {
-                return response()->json([
-                    'message' => 'Недостаточно товаров на складе',
-                    'errors' => $stockValidation['errors'],
-                ], 422);
-            }
-
             // Автоматическая регистрация пользователя, если не авторизован
             $user = $request->user();
             $autoRegistered = false;
@@ -380,223 +310,10 @@ class OrderController extends Controller
                 $deliveryDaysMax = $selected['delivery_days_max'];
                 $deliveryBasePrice = $selected['base_price'];
                 $deliveryFreeThreshold = $selected['free_delivery_threshold'] ?? null;
-            } elseif ($validated['delivery_type'] === 'delivery') {
-                // Получаем локацию доставки
-                $shippingLocation = ShippingLocation::findOrFail($validated['shipping_location_id']);
-
-                // Проверяем доступность доставки
-                $availability = $this->shippingService->checkDeliveryAvailability(
-                    $shippingLocation,
-                    $subtotal
-                );
-
-                if (!$availability['available']) {
-                    return response()->json([
-                        'message' => 'Доставка недоступна',
-                        'errors' => ['shipping_location_id' => $availability['reasons']],
-                    ], 422);
-                }
-
-                // Получаем тип обработки доставки если указан
-                $deliveryHandlingType = null;
-                if (isset($validated['delivery_handling_type_id'])) {
-                    $deliveryHandlingType = DeliveryHandlingType::find($validated['delivery_handling_type_id']);
-
-                    // Проверяем, требуется ли этаж для этого типа обработки
-                    if ($deliveryHandlingType && $deliveryHandlingType->requires_floor) {
-                        // Для типов, требующих этаж, этаж обязателен и не может быть null
-                        if (!isset($validated['delivery_floor']) || $validated['delivery_floor'] === null) {
-                            return response()->json([
-                                'message' => 'Для выбранного типа обработки доставки обязательно требуется указать этаж',
-                                'errors' => ['delivery_floor' => ['Поле этаж обязательно для типа обработки: ' . $deliveryHandlingType->name . '. Минимальный этаж: 1']],
-                            ], 422);
-                        }
-                        // Проверяем, что этаж в допустимом диапазоне
-                        if (isset($validated['delivery_floor']) && $deliveryHandlingType->max_floor && $validated['delivery_floor'] > $deliveryHandlingType->max_floor) {
-                            return response()->json([
-                                'message' => 'Этаж превышает максимально допустимый',
-                                'errors' => ['delivery_floor' => ["Максимальный этаж для данного типа обработки: {$deliveryHandlingType->max_floor}"]],
-                            ], 422);
-                        }
-                        // Проверяем, что этаж не меньше 1
-                        if (isset($validated['delivery_floor']) && $validated['delivery_floor'] < 1) {
-                            return response()->json([
-                                'message' => 'Этаж должен быть не менее 1',
-                                'errors' => ['delivery_floor' => ['Этаж должен быть не менее 1']],
-                            ], 422);
-                        }
-                    }
-                }
-
-                // Если указан shipping_method_id, используем его для расчета
-                if (isset($validated['shipping_method_id'])) {
-                    $shippingMethod = ShippingMethod::findOrFail($validated['shipping_method_id']);
-                    // Загружаем carrier для метода доставки
-                    $shippingMethod->load('carrier');
-
-                    $allowedIds = $this->shippingMethodProvider
-                        ->getAvailableShippingMethods($shippingLocation)
-                        ->pluck('id')
-                        ->map(fn ($id) => (int) $id)
-                        ->all();
-                    if (!in_array((int) $validated['shipping_method_id'], $allowedIds, true)) {
-                        Log::warning('order.checkout: shipping_method not allowed for location', [
-                            'shipping_method_id' => $validated['shipping_method_id'],
-                            'shipping_location_id' => $shippingLocation->id,
-                            'allowed_method_ids' => $allowedIds,
-                            'user_id' => $request->user()?->id,
-                        ]);
-
-                        return response()->json([
-                            'message' => 'Выбранный способ доставки недоступен для этой локации',
-                            'errors' => ['shipping_method_id' => ['Укажите один из способов доставки, показанных для выбранной локации']],
-                        ], 422);
-                    }
-
-                    // Используем интерфейс для расчета стоимости доставки
-                    $calculation = $this->shippingCostCalculator->calculateForMethod(
-                        $shippingMethod,
-                        $shippingLocation,
-                        $subtotal,
-                        $deliveryHandlingType,
-                        $validated['delivery_floor'] ?? null,
-                        (bool) ($validated['requires_assembly'] ?? false)
-                    );
-
-                    // Получаем стоимость доставки (доставка + обработка, без сборки)
-                    $deliveryCost = $calculation->getDeliveryTotal();
-                    $assemblyCost = $calculation->assemblyPrice ?? 0.0;
-
-                    // Сохраняем данные о доставке из результата расчета
-                    $deliveryDaysMin = $calculation->deliveryDaysMin;
-                    $deliveryDaysMax = $calculation->deliveryDaysMax;
-                    $deliveryBasePrice = $calculation->basePrice;
-                    $deliveryFreeThreshold = $calculation->freeDeliveryThreshold;
-                } else {
-                    // Используем базовый расчет доставки через интерфейс
-                    $calculation = $this->shippingCostCalculator->calculateForLocation(
-                        $shippingLocation,
-                        $subtotal,
-                        $deliveryHandlingType,
-                        $validated['delivery_floor'] ?? null,
-                        (bool) ($validated['requires_assembly'] ?? false)
-                    );
-
-                    // ВАЖНО: delivery_cost = доставка + обработка (подъем/разгрузка),
-                    // сборка хранится отдельно в assembly_cost и не должна попадать в delivery_cost.
-                    $deliveryCost = $calculation->getDeliveryTotal();
-                    $assemblyCost = $calculation->assemblyPrice ?? 0.0;
-
-                    // Для базового расчета берем данные из результата расчета
-                    $deliveryDaysMin = $calculation->deliveryDaysMin;
-                    $deliveryDaysMax = $calculation->deliveryDaysMax;
-                    $deliveryBasePrice = $calculation->basePrice;
-                    $deliveryFreeThreshold = $calculation->freeDeliveryThreshold;
-                }
-
-                // Рассчитываем стоимость сборки по "эффективному" флагу:
-                // - если requires_assembly передан в запросе → используем его
-                // - иначе берём дефолт из локации (наследование)
-                $requiresAssemblyEffective = (bool) ($validated['requires_assembly'] ?? $shippingLocation->getEffectiveRequiresAssembly());
-                if ($requiresAssemblyEffective) {
-                    $assemblyPrice = $shippingLocation->getEffectiveAssemblyPrice();
-                    if ($assemblyPrice !== null) {
-                        $assemblyCost = (float) $assemblyPrice;
-                    }
-                }
-
-                // Если сборка явно указана в запросе, используем это значение (переопределяет расчет)
-                if (isset($validated['assembly_cost']) && $validated['assembly_cost'] > 0) {
-                    $assemblyCost = $validated['assembly_cost'];
-                }
-            } else {
-                // Для самовывоза доставка бесплатна
-                $deliveryCost = 0;
-                $deliveryDaysMin = null;
-                $deliveryDaysMax = null;
-                $deliveryBasePrice = null;
-                $deliveryFreeThreshold = null;
-
-                Log::info('order.checkout: pickup delivery cost forced to zero', [
-                    'shipping_location_id' => $validated['shipping_location_id'] ?? null,
-                ]);
-
-                // При самовывозе получаем локацию для расчета сборки и обработки (если указана)
-                if (isset($validated['shipping_location_id'])) {
-                    $shippingLocation = ShippingLocation::find($validated['shipping_location_id']);
-
-                    if ($shippingLocation && !filled($shippingLocation->pickup_notice)) {
-                        Log::debug('order.checkout: pickup without location-specific notice, using default UI text', [
-                            'shipping_location_id' => $shippingLocation->id,
-                        ]);
-                    }
-
-                    // Используем интерфейс для расчета сборки и обработки
-                    $calculation = $this->shippingCostCalculator->calculateForLocation(
-                        $shippingLocation,
-                        $subtotal,
-                        isset($validated['delivery_handling_type_id']) ? DeliveryHandlingType::find($validated['delivery_handling_type_id']) : null,
-                        $validated['delivery_floor'] ?? null,
-                        (bool) ($validated['requires_assembly'] ?? false)
-                    );
-
-                    // Для pickup обработка добавляется к assembly_cost
-                    $assemblyCost = ($calculation->assemblyPrice ?? 0.0) + ($calculation->handlingPrice ?? 0.0);
-
-                    // Если сборка явно указана в запросе, используем это значение (переопределяет расчет)
-                    if (isset($validated['assembly_cost']) && $validated['assembly_cost'] > 0) {
-                        $assemblyCost = $validated['assembly_cost'];
-                    }
-
-                    // Проверяем тип обработки для валидации этажа
-                    if (isset($validated['delivery_handling_type_id'])) {
-                        $deliveryHandlingType = DeliveryHandlingType::find($validated['delivery_handling_type_id']);
-                        if ($deliveryHandlingType && $deliveryHandlingType->requires_floor) {
-                            // Для типов, требующих этаж, этаж обязателен и не может быть null
-                            if (!isset($validated['delivery_floor']) || $validated['delivery_floor'] === null) {
-                                return response()->json([
-                                    'message' => 'Для выбранного типа обработки доставки обязательно требуется указать этаж',
-                                    'errors' => ['delivery_floor' => ['Поле этаж обязательно для типа обработки: ' . $deliveryHandlingType->name . '. Минимальный этаж: 1']],
-                                ], 422);
-                            }
-                            // Проверяем, что этаж в допустимом диапазоне
-                            if (isset($validated['delivery_floor']) && $deliveryHandlingType->max_floor && $validated['delivery_floor'] > $deliveryHandlingType->max_floor) {
-                                return response()->json([
-                                    'message' => 'Этаж превышает максимально допустимый',
-                                    'errors' => ['delivery_floor' => ["Максимальный этаж для данного типа обработки: {$deliveryHandlingType->max_floor}"]],
-                                ], 422);
-                            }
-                            // Проверяем, что этаж не меньше 1
-                            if (isset($validated['delivery_floor']) && $validated['delivery_floor'] < 1) {
-                                return response()->json([
-                                    'message' => 'Этаж должен быть не менее 1',
-                                    'errors' => ['delivery_floor' => ['Этаж должен быть не менее 1']],
-                                ], 422);
-                            }
-                        }
-                    }
-                } else {
-                    // Если локация не указана, используем переданные значения или 0
-                    $assemblyCost = $validated['assembly_cost'] ?? 0;
-                }
-
-                if (isset($validated['shipping_method_id'])) {
-                    // Для pickup проверяем существование, но не требуем его
-                    $shippingMethod = ShippingMethod::find($validated['shipping_method_id']);
-                    // Если метод не найден, просто игнорируем его для pickup
-                }
-                if (isset($validated['delivery_handling_type_id']) && !isset($deliveryHandlingType)) {
-                    $deliveryHandlingType = DeliveryHandlingType::find($validated['delivery_handling_type_id']);
-                }
             }
 
             $addressId = $validated['address_id'] ?? null;
-            $resolvedAddress = $addressId ? Address::find($addressId) : null;
-            $addressSnapshot = $this->buildAddressSnapshot(
-                $resolvedAddress,
-                $validated['address'] ?? null,
-                $shippingLocation
-            );
+            $addressSnapshot = null;
             if ($directoryDelivery) {
                 $addressSnapshot = $savedDestination?->full_address ?? $warehouseQuote['address']['address_snapshot']['label'];
                 $warehouseQuote['selected']['address_directory'] = app(\App\Services\Address\FulfillmentAddress::class)->snapshot(
@@ -607,17 +324,8 @@ class OrderController extends Controller
                 $addressSnapshot = $warehouseQuote['selected']['address_directory']['label'] ?? $warehouseQuote['selected']['address'] ?? null;
             }
 
-            // Самовывоз всегда бесплатный; для доставки клиент не может подменить расчёт через delivery_cost без согласования
-            if ($validated['delivery_type'] === 'pickup') {
-                $finalDeliveryCost = 0.0;
-            } else {
-                $finalDeliveryCost = !$directoryDelivery && isset($validated['delivery_cost']) && $validated['delivery_cost'] !== null
-                    ? (float) $validated['delivery_cost']
-                    : $deliveryCost;
-            }
-            $finalAssemblyCost = !$directoryDelivery && !$warehousePickup && isset($validated['assembly_cost']) && $validated['assembly_cost'] !== null
-                ? (float) $validated['assembly_cost']
-                : $assemblyCost;
+            $finalDeliveryCost = $deliveryCost;
+            $finalAssemblyCost = $assemblyCost;
 
             $paymentMethodModel = PaymentMethod::where('code', $validated['payment_method'])->first();
             if (!$paymentMethodModel) {
@@ -626,15 +334,19 @@ class OrderController extends Controller
 
             // Онлайн-оплата → ожидание оплаты; самовывоз/другие способы → сразу принят
             $isOnlinePayment = in_array((string) $paymentMethodModel->gateway, ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true);
-            $initialStatus = $isOnlinePayment ? OrderStatus::AWAITING_PAYMENT : OrderStatus::ACCEPTED;
+            $initialStatus = OrderStatus::MANAGER_PROCESSING;
 
             $gatewayClientConfig = null;
+            $guestToken = bin2hex(random_bytes(32));
 
             DB::beginTransaction();
             try {
                 $order = Order::create([
                     'user_id' => $user?->id,
                     'status' => $initialStatus->value,
+                    'cooling_until' => now()->addMinutes(60),
+                    'integration_state' => 'cooling',
+                    'guest_token_hash' => hash('sha256', $guestToken),
                     'subtotal' => 0, // Будет пересчитано ниже
                     'delivery_cost' => $finalDeliveryCost,
                     'assembly_cost' => $finalAssemblyCost,
@@ -655,7 +367,7 @@ class OrderController extends Controller
                     'shipping_method_id' => $shippingMethod?->id,
                     'delivery_handling_type_id' => $deliveryHandlingType?->id,
                     'delivery_floor' => $validated['delivery_floor'] ?? null,
-                    'requires_assembly' => $directoryDelivery ? $warehouseQuote['selected']['requires_assembly'] : ($validated['requires_assembly'] ?? ($shippingLocation?->getEffectiveRequiresAssembly() ?? false)),
+                    'requires_assembly' => $directoryDelivery ? $warehouseQuote['selected']['requires_assembly'] : false,
                     // Данные о доставке из конфигурации метода доставки
                     'delivery_days_min' => $deliveryDaysMin ?? null,
                     'delivery_days_max' => $deliveryDaysMax ?? null,
@@ -673,107 +385,19 @@ class OrderController extends Controller
                 app(\App\Services\Shipping\WarehouseOrderStock::class)->reserve($order);
             }
 
-            // Создаем адрес доставки если передан (для любого типа доставки)
-            if (!$addressId && isset($validated['address'])) {
-                $addressData = $validated['address'];
-
-                // Если пользователь авторизован, создаем адрес в его профиле
-                if ($user) {
-                    $address = $request->user()->addresses()
-                        ->get()
-                        ->first(function ($existing) use ($addressData, $shippingLocation) {
-                            return $this->normalizeAddressField($existing->city) === $this->normalizeAddressField($addressData['city'] ?? null)
-                                && $this->normalizeAddressField($existing->street) === $this->normalizeAddressField($addressData['street'] ?? null)
-                                && $this->normalizeAddressField($existing->house) === $this->normalizeAddressField($addressData['house'] ?? null)
-                                && $this->normalizeAddressField($existing->apartment) === $this->normalizeAddressField($addressData['apartment'] ?? null)
-                                && $this->normalizeAddressField($existing->entrance) === $this->normalizeAddressField($addressData['entrance'] ?? null)
-                                && (int) ($existing->shipping_location_id ?? 0) === (int) ($shippingLocation?->id ?? 0);
-                        });
-
-                    if (!$address) {
-                        $address = $request->user()->addresses()->create([
-                            'title' => $validated['delivery_type'] === 'delivery' ? 'Адрес доставки' : 'Адрес для самовывоза',
-                            'city' => $addressData['city'],
-                            'street' => $addressData['street'],
-                            'house' => $addressData['house'],
-                            'apartment' => $addressData['apartment'] ?? null,
-                            'entrance' => $addressData['entrance'] ?? null,
-                            'is_default' => false,
-                            'shipping_location_id' => $shippingLocation?->id,
-                        ]);
-                    }
-                    $addressId = $address->id;
-                    $resolvedAddress = $address;
-                } else {
-                    // Для неавторизованных пользователей создаем адрес без user_id
-                    $address = Address::create([
-                        'user_id' => null,
-                        'title' => $validated['delivery_type'] === 'delivery' ? 'Адрес доставки' : 'Адрес для самовывоза',
-                        'city' => $addressData['city'],
-                        'street' => $addressData['street'],
-                        'house' => $addressData['house'],
-                        'apartment' => $addressData['apartment'] ?? null,
-                        'entrance' => $addressData['entrance'] ?? null,
-                        'is_default' => false,
-                        'shipping_location_id' => $shippingLocation?->id,
-                    ]);
-                    $addressId = $address->id;
-                    $resolvedAddress = $address;
-                }
-
-                // Обновляем заказ с адресом
-                $order->address_id = $addressId;
-                $order->address_snapshot = $this->buildAddressSnapshot($resolvedAddress, $validated['address'] ?? null, $shippingLocation);
-                $order->save();
-            }
-
-            // Рассчитываем subtotal из корзины с учетом региональных правил
             $calculatedSubtotal = 0;
-            foreach ($cartItems as $cartItem) {
-                // Получаем продукт из buyable или по product_id
-                $product = $cartItem->buyable;
-
-                // Если buyable не доступен, получаем продукт по product_id
-                if (!$product && isset($cartItem->product_id)) {
-                    $product = Product::find($cartItem->product_id);
-                }
-
-                // Если продукт все еще не найден, пропускаем этот элемент
-                if (!$product) {
-                    continue;
-                }
-
-                // Определяем, является ли продукт вариацией
-                $variant = $product->isVariant() ? $product : null;
-
-                // Получаем родительский продукт, загружая связь при необходимости
-                if ($product->isVariant()) {
-                    if (!$product->relationLoaded('parentProduct') && $product->parent_product_id) {
-                        $product->load('parentProduct');
-                    }
-                    $parentProduct = $product->parentProduct ?? $product;
-                } else {
-                    $parentProduct = $product;
-                }
-
-                $price = $this->regionRuleService->getPriceForRegion($parentProduct, $region, $variant);
-
-                $quantity = $cartItem->quantity;
-                $total = $price * $quantity;
-
+            foreach ($pricedItems as $line) {
+                $product = Product::with('parentProduct')->findOrFail($line['product_id']);
+                $price = $line['price'];
+                $lineTotal = $price * $line['quantity'];
                 OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'quantity' => $quantity,
-                    'price' => $price,
-                    'total' => $total,
-                    'pricing_snapshot' => app(\App\Services\Pricing\PricingEngine::class)->explain($product, $region),
+                    'order_id' => $order->id, 'product_id' => $product->id,
+                    'quantity' => $line['quantity'], 'price' => $price, 'total' => $lineTotal,
+                    'pricing_snapshot' => $line['pricing_snapshot'],
                 ]);
-
-                $calculatedSubtotal += $total;
+                $calculatedSubtotal += $lineTotal;
             }
 
-            // Сохраняем дополнительные услуги
             $additionalServicesTotal = 0;
             if ($directoryDelivery) {
                 foreach ($warehouseQuote['selected']['additional_services'] as $service) {
@@ -781,46 +405,17 @@ class OrderController extends Controller
                         'price' => $service['price'], 'price_type' => $service['price_type'], 'icon' => $service['icon']]);
                     $additionalServicesTotal += $service['price'];
                 }
-            } elseif (isset($validated['additional_services']) && is_array($validated['additional_services'])) {
-                foreach ($validated['additional_services'] as $serviceData) {
-                    $service = AdditionalService::find($serviceData['id']);
-                    if ($service && $service->isAvailableForLocation($shippingLocation)) {
-                        // Определяем цену услуги
-                        $servicePrice = null;
-                        if (isset($serviceData['price']) && $serviceData['price'] !== null) {
-                            // Если цена передана явно (для custom типа или переопределения)
-                            $servicePrice = (float) $serviceData['price'];
-                        } else {
-                            // Используем цену из услуги или pivot
-                            $servicePrice = $service->getPriceForLocation($shippingLocation);
-                        }
-
-                        // Сохраняем услугу в заказ только если цена определена (для fixed и from типов)
-                        // Для custom типа цена должна быть указана явно
-                        if ($servicePrice !== null || $service->price_type === 'custom') {
-                            $order->additionalServices()->attach($service->id, [
-                                'service_name' => $service->name,
-                                'price' => $servicePrice ?? 0,
-                                'price_type' => $service->price_type,
-                                'icon' => $service->icon,
-                            ]);
-
-                            if ($servicePrice !== null) {
-                                $additionalServicesTotal += $servicePrice;
-                            }
-                        }
-                    }
-                }
             }
 
             // Обновляем subtotal и пересчитываем total (включая дополнительные услуги)
             $order->subtotal = $calculatedSubtotal;
             $order->total = $calculatedSubtotal + $finalDeliveryCost + $finalAssemblyCost + $additionalServicesTotal;
             $order->save();
+            $order->sealCheckout();
 
             $order->statusHistory()->create([
                 'status' => $initialStatus->value,
-                'comment' => $initialStatus === OrderStatus::AWAITING_PAYMENT ? 'Заказ создан, ожидание оплаты' : 'Заказ создан, принят к исполнению',
+                'comment' => 'Заказ создан. Период охлаждения 60 минут.',
                 'user_id' => $user?->id,
             ]);
 
@@ -892,11 +487,12 @@ class OrderController extends Controller
                 Cart::clear();
             }
 
-            if (!$user) {
+            if (! Auth::guard('web')->check() && ! $request->user()) {
                 session(['last_created_order_id' => $order->id]);
             }
 
             $responseData = [
+                'guest_order_token' => $guestToken,
                 'order' => new OrderResource($order->load([
                     'items.product.taxons',
                     'address',
@@ -1007,7 +603,7 @@ class OrderController extends Controller
      */
     public function paymentConfig(Request $request, $id): JsonResponse
     {
-        $user = \Illuminate\Support\Facades\Auth::user() ?? $request->user();
+        $user = Auth::guard('sanctum')->user() ?? Auth::user() ?? $request->user();
         $order = Order::find($id);
         if (!$order) {
             return response()->json(['message' => 'Заказ не найден'], 404);
@@ -1021,10 +617,12 @@ class OrderController extends Controller
             }
         } else {
             $hasAccess = (int) session('last_created_order_id', 0) === (int) $order->id;
-            if ($hasAccess) {
-                session()->forget('last_created_order_id');
-            }
         }
+          $guestToken = $request->header('X-Order-Token', '');
+          if (! $hasAccess && is_string($guestToken) && strlen($guestToken) === 64 && $order->guest_token_hash
+              && $order->created_at->gt(now()->subDays(30))) {
+              $hasAccess = hash_equals($order->guest_token_hash, hash('sha256', $guestToken));
+          }
         if (!$hasAccess) {
             return response()->json(['message' => 'Доступ запрещен'], 403);
         }
@@ -1036,6 +634,10 @@ class OrderController extends Controller
 
         if (!$payment) {
             return response()->json(['message' => 'Платёж не найден'], 404);
+        }
+
+        if (! $order->canPayOnline()) {
+            return response()->json(['message' => 'Этот заказ больше не ожидает онлайн-оплату.'], 422);
         }
 
         $gatewayClientConfig = $this->resolveGatewayClientConfigForOrder($order);
@@ -1118,11 +720,15 @@ class OrderController extends Controller
             ], 422);
         }
 
-        $order->changeStatus(
-            OrderStatus::CANCELLED,
-            $request->input('comment', 'Заказ отменен пользователем'),
-            $request->user()?->id
-        );
+        $request->validate(['comment' => 'nullable|string|max:1000']);
+        DB::transaction(function () use ($order, $request): void {
+            $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
+            if (! $locked->canBeCancelled()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['order' => 'Статус заказа изменился. Обновите страницу.']);
+            }
+            $locked->changeStatus(OrderStatus::CANCELLED,
+                $request->input('comment') ?? 'Заказ отменен пользователем', $request->user()?->id);
+        });
 
         return response()->json([
             'order' => new OrderResource($order->fresh(['items.product', 'address', 'statusHistory'])),
@@ -1194,7 +800,7 @@ class OrderController extends Controller
                 $maxAvailable = $maxPerOrder - $currentQuantityInCart;
 
                 // Проверяем остатки, если они есть
-                $resolvedStock = $this->stockAvailabilityService->resolveAvailableStock($product, $order->shipping_location_id);
+                $resolvedStock = $this->stockAvailabilityService->resolveAvailableStock($product);
                 $availableFromStock = $resolvedStock === null
                     ? null
                     : max(0, $resolvedStock - $currentQuantityInCart);

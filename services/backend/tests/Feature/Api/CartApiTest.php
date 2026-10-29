@@ -9,6 +9,14 @@ use Tests\TestCase;
 
 class CartApiTest extends TestCase
 {
+    use \Tests\Concerns\WarehouseInventoryFixtures;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->configureWarehouseInventoryFixtures();
+    }
+
     use RefreshDatabase;
 
     public function test_cart_prefers_shipping_location_id_over_region_id(): void

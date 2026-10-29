@@ -19,7 +19,7 @@ return [
 
     'queues' => array_values(array_filter(array_map(
         'trim',
-        explode(',', (string) env('QUEUE_NAMES', 'default,integration-1c'))
+        explode(',', (string) env('QUEUE_NAMES', 'default,integration-orders,integration-1c'))
     ))),
 
     /** Максимальное время работы одного запуска воркера (сек), меньше 60 для cron раз в минуту */

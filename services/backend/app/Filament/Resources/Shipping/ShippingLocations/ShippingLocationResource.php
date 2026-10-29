@@ -18,6 +18,13 @@ use UnitEnum;
 
 class ShippingLocationResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
     protected static ?string $model = ShippingLocation::class;
 
     protected static ?string $navigationLabel = null;
@@ -54,11 +61,7 @@ class ShippingLocationResource extends Resource
 
     public static function getPages(): array
     {
-        return [
-            'index' => ListShippingLocations::route('/'),
-            'create' => CreateShippingLocation::route('/create'),
-            'edit' => EditShippingLocation::route('/{record}/edit'),
-        ];
+        return [];
     }
     public static function getNavigationLabel(): string
     {

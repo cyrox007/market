@@ -408,13 +408,9 @@ export default function CartItemVariants({
                   <VariantAttributeSelector
                     key={attr.attribute_slug}
                     attribute={attr}
-                    selectedValueSlug={
-                      matchingVariantForSelection
-                        ? (matchingVariantForSelection.variation_attributes?.find(
-                            (a: SelectedVariationItem) => a.attribute_slug === attr.attribute_slug,
-                          )?.value_slug ?? null)
-                        : null
-                    }
+                    selectedValues={new Set((matchingVariantForSelection?.variation_attributes ?? [])
+                      .filter((a: SelectedVariationItem) => a.attribute_slug === attr.attribute_slug)
+                      .map((a: SelectedVariationItem) => a.value_slug))}
                     isValueAvailable={(valueSlug) =>
                       isValueAvailableForAttribute(attr.attribute_slug, valueSlug)
                     }

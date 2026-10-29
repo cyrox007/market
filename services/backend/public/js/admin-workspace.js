@@ -77,6 +77,39 @@
         const originalFetch = win.fetch.bind(win);
         let probe = null;
         let loginNotice = null;
+        let connectionNotice = null;
+        const diagnosticKey = 'admin-diagnostics:v1:' + config.userId;
+        let diagnosticEvents = [], diagnosticSending = false, diagnosticToken = null;
+        if (config.diagnosticsUrl) {
+            try {
+                const saved = JSON.parse(win.sessionStorage.getItem(diagnosticKey) || '[]');
+                if (Array.isArray(saved)) diagnosticEvents = saved.filter(item => item.time > Date.now() - 172800000).slice(-20);
+            } catch (_) { /* Diagnostics must not interfere with forms. */ }
+        }
+        function persistDiagnostics() {
+            try { win.sessionStorage.setItem(diagnosticKey, JSON.stringify(diagnosticEvents)); } catch (_) {}
+        }
+        function diagnose(event, fields = {}) {
+            if (!config.diagnosticsUrl) return;
+            diagnosticEvents.push({ id: win.crypto.randomUUID(), time: Date.now(), event, ...fields });
+            diagnosticEvents = diagnosticEvents.slice(-20); persistDiagnostics();
+            if (diagnosticToken) void flushDiagnostics();
+        }
+        async function flushDiagnostics() {
+            if (!config.diagnosticsUrl || diagnosticSending || !diagnosticToken || !diagnosticEvents.length) return;
+            diagnosticSending = true;
+            const batch = diagnosticEvents.slice();
+            try {
+                const response = await originalFetch(config.diagnosticsUrl, { method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({ _token: diagnosticToken, events: batch }) });
+                if (response.ok) {
+                    const sent = new Set(batch.map(item => item.id));
+                    diagnosticEvents = diagnosticEvents.filter(item => !sent.has(item.id)); persistDiagnostics();
+                }
+            } catch (_) { /* Retain the bounded queue until a successful heartbeat. */ }
+            finally { diagnosticSending = false; }
+        }
         const tracked = new Map();
         let store = null;
         try { store = new DraftStore(win.sessionStorage, win.crypto, config.draftKey, config.userId); } catch (_) { /* beforeunload still protects edits */ }
@@ -96,43 +129,110 @@
                 ['Войти в новой вкладке', () => win.open(config.loginUrl, '_blank', 'noopener')],
             ]);
         }
+        function connectionFailed() {
+            if (!connectionNotice) connectionNotice = notice('Не удалось связаться с сервером. Форма остаётся открытой. Изменения ещё не сохранены — после восстановления связи повторите загрузку фото или сохранение.', [
+                ['Проверить связь', session],
+                ['Закрыть', () => { connectionNotice?.remove(); connectionNotice = null; }],
+            ]);
+        }
         function updateToken(token) {
             const meta = doc.querySelector('meta[name="csrf-token"]'); if (meta) meta.content = token;
             doc.querySelectorAll('input[name="_token"]').forEach(input => { input.value = token; });
             if (win.livewireScriptConfig) win.livewireScriptConfig.csrf = token;
             doc.querySelectorAll('script[data-csrf]').forEach(script => { script.dataset.csrf = token; });
         }
-        async function session() {
+        async function session(action = 'background') {
             if (probe) return probe;
             probe = (async () => {
+                const started = Date.now();
                 try {
-                    const response = await originalFetch(config.statusUrl, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
-                    if ([401, 403].includes(response.status)) { needLogin(); return null; }
-                    if (!response.ok) return null;
-                    const data = await response.json();
-                    if (data.user_id !== config.userId) { needLogin(); return null; }
-                    if (typeof data.csrf_token !== 'string' || !data.csrf_token) return null;
+                    const response = await originalFetch(config.statusUrl, { credentials: 'same-origin', cache: 'no-store', headers: {
+                        Accept: 'application/json',
+                        'X-Operator-Expected-User': config.userId,
+                        'X-Operator-Action': ['upload', 'mutation'].includes(action) ? action : 'background',
+                    } });
+                    const diagnostic = { status: response.status, duration_ms: Math.min(3600000, Date.now() - started),
+                        request_id: response.headers.get('X-Operator-Request-ID'), redirected: response.redirected,
+                        json: /application\/json/i.test(response.headers.get('Content-Type') || '') };
+                    if (!response.ok) {
+                        diagnose('heartbeat_http', diagnostic);
+                        if ([401, 403].includes(response.status)) needLogin();
+                        return null;
+                    }
+                    let data;
+                    try { data = await response.json(); }
+                    catch (_) { diagnose('heartbeat_invalid_json', diagnostic); return null; }
+                    if (data.user_id !== config.userId) { diagnose('heartbeat_user_mismatch', diagnostic); needLogin(); return null; }
+                    if (typeof data.csrf_token !== 'string' || !data.csrf_token) { diagnose('heartbeat_missing_token', diagnostic); return null; }
                     updateToken(data.csrf_token);
+                    diagnosticToken = data.csrf_token; void flushDiagnostics();
                     loginNotice?.remove(); loginNotice = null;
+                    connectionNotice?.remove(); connectionNotice = null;
                     return data.csrf_token;
-                } catch (_) { return null; } finally { probe = null; }
+                } catch (_) { diagnose('heartbeat_network', { duration_ms: Math.min(3600000, Date.now() - started) }); return null; } finally { probe = null; }
             })();
             return probe;
         }
         // Refresh CSRF BEFORE a Livewire action, including after sleep. Never replay mutations.
         win.fetch = async function (input, options) {
             const headers = new win.Headers(options?.headers);
+            let monitored = false;
             if (headers.has('X-Livewire') && typeof options?.body === 'string') {
                 const url = new win.URL(typeof input === 'string' ? input : input.url, win.location.href);
                 if (url.origin === win.location.origin) {
-                    const token = await session();
-                    if (!token) return new win.Response('{"message":"Подтвердите вход или проверьте соединение"}', { status: loginNotice ? 401 : 503, headers: { 'Content-Type': 'application/json' } });
-                    const body = JSON.parse(options.body); body._token = token;
-                    options = { ...options, body: JSON.stringify(body) };
+                    monitored = true;
+                    const body = JSON.parse(options.body);
+                    const action = body.components?.some(component => component.calls?.some(call =>
+                        ['_startUpload', '_finishUpload', '_removeUpload'].includes(call.method))) ? 'upload' : 'mutation';
+                    const token = await session(action);
+                    if (!token) {
+                        if (!loginNotice) connectionFailed();
+                        // Livewire handles rejected fetches without opening its HTML error modal.
+                        // A synthetic HTTP error depends on a request hook installed by the page.
+                        throw new Error('Operator session preflight failed; action was not sent');
+                    }
+                    body._token = token;
+                    headers.set('X-Operator-Action', action);
+                    options = { ...options, headers, body: JSON.stringify(body) };
                 }
             }
-            return originalFetch(input, options);
+            try {
+                const response = await originalFetch(input, options);
+                if (monitored && !response.ok) diagnose('mutation_http', { status: response.status, request_id: response.headers.get('X-Operator-Request-ID') });
+                return response;
+            } catch (error) {
+                if (monitored) diagnose('mutation_network');
+                throw error;
+            }
         };
+        for (const [name, event] of [['livewire-upload-start', 'upload_start'], ['livewire-upload-finish', 'upload_finish'], ['livewire-upload-error', 'upload_error']]) {
+            doc.addEventListener(name, () => diagnose(event), true);
+        }
+        // Livewire sends the file itself through XHR, not fetch. Observe its outcome,
+        // including proxy failures that never reach Laravel, without reading the file.
+        if (config.diagnosticsUrl && win.XMLHttpRequest) {
+            const prototype = win.XMLHttpRequest.prototype, uploads = new WeakMap();
+            const open = prototype.open, send = prototype.send;
+            prototype.open = function (method, url) {
+                uploads.delete(this);
+                try {
+                    const target = new win.URL(url, win.location.href);
+                    if (target.origin === win.location.origin && target.pathname === '/livewire/upload-file') uploads.set(this, true);
+                } catch (_) {}
+                return open.apply(this, arguments);
+            };
+            prototype.send = function () {
+                if (uploads.has(this)) {
+                    const started = Date.now();
+                    this.addEventListener('loadend', () => {
+                        let requestId = null;
+                        try { requestId = this.getResponseHeader('X-Operator-Request-ID'); } catch (_) {}
+                        diagnose('upload_http', { status: this.status, duration_ms: Math.min(3600000, Date.now() - started), request_id: requestId });
+                    }, { once: true });
+                }
+                return send.apply(this, arguments);
+            };
+        }
         win.setInterval(session, config.interval); // Intentionally while idle AND hidden.
         win.addEventListener('focus', session); win.addEventListener('online', session);
         doc.addEventListener('visibilitychange', () => { if (!doc.hidden) session(); });
@@ -198,12 +298,24 @@
             win.Livewire.all().forEach(component => track(component.$wire ? component : component.__instance));
             win.Livewire.hook('request', ({ fail }) => fail(({ status, preventDefault }) => {
                 if (status === 419 || status === 401) { preventDefault(); session(); }
+                if (status === 503) {
+                    preventDefault();
+                    if (!loginNotice) connectionFailed();
+                }
             }));
             doc.addEventListener('admin-form-saved', event => tracked.get(event.detail.componentId)?.saved());
         }
         if (win.Livewire) install(); else doc.addEventListener('livewire:init', install, { once: true });
         win.addEventListener('beforeunload', event => {
-            if ([...tracked.values()].some(entry => entry.unsafe())) { event.preventDefault(); event.returnValue = ''; }
+            const openEditor = win.Livewire?.all().some(component => {
+                // Action forms are not part of resource `data` drafts. Do not silently
+                // abandon them on refresh, or restore action names/arguments as a draft.
+                if (component.effects?.redirect) return false;
+                const actions = component.$wire?.$get('mountedActions');
+                return Array.isArray(actions) && actions.some(action =>
+                    /^(edit|create)$/i.test(action?.name || '') && action.data && Object.keys(action.data).length > 0);
+            });
+            if (openEditor || [...tracked.values()].some(entry => entry.unsafe())) { event.preventDefault(); event.returnValue = ''; }
         });
         doc.addEventListener('submit', event => {
             if (event.target?.action?.includes('/logout')) { store?.clear(); tracked.forEach(entry => entry.clear()); }

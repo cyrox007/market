@@ -25,6 +25,13 @@ class Store extends Model implements HasMedia, PageableContract
 
     public const ACTIVE = true;
 
+    public function flushCache(): void
+    {
+        // File/database/array caches have no tags; version all city-filtered API keys.
+        \Illuminate\Support\Facades\Cache::forever('store_api_revision', (string) \Illuminate\Support\Str::uuid());
+        $this->performCacheFlush();
+    }
+
     protected $fillable = [
         'name',
         'slug',

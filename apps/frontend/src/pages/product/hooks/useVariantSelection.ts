@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
 import {
   chooseValue,
@@ -27,7 +27,10 @@ export interface VariantAttributeView {
 /** Выбранный вариант живёт в адресе (?variant=id, замена истории) — так его видит и сервер */
 export function useVariantSelection(product: ProductDetail) {
   const [params, setParams] = useSearchParams();
-  const variants = product.is_variable ? (product.variants ?? []) : [];
+  const navigate = useNavigate();
+  // Страницу открывают и на родителе, и на самом предложении: каталог отдаёт
+  // отдельные позиции и ведёт прямо на них (market-docs/61)
+  const variants = product.is_variable || product.is_variant ? (product.variants ?? []) : [];
 
   const selectedVariant: ProductVariant | null =
     variantFromParam(variants, params.get(VARIANT_PARAM)) ??
@@ -64,6 +67,14 @@ export function useVariantSelection(product: ProductDetail) {
     if (!selectedVariant) return;
     const next = chooseValue(variants, selectedVariant, attributeSlug, valueSlug);
     if (next.id === selectedVariant.id) return;
+
+    // У каждого предложения своя страница: со страницы предложения уходим на соседнюю,
+    // иначе чужой товар показался бы под этим адресом. С родителя — как было, параметром.
+    if (product.is_variant && next.slug) {
+      navigate(`/product/${next.slug}`);
+      return;
+    }
+
     setParams(
       (prev) => {
         const nextParams = new URLSearchParams(prev);

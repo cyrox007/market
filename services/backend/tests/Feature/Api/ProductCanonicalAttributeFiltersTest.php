@@ -63,7 +63,7 @@ class ProductCanonicalAttributeFiltersTest extends TestCase
 
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $this->assertSame([$expected->id], $ids);
+        $this->assertSame([$expectedVariant->id], $ids);
     }
 
     public function test_physical_dimensions_alone_never_match_commercial_size_filter(): void
@@ -168,7 +168,7 @@ class ProductCanonicalAttributeFiltersTest extends TestCase
             'state' => Product::ACTIVE,
             'parent_product_id' => $parent->id,
         ]);
-        DB::table('product_variant_attributes')->insert([
+        DB::table('product_product_attributes')->insert([
             'product_id' => $variant->id,
             'attribute_id' => $size->id,
             'attribute_value_id' => null,
@@ -181,7 +181,7 @@ class ProductCanonicalAttributeFiltersTest extends TestCase
 
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id);
-        $this->assertTrue($ids->contains($parent->id));
+        $this->assertTrue($ids->contains($variant->id));
     }
 
     /**
@@ -224,7 +224,7 @@ class ProductCanonicalAttributeFiltersTest extends TestCase
 
     private function attachVariantValue(Product $variant, Attribute $attribute, AttributeValue $value): void
     {
-        DB::table('product_variant_attributes')->insert([
+        DB::table('product_product_attributes')->insert([
             'product_id' => $variant->id,
             'attribute_id' => $attribute->id,
             'attribute_value_id' => $value->id,

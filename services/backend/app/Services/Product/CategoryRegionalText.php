@@ -31,12 +31,12 @@ class CategoryRegionalText
             $location = ShippingLocation::where('is_active', true)->where('type', 'locality')->find($id);
             $city = $location ? ['name' => $location->name, 'externalId' => $location->code, 'kladrCode' => $location->code] : null;
         }
-        $roots = Product::active()->whereNull('parent_product_id')->inCategory($category->id);
+        $roots = Product::query()->catalogItems()->inCategory($category->id);
         $skuIds = app(CatalogFilterService::class)->skus($roots, [])->select('products.id');
         $warehouses = Warehouse::where('is_active', true)->where(fn ($q) => $q
             ->where(fn ($quantity) => $quantity->where('stock_mode', 'quantity')->whereHas('productStocks', fn ($s) => $s->where('quantity', '>', 0)->whereIn('product_id', clone $skuIds)))
             ->orWhere(fn ($availability) => $availability->where('stock_mode', 'availability')->whereHas('productAvailabilities', fn ($s) => $s->where('available_to_order', true)->whereIn('product_id', clone $skuIds))))
-            ->with(['deliveryProfiles' => fn ($p) => $p->active()->with('locations')])->get();
+            ->with(['deliveryProfiles' => fn ($p) => $p->active()->whereNotNull('service_tariffs')])->get();
         $cities = [];
         $complete = true;
         foreach ($warehouses as $warehouse) {
@@ -55,14 +55,6 @@ class CategoryRegionalText
                             $complete = false;
                         } else {
                             $cities[isset($territory['kladrCode']) ? rtrim($territory['kladrCode'], '0') : $territory['externalId']] = true;
-                        }
-                    }
-                } else {
-                    foreach ($profile->locations as $location) {
-                        if ($location->type !== 'locality' || ! $location->code) {
-                            $complete = false;
-                        } else {
-                            $cities[rtrim($location->code, '0')] = true;
                         }
                     }
                 }

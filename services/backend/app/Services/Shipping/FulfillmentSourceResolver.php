@@ -14,8 +14,9 @@ class FulfillmentSourceResolver
      * Find active sources that can supply a concrete product/SKU and deliver it
      * to the customer's locality. Parent locations are inherited.
      */
-    public function resolve(Product $product, ShippingLocation $destination, ?array $coordinates = null): Collection
+    public function resolve(Product $product, array $destination, ?array $coordinates = null): Collection
     {
+        $coordinates ??= $destination['point'] ?? null;
         if ($coordinates !== null) {
             if (! isset($coordinates['latitude'], $coordinates['longitude'])
                 || ! is_numeric($coordinates['latitude']) || ! is_numeric($coordinates['longitude'])) {
@@ -24,13 +25,13 @@ class FulfillmentSourceResolver
             // Validate even if no stock/profile matches.
             app(WarehouseDistance::class)->kilometres(new Warehouse, (float) $coordinates['latitude'], (float) $coordinates['longitude']);
         }
-        $context = app(WarehouseCoverage::class)->destination($destination, null, $coordinates);
+        $context = array_merge($destination, ['point' => $coordinates]);
 
         return Warehouse::query()
             ->where('is_active', true)
             ->with([
                 'physicalSite',
-                'deliveryProfiles' => fn ($query) => $query->active()->with('locations'),
+                'deliveryProfiles' => fn ($query) => $query->active(),
                 'productStocks' => fn ($query) => $query->where('product_id', $product->id),
                 'productAvailabilities' => fn ($query) => $query->where('product_id', $product->id),
             ])
@@ -82,19 +83,4 @@ class FulfillmentSourceResolver
             ->values();
     }
 
-    private function locationPathIds(ShippingLocation $location): array
-    {
-        $ids = [(int) $location->id];
-        $cursor = $location;
-
-        while ($cursor->parent_id) {
-            $cursor = ShippingLocation::find($cursor->parent_id);
-            if (! $cursor) {
-                break;
-            }
-            $ids[] = (int) $cursor->id;
-        }
-
-        return $ids;
-    }
 }

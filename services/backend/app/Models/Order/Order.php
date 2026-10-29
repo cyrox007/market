@@ -22,6 +22,7 @@ use Vanilo\Shipment\Models\ShippingMethod;
 
 class Order extends Model implements Payable
 {
+    protected $hidden = ['guest_token_hash'];
     use HasFactory;
 
     /**
@@ -36,6 +37,7 @@ class Order extends Model implements Payable
     protected $fillable = [
         'user_id',
         'number',
+        'cooling_until', 'integration_sent_at', 'integration_state', 'guest_token_hash',
         'status',
         'total',
         'subtotal',
@@ -68,6 +70,8 @@ class Order extends Model implements Payable
     protected function casts(): array
     {
         return [
+            'checkout_snapshot' => 'array',
+            'cooling_until' => 'datetime', 'integration_sent_at' => 'datetime',
             'fulfillment_snapshot' => 'array',
             'total' => 'decimal:2',
             'subtotal' => 'decimal:2',
@@ -98,6 +102,33 @@ class Order extends Model implements Payable
                 $order->status = OrderStatus::NEW->value;
             }
         });
+        static::saving(function (Order $order): void {
+            if ($order->exists && $order->getRawOriginal('checkout_snapshot') !== null) {
+                foreach (['number', 'payment_method', 'delivery_type', 'address_id', 'address_snapshot', 'checkout_snapshot', 'cooling_until'] as $field) {
+                    if ($order->isDirty($field)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Данные оформленного заказа зафиксированы. Изменение адреса или исходного платежа запрещено.']);
+                    }
+                }
+                $mutable = ['stock_state', 'reservation_version', 'global_stock_deltas'];
+                $before = \Illuminate\Support\Arr::except($order->getOriginal('fulfillment_snapshot') ?? [], $mutable);
+                $after = \Illuminate\Support\Arr::except($order->fulfillment_snapshot ?? [], $mutable);
+                if ($before != $after) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['fulfillment_snapshot' => 'Адрес, склад и условия оформленного заказа менять нельзя.']);
+                }
+            }
+            if ($order->cooling_until && in_array($order->status, ['new', 'awaiting_payment', 'accepted'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Для нового заказа используйте «В обработке у менеджера», затем «Собирается».']);
+            }
+            if ($order->cooling_until && now()->lt($order->cooling_until)
+                && in_array($order->status, ['accepted', 'assembling', 'assembled', 'shipped', 'in_transit', 'delivered'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Период охлаждения заказа ещё не завершён.']);
+            }
+            if ($order->cooling_until && in_array($order->status, ['assembling', 'assembled', 'shipped', 'in_transit', 'delivered'], true)
+                && in_array($order->getPaymentGateway(), ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true)
+                && ! app(\App\Services\Order\OrderCooling::class)->isPaid($order)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Онлайн-оплата не подтверждена. Передача заказа в сборку недоступна.']);
+            }
+        });
     }
 
     /**
@@ -105,20 +136,43 @@ class Order extends Model implements Payable
      */
     protected static function generateNumber(): string
     {
-        $prefix = 'ORD';
-        $date = date('Ymd');
-        $lastOrder = static::whereDate('created_at', today())
-            ->orderBy('id', 'desc')
-            ->first();
+        return \Illuminate\Support\Facades\DB::transaction(function (): string {
+            $day = now()->format('Ymd');
+            $db = \Illuminate\Support\Facades\DB::table('order_number_sequences');
+            $db->insertOrIgnore(['day' => $day, 'last_number' => 0]);
+            $sequence = (clone $db)->where('day', $day)->lockForUpdate()->first();
+            $last = (int) $sequence->last_number;
+            if ($last === 0) {
+                $existing = static::where('number', 'like', 'ORD'.$day.'%')->orderByDesc('number')->value('number');
+                $last = $existing ? (int) substr($existing, 11) : 0;
+            }
+            (clone $db)->where('day', $day)->update(['last_number' => $last + 1]);
+            return 'ORD'.$day.str_pad((string) ($last + 1), 6, '0', STR_PAD_LEFT);
+        }, 3);
+    }
 
-        if ($lastOrder) {
-            $lastNumber = (int) substr($lastOrder->number, -6);
-            $newNumber = str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
-        } else {
-            $newNumber = '000001';
-        }
+    public function sealCheckout(): void
+    {
+        if ($this->checkout_snapshot !== null) { return; }
+        $address = $this->address;
+        $snapshot = $address ? $address->only(['id', 'title', 'city', 'street', 'house', 'apartment', 'entrance', 'room', 'floor', 'intercom', 'comment', 'directory_external_id', 'gar_guid', 'kladr_code']) : null;
+        if ($snapshot) { $snapshot['full_address'] = $this->address_snapshot ?: $address->full_address; }
+        $this->forceFill(['checkout_snapshot' => ['address' => $snapshot]])->save();
+    }
 
-        return $prefix . $date . $newNumber;
+    public function cancellationRequest(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CancellationRequest::class);
+    }
+
+    public function refundTask(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(RefundTask::class);
+    }
+
+    public function checkoutPaymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Payment\PaymentMethod::class, 'payment_method', 'code');
     }
 
     /**
@@ -282,6 +336,15 @@ class Order extends Model implements Payable
      */
     public function changeStatus(OrderStatus $status, ?string $comment = null, ?int $userId = null): void
     {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($status, $comment, $userId): void {
+        static::whereKey($this->id)->lockForUpdate()->firstOrFail();
+        $this->refresh();
+        if ($this->cooling_until && $this->status === OrderStatus::CANCELLED->value && $status !== OrderStatus::CANCELLED) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Отменённый заказ нельзя возобновить. Создайте новый заказ.']);
+        }
+        if ($this->cooling_until && now()->lt($this->cooling_until) && $status === OrderStatus::ACCEPTED) {
+            $status = OrderStatus::MANAGER_PROCESSING;
+        }
         $oldStatus = $this->status;
         $this->status = $status->value;
         $this->save();
@@ -303,12 +366,15 @@ class Order extends Model implements Payable
         // Возврат остатков при отмене (слушатель HandleOrderCancelled)
         if ($status === OrderStatus::CANCELLED) {
             event(new OrderCancelled($this));
+            app(\App\Services\Order\OrderRefundTasks::class)->ensure($this);
         }
 
         // Статистика продаж при завершении заказа
         if ($status === OrderStatus::DELIVERED) {
+            app(\App\Services\Shipping\WarehouseOrderStock::class)->consume($this);
             event(new OrderCompleted($this));
         }
+        });
     }
 
     /**
@@ -362,6 +428,9 @@ class Order extends Model implements Payable
      */
     public function canBeCancelled(): bool
     {
+        if ($this->cooling_until) {
+            return $this->status === OrderStatus::MANAGER_PROCESSING->value && now()->lt($this->cooling_until);
+        }
         return in_array($this->status, [OrderStatus::NEW->value, OrderStatus::AWAITING_PAYMENT->value], true);
     }
 
@@ -370,7 +439,9 @@ class Order extends Model implements Payable
      */
     public function canPayOnline(): bool
     {
-        if ($this->status !== OrderStatus::AWAITING_PAYMENT->value || !$this->payment_method) {
+        if (! in_array($this->status, [OrderStatus::AWAITING_PAYMENT->value, OrderStatus::MANAGER_PROCESSING->value], true) || !$this->payment_method
+            || ($this->cooling_until && now()->gte($this->cooling_until))
+            || app(\App\Services\Order\OrderCooling::class)->isPaid($this)) {
             return false;
         }
 
@@ -422,6 +493,8 @@ class Order extends Model implements Payable
     {
         return match ($this->status) {
             'new' => 'Новый',
+            'manager_processing' => 'В обработке у менеджера',
+            'assembling' => 'Собирается',
             'awaiting_payment' => 'Ожидание оплаты',
             'accepted' => 'Принят',
             'assembled' => 'Собран',

@@ -30,7 +30,7 @@ class OrderResource extends JsonResource
             'subtotal' => (float) $this->subtotal,
             'total' => (float) $this->total,
             'delivery_cost' => (float) $this->delivery_cost,
-            'fulfillment' => $this->fulfillment_snapshot ? \Illuminate\Support\Arr::except($this->fulfillment_snapshot, ['profile_fingerprint', 'warehouse_fingerprint', 'global_stock_deltas']) : null,
+            'fulfillment' => $this->fulfillment_snapshot ? \Illuminate\Support\Arr::except($this->fulfillment_snapshot, ['profile_fingerprint', 'warehouse_fingerprint', 'store_fingerprint', 'global_stock_deltas']) : null,
             'assembly_cost' => (float) $this->assembly_cost,
             'payment_method' => $this->payment_method,
             'payment_method_label' => $this->getPaymentMethodLabel(),
@@ -41,7 +41,9 @@ class OrderResource extends JsonResource
             'contact_name' => $this->contact_name,
             'contact_phone' => $this->contact_phone,
             'contact_email' => $this->contact_email,
-            'address' => new AddressResource($this->whenLoaded('address')),
+            'address' => $this->checkout_snapshot !== null
+                ? ($this->checkout_snapshot['address'] ?? null)
+                : new AddressResource($this->whenLoaded('address')),
             'address_directory' => $this->fulfillment_snapshot['address_directory'] ?? null,
             'shipping_location' => $this->when($this->shipping_location_id && $this->relationLoaded('shippingLocation'), [
                 'id' => $this->shippingLocation?->id,
@@ -84,10 +86,18 @@ class OrderResource extends JsonResource
                     ];
                 });
             }),
-            'items' => OrderItemResource::collection($this->whenLoaded('items'))->resolve($request),
+            'items' => $this->whenLoaded('items', fn () => OrderItemResource::collection($this->items)->resolve($request)),
             'status_history' => OrderStatusHistoryResource::collection($this->whenLoaded('statusHistory')),
             'created_at' => $this->created_at?->toISOString(),
             'can_be_cancelled' => $this->canBeCancelled(),
+            'cooling_until' => $this->cooling_until?->toISOString(),
+            'server_time' => now()->toISOString(),
+            'payment_status' => app(\App\Services\Order\OrderCooling::class)->isPaid($this->resource) ? 'paid' : 'unpaid',
+            'integration_state' => $this->integration_state,
+            'cancellation_request' => \Illuminate\Support\Facades\DB::table('order_cancellation_requests')->where('order_id', $this->id)->first(),
+            'refund_task' => \Illuminate\Support\Facades\DB::table('order_refund_tasks')->where('order_id', $this->id)->first(),
+            'can_request_cancellation' => $this->cooling_until && now()->gte($this->cooling_until)
+                && ! in_array($this->status, ['cancelled', 'delivered'], true),
             'can_pay' => $this->canPayOnline(),
             'payment_gateway' => $this->getPaymentGateway(),
             'payform_url' => $this->when($this->canPayOnline(), $this->getCachedPayformUrl()),
@@ -99,6 +109,7 @@ class OrderResource extends JsonResource
 
     private function resolvePaymentDeadlineAt(): ?string
     {
+        if ($this->cooling_until && $this->canPayOnline()) { return $this->cooling_until->toISOString(); }
         if ($this->status !== OrderStatus::AWAITING_PAYMENT->value || $this->created_at === null) {
             return null;
         }
@@ -135,6 +146,8 @@ class OrderResource extends JsonResource
     {
         return match ($this->status) {
             'new' => 'Новый',
+            'manager_processing' => 'В обработке у менеджера',
+            'assembling' => 'Собирается',
             'awaiting_payment' => 'Ожидание оплаты',
             'accepted' => 'Принят',
             'assembled' => 'Собран',

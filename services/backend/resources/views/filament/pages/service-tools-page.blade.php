@@ -1,23 +1,9 @@
 <x-filament-panels::page>
     <x-filament::section
         heading="Складской учет"
-        description="Управление режимом остатков по складам и fallback-логикой по локациям."
+        description="Остатки учитываются только по складам. Тарифы и покрытие задаются в профилях склада."
     >
-        <div class="space-y-4">
-            <label class="flex items-center gap-3">
-                <input type="checkbox" wire:model="warehouseAccountingEnabled" class="rounded border-gray-300 text-primary-600 shadow-sm focus:ring-primary-500" />
-                <span class="text-sm text-gray-800 dark:text-gray-200">Складской учет активирован</span>
-            </label>
-
-            <label class="flex items-center gap-3">
-                <input type="checkbox" wire:model="fallbackToFirstWarehouse" class="rounded border-gray-300 text-primary-600 shadow-sm focus:ring-primary-500" />
-                <span class="text-sm text-gray-800 dark:text-gray-200">Если нет привязки к локации — использовать первый доступный склад</span>
-            </label>
-
-            <x-filament::button color="primary" wire:click="saveWarehouseAccountingSettings">
-                Сохранить настройки складского учета
-            </x-filament::button>
-        </div>
+        <p>Складской учёт включён постоянно. Подмена склада первым доступным отключена.</p>
     </x-filament::section>
 
     <x-filament::section

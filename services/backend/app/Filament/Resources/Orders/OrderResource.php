@@ -6,7 +6,6 @@ use App\Filament\Resources\Orders\Pages\CreateOrder;
 use App\Filament\Resources\Orders\Pages\EditOrder;
 use App\Filament\Resources\Orders\Pages\ListOrders;
 use App\Filament\Resources\Orders\Pages\ViewOrder;
-use App\Filament\Resources\Orders\RelationManagers\OrderItemsRelationManager;
 use App\Filament\Resources\Orders\Schemas\OrderForm;
 use App\Filament\Resources\Orders\Schemas\OrderInfolist;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
@@ -36,6 +35,15 @@ class OrderResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    public static function canCreate(): bool
+    {
+        // Orders must be created through the transactional warehouse checkout.
+        return false;
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool { return false; }
+    public static function canDeleteAny(): bool { return false; }
+
     public static function form(Schema $schema): Schema
     {
         return OrderForm::configure($schema);
@@ -54,9 +62,7 @@ class OrderResource extends Resource
     public static function getRelations(): array
     {
         return [
-            OrderItemsRelationManager::class,
             \App\Filament\Resources\Orders\RelationManagers\OrderPaymentsRelationManager::class,
-            \App\Filament\Resources\Orders\RelationManagers\OrderAdditionalServicesRelationManager::class,
             \App\Filament\Resources\Orders\RelationManagers\OrderGatewayLogsRelationManager::class,
         ];
     }
@@ -65,7 +71,6 @@ class OrderResource extends Resource
     {
         return [
             'index' => ListOrders::route('/'),
-            'create' => CreateOrder::route('/create'),
             'view' => ViewOrder::route('/{record}'),
             'edit' => EditOrder::route('/{record}/edit'),
         ];

@@ -151,7 +151,7 @@ class AttributeTemplatesTest extends TestCase
         $parent->variationAttributeSelection()->sync([$single->id, $multiple->id]);
         foreach ([$single, $multiple] as $attribute) {
             $value = $attribute->values()->create(['value' => 'Тест', 'slug' => 'test']);
-            DB::table('product_variant_attributes')->insert([
+            DB::table('product_product_attributes')->insert([
                 'product_id' => $variant->id, 'attribute_id' => $attribute->id,
                 'attribute_value_id' => $value->id,
             ]);
@@ -236,9 +236,7 @@ class AttributeTemplatesTest extends TestCase
         $page->callTableColumnAction('name', $offer);
         $this->assertSame('edit', $page->instance()->getMountedTableAction()->getName());
         $this->assertSame($offer->id, $page->instance()->getMountedTableActionRecord()->id);
-        $fullCard = $table->getAction('fullProductCard')->record($offer);
-        $this->assertSame('Полная карточка', $fullCard->getLabel());
-        $this->assertSame(\App\Filament\Resources\Products\ProductResource::getUrl('edit', ['record' => $offer]), $fullCard->getUrl());
+        $this->assertNull($table->getAction('fullProductCard'));
         $this->assertSame('Редактирование торгового предложения', $page->instance()->getMountedTableAction()->getModalHeading());
         $this->assertStringContainsString('Общие характеристики для всех предложений задавайте в родительской карточке товара.', $page->instance()->getMountedTableAction()->getModalDescription());
         $page->assertStatus(200);

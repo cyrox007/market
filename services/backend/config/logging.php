@@ -52,6 +52,15 @@ return [
 
     'channels' => [
 
+        'operator_diagnostics' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/operator-diagnostics.log'),
+            'level' => 'info',
+            'days' => 3,
+            'permission' => 0600,
+            'locking' => true,
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),

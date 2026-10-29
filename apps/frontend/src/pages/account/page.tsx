@@ -8,11 +8,11 @@ import {
   type Address,
   type BonusTransaction,
   type WishlistItem,
-  type ShippingLocation,
   type NotificationSettings,
 } from '../../lib/api';
 import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 import PhoneInput from '../../components/ui/PhoneInput';
+import CheckoutAddress from '../../components/CheckoutAddress';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import Icon from '../../components/ui/icons/Icon';
@@ -106,9 +106,8 @@ export default function Account() {
     house: '',
     apartment: '',
     entrance: '',
-    shipping_location_id: null as number | null,
+    directory_external_id: null as string | null,
   });
-  const [shippingLocations, setShippingLocations] = useState<ShippingLocation[]>([]);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [addressToDelete, setAddressToDelete] = useState<Address | null>(null);
@@ -152,9 +151,6 @@ export default function Account() {
     } else if (activeSection === 'addresses') {
       if (addresses.length === 0) {
         loadAddresses();
-      }
-      if (shippingLocations.length === 0) {
-        loadShippingLocations();
       }
     } else if (activeSection === 'favorites' && favorites.length === 0) {
       loadFavorites();
@@ -206,14 +202,6 @@ export default function Account() {
     }
   };
 
-  const loadShippingLocations = async () => {
-    try {
-      const response = await api.shipping.getLocations({ type: 'locality' });
-      setShippingLocations(response.data || []);
-    } catch (error) {
-      console.error('Failed to load shipping locations:', error);
-    }
-  };
 
   const loadFavorites = async () => {
     setIsLoadingFavorites(true);
@@ -409,7 +397,7 @@ export default function Account() {
       house: '',
       apartment: '',
       entrance: '',
-      shipping_location_id: null,
+      directory_external_id: null,
     });
     setAddressError(null);
     setShowAddressModal(true);
@@ -424,7 +412,7 @@ export default function Account() {
       house: address.house || '',
       apartment: address.apartment || '',
       entrance: address.entrance || '',
-      shipping_location_id: address.shipping_location_id || null,
+      directory_external_id: address.directory_external_id || null,
     });
     setAddressError(null);
     setShowAddressModal(true);
@@ -440,7 +428,7 @@ export default function Account() {
       house: '',
       apartment: '',
       entrance: '',
-      shipping_location_id: null,
+      directory_external_id: null,
     });
     setAddressError(null);
   };
@@ -450,30 +438,15 @@ export default function Account() {
     setAddressError(null);
 
     // Валидация
-    if (!addressForm.city.trim()) {
-      setAddressError('Город обязателен для заполнения');
-      return;
-    }
-    if (!addressForm.street.trim()) {
-      setAddressError('Улица обязательна для заполнения');
-      return;
-    }
-    if (!addressForm.house.trim()) {
-      setAddressError('Дом обязателен для заполнения');
-      return;
-    }
-
+    if (!addressForm.directory_external_id) { setAddressError('Выберите дом из адресного справочника.'); return; }
     setIsSavingAddress(true);
 
     try {
       const addressData: any = {
         title: addressForm.title.trim() || undefined,
-        city: addressForm.city.trim(),
-        street: addressForm.street.trim(),
-        house: addressForm.house.trim(),
+        directory_external_id: addressForm.directory_external_id,
         apartment: addressForm.apartment.trim() || undefined,
         entrance: addressForm.entrance.trim() || undefined,
-        shipping_location_id: addressForm.shipping_location_id || undefined,
       };
 
       if (editingAddress) {
@@ -989,7 +962,7 @@ export default function Account() {
                                 </p>
                               )}
                               <p className="text-gray-700 text-sm">
-                                {addr.full_address || addr.address}
+                                {addr.full_address || [addr.city, addr.street, addr.house].filter(Boolean).join(', ')}
                               </p>
                               <p className="text-xs text-gray-500 flex items-center gap-1">
                                 <Calendar className="size-[1em]" />
@@ -1343,63 +1316,10 @@ export default function Account() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Локация доставки</label>
-                <select
-                  value={addressForm.shipping_location_id || ''}
-                  onChange={(e) =>
-                    setAddressForm({
-                      ...addressForm,
-                      shipping_location_id: e.target.value ? parseInt(e.target.value) : null,
-                    })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                >
-                  <option value="">Выберите локацию</option>
-                  {shippingLocations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Город *</label>
-                <input
-                  type="text"
-                  required
-                  value={addressForm.city}
-                  onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-                  placeholder="Москва"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Улица *</label>
-                <input
-                  type="text"
-                  required
-                  value={addressForm.street}
-                  onChange={(e) => setAddressForm({ ...addressForm, street: e.target.value })}
-                  placeholder="ул. Ленина"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                />
-              </div>
-
+              {editingAddress?.full_address && <p>Сохранённый адрес: {editingAddress.full_address}. Выберите новый дом ниже, только если адрес изменился.</p>}
+              <CheckoutAddress onChange={(id) => setAddressForm((current) => ({ ...current, directory_external_id: id }))} />
+              <p className="text-sm text-gray-600">Изменения адресной книги действуют для новых заказов. Адрес уже оформленного заказа не изменяется.</p>
               <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Дом *</label>
-                  <input
-                    type="text"
-                    required
-                    value={addressForm.house}
-                    onChange={(e) => setAddressForm({ ...addressForm, house: e.target.value })}
-                    placeholder="1"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                  />
-                </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Квартира</label>
                   <input

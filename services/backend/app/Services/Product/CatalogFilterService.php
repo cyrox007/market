@@ -17,6 +17,7 @@ class CatalogFilterService
     private array $attributesBySlug = [];
 
     private array $matches = [];
+    private array $facetSkuIds = [];
     private bool $applyPricingRules = true;
 
     public function withoutPricingRules(): static
@@ -29,6 +30,7 @@ class CatalogFilterService
 
     public function forLocation(?\App\Models\Shipping\ShippingLocation $location): self
     {
+        $this->facetSkuIds = [];
         $this->location = $location;
         return $this;
     }
@@ -83,7 +85,7 @@ class CatalogFilterService
             return $roots;
         }
 
-        return $roots->whereIn('products.id', $this->skus($roots, $filters)->selectRaw('COALESCE(products.parent_product_id, products.id)'));
+        return $roots->whereIn('products.id', $this->skus(clone $roots, $filters)->select('products.id'));
     }
 
     private function hasPredicates(array $filters): bool
@@ -105,14 +107,7 @@ class CatalogFilterService
     public function skus(Builder $roots, array $filters): Builder
     {
         $ids = (clone $roots)->reorder()->select('products.id')->setEagerLoads([]);
-        $sku = Product::query()->active()->where(function ($q) use ($ids) {
-            $q->where(function ($simple) use ($ids) {
-                $simple->whereIn('products.id', clone $ids)->whereNull('parent_product_id')
-                    ->where(fn ($v) => $v->whereNull('is_variable')->orWhere('is_variable', false)->orWhereDoesntHave('variants'));
-            })->orWhere(function ($variant) use ($ids) {
-                $variant->whereIn('products.parent_product_id', clone $ids);
-            });
-        });
+        $sku = Product::query()->catalogItems()->whereIn('products.id', $ids);
         $sku->joinSub(app(CatalogPrice::class)->rows($this->location, $this->applyPricingRules), 'catalog_prices', 'catalog_prices.sku_id', '=', 'products.id');
         foreach (['min' => '>=', 'max' => '<='] as $bound => $operator) {
             if (isset($filters['price_'.$bound]) && $filters['price_'.$bound] !== '') {
@@ -195,15 +190,11 @@ class CatalogFilterService
             is_array($values) ? $values : explode(',', (string) $values)), fn ($v) => $v !== '')));
     }
 
-    /** Both storage pivots are valid; a SKU's own attribute overrides an inherited root attribute. */
+    /** One storage pivot; a SKU's own attribute overrides an inherited root attribute. */
     private function rows(Attribute $attribute): \Illuminate\Database\Query\Builder
     {
-        $regular = DB::table('product_product_attributes')->where('attribute_id', $attribute->id)
-            ->select('product_id', 'attribute_value_id', 'custom_value');
-        $variant = DB::table('product_variant_attributes')->where('attribute_id', $attribute->id)
-            ->select('product_id', 'attribute_value_id', 'custom_value');
-
-        return DB::query()->fromSub($regular->unionAll($variant), 'stored');
+        return DB::query()->fromSub(DB::table('product_product_attributes')->where('attribute_id', $attribute->id)
+            ->select('product_id', 'attribute_value_id', 'custom_value'), 'stored');
     }
 
     private function effectiveRows(Attribute $attribute): \Illuminate\Database\Query\Builder
@@ -237,13 +228,29 @@ class CatalogFilterService
         return $valid->selectRaw('sku_id, CAST(raw_mm AS DECIMAL(15,3)) as mm')->whereRaw('CAST(raw_mm AS DECIMAL(15,3)) > 0');
     }
 
+    private function facetIds(Builder $roots, array $filters): array|Builder
+    {
+        $filtered = $this->hasPredicates($filters);
+        $key = sha1($roots->toSql().json_encode([$roots->getBindings(), $filtered ? $filters : [], $this->applyPricingRules]));
+        if (! array_key_exists($key, $this->facetSkuIds)) {
+            $query = $filtered ? $this->skus($roots, $filters) : clone $roots;
+            $query = $query->reorder()->select('products.id')->setEagerLoads([]);
+            $ids = (clone $query)->limit(5001)->pluck('products.id')->all();
+            // Bound memory and IN-list size for broad catalogues. Large scopes
+            // keep their original SQL subquery rather than truncating results.
+            $this->facetSkuIds[$key] = count($ids) <= 5000 ? $ids : $query;
+        }
+        $value = $this->facetSkuIds[$key];
+        return is_array($value) ? $value : clone $value;
+    }
+
     public function meta(Builder $roots, array $input, array $mandatory = []): array
     {
         $meta = ['price' => ['min' => 0, 'max' => 0], 'colors' => [], 'sizes' => [],
             'attributes' => [], 'manufacturers' => [], 'dimensions' => [], 'facet_mode' => 'excluding_self'];
         $priceSkus = $this->skus($roots, $this->filters($input, $mandatory, 'price'));
-        $meta['price'] = ['min' => (float) ((clone $priceSkus)->min('catalog_prices.effective_price') ?? 0),
-            'max' => (float) ((clone $priceSkus)->max('catalog_prices.effective_price') ?? 0)];
+        $prices = $priceSkus->selectRaw('MIN(catalog_prices.effective_price) AS min_price, MAX(catalog_prices.effective_price) AS max_price')->first();
+        $meta['price'] = ['min' => (float) ($prices?->min_price ?? 0), 'max' => (float) ($prices?->max_price ?? 0)];
         $meta['has_on_sale'] = $this->skus($roots, $this->filters($input, $mandatory, 'on_sale'))
             ->whereColumn('catalog_prices.reference_price', '>', 'catalog_prices.effective_price')->exists();
         $meta['has_sale'] = $meta['has_on_sale'];
@@ -251,10 +258,11 @@ class CatalogFilterService
             $attribute = $this->attribute($slug);
             $range = ['min' => null, 'max' => null, 'unit' => 'mm'];
             if ($attribute) {
-                $skus = $this->skus($roots, $this->filters($input, $mandatory, $key))->select('products.id');
+                $skus = $this->facetIds($roots, $this->filters($input, $mandatory, $key));
                 $numbers = DB::query()->fromSub($this->numericRows($attribute), 'numbers')->whereIn('sku_id', $skus);
-                $range['min'] = (clone $numbers)->min('mm');
-                $range['max'] = (clone $numbers)->max('mm');
+                $bounds = $numbers->selectRaw('MIN(mm) AS min_mm, MAX(mm) AS max_mm')->first();
+                $range['min'] = $bounds?->min_mm;
+                $range['max'] = $bounds?->max_mm;
                 foreach (['min', 'max'] as $bound) {
                     $range[$bound] = $range[$bound] === null ? null : (float) $range[$bound];
                 }
@@ -262,24 +270,22 @@ class CatalogFilterService
             $meta['dimensions'][$key] = $range;
         }
         $rootIds = (clone $roots)->reorder()->select('products.id');
+        $parentIds = (clone $roots)->reorder()->select('products.parent_product_id');
         $scopeIds = Product::query()->active()->where(fn ($q) => $q->whereIn('id', clone $rootIds)
-            ->orWhereIn('parent_product_id', clone $rootIds))->select('id');
+            ->orWhereIn('id', clone $parentIds))->select('id');
         $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
-        $usedVariantAttributes = DB::table('product_variant_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
-        // MySQL versions used on hosting reject Laravel's parenthesized UNION inside IN.
-        // Two membership predicates have the same set semantics without that syntax.
-        foreach (Attribute::where(fn ($q) => $q->whereIn('id', $usedAttributes)->orWhereIn('id', $usedVariantAttributes))->where(fn ($q) => $q->where('is_filterable', true)
+        foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
             ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {
                 continue; // Numeric dimensions have a separate range contract.
             }
-            $skus = $this->skus($roots, $this->filters($input, $mandatory, $attribute->slug))->select('products.id');
+            $skus = $this->facetIds($roots, $this->filters($input, $mandatory, $attribute->slug));
             $values = DB::query()->fromSub($this->effectiveRows($attribute), 'facet')
                 ->join('products as sku', 'sku.id', '=', 'facet.sku_id')
                 ->leftJoin('product_attribute_values as val', 'val.id', '=', 'facet.attribute_value_id')
                 ->whereIn('facet.sku_id', $skus)
-                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, COUNT(DISTINCT COALESCE(sku.parent_product_id, sku.id)) as product_count')
+                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, COUNT(DISTINCT sku.id) as product_count')
                 ->groupBy('facet.attribute_value_id', 'facet.custom_value', 'val.value', 'val.slug', 'val.color_code')
                 ->get()->map(function ($v) {
                     $name = trim((string) ($v->value ?? $v->custom_value));

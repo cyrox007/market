@@ -218,18 +218,6 @@ class WarehouseForm
                         Livewire::make(DeliveryProfilesRelationManager::class, fn (?Warehouse $record): array => [
                             'ownerRecord' => $record, 'pageClass' => EditWarehouse::class,
                         ])->key('warehouse-delivery-profiles')->visible(fn (?Warehouse $record): bool => (bool) $record?->exists),
-                        Section::make('Старая привязка к локациям')
-                            ->description('Оставлена временно для совместимости. Новые условия создавайте после сохранения склада во вкладке «Зоны, цены и сроки».')
-                            ->collapsed()
-                            ->schema([
-                                Select::make('shippingLocations')
-                                    ->label('Локации')
-                                    ->relationship('shippingLocations', 'name')
-                                    ->multiple()
-                                    ->searchable()
-                                    ->preload()
-                                    ->helperText('Если склад привязан к родительской локации, он доступен и в дочерних локациях.'),
-                            ]),
                     ]),
                 ]),
 

@@ -7,6 +7,7 @@ import BuyBlock from './components/BuyBlock';
 import DeliveryInfo from './components/DeliveryInfo';
 import Gallery from './components/Gallery';
 import PhotoViewer from './components/PhotoViewer';
+import OneClickModal from './components/OneClickModal';
 import ProductContacts from './components/ProductContacts';
 import ProductBreadcrumbs from './components/ProductBreadcrumbs';
 import { ReviewsEmpty } from './components/ProductEmptyState';
@@ -21,7 +22,7 @@ import { useProductCartActions } from './hooks/useProductCartActions';
 import { useProductReviews } from './hooks/useProductReviews';
 import { useWriteReview } from './hooks/useWriteReview';
 import { useVariantSelection } from './hooks/useVariantSelection';
-import { getSpecificationsArray, hasMeaningfulProductText } from './lib/productText';
+import { getSpecificationsArray } from './lib/productText';
 
 interface Props {
   product: ProductDetail;
@@ -49,6 +50,13 @@ export default function ProductContent({ product, related, isRefreshing }: Props
   const writeReview = review.start;
 
   const [tab, setTab] = useState<ProductTabId>('description');
+  // «Купить в 1 клик» открывается и когда товара нет в наличии (задача 13)
+  const [oneClickOpen, setOneClickOpen] = useState(false);
+  // SKU для прямого оформления: у вариативного родителя без выбранного варианта его нет
+  const oneClickSku =
+    product.is_variable && !product.is_variant && !selectedVariant
+      ? null
+      : (selectedVariant?.id ?? product.id);
 
   // Фото варианта, если они есть; иначе — товара
   const images = selectedVariant?.images?.length
@@ -68,13 +76,11 @@ export default function ProductContent({ product, related, isRefreshing }: Props
     setImage(0);
   }
 
-  const description =
-    selectedVariant && hasMeaningfulProductText(selectedVariant.description)
-      ? selectedVariant.description
-      : product.description;
-  const variantSpecs = selectedVariant
-    ? getSpecificationsArray(selectedVariant.specifications)
-    : [];
+  // Наследование делает бэк: у предложения приходит своё описание, иначе родительское,
+  // и пустая разметка вроде `<p></p>` своим не считается (market-docs/61).
+  // Фолбэк на родителя остаётся страховкой на случай старого ответа в кэше.
+  const description = selectedVariant?.description ?? product.description;
+  const variantSpecs = getSpecificationsArray(selectedVariant?.specifications);
   const specifications =
     variantSpecs.length > 0
       ? variantSpecs
@@ -127,7 +133,7 @@ export default function ProductContent({ product, related, isRefreshing }: Props
             city={city}
             cart={cart}
             onGoToReviews={goToReviews}
-            onOneClick={() => {}}
+            onOneClick={() => setOneClickOpen(true)}
             delivery={<DeliveryInfo city={city} {...delivery} />}
             titleActions={
               <WishlistCompareButtons product={product} matchedVariant={selectedVariant} />
@@ -159,6 +165,13 @@ export default function ProductContent({ product, related, isRefreshing }: Props
         />
 
         <ProductContacts contacts={contacts} />
+
+        <OneClickModal
+          open={oneClickOpen}
+          onClose={() => setOneClickOpen(false)}
+          productId={oneClickSku}
+          quantity={Math.max(1, cart.quantity)}
+        />
 
         {auth.user && (
           <ReviewModal

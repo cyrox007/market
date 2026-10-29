@@ -63,30 +63,14 @@ class AdditionalServiceForm
                             ->default(true),
                     ])->columns(2),
 
-                Section::make('Ценообразование')
+                Section::make('Тарифы услуги')
+                    ->description('Стоимость задаётся отдельно в профиле доставки каждого склада. Глобальной цены и тарифов локаций больше нет.')
                     ->schema([
-                        Select::make('price_type')
-                            ->label('Тип цены')
-                            ->options([
-                                'fixed' => 'Фиксированная цена',
-                                'from' => 'Цена "от X"',
-                                'custom' => 'Цена отдельно (указывается менеджером)',
-                            ])
-                            ->required()
-                            ->default('fixed')
-                            ->helperText('Тип цены для услуги')
-                            ->live(),
-
-                        TextInput::make('base_price')
-                            ->label('Базовая цена')
-                            ->numeric()
-                            ->prefix('₽')
-                            ->step(0.01)
-                            ->minValue(0)
-                            ->visible(fn ($get) => in_array($get('price_type'), ['fixed', 'from']))
-                            ->required(fn ($get) => in_array($get('price_type'), ['fixed', 'from']))
-                            ->helperText('Базовая цена услуги (для типов "фиксированная" и "от X")'),
-                    ])->columns(2),
+                        Select::make('price_type')->label('Тип тарифа')
+                            ->options(['fixed' => 'Фиксированная стоимость в профиле склада'])
+                            ->default('fixed')->required()
+                            ->helperText('Старые типы «от» и «по договорённости» не участвуют в автоматическом расчёте. Для использования выберите фиксированный тариф и задайте цену в профиле склада.'),
+                    ]),
             ]);
     }
 }

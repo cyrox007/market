@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import useSWR from 'swr';
-import { api, InteriorIdeaHotspot } from '@/lib/api';
+import { api, type InteriorIdeaHotspot } from '@/lib/api';
 import { useSSR } from '@/contexts/ssr-context';
 import { useCartActions } from '@/hooks/useCartActions';
 import { ArrowLeftRight, Heart, ImageIcon, Info, Minus, Plus } from 'lucide-react';
@@ -19,7 +19,7 @@ export default function InteriorIdeas() {
   // Используем SWR для загрузки идей интерьера
   const { data: interiorIdeasData, isLoading: loading } = useSWR(
     '/api/interior-ideas',
-    () => api.interiorIdeas.list({ page: 1, per_page: 6 }),
+    () => api.interiorIdeas.list(),
     {
       fallbackData: initialRooms.length > 0 ? { data: initialRooms } : undefined,
       revalidateOnMount: initialRooms.length === 0,

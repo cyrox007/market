@@ -76,14 +76,7 @@ class DeliveryProfilesRelationManager extends RelationManager
                 TextInput::make('priority')->label('Приоритет')->numeric()->minValue(0)->default(100)->required()
                     ->helperText('Обязательно, по умолчанию 100. Меньшее число проверяется первым: у одного склада выбирается первый подходящий профиль.'),
             ])->columns(['default' => 1, 'md' => 3])->columnSpanFull(),
-            Toggle::make('use_profile_tariffs')->label('Использовать новые тарифы этого профиля')->live()->default(false)
-                ->afterStateHydrated(fn ($component, $record) => $component->state($record?->service_tariffs !== null && $record !== null))
-                ->helperText('Включайте после заполнения и сверки цен. Выключение при сохранении удаляет новые тарифы этого профиля и возвращает прежний расчёт по локации; перед этим сохраните копию новых цен.'),
-            Select::make('services_location_id')->label('Прежние тарифы услуг')
-                ->relationship('servicesLocation', 'name', modifyQueryUsing: fn ($query) => $query->where('is_active', true))
-                ->searchable()->preload()->nullable()->columnSpanFull()
-                ->helperText('Сохраняется для совместимости и возврата к прежнему расчёту. При включённых новых тарифах не используется.'),
-            Section::make('Услуги этого профиля')->visible(fn ($get): bool => (bool) $get('use_profile_tariffs'))
+            Section::make('Услуги этого профиля')
                 ->description('Новые тарифы заменяют прежние целиком: проверьте все услуги перед сохранением.')->schema([
                     Toggle::make('service_tariffs.requires_assembly')->label('Обязательная сборка')->default(false)->live()
                         ->helperText('Необязательно, по умолчанию выключено. Если включено, сборка добавляется к заказу даже без выбора покупателем; укажите её цену.'),
@@ -144,9 +137,8 @@ class DeliveryProfilesRelationManager extends RelationManager
 
     public function tariffData(array $data): array
     {
-        $enabled = (bool) ($data['use_profile_tariffs'] ?? false);
         unset($data['use_profile_tariffs']);
-        $data['service_tariffs'] = $enabled ? ($data['service_tariffs'] ?? []) : null;
+        $data['service_tariffs'] = $data['service_tariffs'] ?? [];
 
         return $data;
     }
