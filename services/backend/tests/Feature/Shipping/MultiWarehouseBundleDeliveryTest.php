@@ -64,6 +64,36 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
             'contact_email' => 'combination@example.test', 'accept_offer' => true, 'accept_personal_data' => true];
     }
 
+    public function test_json_object_key_order_does_not_change_saved_bundle_selection(): void
+    {
+        [$root, $offer, $sku, $top] = $this->kit();
+        $warehouse = $this->warehouse($sku, 5, 100, 'Central');
+        $warehouse->productStocks()->create(['product_id' => $top->id, 'quantity' => 5]);
+        $response = $this->postJson('/api/v1/cart', ['product_id' => $offer->id, 'quantity' => 1])->assertCreated();
+        $item = \Vanilo\Cart\Facades\Cart::model()->items()->firstOrFail();
+        $configuration = $item->configuration;
+        $configuration['bundle_selection'] = array_map(fn ($line) => [
+            'quantity' => $line['quantity'], 'product_id' => $line['product_id'],
+        ], $configuration['bundle_selection']);
+        $item->update(['configuration' => $configuration]);
+        app(\App\Services\Product\CartFulfillment::class)->rememberSelection($item->fresh(), $offer);
+        $item->update(['configuration' => $configuration]);
+        $expanded = app(\App\Services\Product\CartFulfillment::class)->expand([$item->fresh()]);
+        $this->assertCount(2, $expanded);
+        $this->assertEquals(2, $expanded->sum('quantity'));
+        $this->putJson('/api/v1/cart/'.$response->json('item.id'), ['quantity' => 2])->assertOk();
+        $this->assertEquals(4, DB::table('cart_stock_reservations')->sum('quantity'));
+        $offer->sellableBundleComponents()->updateExistingPivot($top->id, ['quantity' => 2]);
+        try {
+            app(\App\Services\Product\CartFulfillment::class)->rememberSelection($item->fresh(), $offer->fresh());
+            $this->fail('An actual component quantity change must still be rejected');
+        } catch (ValidationException $error) {
+            $this->assertArrayHasKey('cart', $error->errors());
+        }
+        $this->expectException(ValidationException::class);
+        app(\App\Services\Product\CartFulfillment::class)->expand([$item->fresh()]);
+    }
+
     public function test_cart_reserves_split_quantity_and_releases_all_sources(): void
     {
         [$root, $offer, $sku] = $this->kit();
