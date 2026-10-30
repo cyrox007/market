@@ -3,8 +3,8 @@
 ## Переменные окружения (тест)
 
 ```env
-SBERBANK_ACQUIRING_USERNAME=testMerchant_071
-SBERBANK_ACQUIRING_PASSWORD="Sbertest2026123456%"
+SBERBANK_ACQUIRING_USERNAME=your_test_merchant_login
+SBERBANK_ACQUIRING_PASSWORD="set-via-secret-management"
 SBERBANK_ACQUIRING_BASE_URL=https://ecomtest.sberbank.ru
 SBERBANK_ACQUIRING_API_FORMAT=ecom
 APP_FRONTEND_URL=https://demo.site.zone
