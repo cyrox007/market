@@ -11,6 +11,7 @@ import { plural } from '../../../lib/plural';
 import type { VariantAttributeView } from '../hooks/useVariantSelection';
 import { availabilityOf } from '../../../lib/availability';
 import type { AvailabilityStatus } from '../../../lib/availability';
+import { isUnconfiguredKit } from '../../../utils/cartProduct';
 import { bundleParts } from '../lib/bundle';
 import { formatPrice, formatRating } from '../lib/productText';
 import { isSellableOffer } from '../lib/variants';
@@ -73,9 +74,9 @@ export default function BuyBlock({
   const oldPrice = item.old_price && item.old_price > price ? item.old_price : null;
   const discount = oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
   const reviews = product.reviews_count ?? 0;
-  const notForSale = Boolean(
-    product.is_sellable_bundle && selectedVariant && !isSellableOffer(selectedVariant, true),
-  );
+  const notForSale = selectedVariant
+    ? Boolean(product.is_sellable_bundle) && !isSellableOffer(selectedVariant, true)
+    : isUnconfiguredKit(product);
   const parts = notForSale ? [] : bundleParts(product, selectedVariant);
 
   return (
@@ -119,7 +120,7 @@ export default function BuyBlock({
 
       {notForSale ? (
         <p className="text-16 font-medium text-ink-secondary animate-fadeIn motion-reduce:animate-none">
-          Этот вариант комплекта пока не продаётся
+          Цена уточняется
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">

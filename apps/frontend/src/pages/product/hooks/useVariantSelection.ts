@@ -1,12 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
-import {
-  chooseValue,
-  defaultVariant,
-  isInStock,
-  isValueAvailable,
-  variantFromParam,
-} from '../lib/variants';
+import { chooseValue, defaultVariant, isValueAvailable, variantFromParam } from '../lib/variants';
 
 export const VARIANT_PARAM = 'variant';
 
@@ -102,13 +96,10 @@ export function useVariantSelection(product: ProductDetail) {
     }));
   };
 
-  const isAvailable = selectedVariant ? isInStock(selectedVariant) : product.in_stock === true;
-
   return {
     selectedVariant,
     attributes,
     selectValue,
     cartAttributes,
-    isAvailable,
   };
 }

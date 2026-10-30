@@ -6,7 +6,7 @@ import { Badge, IconButton, Tooltip } from './primitives';
 import { ColorSwatches, Price, QuantityStepper } from './composites';
 import type { ColorSwatch } from './composites';
 import type { Product } from '../../lib/api';
-import { isVariableParent, needsVariantChoice } from '../../utils/cartProduct';
+import { isUnconfiguredKit, isVariableParent, needsVariantChoice } from '../../utils/cartProduct';
 import { availabilityOf } from '../../lib/availability';
 import { cn } from '../../lib/cn';
 
@@ -267,12 +267,16 @@ function ProductCard({
           </ProductLink>
 
           <div className="flex items-end justify-between gap-2">
-            <Price
-              value={product.price}
-              oldValue={product.old_price ?? undefined}
-              from={variableParent}
-              shrinkOnNarrowDesktop
-            />
+            {isUnconfiguredKit(product) ? (
+              <span className="text-16 font-medium text-ink-secondary">Цена уточняется</span>
+            ) : (
+              <Price
+                value={product.price}
+                oldValue={product.old_price ?? undefined}
+                from={variableParent}
+                shrinkOnNarrowDesktop
+              />
+            )}
             {swatches.length > 0 && (
               // По акции рядом две цены — цветам остаётся два кубика, иначе цена не влезает в строку
               <ColorSwatches
@@ -292,6 +296,7 @@ function areEqual(prev: ProductCardProps, next: ProductCardProps): boolean {
   return (
     prev.product.id === next.product.id &&
     prev.product.price === next.product.price &&
+    prev.product.is_bundle_configured === next.product.is_bundle_configured &&
     prev.product.old_price === next.product.old_price &&
     prev.product.in_stock === next.product.in_stock &&
     prev.product.available_to_order === next.product.available_to_order &&

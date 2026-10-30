@@ -12,7 +12,6 @@ import {
   type CatalogQuery,
   type CatalogScope,
 } from '../../../lib/catalog-query';
-import { normalizeListProduct } from '../../../utils/cartProduct';
 import { resolvePageRange, type PageRange } from './pageRange';
 import {
   pageKey,
@@ -97,11 +96,7 @@ export function useCatalogListing({
   const isLoadingMore = Boolean(data) && (data?.length ?? 0) < wantedSize;
 
   const products = useMemo(
-    () =>
-      (data ?? [])
-        .flatMap((page) => page.data)
-        .filter((p) => p.is_visible_in_region !== false)
-        .map((p) => normalizeListProduct(p)),
+    () => (data ?? []).flatMap((page) => page.data).filter((p) => p.is_visible_in_region !== false),
     [data],
   );
 

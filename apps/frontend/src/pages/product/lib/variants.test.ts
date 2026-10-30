@@ -35,6 +35,11 @@ describe('вариант по умолчанию', () => {
     expect(defaultVariant(VARIANTS)).toBe(GREY_120);
   });
 
+  it('в наличии нет — тот, что можно заказать, а не первый', () => {
+    const blueOnOrder = { ...BLUE_90, available_to_order: true } as ProductVariant;
+    expect(defaultVariant([GREY_90, blueOnOrder])).toBe(blueOnOrder);
+  });
+
   it('если в наличии нет ни одного — первый', () => {
     expect(defaultVariant([GREY_90, BLUE_90])).toBe(GREY_90);
   });
@@ -86,6 +91,13 @@ describe('выбор значения', () => {
   it('из ближайших — сначала тот, что в наличии', () => {
     const grey90InStock = variant(5, 'grey', '90');
     expect(chooseValue([...VARIANTS, grey90InStock], BEIGE_120, 'size', '90')).toBe(grey90InStock);
+  });
+
+  it('из ближайших без наличия — сначала тот, что можно заказать', () => {
+    const grey90OnOrder = { ...variant(5, 'grey', '90', false), available_to_order: true };
+    expect(
+      chooseValue([...VARIANTS, grey90OnOrder as ProductVariant], BEIGE_120, 'size', '90'),
+    ).toBe(grey90OnOrder);
   });
 
   it('значения нет ни у одного варианта — выбор не меняется', () => {

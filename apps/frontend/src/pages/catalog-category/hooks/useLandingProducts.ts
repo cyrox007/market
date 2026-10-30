@@ -4,7 +4,6 @@ import { type ProductListParams, type ProductListResponse } from '../../../lib/a
 import { parseCatalogQuery, toApiParams, type CatalogScope } from '../../../lib/catalog-query';
 import { fetchCatalogPage } from '../../../lib/catalog-listing/fetchCatalogPage';
 import { pageKey, sectionOf, type LoadedPage } from '../../../lib/catalog-listing/pageKey';
-import { normalizeListProduct } from '../../../utils/cartProduct';
 import { sameParams } from '../listing/sameParams';
 
 const LANDING_PRODUCTS = 4;
@@ -41,8 +40,7 @@ export function useLandingProducts(
     () =>
       (data?.response.data ?? [])
         .filter((p) => p.is_visible_in_region !== false)
-        .slice(0, LANDING_PRODUCTS)
-        .map((p) => normalizeListProduct(p)),
+        .slice(0, LANDING_PRODUCTS),
     [data],
   );
 
