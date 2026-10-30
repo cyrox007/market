@@ -68,6 +68,23 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $this->assertFalse($this->quote('outside')['available']);
     }
 
+    public function test_quote_is_only_delivery_estimate_and_does_not_offer_bookable_slots(): void
+    {
+        $this->warehouse();
+        $response = $this->postJson('/api/v1/shipping/quote', [
+            'directory_external_id' => 'house',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertOk()
+            ->assertJsonPath('selected.delivery_schedule.status', 'estimate_only')
+            ->assertJsonPath('selected.delivery_schedule.date_selection_enabled', false)
+            ->assertJsonPath('selected.delivery_schedule.time_selection_enabled', false)
+            ->assertJsonPath('selected.delivery_schedule.confirmation_required', true);
+
+        $this->assertArrayNotHasKey('slots', $response->json('selected'));
+        $this->assertSame(3, $response->json('selected.delivery_days_min'));
+        $this->assertSame(6, $response->json('selected.delivery_days_max'));
+    }
+
     public function test_quantity_duplicate_lines_and_cheapest_eligible_warehouse(): void
     {
         $this->warehouse(['base_price' => 1], 1);
