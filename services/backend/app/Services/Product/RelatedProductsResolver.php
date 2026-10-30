@@ -35,7 +35,7 @@ class RelatedProductsResolver
                 ->whereNull('parent_product_id')
                 ->active()
                 ->with($eagerLoad)
-                ->limit(4)
+                ->limit(self::MAX_VISIBLE)
                 ->get();
 
             foreach ($manual as $item) {

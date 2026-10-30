@@ -13,6 +13,31 @@ use Tests\TestCase;
 
 class BulkRecommendedProductsAdminTest extends TestCase
 {
+    public function test_selected_cards_recommend_each_other_without_self_links_or_duplicates(): void
+    {
+        $cards = Product::factory()->count(15)->create(['state' => 'active']);
+        $other = Product::factory()->create(['state' => 'active']);
+        $cards->first()->attachRelatedProduct($other);
+
+        foreach ([1, 2] as $attempt) {
+            Livewire::test(ListProducts::class)
+                ->callTableBulkAction('link_selected_related', $cards->all())
+                ->assertHasNoTableBulkActionErrors();
+        }
+
+        $this->assertDatabaseCount('product_related_products', 15 * 14 + 2);
+        foreach ($cards as $card) {
+            $expected = $cards->pluck('id')->reject(fn ($id) => $id === $card->id)->values()->all();
+            if ($card->id === $cards->first()->id) {
+                $expected[] = $other->id;
+            }
+            $actual = collect($this->getJson('/api/v1/products/'.$card->id.'/related')
+                ->assertOk()->json('data'))->pluck('id')->all();
+            $this->assertEqualsCanonicalizing($expected, $actual);
+            $this->assertNotContains($card->id, $actual);
+        }
+    }
+
     use RefreshDatabase;
 
     protected function setUp(): void
