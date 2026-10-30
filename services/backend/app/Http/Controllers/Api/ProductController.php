@@ -360,10 +360,6 @@ class ProductController extends Controller
         }
 
         $query = Product::query()->catalogItems()->with(['taxons', 'manufacturer', 'manufacturerAttributes.values', 'variantManufacturerAttributes.values', 'parentProduct.manufacturerAttributes.values']);
-        if ($location) {
-            $query = $this->applyRegionVisibilityFilter($query, $location);
-        }
-
         $categoryResolved = null;
         if ($categoryId) {
             $query->inCategory($categoryId);
@@ -1277,25 +1273,6 @@ class ProductController extends Controller
         $request->merge(['search' => $request->input('q')]);
 
         return $this->index($request);
-    }
-
-    /**
-     * Применяет server-side фильтрацию по региональной видимости.
-     * Исключает товары, которые скрыты правилами текущей локации или её предков.
-     */
-    private function applyRegionVisibilityFilter(\Illuminate\Database\Eloquent\Builder $query, ShippingLocation $location)
-    {
-        $ids = $location->getAncestorsIds();
-        $rule = DB::table('product_region_rules as visibility')
-            ->whereIn('visibility.shipping_location_id', $ids)->where('visibility.is_active', true)
-            ->whereRaw('visibility.product_id = COALESCE(products.parent_product_id, products.id)')
-            ->where(fn ($scope) => $scope->whereNull('visibility.variant_id')->orWhereColumn('visibility.variant_id', 'products.id'))
-            ->select('visibility.is_hidden')
-            ->orderByRaw('CASE visibility.shipping_location_id '.implode(' ', array_map(fn ($id, $rank) => 'WHEN '.(int) $id.' THEN '.$rank, $ids, array_keys($ids))).' END')
-            ->orderByRaw('CASE WHEN visibility.variant_id IS NULL THEN 1 ELSE 0 END')
-            ->orderByDesc('visibility.priority')->orderByDesc('visibility.id')->limit(1);
-
-        return $query->whereRaw('COALESCE(('.$rule->toSql().'), 0) = 0', $rule->getBindings());
     }
 
     /**
