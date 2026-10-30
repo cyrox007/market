@@ -157,9 +157,10 @@ class OrderController extends Controller
                 'additional_services.*.id' => 'required|exists:additional_services,id',
                 'additional_services.*.price' => 'prohibited',
 
-                // Старые поля (для обратной совместимости)
-                'delivery_date' => 'nullable|date',
-                'delivery_time' => 'nullable|string|max:255',
+                // No bookable delivery calendar exists. Do not accept customer-selected
+                // dates/times as confirmed appointments.
+                'delivery_date' => 'prohibited',
+                'delivery_time' => 'prohibited',
                 'address_id' => 'prohibited_if:delivery_type,pickup|nullable|exists:user_addresses,id',
                 'directory_external_id' => 'prohibited_if:delivery_type,pickup|nullable|string|max:128',
                 'warehouse_id' => 'required_if:delivery_type,pickup|nullable|integer|exists:warehouses,id',
@@ -424,8 +425,8 @@ class OrderController extends Controller
                     'assembly_cost' => $finalAssemblyCost,
                     'payment_method' => $validated['payment_method'],
                     'delivery_type' => $validated['delivery_type'],
-                    'delivery_date' => $validated['delivery_date'] ?? null,
-                    'delivery_time' => $validated['delivery_time'] ?? null,
+                    'delivery_date' => null,
+                    'delivery_time' => null,
                     'contact_name' => $validated['contact_name'],
                     'contact_phone' => $validated['contact_phone'],
                     'contact_email' => $validated['contact_email'],
