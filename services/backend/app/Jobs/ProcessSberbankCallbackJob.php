@@ -96,6 +96,14 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             return;
         }
 
+        // Callback orderId must belong to the payment being updated: it is
+        // never sufficient to resolve a payable solely from an order number.
+        if ($mdOrder && $payment->remote_id && ! hash_equals((string) $payment->remote_id, (string) $mdOrder)) {
+            $gatewayLog->log(self::GATEWAY_ID, 'callback_rejected', 'Идентификатор банка не совпадает с платёжной записью',
+                ['order_id' => $order->id, 'payment_id' => $payment->id], $payment, 'payment', 'warning');
+            return;
+        }
+
         $gateway = $payment->getMethod()->getGateway();
         if (!$gateway instanceof SberbankAcquiringGateway) {
             Log::warning('ProcessSberbankCallbackJob: invalid gateway for payment', ['payment_id' => $payment->id]);
