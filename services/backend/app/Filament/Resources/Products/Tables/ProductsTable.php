@@ -596,7 +596,7 @@ class ProductsTable
                             }
                         }),
                     DeleteBulkAction::make(),
-                ])->dropdownWidth(Width::ExtraLarge),
+                ])->dropdownWidth(Width::Small),
             ]);
     }
 
