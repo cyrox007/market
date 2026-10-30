@@ -137,6 +137,14 @@ export default function WarehouseCheckout() {
           {services?.additional.map((s) => <label className="block" key={s.id}><input type="checkbox" checked={additional.includes(s.id)} onChange={(e) => setAdditional(e.target.checked ? [...additional, s.id] : additional.filter((id) => id !== s.id))} /> {s.name} — {s.price} ₽</label>)}
         </> : <label className="block">Точка самовывоза<select required value={point} onChange={(e) => setPoint(e.target.value)} className={field}><option value="">Выберите точку</option>{pickup.map((p) => <option key={`${p.warehouse_id}:${p.store_id}`} value={`${p.warehouse_id}:${p.store_id || ''}`}>{p.name} — {p.address}</option>)}</select>{!pickup.length && <p>Для этих товаров нет доступных точек самовывоза.</p>}</label>}
       </section>
+      {mode === 'delivery' && selected && (
+        <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-gray-800">
+          {selected.delivery_days_min != null && selected.delivery_days_max != null
+            ? `Ориентировочный срок доставки: ${selected.delivery_days_min}–${selected.delivery_days_max} дней. `
+            : 'Ориентировочный срок доставки пока неизвестен. '}
+          Дата и время доставки согласовываются с менеджером после оформления заказа.
+        </p>
+      )}
       <section className="border rounded-2xl p-6 space-y-4"><h2 className="text-xl font-bold">Оплата</h2><select required aria-label="Способ оплаты" value={payment} onChange={(e) => setPayment(e.target.value)} className={field}>{!methods.some(selectable) && <option value="" disabled>Нет доступных способов оплаты</option>}{methods.map((m) => <option value={m.code} key={m.code} disabled={!selectable(m)}>{m.name}{m.is_coming_soon ? ' — Скоро' : ''}</option>)}</select>
         <p>Товары: {quote?.subtotal ?? subtotal} ₽</p><p>{calculating ? 'Рассчитываем доставку…' : mode === 'delivery' && !selected ? 'Выберите адрес для расчёта полной стоимости.' : `Итого: ${total} ₽`}</p>
         <label className="block"><input required type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Принимаю <Link to="/oferta">оферту</Link> и условия <Link to="/privacy">обработки персональных данных</Link>.</label>
