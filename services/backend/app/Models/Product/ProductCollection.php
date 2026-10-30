@@ -42,6 +42,7 @@ class ProductCollection extends Model
         'scope_type',
         'is_auto',
         'is_active',
+        'recommend_collection_members',
         'priority',
         'limit',
     ];
@@ -49,6 +50,7 @@ class ProductCollection extends Model
     protected $casts = [
         'is_auto' => 'boolean',
         'is_active' => 'boolean',
+        'recommend_collection_members' => 'boolean',
         'priority' => 'integer',
         'limit' => 'integer',
     ];

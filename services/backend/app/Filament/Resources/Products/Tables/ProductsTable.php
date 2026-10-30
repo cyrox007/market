@@ -9,6 +9,9 @@ use App\Actions\Product\MergeProductsIntoVariableProductAction;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Attribute;
 use App\Models\Product\Product;
+use App\Models\Product\ProductCollection;
+use App\Services\Catalog\BulkCollectionMembership;
+use App\Services\Product\BulkRelatedProducts;
 use App\Models\Settings\ProductStockSettings;
 use App\Services\Inventory\WarehouseStockResolver;
 use Filament\Actions\BulkAction;
@@ -18,7 +21,9 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
@@ -28,6 +33,8 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Vanilo\Product\Models\ProductState;
@@ -359,6 +366,144 @@ class ProductsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    BulkAction::make('bulk_collection_membership')
+                        ->label('Добавить товары в серию')
+                        ->icon('heroicon-o-rectangle-stack')
+                        ->modalHeading('Массово назначить мебельную серию')
+                        ->modalDescription('Выберите явную ручную подборку, например «Бруно». Названия товаров и фабрика используются только для поиска, но не определяют серию автоматически.')
+                        ->requiresConfirmation()
+                        ->modalWidth(Width::FiveExtraLarge)
+                        ->deselectRecordsAfterCompletion()
+                        ->form(fn (Collection $records): array => [
+                            Placeholder::make('selected_collection_sources')
+                                ->label('Выбрано карточек')
+                                ->content((string) $records->count()),
+                            Select::make('collection_id')
+                                ->label('Коллекция / серия')
+                                ->options(fn (): array => ProductCollection::query()
+                                    ->where('is_auto', false)
+                                    ->whereNull('scope_type')
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')->all())
+                                ->searchable()
+                                ->required()
+                                ->helperText('Создайте серию в «Товары → Подборки товаров», если её ещё нет.'),
+                            Select::make('operation')
+                                ->label('Действие')
+                                ->options([
+                                    'add' => 'Добавить выбранные карточки в серию',
+                                    'remove' => 'Убрать выбранные карточки из серии',
+                                ])
+                                ->default('add')
+                                ->live()
+                                ->required(),
+                            Toggle::make('enable_recommendations')
+                                ->label('Включить взаимные рекомендации серии')
+                                ->default(true)
+                                ->visible(fn ($get): bool => ($get('operation') ?? 'add') === 'add')
+                                ->helperText('Остальные товары выбранной серии появятся у её участников автоматически. Не создаёт физические комплекты.'),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            foreach ($records as $record) {
+                                Gate::authorize('update', $record);
+                            }
+                            $collection = ProductCollection::findOrFail((int) ($data['collection_id'] ?? 0));
+                            Gate::authorize('update', $collection);
+
+                            try {
+                                $result = app(BulkCollectionMembership::class)->apply(
+                                    (int) $collection->id,
+                                    $records->pluck('id')->all(),
+                                    (string) ($data['operation'] ?? 'add'),
+                                    (bool) ($data['enable_recommendations'] ?? false)
+                                );
+                                Notification::make()
+                                    ->title('Состав серии обновлён')
+                                    ->body("Выбрано: {$result['selected']}; добавлено: {$result['added']}; удалено: {$result['removed']}.")
+                                    ->success()->send();
+                            } catch (ValidationException $exception) {
+                                Notification::make()
+                                    ->title('Не удалось изменить серию')
+                                    ->body(implode(' ', $exception->validator->errors()->all()))
+                                    ->danger()->persistent()->send();
+                            }
+                        }),
+                    BulkAction::make('bulk_related_products')
+                        ->label('Массово назначить сопутствующие')
+                        ->icon('heroicon-o-link')
+                        ->modalHeading('Рекомендуемые товары для выбранных карточек')
+                        ->modalDescription('Выберите, какие товары показывать рядом с отмеченными карточками. Связи двусторонние. Это не комплекты для продажи и не цветовые торговые предложения.')
+                        ->modalWidth(Width::FiveExtraLarge)
+                        ->requiresConfirmation()
+                        ->deselectRecordsAfterCompletion()
+                        ->form(fn (Collection $records): array => [
+                            Placeholder::make('selected_sources')
+                                ->label('Выбрано карточек')
+                                ->content((string) $records->count()),
+                            Select::make('operation')
+                                ->label('Действие')
+                                ->options([
+                                    'add' => 'Добавить к существующим',
+                                    'remove' => 'Удалить выбранные рекомендации',
+                                    'replace' => 'Заменить рекомендации выбранных карточек',
+                                ])
+                                ->default('add')
+                                ->required()
+                                ->helperText('Замена удалит прежние рекомендации у отмеченных карточек и их обратные связи, но не затронет остальные товары.'),
+                            Select::make('target_product_ids')
+                                ->label('Какие товары рекомендовать')
+                                ->multiple()
+                                ->searchable()
+                                ->getSearchResultsUsing(fn (string $search): array => Product::query()
+                                    ->whereNull('parent_product_id')
+                                    ->where(fn ($query) => $query
+                                        ->where('name', 'like', '%' . $search . '%')
+                                        ->orWhere('sku', 'like', '%' . $search . '%'))
+                                    ->orderBy('name')->limit(50)
+                                    ->get(['id', 'name', 'sku'])
+                                    ->mapWithKeys(fn (Product $product) => [
+                                        $product->getKey() => $product->name . ' (SKU: ' . $product->sku . ')',
+                                    ])->all())
+                                ->getOptionLabelsUsing(fn (array $values): array => Product::query()
+                                    ->whereIn('id', $values)
+                                    ->get(['id', 'name', 'sku'])
+                                    ->mapWithKeys(fn (Product $product) => [
+                                        $product->getKey() => $product->name . ' (SKU: ' . $product->sku . ')',
+                                    ])->all())
+                                ->required()
+                                ->helperText('Поиск по названию серии («Бруно») или артикулу. Выбираются родительские карточки, а не отдельные цвета.'),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $targetIds = array_map('intval', $data['target_product_ids'] ?? []);
+                            $targetProducts = Product::query()->whereIn('id', $targetIds)->get();
+
+                            // Permissions apply to both sides because a symmetric
+                            // link updates each recommended product too.
+                            foreach ($records as $record) {
+                                Gate::authorize('update', $record);
+                            }
+                            foreach ($targetProducts as $target) {
+                                Gate::authorize('update', $target);
+                            }
+
+                            try {
+                                $result = app(BulkRelatedProducts::class)->apply(
+                                    $records->pluck('id')->all(),
+                                    $targetIds,
+                                    (string) ($data['operation'] ?? 'add')
+                                );
+                                Notification::make()
+                                    ->title('Массовые рекомендации обновлены')
+                                    ->body("Исходных карточек: {$result['sources']}; добавлено связей: {$result['added']}; удалено: {$result['removed']}.")
+                                    ->success()
+                                    ->send();
+                            } catch (ValidationException $exception) {
+                                Notification::make()
+                                    ->title('Не удалось обновить рекомендации')
+                                    ->body(implode(' ', $exception->validator->errors()->all()))
+                                    ->danger()->persistent()->send();
+                            }
+                        }),
                     BulkAction::make('merge_into_variable')
                         ->label('Объединить в вариативный товар')
                         ->icon('heroicon-o-squares-plus')

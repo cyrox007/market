@@ -895,59 +895,13 @@ class ProductController extends Controller
     protected function fetchRelatedProducts(Product $parentProduct): \Illuminate\Support\Collection
     {
         $id = (int) $parentProduct->id;
-
-        if (!$parentProduct->relationLoaded('taxons')) {
-            $parentProduct->load('taxons');
-        }
-        if (!$parentProduct->relationLoaded('relatedProducts')) {
-            $parentProduct->load('relatedProducts');
-        }
-
-        $eager = $this->relatedListEagerLoad();
-
-        // Null keeps legacy semantics: existing hand-picked links take precedence,
-        // and an unconfigured product uses the automatic recommendations.
-        $mode = $parentProduct->related_products_mode;
-        return Product::cached("related_v2_{$id}", function () use ($parentProduct, $eager, $mode) {
-            if ($mode === 'off') {
-                return collect();
-            }
-            $manualRelated = $parentProduct->relatedProducts()
-                ->whereNull('parent_product_id')
-                ->active()
-                ->with($eager)
-                ->limit(4)
-                ->get();
-
-            if ($mode === 'manual' || ($mode === null && $manualRelated->isNotEmpty())) {
-                return $manualRelated;
-            }
-
-            // Avoid recommending components already shown in the kit below.
-            $excludedIds = array_merge(
-                [(int) $parentProduct->getKey()],
-                $parentProduct->bundleProducts()->pluck('products.id')->map(fn ($id) => (int) $id)->all()
-            );
-            $categoryIds = $parentProduct->taxons->pluck('id');
-            if ($categoryIds->isNotEmpty()) {
-                $categoryRelated = Product::whereNotIn('id', $excludedIds)
-                    ->whereNull('parent_product_id')
-                    ->whereHas('taxons', fn ($query) => $query->whereIn('taxons.id', $categoryIds))
-                    ->active()
-                    ->with($eager)
-                    ->limit(4)
-                    ->get();
-                if ($categoryRelated->isNotEmpty()) {
-                    return $categoryRelated;
-                }
-            }
-
-            return Product::whereNotIn('id', $excludedIds)
-                ->whereNull('parent_product_id')
-                ->active()
-                ->with($eager)
-                ->limit(4)
-                ->get();
+        // Both the public API and the established admin "Related products"
+        // section must resolve the SAME effective recommendations.
+        $revision = (string) Cache::get('catalog_filters_revision', '0');
+        return Product::cached("related_v4_{$id}_{$revision}", function () use ($parentProduct) {
+            return app(\App\Services\Product\RelatedProductsResolver::class)
+                ->forProduct($parentProduct, $this->relatedListEagerLoad())
+                ->pluck('product')->values();
         });
     }
 
