@@ -34,6 +34,23 @@ class ProductRegionRuleResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
+    // Historical rows stay readable for audit, but must not be recreated
+    // or edited now that pricing policies and warehouse rules are authoritative.
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return ProductRegionRuleForm::configure($schema);
