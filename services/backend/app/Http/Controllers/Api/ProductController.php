@@ -351,7 +351,7 @@ class ProductController extends Controller
         $location = $this->getRegionFromRequest($request);
         $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location);
         $request->attributes->set('warehouse_destination', $destination);
-        $cacheKey = 'idx:sku-v1:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
+        $cacheKey = 'idx:sku-v2:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
         if ($location) {
             $request->merge(['_region_id' => $location->id, '_region' => $location]);
             if (! $countOnly) {
@@ -502,7 +502,7 @@ class ProductController extends Controller
         // и в реальном фронте каталог всегда фильтруется по категории.
         $filtersMeta = null;
         if ($categoryId || $categorySlugs || $roomSlug) {
-            $filtersMetaCacheKey = 'product_filters_meta:sku-v1:'.sha1($baseQueryForFilters->toSql()
+            $filtersMetaCacheKey = 'product_filters_meta:sku-v2:'.sha1($baseQueryForFilters->toSql()
                 .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters, $location?->id])
                 .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
             $filtersMeta = Cache::remember($filtersMetaCacheKey, 300,
