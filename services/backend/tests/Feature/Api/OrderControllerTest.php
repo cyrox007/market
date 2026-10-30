@@ -469,4 +469,27 @@ class OrderControllerTest extends TestCase
 
         $response->assertStatus(422)->assertJsonValidationErrors('delivery_cost');
     }
+
+    public function test_customer_cannot_choose_unconfirmed_delivery_date_or_time(): void
+    {
+        $product = Product::factory()->create(['state' => 'active', 'price' => 1000, 'stock' => 10]);
+        $this->addProductToCart($product);
+        $payload = [
+            'contact_name' => 'Покупатель',
+            'contact_phone' => '+79991234567',
+            'contact_email' => 'no-slots@example.test',
+            'payment_method' => 'card',
+            'delivery_type' => 'delivery',
+            'directory_external_id' => 'house',
+        ];
+
+        $this->postJson('/api/v1/orders', [...$payload, 'delivery_date' => now()->addDays(7)->toDateString()])
+            ->assertUnprocessable()->assertJsonValidationErrors('delivery_date');
+        $this->postJson('/api/v1/orders', [...$payload, 'delivery_time' => '14:00 - 17:00'])
+            ->assertUnprocessable()->assertJsonValidationErrors('delivery_time');
+
+        $response = $this->postJson('/api/v1/orders', $payload)->assertCreated();
+        $this->assertNull($response->json('order.delivery_date'));
+        $this->assertNull($response->json('order.delivery_time'));
+    }
 }
