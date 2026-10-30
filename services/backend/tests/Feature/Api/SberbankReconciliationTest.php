@@ -206,4 +206,18 @@ class SberbankReconciliationTest extends TestCase
         ]);
         $this->assertEquals('paid', (string) $payment->fresh()->getRawOriginal('status'));
     }
+
+    public function test_late_paid_callback_for_cancelled_order_opens_refund_task_not_sale(): void
+    {
+        [$order, $payment] = $this->payment('cancelled', 'pending', 0);
+        $this->simulateSberCallback($order, [
+            'errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456,
+        ]);
+        $this->assertSame('cancelled', $order->fresh()->status);
+        $this->assertEquals(1234.56, (float) $payment->fresh()->amount_paid);
+        $this->assertDatabaseHas('order_refund_tasks', [
+            'order_id' => $order->id, 'status' => 'manual_review',
+            'amount' => 1234.56,
+        ]);
+    }
 }
