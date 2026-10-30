@@ -50,11 +50,6 @@ class ProductCollectionsTable
                     ->label('Активна')
                     ->sortable()
                     ->disabled(fn (ProductCollection $record): bool => ! ProductCollectionResource::canEdit($record)),
-                ToggleColumn::make('recommend_collection_members')
-                    ->label('Рекомендации серии')
-                    ->sortable()
-                    ->disabled(fn (ProductCollection $record): bool => ! ProductCollectionResource::canEdit($record)
-                        || $record->is_auto || $record->scope_type !== null),
                 TextColumn::make('priority')
                     ->label('Приоритет')
                     ->numeric()
