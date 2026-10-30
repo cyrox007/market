@@ -9,6 +9,39 @@ use Tests\TestCase;
 
 class CollectionRelatedProductsTest extends TestCase
 {
+    public function test_related_group_uses_active_offer_photo_and_original_when_thumbnail_is_not_generated(): void
+    {
+        $owner = Product::factory()->create(['state' => 'active']);
+        $group = Product::factory()->create(['state' => 'active', 'is_variable' => true]);
+        $hidden = Product::factory()->create(['state' => 'draft', 'parent_product_id' => $group->id]);
+        $offer = Product::factory()->create(['state' => 'active', 'parent_product_id' => $group->id]);
+        $photo = function (Product $product, string $name) {
+            return $product->media()->create([
+                'collection_name' => 'images', 'name' => $name, 'file_name' => $name.'.jpg',
+                'mime_type' => 'image/jpeg', 'disk' => 'public', 'size' => 100,
+                'manipulations' => [], 'custom_properties' => [], 'generated_conversions' => [],
+                'responsive_images' => [],
+            ]);
+        };
+        $photo($hidden, 'hidden');
+        $image = $photo($offer, 'visible');
+        $owner->attachRelatedProduct($group);
+
+        foreach (['/api/v1/products/'.$owner->id.'/related', '/api/v1/products/'.$owner->slug] as $url) {
+            $response = $this->getJson($url)->assertOk();
+            $prefix = str_ends_with($url, '/related') ? 'data.0' : 'related.data.0';
+            $response->assertJsonPath($prefix.'.id', $group->id)
+                ->assertJsonPath($prefix.'.image', $image->getUrl())
+                ->assertJsonPath($prefix.'.thumbnail', $image->getUrl());
+        }
+
+        $ownImage = $photo($group, 'group');
+        Product::flushAllProductCaches();
+        $this->getJson('/api/v1/products/'.$owner->id.'/related')->assertOk()
+            ->assertJsonPath('data.0.image', $ownImage->getUrl())
+            ->assertJsonPath('data.0.thumbnail', $ownImage->getUrl());
+    }
+
     private function series(array $products, array $options = []): ProductCollection
     {
         $collection = ProductCollection::create(array_merge([
