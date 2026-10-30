@@ -113,7 +113,8 @@ class CartItemResource extends JsonResource
         $total = round($regionalPrice * $quantity, 2);
         // Same comparison rule as catalogue: no invented strike-through
         // for fixed-price bundles or private price links.
-        $oldPrice = $isBundle ? null : app(\App\Services\Pricing\PricingEngine::class)
+        $privateOfferLine = filled(($this->configuration ?? [])['private_offer_hash'] ?? null);
+        $oldPrice = ($isBundle || $privateOfferLine) ? null : app(\App\Services\Pricing\PricingEngine::class)
             ->oldPrice($product, $region, (float) $regionalPrice);
         $oldPrice = $oldPrice !== null && $oldPrice > $regionalPrice ? round((float) $oldPrice, 2) : null;
         $oldTotal = $oldPrice === null ? null : round($oldPrice * $quantity, 2);
