@@ -90,10 +90,14 @@ class AutomaticOrderRefunds
         $bankOk = is_array($bank) && $bank !== []
             && (string) ($bank['errorCode'] ?? '') === '0';
         if (! $bankOk) { return; }
+        // orderStatus=4 also occurs after PARTIAL refunds. Verify the actual
+        // minor-unit refunded amount before marking the payment as refunded.
+        $rawRefunded = data_get($bank, 'paymentAmountInfo.refundedAmount');
+        $refundedMinor = is_numeric($rawRefunded) ? (int) $rawRefunded : null;
+        $expectedMinor = (int) round($paid * 100);
 
         if ($record) {
-            // Sber status 4 is the verified FULL refund outcome.
-            if ($status === 4) {
+            if ($status === 4 && $refundedMinor === $expectedMinor) {
                 $record->update(['status' => PaymentRefund::STATUS_COMPLETED,
                     'meta' => ['bank_order_status' => $status, 'verified_at' => now()->toISOString()]]);
                 $payment->status = PaymentStatusProxy::REFUNDED();
@@ -105,7 +109,7 @@ class AutomaticOrderRefunds
         // Only a completely paid (captured) transaction is eligible for
         // an automatic full refund. Partial/manual cases stay on review.
         $bankAmount = (int) ($bank['amount'] ?? 0);
-        if ($status !== 2 || $bankAmount !== (int) round($paid * 100)) { return; }
+        if ($status !== 2 || $bankAmount !== $expectedMinor || $refundedMinor !== 0) { return; }
 
         $record = PaymentRefund::create([
             'payment_id' => $payment->id,
