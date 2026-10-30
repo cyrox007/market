@@ -60,7 +60,10 @@ class SberbankAcquiringGateway implements PaymentGateway
         $operation = strtoupper((string) ($payload['operation'] ?? ''));
         $status = strtoupper((string) ($payload['status'] ?? $payload['state'] ?? $payload['paymentStatus'] ?? ''));
         $rawStatus = $payload['status'] ?? null;
-        $amount = (float) ($payload['amount'] ?? 0);
+        // This gateway consumes normalized RUB from the verified callback job.
+        // Never use the original order amount for an unpaid bank response.
+        $amount = is_numeric($payload['amount'] ?? null)
+            ? max(0.0, (float) $payload['amount']) : 0.0;
         $transactionId = $payload['mdOrder']
             ?? $payload['orderId']
             ?? $payload['order_id']
@@ -95,7 +98,7 @@ class SberbankAcquiringGateway implements PaymentGateway
             status: $vaniloStatus,
             message: $message,
             transactionId: $transactionId ? (string) $transactionId : null,
-            transactionAmount: $amount > 0 ? $amount : ($payment ? (float) $payment->getAmount() : 0.0)
+            transactionAmount: $wasSuccessful ? $amount : 0.0
         );
     }
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Payment\Gateways;
 
+use Konekt\Enum\Enum;
 use Vanilo\Payment\Contracts\PaymentResponse;
+use Vanilo\Payment\Responses\NullStatus;
 use Vanilo\Payment\Contracts\PaymentStatus;
 
 class SberbankPaymentResponse implements PaymentResponse
@@ -39,9 +41,20 @@ class SberbankPaymentResponse implements PaymentResponse
         return $this->transactionId;
     }
 
-    public function getAmountPaid(): float
+    public function getAmountPaid(): ?float
     {
-        return $this->transactionAmount;
+        return $this->wasSuccessful && $this->transactionAmount > 0
+            ? $this->transactionAmount : null;
+    }
+
+    public function getTransactionAmount(): float
+    {
+        return $this->wasSuccessful ? $this->transactionAmount : 0.0;
+    }
+
+    public function getNativeStatus(): Enum
+    {
+        return NullStatus::create();
     }
 
     public function getPaymentId(): string
