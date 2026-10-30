@@ -1017,10 +1017,6 @@ export interface CartItem {
   name: string;
   slug: string | null; // Slug товара для ссылки
   price: number;
-  old_price?: number | null;
-  old_total?: number | null;
-  discount_amount?: number;
-  discount_percent?: number | null;
   quantity: number;
   total: number;
   image: string | null;
@@ -1041,11 +1037,7 @@ export interface CartItem {
 
 export interface Cart {
   items: CartItem[];
-  /** Current payable value of goods; savings already included. */
   subtotal: number;
-  /** Comparison only: do not subtract the savings again. */
-  old_subtotal?: number;
-  discount_total?: number;
   item_count: number;
   is_empty: boolean;
 }
@@ -1210,16 +1202,6 @@ export interface Order {
 export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null }
 export interface WarehouseOption {
   warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
-  /** Estimated transport and preparation, NOT reservable appointment dates. */
-  delivery_days_min?: number | null;
-  delivery_days_max?: number | null;
-  delivery_schedule?: {
-    status: 'estimate_only' | 'requires_confirmation';
-    date_selection_enabled: false;
-    time_selection_enabled: false;
-    confirmation_required: true;
-    notice: string;
-  };
   total_fulfillment_cost: number; service_options: {
     assembly: { available: boolean; required: boolean; price: number | null };
     handling: Array<{ id: number; name: string; requires_floor: boolean; max_floor?: number }>;
