@@ -97,8 +97,10 @@ class SberbankReconciliationTest extends TestCase
         config(['orders.sberbank_auto_refunds' => true]);
         $client = \Mockery::mock(SberbankAcquiringClient::class);
         $client->shouldReceive('getOrderStatusExtended')->twice()->with(self::BANK_ID)
-            ->andReturn(['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456],
-                ['errorCode' => 0, 'orderStatus' => 4, 'amount' => 123456]);
+            ->andReturn(['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456,
+                    'paymentAmountInfo' => ['refundedAmount' => 0]],
+                ['errorCode' => 0, 'orderStatus' => 4, 'amount' => 123456,
+                    'paymentAmountInfo' => ['refundedAmount' => 123456]]);
         $client->shouldReceive('refundOrder')->once()
             ->with(\Mockery::type(Order::class), self::BANK_ID, 1234.56, 'CANCEL-SBER-'.$payment->id)
             ->andReturn(['ok' => true]);
@@ -126,7 +128,8 @@ class SberbankReconciliationTest extends TestCase
         config(['orders.automatic_cancel_refunds' => true, 'orders.sberbank_auto_refunds' => true]);
         $client = \Mockery::mock(SberbankAcquiringClient::class);
         $client->shouldReceive('getOrderStatusExtended')->twice()->with(self::BANK_ID)
-            ->andReturn(['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456]);
+            ->andReturn(['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456,
+                'paymentAmountInfo' => ['refundedAmount' => 0]]);
         $client->shouldReceive('refundOrder')->once()
             ->andReturn(['ok' => false, 'error' => 'bank_unconfirmed']);
         $this->app->instance(SberbankAcquiringClient::class, $client);
@@ -177,5 +180,30 @@ class SberbankReconciliationTest extends TestCase
             ->refundOrder($order, self::BANK_ID, 1234.56, 'CANCEL-SBER-TEST');
         $this->assertFalse($result['ok']);
         \Illuminate\Support\Facades\Http::assertNothingSent();
+    }
+
+    public function test_partial_bank_refund_does_not_mark_full_refund_completed(): void
+    {
+        [$order, $payment] = $this->payment('cancelled', 'paid', 1234.56);
+        config(['orders.automatic_cancel_refunds' => true, 'orders.sberbank_auto_refunds' => true]);
+        $refundId = 'CANCEL-SBER-' . $payment->id;
+        \App\Models\Payment\PaymentRefund::create([
+            'payment_id' => $payment->id, 'refund_id' => $refundId,
+            'amount' => 1234.56, 'status' => 'in_progress',
+            'gateway' => 'sberbank_acquiring',
+        ]);
+
+        $client = \Mockery::mock(SberbankAcquiringClient::class);
+        $client->shouldReceive('getOrderStatusExtended')->once()->with(self::BANK_ID)
+            ->andReturn(['errorCode' => 0, 'orderStatus' => 4, 'amount' => 123456,
+                'paymentAmountInfo' => ['refundedAmount' => 25000]]);
+        $client->shouldNotReceive('refundOrder');
+        $this->app->instance(SberbankAcquiringClient::class, $client);
+
+        app(AutomaticOrderRefunds::class)->execute($order->id);
+        $this->assertDatabaseHas('payment_refunds', [
+            'payment_id' => $payment->id, 'status' => 'in_progress',
+        ]);
+        $this->assertEquals('paid', (string) $payment->fresh()->getRawOriginal('status'));
     }
 }
