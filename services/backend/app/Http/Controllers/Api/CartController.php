@@ -140,15 +140,18 @@ class CartController extends Controller
         }
 
         $itemsPayload = CartItemResource::collection($sortedItems)->toArray($request);
-        $subtotal = collect($itemsPayload)->sum(function ($item) {
-            return $item['total'] ?? 0;
-        });
+        $subtotal = round((float) collect($itemsPayload)->sum(fn ($item) => $item['total'] ?? 0), 2);
+        // Comparison-only savings: never subtract this again from subtotal.
+        $discountTotal = round((float) collect($itemsPayload)->sum(fn ($item) => $item['discount_amount'] ?? 0), 2);
+        $oldSubtotal = round($subtotal + $discountTotal, 2);
 
         $itemCount = Cart::itemCount();
 
         return response()->json([
             'items' => $itemsPayload,
             'subtotal' => (float) $subtotal,
+            'old_subtotal' => $oldSubtotal,
+            'discount_total' => $discountTotal,
             'item_count' => $itemCount,
             'is_empty' => Cart::isEmpty(),
         ]);
