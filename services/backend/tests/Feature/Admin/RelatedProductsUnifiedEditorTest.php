@@ -82,6 +82,10 @@ class RelatedProductsUnifiedEditorTest extends TestCase
         $this->getJson('/api/v1/products/'.$wardrobe->id.'/related')
             ->assertOk()->assertJsonPath('data.0.id', $mezzanine->id);
 
+        // Start a fresh Livewire request for the next modal operation.
+        $page = Livewire::test(RelatedProductsRelationManager::class, [
+            'ownerRecord' => $wardrobe->fresh(), 'pageClass' => EditProduct::class,
+        ]);
         $page->mountTableAction('manageSeriesRecommendations')
             ->setActionData([
                 'collection_id' => $collection->id,
