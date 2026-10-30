@@ -428,6 +428,34 @@ class ProductsTable
                                     ->danger()->persistent()->send();
                             }
                         }),
+                    BulkAction::make('link_selected_related')
+                        ->label('Связать выбранные товары между собой')
+                        ->icon('heroicon-o-link')
+                        ->modalHeading('Взаимные рекомендации выбранных товаров')
+                        ->modalDescription('Каждый отмеченный товар будет рекомендовать все остальные отмеченные товары. Существующие связи сохранятся. Выберите от 2 до 25 активных родительских карточек; цветовые предложения выбирать не нужно. Режимы «Выключено» и «Автоматическая подборка» не меняются.')
+                        ->requiresConfirmation()
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records): void {
+                            foreach ($records as $record) {
+                                Gate::authorize('update', $record);
+                            }
+                            if ($records->count() < 2 || $records->count() > 25) {
+                                Notification::make()->title('Выберите от 2 до 25 товаров')
+                                    ->danger()->send();
+                                return;
+                            }
+                            try {
+                                $ids = $records->pluck('id')->all();
+                                $result = app(BulkRelatedProducts::class)->apply($ids, $ids, 'add');
+                                Notification::make()->title('Выбранные товары связаны между собой')
+                                    ->body("Товаров: {$result['sources']}; добавлено взаимных связей: {$result['added']}.")
+                                    ->success()->send();
+                            } catch (ValidationException $exception) {
+                                Notification::make()->title('Не удалось связать товары')
+                                    ->body(implode(' ', $exception->validator->errors()->all()))
+                                    ->danger()->persistent()->send();
+                            }
+                        }),
                     BulkAction::make('bulk_related_products')
                         ->label('Массово назначить сопутствующие')
                         ->icon('heroicon-o-link')
