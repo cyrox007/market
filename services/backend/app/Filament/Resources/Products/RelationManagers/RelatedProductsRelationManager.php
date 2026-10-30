@@ -16,7 +16,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Gate;
@@ -64,13 +64,21 @@ class RelatedProductsRelationManager extends RelationManager
                     ->badge()
                     ->state(fn (Product $record): string => ($this->editorRows()[$record->id]['visible'] ?? false)
                         ? 'На сайте' : 'Не показывается'),
-                SpatieMediaLibraryImageColumn::make('image')
-                    ->collection('images')
-                    ->conversion('thumb')
+                ImageColumn::make('recommendation_image')
+                    ->state(function (Product $record): ?string {
+                        if ($record->main_image_url) {
+                            return $record->main_image_url;
+                        }
+                        foreach ($record->variants as $variant) {
+                            if ($variant->main_image_url) {
+                                return $variant->main_image_url;
+                            }
+                        }
+                        return null;
+                    })
                     ->label('Изображение')
                     ->circular()
-                    ->size(50)
-                    ->defaultImageUrl(url('/images/placeholder.png')),
+                    ->size(50),
 
                 TextColumn::make('name')
                     ->label('Название товара')
@@ -135,6 +143,7 @@ class RelatedProductsRelationManager extends RelationManager
                         Select::make('target_product_ids')
                             ->label('Выберите товары')
                             ->multiple()
+                            ->live()
                             ->searchable()
                             ->options(fn ($get): array => $this->relatedProductOptions(
                                 $get('manufacturer_name'), $get('product_search')))
@@ -442,7 +451,7 @@ class RelatedProductsRelationManager extends RelationManager
     {
         $rows = $this->editorRows();
         $ids = array_keys($rows);
-        $query = Product::query()->with('media')->whereNull('parent_product_id')
+        $query = Product::query()->with(['media', 'variants.media'])->whereNull('parent_product_id')
             ->whereIn('products.id', $ids);
         if ($ids !== []) {
             $cases = collect($ids)->map(fn (int $id, int $idx): string =>
