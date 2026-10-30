@@ -97,6 +97,8 @@ class RelatedProductsRelationManager extends RelationManager
                             ->options([
                                 'add' => 'Добавить эту карточку в серию',
                                 'remove' => 'Убрать эту карточку из серии',
+                                'enable' => 'Включить взаимные рекомендации всей серии',
+                                'disable' => 'Выключить взаимные рекомендации всей серии',
                             ])
                             ->default('add')->required()->live(),
                         Toggle::make('enable_recommendations')
@@ -111,10 +113,20 @@ class RelatedProductsRelationManager extends RelationManager
                         Gate::authorize('update', $owner);
                         Gate::authorize('update', $collection);
                         try {
+                            $operation = (string) ($data['operation'] ?? 'add');
+                            if (in_array($operation, ['enable', 'disable'], true)) {
+                                $collection->forceFill([
+                                    'recommend_collection_members' => $operation === 'enable',
+                                ])->save();
+                                Notification::make()
+                                    ->title('Рекомендации серии обновлены')->success()->send();
+                                return;
+                            }
+
                             $result = app(BulkCollectionMembership::class)->apply(
                                 (int) $collection->id,
                                 [(int) $owner->id],
-                                (string) ($data['operation'] ?? 'add'),
+                                $operation,
                                 (bool) ($data['enable_recommendations'] ?? false)
                             );
                             Notification::make()
@@ -136,7 +148,7 @@ class RelatedProductsRelationManager extends RelationManager
                         Select::make('related_products_mode')
                             ->label('Режим отображения')
                             ->options([
-                                'legacy' => 'Автоматически (как раньше: ручные связи имеют приоритет)',
+                                'legacy' => 'Ручные связи + серии (ручные первыми, остальное автоматически)',
                                 'manual' => 'Только вручную выбранные товары',
                                 'automatic' => 'Автоматическая подборка',
                                 'off' => 'Выключено',
