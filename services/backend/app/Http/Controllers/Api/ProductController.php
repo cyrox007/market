@@ -351,7 +351,7 @@ class ProductController extends Controller
         $location = $this->getRegionFromRequest($request);
         $destination = app(\App\Services\Shipping\CatalogDestination::class)->resolve($request, $location);
         $request->attributes->set('warehouse_destination', $destination);
-        $cacheKey = 'idx:sku-v1:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
+        $cacheKey = 'idx:sku-v2:'.sha1($cacheKey.json_encode($destination).Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
         if ($location) {
             $request->merge(['_region_id' => $location->id, '_region' => $location]);
             if (! $countOnly) {
@@ -360,10 +360,6 @@ class ProductController extends Controller
         }
 
         $query = Product::query()->catalogItems()->with(['taxons', 'manufacturer', 'manufacturerAttributes.values', 'variantManufacturerAttributes.values', 'parentProduct.manufacturerAttributes.values']);
-        if ($location) {
-            $query = $this->applyRegionVisibilityFilter($query, $location);
-        }
-
         $categoryResolved = null;
         if ($categoryId) {
             $query->inCategory($categoryId);
@@ -459,7 +455,7 @@ class ProductController extends Controller
                 'dimensions' => array_fill_keys(['width', 'depth', 'height'], ['min' => null, 'max' => null, 'unit' => 'mm']),
             ];
             return ProductResource::collection($emptyPaginator)->additional([
-                'meta' => ['filters' => $emptyFilters, 'fulfillment' => ['delivery_quote_endpoint' => '/api/v1/shipping/quote', 'delivery_days_source' => 'legacy_region_rule']],
+                'meta' => ['filters' => $emptyFilters, 'fulfillment' => ['delivery_quote_endpoint' => '/api/v1/shipping/quote', 'delivery_days_source' => 'warehouse_fulfillment']],
             ]);
         };
 
@@ -506,7 +502,7 @@ class ProductController extends Controller
         // и в реальном фронте каталог всегда фильтруется по категории.
         $filtersMeta = null;
         if ($categoryId || $categorySlugs || $roomSlug) {
-            $filtersMetaCacheKey = 'product_filters_meta:sku-v1:'.sha1($baseQueryForFilters->toSql()
+            $filtersMetaCacheKey = 'product_filters_meta:sku-v2:'.sha1($baseQueryForFilters->toSql()
                 .json_encode([$baseQueryForFilters->getBindings(), $catalogInput, $roomEffectiveFilters, $location?->id])
                 .Cache::get('catalog_filters_revision', '0').Cache::get('fulfillment_revision', '0').app(\App\Services\Pricing\PricingEngine::class)->cacheContext($location));
             $filtersMeta = Cache::remember($filtersMetaCacheKey, 300,
@@ -526,7 +522,7 @@ class ProductController extends Controller
         return ProductResource::collection($products)->additional([
             'meta' => [
                 'filters' => $filtersMeta,
-                'fulfillment' => ['delivery_quote_endpoint' => '/api/v1/shipping/quote', 'delivery_days_source' => 'legacy_region_rule'],
+                'fulfillment' => ['delivery_quote_endpoint' => '/api/v1/shipping/quote', 'delivery_days_source' => 'warehouse_fulfillment'],
             ],
         ]);
     }
@@ -1277,25 +1273,6 @@ class ProductController extends Controller
         $request->merge(['search' => $request->input('q')]);
 
         return $this->index($request);
-    }
-
-    /**
-     * Применяет server-side фильтрацию по региональной видимости.
-     * Исключает товары, которые скрыты правилами текущей локации или её предков.
-     */
-    private function applyRegionVisibilityFilter(\Illuminate\Database\Eloquent\Builder $query, ShippingLocation $location)
-    {
-        $ids = $location->getAncestorsIds();
-        $rule = DB::table('product_region_rules as visibility')
-            ->whereIn('visibility.shipping_location_id', $ids)->where('visibility.is_active', true)
-            ->whereRaw('visibility.product_id = COALESCE(products.parent_product_id, products.id)')
-            ->where(fn ($scope) => $scope->whereNull('visibility.variant_id')->orWhereColumn('visibility.variant_id', 'products.id'))
-            ->select('visibility.is_hidden')
-            ->orderByRaw('CASE visibility.shipping_location_id '.implode(' ', array_map(fn ($id, $rank) => 'WHEN '.(int) $id.' THEN '.$rank, $ids, array_keys($ids))).' END')
-            ->orderByRaw('CASE WHEN visibility.variant_id IS NULL THEN 1 ELSE 0 END')
-            ->orderByDesc('visibility.priority')->orderByDesc('visibility.id')->limit(1);
-
-        return $query->whereRaw('COALESCE(('.$rule->toSql().'), 0) = 0', $rule->getBindings());
     }
 
     /**

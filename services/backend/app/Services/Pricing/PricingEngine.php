@@ -164,8 +164,8 @@ class PricingEngine
     public function oldPrice(Product $sku, ?ShippingLocation $location, float $price): ?float
     {
         if (app(PrivateOfferAccess::class)->grants()->has($sku->id)) { return null; }
-        $regional = app(\App\Services\Product\ProductRegionRuleService::class)->getLegacyPriceForRegion($sku->parentProduct ?? $sku, $location, $sku->isVariant() ? $sku : null);
-        $reference = max((float) ($sku->original_price ?? 0), $regional);
+        // Deprecated per-product regional rules must not affect the reference price.
+        $reference = max((float) ($sku->original_price ?? 0), (float) $sku->price);
 
         return $reference > $price ? $reference : null;
     }
