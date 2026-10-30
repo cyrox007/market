@@ -21,6 +21,18 @@ class CollectionRelatedProducts
      */
     public function forProduct(Product $root, array $eagerLoad, array $excludedProductIds = []): Collection
     {
+        return $this->forProductWithSources($root, $eagerLoad, $excludedProductIds)
+            ->pluck('product')->values();
+    }
+
+    /**
+     * Keep editorial series as dynamic relations, but expose their provenance
+     * so the existing "Related products" editor can show what appears on site.
+     *
+     * @return Collection<int, array{product: Product, source: string, series_name: string}>
+     */
+    public function forProductWithSources(Product $root, array $eagerLoad, array $excludedProductIds = []): Collection
+    {
         $collections = ProductCollection::query()
             ->active()
             ->where('is_auto', false)
@@ -58,7 +70,11 @@ class CollectionRelatedProducts
                 ->get();
 
             foreach ($members as $member) {
-                $results->push($member);
+                $results->push([
+                    'product' => $member,
+                    'source' => 'series',
+                    'series_name' => (string) $collection->name,
+                ]);
                 $excluded[] = (int) $member->id; // avoid duplicates across series
             }
         }
