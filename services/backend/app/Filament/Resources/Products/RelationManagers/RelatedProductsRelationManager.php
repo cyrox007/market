@@ -13,7 +13,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
@@ -100,12 +99,8 @@ class RelatedProductsRelationManager extends RelationManager
                                 'enable' => 'Включить взаимные рекомендации всей серии',
                                 'disable' => 'Выключить взаимные рекомендации всей серии',
                             ])
-                            ->default('add')->required()->live(),
-                        Toggle::make('enable_recommendations')
-                            ->label('Включить взаимные сопутствующие товары для всей серии')
-                            ->default(true)
-                            ->visible(fn ($get): bool => ($get('operation') ?? 'add') === 'add')
-                            ->helperText('При включении участники серии будут рекомендоваться друг другу. Уже назначенные вручную товары сохраняются.'),
+                            ->default('add')->required()
+                            ->helperText('При добавлении товара взаимные рекомендации серии включаются. Ручные связи сохраняются.'),
                     ])
                     ->action(function (array $data): void {
                         $owner = $this->getOwnerRecord();
@@ -132,7 +127,7 @@ class RelatedProductsRelationManager extends RelationManager
                                 (int) $collection->id,
                                 [(int) $owner->id],
                                 $operation,
-                                (bool) ($data['enable_recommendations'] ?? false)
+                                $operation === 'add'
                             );
                             Notification::make()
                                 ->title('Сопутствующие товары серии обновлены')
