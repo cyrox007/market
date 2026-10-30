@@ -227,7 +227,9 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                     'Оплата получена (Сбербанк)',
                     null
                 );
-            } else {
+            } elseif ($order->status !== OrderStatus::CANCELLED->value) {
+                // A late bank settlement for an already cancelled order must
+                // create a refund review, NOT re-export a cancelled sale to 1C.
                 OrderOneCSyncDispatcher::dispatch((int) $order->id);
             }
         } else {
