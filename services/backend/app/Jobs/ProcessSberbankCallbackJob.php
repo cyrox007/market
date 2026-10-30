@@ -141,7 +141,9 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             return;
         }
 
-        $errorCode = (int) ($bank['errorCode'] ?? 0);
+        // No errorCode is not proof of success; bank replies must be complete.
+        $errorCode = isset($bank['errorCode']) && is_numeric($bank['errorCode'])
+            ? (int) $bank['errorCode'] : -1;
         $bankOrderStatus = isset($bank['orderStatus']) ? (int) $bank['orderStatus'] : -1;
         $bankAmount = isset($bank['amount']) && is_numeric($bank['amount'])
             ? (int) $bank['amount'] : 0; // Сбер отвечает в КОПЕЙКАХ
