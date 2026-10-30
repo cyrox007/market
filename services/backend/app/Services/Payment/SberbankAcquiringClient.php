@@ -263,8 +263,15 @@ class SberbankAcquiringClient
                 ->withOptions($this->httpVerifyOptions($verifySsl))
                 ->post($endpoint, $payload);
 
-            $data = $response->json();
+            if (! $response->successful()) {
+                Log::warning('Sberbank getOrderStatusExtended returned HTTP failure', [
+                    'order_id' => $orderId,
+                    'http_status' => $response->status(),
+                ]);
+                return [];
+            }
 
+            $data = $response->json();
             return is_array($data) ? $data : [];
         } catch (\Throwable $e) {
             Log::warning('Sberbank getOrderStatusExtended failed: ' . $e->getMessage(), [
