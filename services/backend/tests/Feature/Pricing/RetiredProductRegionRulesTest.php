@@ -39,11 +39,13 @@ class RetiredProductRegionRulesTest extends TestCase
             ->where('products.id', $sku->id)->first()->effective_price);
 
         $list = $this->getJson('/api/v1/products?category_slug='.$category->slug.'&region_id='.$location->id)
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('meta.fulfillment.delivery_days_source', 'warehouse_fulfillment');
         $this->assertContains($sku->id, array_column($list->json('data'), 'id'));
         $this->assertEquals(1000, collect($list->json('data'))->firstWhere('id', $sku->id)['price']);
         $this->getJson('/api/v1/products/'.$sku->slug.'?region_id='.$location->id)
-            ->assertOk()->assertJsonPath('product.id', $sku->id);
+            ->assertOk()->assertJsonPath('product.id', $sku->id)
+            ->assertJsonPath('product.delivery_days_source', 'warehouse_fulfillment');
     }
 
     public function test_price_policy_still_applies_after_retiring_old_region_rules(): void
@@ -73,6 +75,8 @@ class RetiredProductRegionRulesTest extends TestCase
     public function test_deprecated_region_rule_tabs_are_absent_from_the_product_editor(): void
     {
         $relations = ProductResource::getRelations();
+        $this->assertFalse(\App\Filament\Resources\Products\ProductRegionRules\ProductRegionRuleResource::canCreate());
+        $this->assertFalse(\App\Filament\Resources\Products\ProductRegionRules\ProductRegionRuleResource::canEdit(new ProductRegionRule()));
         $this->assertNotContains(
             \App\Filament\Resources\Products\RelationManagers\ProductRegionRulesRelationManager::class,
             $relations
