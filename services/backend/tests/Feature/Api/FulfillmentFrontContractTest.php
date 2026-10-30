@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Inventory\Warehouse;
 use App\Models\Order\OneClickLead;
+use App\Models\Pricing\PricingRule;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\Product\ProductRegionRule;
@@ -57,7 +58,7 @@ class FulfillmentFrontContractTest extends TestCase
         $this->assertEqualsCanonicalizing([24990, 34990], array_column($response->json('data'), 'price'));
     }
 
-    public function test_region_prices_drive_range_filter_count_and_sort_with_local_precedence(): void
+    public function test_price_policies_drive_range_filter_count_and_sort_without_legacy_overrides(): void
     {
         $category = Category::factory()->create();
         $parent = ShippingLocation::factory()->create();
@@ -66,9 +67,16 @@ class FulfillmentFrontContractTest extends TestCase
         $b = Product::factory()->create(['price' => 700]);
         $a->taxons()->attach($category);
         $b->taxons()->attach($category);
-        foreach ([[$parent, 900], [$city, 500]] as [$place, $price]) {
+        // Archived regional values must not become a pricing base.
+        foreach ([[$parent, 900], [$city, 2200]] as [$place, $price]) {
             ProductRegionRule::create(['product_id' => $a->id, 'shipping_location_id' => $place->id, 'price_override' => $price, 'is_active' => true]);
         }
+        PricingRule::create([
+            'name' => 'Городская акция', 'target_type' => 'products',
+            'product_ids' => [$a->id], 'audience_type' => 'all',
+            'location_ids' => [$city->id], 'adjustment_type' => 'discount_percent',
+            'amount' => 50, 'priority' => 0, 'is_active' => true,
+        ]);
         $query = '?category_slug='.$category->slug.'&region_id='.$city->id;
         $this->getJson('/api/v1/products'.$query.'&sort_by=price&sort_order=asc')->assertOk()
             ->assertJsonPath('data.0.id', $a->id)->assertJsonPath('data.0.price', 500)
