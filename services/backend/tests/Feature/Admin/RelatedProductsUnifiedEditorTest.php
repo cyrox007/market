@@ -101,4 +101,77 @@ class RelatedProductsUnifiedEditorTest extends TestCase
         $this->assertFalse((bool) $collection->fresh()->recommend_collection_members);
         $this->assertTrue($collection->products()->where('products.id', $wardrobe->id)->exists());
     }
+
+    public function test_fallback_recommendations_appear_as_real_rows_instead_of_empty_manual_table(): void
+    {
+        $owner = Product::factory()->create(['name' => 'Шкаф без рекомендаций', 'state' => 'active']);
+        $other = Product::factory()->create(['name' => 'Комод рекомендованный', 'state' => 'active']);
+
+        Livewire::test(RelatedProductsRelationManager::class, [
+            'ownerRecord' => $owner, 'pageClass' => EditProduct::class,
+        ])
+            ->assertCanSeeTableRecords([$other])
+            ->assertSee('Автоподбор')
+            ->assertSee('На сайте')
+            ->assertSee('Массово добавить');
+    }
+
+    public function test_bulk_add_filters_by_manufacturer_and_creates_manual_links(): void
+    {
+        $owner = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
+        $target = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
+        $other = Product::factory()->create(['name' => 'Комод Бруно', 'state' => 'active']);
+        app(\App\Services\Product\ProductManufacturer::class)->save($target, 'Фабрика Север');
+        app(\App\Services\Product\ProductManufacturer::class)->save($other, 'Фабрика Юг');
+
+        Livewire::test(RelatedProductsRelationManager::class, [
+            'ownerRecord' => $owner, 'pageClass' => EditProduct::class,
+        ])
+            ->mountTableAction('bulkAddRelated')
+            ->setActionData([
+                'operation' => 'manual',
+                'manufacturer_name' => 'Фабрика Север',
+                'product_search' => 'Бруно',
+                'target_product_ids' => [(string) $target->id],
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        $this->assertDatabaseHas('product_related_products', [
+            'product_id' => $owner->id, 'related_product_id' => $target->id,
+        ]);
+        $this->assertDatabaseHas('product_related_products', [
+            'product_id' => $target->id, 'related_product_id' => $owner->id,
+        ]);
+        $this->assertDatabaseMissing('product_related_products', [
+            'product_id' => $owner->id, 'related_product_id' => $other->id,
+        ]);
+    }
+
+    public function test_bulk_add_to_series_keeps_existing_manual_recommendations(): void
+    {
+        $owner = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
+        $mezzanine = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
+        $manual = Product::factory()->create(['name' => 'Комод вне серии', 'state' => 'active']);
+        $collection = $this->series();
+        $owner->attachRelatedProduct($manual);
+
+        Livewire::test(RelatedProductsRelationManager::class, [
+            'ownerRecord' => $owner, 'pageClass' => EditProduct::class,
+        ])
+            ->mountTableAction('bulkAddRelated')
+            ->setActionData([
+                'operation' => 'series',
+                'collection_id' => $collection->id,
+                'target_product_ids' => [(string) $mezzanine->id],
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        $this->assertTrue($collection->products()->where('products.id', $owner->id)->exists());
+        $this->assertTrue($collection->products()->where('products.id', $mezzanine->id)->exists());
+        $this->assertSame([$manual->id, $mezzanine->id],
+            collect($this->getJson('/api/v1/products/'.$owner->id.'/related')
+                ->assertOk()->json('data'))->pluck('id')->all());
+    }
 }
