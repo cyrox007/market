@@ -73,7 +73,6 @@ class RelatedProductsUnifiedEditorTest extends TestCase
             ->setActionData([
                 'collection_id' => $collection->id,
                 'operation' => 'add',
-                'enable_recommendations' => true,
             ])
             ->callMountedAction()->assertHasNoActionErrors();
 
