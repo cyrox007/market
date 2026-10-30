@@ -84,7 +84,13 @@ class CollectionRelatedProductsTest extends TestCase
         $this->series([$root, $other]);
 
         $root->attachRelatedProduct($manual);
-        $this->assertSame([$manual->id], $this->relatedIds($root));
+        // A furniture series ENHANCES the existing related-products list.
+        // Manual assignments stay first and are visible beside the series.
+        $this->assertSame([$manual->id, $other->id], $this->relatedIds($root));
+
+        $rows = app(\App\Services\Product\RelatedProductsResolver::class)->forProduct($root);
+        $this->assertSame(['manual', 'series'], $rows->pluck('source')->all());
+        $this->assertSame('Бруно', $rows[1]['series_name']);
 
         $root->forceFill(['related_products_mode' => 'off'])->save();
         $this->assertSame([], $this->relatedIds($root));
@@ -145,5 +151,27 @@ class CollectionRelatedProductsTest extends TestCase
         $ids = $this->relatedIds($root);
         $this->assertCount(\App\Services\Catalog\CollectionRelatedProducts::MAX_PRODUCTS, $ids);
         $this->assertSame($extras->take(24)->pluck('id')->all(), $ids);
+    }
+
+    public function test_series_and_manual_relations_are_deduplicated_and_admin_and_api_share_resolver(): void
+    {
+        $root = Product::factory()->create(['state' => 'active']);
+        $member = Product::factory()->create(['state' => 'active']);
+        $additional = Product::factory()->create(['state' => 'active']);
+        $this->series([$root, $member, $additional]);
+        $root->attachRelatedProduct($member);
+
+        $resolved = app(\App\Services\Product\RelatedProductsResolver::class)->forProduct($root);
+        $this->assertSame([$member->id, $additional->id], $resolved->pluck('product.id')->all());
+        $this->assertSame(['manual', 'series'], $resolved->pluck('source')->all());
+        $this->assertSame($resolved->pluck('product.id')->all(), $this->relatedIds($root));
+
+        $root->forceFill(['related_products_mode' => 'manual'])->save();
+        $this->assertSame([$member->id], $this->relatedIds($root));
+
+        $root->forceFill(['related_products_mode' => 'automatic'])->save();
+        $this->assertSame([$member->id, $additional->id], $this->relatedIds($root));
+        $this->assertSame(['series', 'series'],
+            app(\App\Services\Product\RelatedProductsResolver::class)->forProduct($root)->pluck('source')->all());
     }
 }
