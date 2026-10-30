@@ -4,17 +4,24 @@ namespace App\Filament\Resources\Products\RelationManagers;
 
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
+use App\Models\Product\ProductCollection;
+use App\Services\Catalog\BulkCollectionMembership;
+use App\Services\Product\RelatedProductsResolver;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 
 class RelatedProductsRelationManager extends RelationManager
 {
@@ -24,13 +31,23 @@ class RelatedProductsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'name';
 
+    public static function canViewForRecord($ownerRecord, string $pageClass): bool
+    {
+        // Related products belong to the group, not an individual color offer.
+        return ! $ownerRecord->isVariant();
+    }
+
     public function table(Table $table): Table
     {
         return $table
+            ->description(fn (): HtmlString => $this->recommendationsOverview())
             ->columns([
                 TextColumn::make('pivot.sort_order')
                     ->label('#')
                     ->numeric(),
+                TextColumn::make('manual_source')
+                    ->label('Источник')
+                    ->state(fn (): string => 'Вручную'),
                 SpatieMediaLibraryImageColumn::make('image')
                     ->collection('images')
                     ->conversion('thumb')
@@ -62,6 +79,55 @@ class RelatedProductsRelationManager extends RelationManager
                     ->alignEnd(),
             ])
             ->headerActions([
+                Action::make('manageSeriesRecommendations')
+                    ->label('Управлять сериями')
+                    ->icon('heroicon-o-rectangle-stack')
+                    ->modalHeading('Сопутствующие товары мебельной серии')
+                    ->form([
+                        Select::make('collection_id')
+                            ->label('Мебельная серия')
+                            ->options(fn (): array => ProductCollection::query()
+                                ->active()->where('is_auto', false)->whereNull('scope_type')
+                                ->orderBy('name')->pluck('name', 'id')->all())
+                            ->searchable()
+                            ->required()
+                            ->helperText('Существующая ручная подборка товаров. Рекомендации настраиваются здесь же, без отдельного механизма.'),
+                        Select::make('operation')
+                            ->label('Действие')
+                            ->options([
+                                'add' => 'Добавить эту карточку в серию',
+                                'remove' => 'Убрать эту карточку из серии',
+                            ])
+                            ->default('add')->required()->live(),
+                        Toggle::make('enable_recommendations')
+                            ->label('Включить взаимные сопутствующие товары для всей серии')
+                            ->default(true)
+                            ->visible(fn ($get): bool => ($get('operation') ?? 'add') === 'add')
+                            ->helperText('При включении участники серии будут рекомендоваться друг другу. Уже назначенные вручную товары сохраняются.'),
+                    ])
+                    ->action(function (array $data): void {
+                        $owner = $this->getOwnerRecord();
+                        $collection = ProductCollection::findOrFail((int) ($data['collection_id'] ?? 0));
+                        Gate::authorize('update', $owner);
+                        Gate::authorize('update', $collection);
+                        try {
+                            $result = app(BulkCollectionMembership::class)->apply(
+                                (int) $collection->id,
+                                [(int) $owner->id],
+                                (string) ($data['operation'] ?? 'add'),
+                                (bool) ($data['enable_recommendations'] ?? false)
+                            );
+                            Notification::make()
+                                ->title('Сопутствующие товары серии обновлены')
+                                ->body("Добавлено в серию: {$result['added']}; убрано: {$result['removed']}.")
+                                ->success()->send();
+                        } catch (ValidationException $error) {
+                            Notification::make()
+                                ->title('Не удалось обновить серию')
+                                ->body(implode(' ', $error->validator->errors()->all()))
+                                ->danger()->send();
+                        }
+                    }),
                 Action::make('recommendationMode')
                     ->label('Режим рекомендаций')
                     ->icon('heroicon-o-adjustments-horizontal')
@@ -205,5 +271,56 @@ class RelatedProductsRelationManager extends RelationManager
                     ->with('media');
             });
     }
-}
 
+    /**
+     * The existing relation editor shows BOTH managed manual links and the
+     * derived recommendations that the public API actually returns.
+     * Sources are explicit: nothing is silently materialized as a manual link.
+     */
+    private function recommendationsOverview(): HtmlString
+    {
+        $owner = $this->getOwnerRecord();
+        $mode = match ($owner->related_products_mode) {
+            'off' => 'Отключено',
+            'manual' => 'Только вручную',
+            'automatic' => 'Рекомендации серий и автоматический подбор',
+            default => 'Ручные рекомендации + серии',
+        };
+
+        $series = ProductCollection::query()
+            ->where('is_auto', false)->whereNull('scope_type')
+            ->whereHas('products', fn ($query) => $query->where('products.id', $owner->id))
+            ->orderBy('name')->get(['id', 'name', 'is_active', 'recommend_collection_members']);
+        $seriesLabels = $series->map(function (ProductCollection $collection): string {
+            $state = $collection->is_active && $collection->recommend_collection_members
+                ? 'рекомендации включены' : 'рекомендации выключены';
+            return '<span class="inline-block me-2">' . e($collection->name) . ' (' . e($state) . ')</span>';
+        })->implode(' ');
+
+        $items = app(RelatedProductsResolver::class)->forProduct($owner);
+        $rows = $items->map(function (array $entry): string {
+            $product = $entry['product'];
+            $source = match ($entry['source']) {
+                'manual' => 'Вручную',
+                'series' => 'Серия: ' . ($entry['series_name'] ?? ''),
+                'category' => 'Та же категория',
+                default => 'Автоподбор',
+            };
+            $url = ProductResource::getUrl('edit', ['record' => $product]);
+            return '<li class="py-1"><a href="' . e($url) . '" class="underline">'
+                . e($product->name) . '</a> <span class="text-gray-500">('
+                . e($source) . ')</span></li>';
+        })->implode('');
+
+        return new HtmlString(
+            '<div class="space-y-2 text-sm">'
+            . '<p><strong>Режим:</strong> ' . e($mode) . '. '
+            . 'Ручные связи редактируются в таблице ниже; серии — кнопкой «Управлять сериями».</p>'
+            . '<p><strong>Участие в сериях:</strong> '
+            . ($seriesLabels !== '' ? $seriesLabels : 'Нет назначенных серий') . '</p>'
+            . '<div><strong>Что сейчас показывается покупателю (' . $items->count() . '):</strong>'
+            . ($rows !== '' ? '<ul class="list-disc ps-5 mt-1">' . $rows . '</ul>' : ' Нет рекомендаций')
+            . '</div></div>'
+        );
+    }
+}
