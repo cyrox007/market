@@ -195,6 +195,20 @@ class ProductResource extends JsonResource
         $stocks = ($isVariableKit || $isSimpleKit)
             ? []
             : app(\App\Services\Inventory\WarehousePriorityResolver::class)->resolve($this->resource, $region)['stocks'];
+        $imageMedia = $this->resource->getFirstMedia('images');
+        if (! $imageMedia && $this->isVariant()) {
+            $imageMedia = $this->resource->parentProduct?->getFirstMedia('images');
+        }
+        if (! $imageMedia && $this->isVariable() && ! $this->isVariant()) {
+            $imageVariants = $this->relationLoaded('variants')
+                ? $this->variants
+                : $this->variants()->active()->with('media')->orderBy('id')->get();
+            foreach ($imageVariants->filter(fn ($variant) => $variant->getRawOriginal('state') === 'active')->sortBy('id') as $variant) {
+                if ($imageMedia = $variant->getFirstMedia('images')) {
+                    break;
+                }
+            }
+        }
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -210,10 +224,10 @@ class ProductResource extends JsonResource
             'discount_percent' => $oldPrice !== null && $oldPrice > $price ? (int) round((1 - $price / $oldPrice) * 100) : null,
             // Для списков: image — основное изображение (оригинал), thumbnail — миниатюра,
             // дополнительные сжатые варианты: image_hd и image_fullhd
-            'image' => $this->main_image_url ?: $this->parentProduct?->main_image_url,
-            'image_hd' => $isListView ? null : $this->image_hd_url,
-            'image_fullhd' => $isListView ? null : $this->image_fullhd_url,
-            'thumbnail' => $this->thumbnail_url,
+            'image' => $imageMedia?->getUrl(),
+            'image_hd' => $isListView ? null : $imageMedia?->getAvailableUrl(['hd']),
+            'image_fullhd' => $isListView ? null : $imageMedia?->getAvailableUrl(['fullhd']),
+            'thumbnail' => $imageMedia?->getAvailableUrl(['thumb']),
             'in_stock' => $resolvedStock > 0,
             'available_to_order' => ($isVariableKit || $isSimpleKit) ? ($kitAvailableSets > 0 || (isset($kit) && app(\App\Services\Product\SellableBundle::class)->canOrder($kit['items'])))
                 : $warehouseStockResolver->availableToOrder($this->resource, $region),

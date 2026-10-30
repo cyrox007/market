@@ -871,6 +871,7 @@ class ProductController extends Controller
         return [
             'taxons',
             'variants' => fn ($q) => $q->active()->orderBy('id'),
+            'variants.media',
             'attributeValues.attribute',
             'manufacturer',
             'media',
