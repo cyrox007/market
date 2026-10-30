@@ -138,4 +138,44 @@ class SberbankReconciliationTest extends TestCase
         ]);
         $this->assertDatabaseCount('payment_refunds', 1);
     }
+
+    public function test_sber_refund_http_request_converts_rubles_to_kopecks_once(): void
+    {
+        config([
+            'payment.sberbank_acquiring.username' => 'testMerchant',
+            'payment.sberbank_acquiring.password' => 'testPassword',
+            'payment.sberbank_acquiring.base_url' => 'https://ecomtest.sberbank.ru',
+            'payment.sberbank_acquiring.api_format' => 'ecom',
+        ]);
+        \Illuminate\Support\Facades\Http::fake([
+            'https://ecomtest.sberbank.ru/*/refund.do' =>
+                \Illuminate\Support\Facades\Http::response(['errorCode' => '0'], 200),
+        ]);
+        [$order] = $this->payment('cancelled', 'paid', 1234.56);
+        $result = app(SberbankAcquiringClient::class)
+            ->refundOrder($order, self::BANK_ID, 1234.56, 'CANCEL-SBER-TEST');
+        $this->assertTrue($result['ok']);
+        \Illuminate\Support\Facades\Http::assertSent(function ($request): bool {
+            return str_ends_with($request->url(), '/ecomm/gw/partner/api/v1/refund.do')
+                && $request->method() === 'POST'
+                && $request['orderId'] === self::BANK_ID
+                && $request['amount'] === 123456
+                && $request->hasHeader('x-idempotencyKey', 'CANCEL-SBER-TEST');
+        });
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+    }
+
+    public function test_sber_refund_never_calls_bank_without_credentials(): void
+    {
+        config([
+            'payment.sberbank_acquiring.username' => '',
+            'payment.sberbank_acquiring.password' => '',
+        ]);
+        \Illuminate\Support\Facades\Http::fake();
+        [$order] = $this->payment('cancelled', 'paid', 1234.56);
+        $result = app(SberbankAcquiringClient::class)
+            ->refundOrder($order, self::BANK_ID, 1234.56, 'CANCEL-SBER-TEST');
+        $this->assertFalse($result['ok']);
+        \Illuminate\Support\Facades\Http::assertNothingSent();
+    }
 }
