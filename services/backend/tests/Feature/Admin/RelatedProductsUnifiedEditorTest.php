@@ -82,16 +82,23 @@ class RelatedProductsUnifiedEditorTest extends TestCase
         $this->getJson('/api/v1/products/'.$wardrobe->id.'/related')
             ->assertOk()->assertJsonPath('data.0.id', $mezzanine->id);
 
-        // Start a fresh Livewire request for the next modal operation.
-        $page = Livewire::test(RelatedProductsRelationManager::class, [
-            'ownerRecord' => $wardrobe->fresh(), 'pageClass' => EditProduct::class,
-        ]);
-        $page->mountTableAction('manageSeriesRecommendations')
+    }
+
+    public function test_series_recommendations_can_be_disabled_from_existing_related_section(): void
+    {
+        $wardrobe = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
+        $mezzanine = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
+        $collection = $this->series($wardrobe, $mezzanine);
+
+        Livewire::test(RelatedProductsRelationManager::class, [
+            'ownerRecord' => $wardrobe, 'pageClass' => EditProduct::class,
+        ])->mountTableAction('manageSeriesRecommendations')
             ->setActionData([
                 'collection_id' => $collection->id,
                 'operation' => 'disable',
             ])
             ->callMountedAction()->assertHasNoActionErrors();
+
         $this->assertFalse((bool) $collection->fresh()->recommend_collection_members);
         $this->assertTrue($collection->products()->where('products.id', $wardrobe->id)->exists());
     }
