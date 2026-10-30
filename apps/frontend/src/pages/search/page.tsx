@@ -8,7 +8,6 @@ import { api } from '../../lib/api';
 import { useSSR } from '../../contexts/ssr-context';
 import { useRegion } from '../../hooks/useRegion';
 import { getSearchKey } from '../../utils/ssr-to-swr';
-import { normalizeListProduct } from '../../utils/cartProduct';
 import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { SEARCH_SEO } from './seo';
@@ -129,7 +128,7 @@ export default function Search() {
     }
 
     if (searchData) {
-      const data = (searchData.data || []).map((p) => normalizeListProduct(p));
+      const data = searchData.data || [];
       const meta = searchData.meta || {};
       const total = meta.total ?? 0;
       const lastPage = meta.last_page ?? 1;

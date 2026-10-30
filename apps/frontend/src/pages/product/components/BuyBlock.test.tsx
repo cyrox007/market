@@ -253,7 +253,7 @@ describe('продаваемый комплект', () => {
   it('предложение без состава — без цены 0 ₽, купить нельзя', () => {
     renderBlock({ product: kit, selectedVariant: offer(false) });
     expect(screen.queryByText(formatPrice(0))).not.toBeInTheDocument();
-    expect(screen.getByText('Этот вариант комплекта пока не продаётся')).toBeInTheDocument();
+    expect(screen.getByText('Цена уточняется')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Состав комплекта' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Добавить в корзину' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Купить в 1 клик' })).toBeDisabled();
@@ -269,6 +269,21 @@ describe('продаваемый комплект', () => {
   it('непродаваемое предложение уже в корзине — без счётчика, кнопка неактивна', () => {
     renderBlock({ product: kit, selectedVariant: offer(false), cart: cart({ quantity: 1 }) });
     expect(screen.queryByRole('link', { name: /Перейти в корзину/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Добавить в корзину' })).toBeDisabled();
+  });
+
+  it('простой комплект без состава — «Цена уточняется», купить нельзя', () => {
+    renderBlock({
+      product: {
+        ...product,
+        price: 0,
+        is_sellable_bundle: true,
+        is_bundle_configured: false,
+        sellable_bundle_components: [],
+      } as unknown as ProductDetail,
+    });
+    expect(screen.queryByText(formatPrice(0))).not.toBeInTheDocument();
+    expect(screen.getByText('Цена уточняется')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Добавить в корзину' })).toBeDisabled();
   });
 
@@ -303,7 +318,7 @@ describe('продаваемый комплект', () => {
         bundle_components: [],
       } as unknown as ProductVariant,
     });
-    expect(screen.queryByText('Этот вариант комплекта пока не продаётся')).not.toBeInTheDocument();
+    expect(screen.queryByText('Цена уточняется')).not.toBeInTheDocument();
     expect(screen.getByText(/34\s990\s₽/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Купить в 1 клик' })).toBeEnabled();
   });

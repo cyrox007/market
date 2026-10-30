@@ -24,7 +24,12 @@ describe('ProductCard', () => {
     const onIncreaseCart = vi.fn(() => new Promise<void>(() => {}));
     render(
       <MemoryRouter>
-        <ProductCard product={product} cartQuantity={1} onAddToCart={vi.fn()} onIncreaseCart={onIncreaseCart} />
+        <ProductCard
+          product={product}
+          cartQuantity={1}
+          onAddToCart={vi.fn()}
+          onIncreaseCart={onIncreaseCart}
+        />
       </MemoryRouter>,
     );
 
@@ -32,5 +37,48 @@ describe('ProductCard', () => {
     for (let i = 0; i < 5; i += 1) fireEvent.click(plus);
 
     expect(onIncreaseCart).toHaveBeenCalledTimes(5);
+  });
+
+  const cartButton = (overrides: Partial<Product>) => {
+    render(
+      <MemoryRouter>
+        <ProductCard product={{ ...product, ...overrides }} onAddToCart={vi.fn()} />
+      </MemoryRouter>,
+    );
+    return screen.getByRole('button', { name: 'В корзину' });
+  };
+
+  it('«в корзину» доступна, когда остатка нет, но бэк разрешает заказ', () => {
+    expect(
+      cartButton({ in_stock: false, stock: 0, backorder: false, available_to_order: true }),
+    ).toBeEnabled();
+  });
+
+  it('«в корзину» недоступна при флаге «под заказ», если бэк заказ не разрешает', () => {
+    expect(
+      cartButton({ in_stock: false, stock: 0, backorder: true, available_to_order: false }),
+    ).toBeDisabled();
+  });
+
+  it('комплект без состава — «Цена уточняется» вместо 0 ₽', () => {
+    render(
+      <MemoryRouter>
+        <ProductCard
+          product={{ ...product, price: 0, is_sellable_bundle: true, is_bundle_configured: false }}
+          onAddToCart={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Цена уточняется')).toBeInTheDocument();
+    expect(screen.queryByText(/^0/)).not.toBeInTheDocument();
+  });
+
+  it('обычный товар с is_bundle_configured: false — цена как обычно', () => {
+    render(
+      <MemoryRouter>
+        <ProductCard product={{ ...product, is_bundle_configured: false }} onAddToCart={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Цена уточняется')).not.toBeInTheDocument();
   });
 });

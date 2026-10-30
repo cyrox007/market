@@ -1,4 +1,5 @@
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import { canOrder } from '../../../lib/availability';
 
 /** Выбор варианта без React (market-docs/57): сочетание — вариант, которое есть у товара */
 
@@ -18,10 +19,11 @@ export const isSellableOffer = (v: ProductVariant, isKit: boolean) =>
 const valueOf = (v: ProductVariant, attributeSlug: string) =>
   v.variation_attributes?.find((a) => a.attribute_slug === attributeSlug)?.value_slug;
 
-/** Первый в наличии, иначе первый, который можно продать, иначе первый */
+/** Первый в наличии, иначе под заказ, иначе первый, который можно продать, иначе первый */
 export function defaultVariant(variants: ProductVariant[], isKit = false): ProductVariant | null {
   return (
     variants.find(isInStock) ??
+    variants.find((v) => canOrder(v) && isSellableOffer(v, isKit)) ??
     variants.find((v) => isSellableOffer(v, isKit)) ??
     variants[0] ??
     null
@@ -62,7 +64,7 @@ export function isValueAvailable(
   );
 }
 
-/** Вариант после выбора значения: точное сочетание, иначе ближайший (больше совпадений, в наличии) */
+/** Вариант после выбора значения: точное сочетание, иначе ближайший (больше совпадений, в наличии, под заказ) */
 export function chooseValue(
   variants: ProductVariant[],
   current: ProductVariant,
@@ -74,12 +76,13 @@ export function chooseValue(
   let bestScore = -1;
   for (const v of variants) {
     if (valueOf(v, attributeSlug) !== valueSlug) continue;
-    // Совпадения важнее наличия: в наличии — только при равенстве.
+    // Совпадения важнее наличия: в наличии, затем под заказ — только при равенстве.
     // Непродаваемое предложение комплекта — только если продаваемого с этим значением нет
     const score =
       (isSellableOffer(v, isKit) ? 1000 : 0) +
-      sameOthers(v, current, attributeSlug) * 2 +
-      (isInStock(v) ? 1 : 0);
+      sameOthers(v, current, attributeSlug) * 4 +
+      (isInStock(v) ? 2 : 0) +
+      (canOrder(v) ? 1 : 0);
     if (score > bestScore) {
       best = v;
       bestScore = score;

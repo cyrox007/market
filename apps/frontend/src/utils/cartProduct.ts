@@ -13,51 +13,28 @@ export function resolveProductIdForCart(product: {
   return product.id;
 }
 
+/** Вид товара задаёт бэк флагами (market-docs/69): вариативный товар — is_variable без is_variant */
 export function isVariableParent(product: {
-  id?: number;
   is_variable?: boolean;
   is_variant?: boolean;
-  first_available_variant_id?: number | null;
-  variation_attributes?: unknown[] | null;
-  variants?: unknown[] | null;
 }): boolean {
-  if (product.is_variant === true) return false;
-  if (product.is_variable === true) return true;
-  if (
-    product.first_available_variant_id != null &&
-    product.id != null &&
-    product.first_available_variant_id !== product.id
-  ) {
-    return true;
-  }
-  if (Array.isArray(product.variation_attributes) && product.variation_attributes.length > 0) {
-    return true;
-  }
-  if (Array.isArray(product.variants) && product.variants.length > 0) return true;
-  return false;
+  return product.is_variable === true && product.is_variant !== true;
 }
+
+/** Комплект без заданного состава: цены нет, купить нельзя. У обычных товаров флаг не в счёт */
+export const isUnconfiguredKit = (product: {
+  is_sellable_bundle?: boolean;
+  is_bundle_configured?: boolean | null;
+}) => product.is_sellable_bundle === true && product.is_bundle_configured === false;
 
 /**
  * Вариант нужно выбирать на странице товара, только если сервер не подсказал
  * первый доступный. Иначе кнопка корзины кладёт его сразу — market-docs/30.
  */
-export function needsVariantChoice(product: Parameters<typeof isVariableParent>[0]): boolean {
+export function needsVariantChoice(
+  product: Parameters<typeof isVariableParent>[0] & { first_available_variant_id?: number | null },
+): boolean {
   return isVariableParent(product) && !product.first_available_variant_id;
-}
-
-/** API иногда отдаёт is_variable:false у вариативного родителя — нормализуем для карточек */
-export function normalizeListProduct<
-  T extends {
-    id: number;
-    is_variable?: boolean;
-    is_variant?: boolean;
-    first_available_variant_id?: number | null;
-  },
->(product: T): T {
-  if (isVariableParent(product) && product.is_variable !== true) {
-    return { ...product, is_variable: true, is_variant: false };
-  }
-  return product;
 }
 
 /** Количество в корзине по карточке каталога (учитывает id вариации) */

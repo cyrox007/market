@@ -22,7 +22,18 @@ describe('наличие варианта для региона', () => {
     expect(
       availabilityOf({ in_stock: false, stock: 0, stock_known: true, available_to_order: true }),
     ).toEqual({ status: 'backorder', stock: null, maxQuantity: undefined });
-    expect(availabilityOf({ in_stock: false, stock: 0, backorder: true }).status).toBe('backorder');
+  });
+
+  // Флаг товара без склада под заказ в регионе бэк при добавлении отклоняет (develop, 25849)
+  it('флаг «под заказ» без available_to_order — заказать нельзя', () => {
+    const flagged = { in_stock: false, stock: 0, backorder: true, available_to_order: false };
+    expect(availabilityOf(flagged).status).toBe('out');
+  });
+
+  it('в наличии и заказ сверх остатка разрешён — без предела', () => {
+    expect(
+      availabilityOf({ in_stock: true, stock: 2, stock_known: true, available_to_order: true }),
+    ).toEqual({ status: 'in_stock', stock: 2, maxQuantity: undefined });
   });
 
   it('остатка нет и заказать нельзя — «нет в наличии»', () => {

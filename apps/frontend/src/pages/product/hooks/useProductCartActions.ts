@@ -3,7 +3,7 @@ import { useCart } from '../../../hooks/useCart';
 import { apiErrorMessage } from '../../../lib/api-error';
 import type { ProductDetail, ProductVariant } from '../../../lib/api';
 import type { BuyBlockCart } from '../components/BuyBlock';
-import { availabilityOf } from '../lib/availability';
+import { availabilityOf } from '../../../lib/availability';
 import { isVariableParent } from '../lib/variants';
 
 const ERROR_MS = 5000;

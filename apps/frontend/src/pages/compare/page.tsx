@@ -9,6 +9,7 @@ import type { Product } from '../../lib/api';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import { ArrowLeftRight, ChevronRight, ImageIcon, Info, LoaderCircle, X } from 'lucide-react';
+import { canOrder } from '../../lib/availability';
 
 export default function Compare() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -155,7 +156,7 @@ export default function Compare() {
                               <ImageIcon className="size-[1em] text-3xl text-gray-400" />
                             </div>
                           )}
-                          {(!product.in_stock || product.stock === 0) && (
+                          {!canOrder(product) && (
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg z-20">
                               <span className="bg-white px-2 py-1 rounded text-xs font-medium">
                                 Нет в наличии
@@ -182,22 +183,22 @@ export default function Compare() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                if (product.in_stock) {
+                                if (canOrder(product)) {
                                   handleAddToCart(product);
                                 }
                               }}
-                              disabled={!product.in_stock}
+                              disabled={!canOrder(product)}
                               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                                 getCartQuantityForProduct(cart?.items, product) > 0
                                   ? 'bg-green-600 text-white hover:bg-green-700'
-                                  : product.in_stock
+                                  : canOrder(product)
                                     ? 'bg-red-600 text-white hover:bg-red-700'
                                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                               }`}
                             >
                               {getCartQuantityForProduct(cart?.items, product) > 0
                                 ? `В корзине (${getCartQuantityForProduct(cart?.items, product)})`
-                                : product.in_stock
+                                : canOrder(product)
                                   ? 'В корзину'
                                   : 'Недоступно'}
                             </button>

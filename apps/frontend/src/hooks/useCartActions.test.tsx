@@ -73,4 +73,29 @@ describe('useCartActions', () => {
     expect(api.cart.add.mock.calls.map(([body]) => body.quantity)).toEqual([3]);
     expect(result.current.cart?.items[0]?.id).toBe(55);
   });
+
+  it('кладёт товар под заказ без остатка, а не отвечает «недоступен»', async () => {
+    const item = { id: 55, product_id: 7, name: 'Стол', slug: 'stol', price: 100,
+      quantity: 1, total: 100, image: null, sku: null };
+    api.cart.add.mockResolvedValue({ item, was_adjusted: false, message: '' });
+    api.cart.get
+      .mockResolvedValueOnce({ items: [], subtotal: 0, item_count: 0, is_empty: true })
+      .mockResolvedValue({ items: [item], subtotal: 100, item_count: 1, is_empty: false });
+    const { result } = renderHook(() => useCartActions(), { wrapper });
+    await waitFor(() => expect(result.current.cart).not.toBeNull());
+
+    act(() => {
+      void result.current.addProductToCart(
+        { ...product, in_stock: false, stock: 0, available_to_order: true } as Product,
+        1,
+      );
+    });
+
+    expect(showCartToast).not.toHaveBeenCalledWith('Товар недоступен для заказа', 'error');
+    expect(result.current.cart?.items[0]?.quantity).toBe(1);
+    await waitFor(() => expect(result.current.cart?.items[0]?.id).toBe(55));
+    await waitFor(() => expect(api.cart.get).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(api.cart.add).toHaveBeenCalledWith(expect.objectContaining({ product_id: 7, quantity: 1 }));
+  });
 });
