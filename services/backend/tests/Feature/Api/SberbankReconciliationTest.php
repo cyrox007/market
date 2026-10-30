@@ -36,7 +36,7 @@ class SberbankReconciliationTest extends TestCase
         return [$order, $payment];
     }
 
-    private function callback(Order $order, array $bankData): void
+    private function simulateSberCallback(Order $order, array $bankData): void
     {
         $mock = \Mockery::mock(SberbankAcquiringClient::class);
         $mock->shouldReceive('getOrderStatusExtended')->once()
@@ -66,7 +66,7 @@ class SberbankReconciliationTest extends TestCase
     public function test_confirmed_bank_kopecks_are_recorded_as_rubles_exactly_once(): void
     {
         [$order, $payment] = $this->payment();
-        $this->callback($order, ['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456]);
+        $this->simulateSberCallback($order, ['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456]);
         $this->assertEquals(1234.56, (float) $payment->fresh()->amount_paid);
         $this->assertEquals('paid', (string) $payment->fresh()->getRawOriginal('status'));
     }
@@ -74,7 +74,7 @@ class SberbankReconciliationTest extends TestCase
     public function test_failed_bank_status_never_records_an_amount_or_refund_task(): void
     {
         [$order, $payment] = $this->payment();
-        $this->callback($order, ['errorCode' => 0, 'orderStatus' => 6, 'amount' => 123456]);
+        $this->simulateSberCallback($order, ['errorCode' => 0, 'orderStatus' => 6, 'amount' => 123456]);
         $this->assertSame(0.0, (float) $payment->fresh()->amount_paid);
         $this->assertDatabaseMissing('order_refund_tasks', ['order_id' => $order->id, 'status' => 'manual_review']);
     }
@@ -82,7 +82,7 @@ class SberbankReconciliationTest extends TestCase
     public function test_paid_status_with_wrong_amount_is_not_accepted(): void
     {
         [$order, $payment] = $this->payment();
-        $this->callback($order, ['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123455]);
+        $this->simulateSberCallback($order, ['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123455]);
         $this->assertSame(0.0, (float) $payment->fresh()->amount_paid);
     }
 
