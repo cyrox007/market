@@ -115,6 +115,11 @@ class RelatedProductsRelationManager extends RelationManager
                         try {
                             $operation = (string) ($data['operation'] ?? 'add');
                             if (in_array($operation, ['enable', 'disable'], true)) {
+                                if (! $collection->products()->where('products.id', $owner->id)->exists()) {
+                                    throw ValidationException::withMessages([
+                                        'collection_id' => 'Товар не входит в выбранную серию. Сначала добавьте его в серию.',
+                                    ]);
+                                }
                                 $collection->forceFill([
                                     'recommend_collection_members' => $operation === 'enable',
                                 ])->save();
