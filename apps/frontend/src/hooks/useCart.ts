@@ -261,8 +261,16 @@ export function useCart() {
   );
 
   const clearCart = useCallback(
-    () =>
-      runSessionTask(async () => {
+    () => {
+      // Пока запрос количества в полёте, новые клики могли накопиться в intent-sync.
+      // После очистки их целью должен стать 0, иначе отложенный PUT/POST вернёт товар.
+      const current = cache.get(cartKey)?.data as Cart | undefined;
+      for (const item of current?.items ?? []) {
+        if (cartSync.quantities.isPending(item.product_id)) {
+          cartSync.quantities.set(item.product_id, 0, item.quantity);
+        }
+      }
+      return runSessionTask(async () => {
         await applyCartToCache(() => ({
           items: [],
           subtotal: 0,
@@ -272,12 +280,14 @@ export function useCart() {
 
         try {
           await api.cart.clear();
+          cartSync.lineIds.clear();
         } catch (err) {
           await syncCartFromServer();
           throw err;
         }
-      }),
-    [applyCartToCache, syncCartFromServer],
+      });
+    },
+    [applyCartToCache, syncCartFromServer, cache, cartKey, cartSync],
   );
 
   /** Поставить количество товара; клики копятся, на сервер уходит итог — market-docs/32 */

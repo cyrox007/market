@@ -4,6 +4,7 @@ import { api, type PaymentMethod, type PickupOption, type WarehouseQuote } from 
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import CheckoutAddress from '../../components/CheckoutAddress';
+import CartLink from '../../components/cart/CartLink';
 
 const field = 'block w-full border border-gray-300 rounded-lg p-3 mt-1';
 const selectable = (method?: PaymentMethod) => !!method && method.is_active !== false && !method.is_coming_soon && method.selectable !== false;
@@ -109,7 +110,7 @@ export default function WarehouseCheckout() {
   return <main className="max-w-5xl mx-auto px-4 py-8"><h1 className="text-3xl font-bold mb-6">Оформление заказа</h1>
     <form onSubmit={submit} className="space-y-6">
       {error && <p role="alert" className="text-red-600">{error}</p>}
-      {!items.length && <p>Нет товаров для оформления. <Link to="/cart">Перейти в корзину</Link></p>}
+      {!items.length && <p>Нет товаров для оформления. <CartLink>Перейти в корзину</CartLink></p>}
       {isBundle && prepared?.priced_components && (
         <section className="rounded-2xl border p-6 space-y-3">
           <h2 className="text-xl font-bold">Состав комплекта</h2>

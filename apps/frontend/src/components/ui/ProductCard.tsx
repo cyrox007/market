@@ -9,6 +9,7 @@ import type { Product } from '../../lib/api';
 import { isUnconfiguredKit, isVariableParent, needsVariantChoice } from '../../utils/cartProduct';
 import { availabilityOf } from '../../lib/availability';
 import { cn } from '../../lib/cn';
+import { useCartPanel } from '../../contexts/cart-panel-context';
 
 interface ProductCardProps {
   product: Product;
@@ -63,6 +64,7 @@ function ProductCard({
   priority = false,
 }: ProductCardProps) {
   const navigate = useNavigate();
+  const { openCart } = useCartPanel();
   const [showNavigationLoader, setShowNavigationLoader] = useState(false);
   const navigationLoaderTimerRef = useRef<number | null>(null);
 
@@ -96,7 +98,7 @@ function ProductCard({
     }
     // Уже в корзине — кнопка ведёт в неё, количество меняется счётчиком слева
     if (inCart) {
-      navigate('/cart');
+      openCart();
       return;
     }
     void onAddToCart?.(product.id);

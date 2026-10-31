@@ -62,13 +62,19 @@ export function productPreviewFromProduct(product: {
   thumbnail?: string | null;
   image?: string | null;
   sku?: string;
-}): Partial<CartItem> {
+} & Pick<CartItem, 'stock' | 'stock_known' | 'in_stock' | 'available_to_order' | 'is_sellable_bundle' | 'is_bundle_configured'>): Partial<CartItem> {
   return {
     name: product.name,
     slug: product.slug,
     price: product.price,
     image: product.thumbnail ?? product.image ?? null,
     sku: product.sku,
+    stock: product.stock,
+    stock_known: product.stock_known,
+    in_stock: product.in_stock,
+    available_to_order: product.available_to_order,
+    is_sellable_bundle: product.is_sellable_bundle,
+    is_bundle_configured: product.is_bundle_configured,
   };
 }
 

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { ArrowLeftRight, Heart, House, ShoppingCart, User } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import CounterBadge from '../Header/menu/CounterBadge';
+import { useCartPanel } from '../../../contexts/cart-panel-context';
 
 interface BottomBarProps {
   compareCount?: number;
@@ -26,6 +27,7 @@ export default function BottomBar({
   cartCount = 0,
   isAuthenticated = false,
 }: BottomBarProps) {
+  const { openCart } = useCartPanel();
   const tabs: TabItem[] = [
     { to: '/', label: 'Главная', icon: House, end: true },
     { to: '/compare', label: 'Сравнить', icon: ArrowLeftRight, count: compareCount },
@@ -43,6 +45,10 @@ export default function BottomBar({
         <NavLink
           key={label}
           to={to}
+          onClick={to === '/cart' ? (event) => {
+            if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); openCart();
+          } : undefined}
           end={end}
           aria-label={count && count > 0 ? `${label}, ${count}` : undefined}
           className={({ isActive }) =>

@@ -7,6 +7,7 @@ import OrderTracking from '../../../components/orders/OrderTracking';
 import OrderItemsList from '../../../components/orders/OrderItemsList';
 import { formatDate } from '../../../utils/orderUtils';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCartPanel } from '../../../contexts/cart-panel-context';
 import {
   buildPaymentUrl,
   closePaymentTab,
@@ -20,6 +21,7 @@ import Icon from '../../../components/ui/icons/Icon';
 import { ChevronRight, Info, TriangleAlert } from 'lucide-react';
 
 export default function OrderDetail() {
+  const { openCart } = useCartPanel();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -231,7 +233,7 @@ export default function OrderDetail() {
         alert(message);
       }
 
-      navigate('/cart');
+      openCart();
     } catch (err: any) {
       console.error('Failed to repeat order:', err);
       const errorMessage = err?.data?.message || err?.message || 'Ошибка повторения заказа';

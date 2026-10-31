@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { useCartPanel } from '../../contexts/cart-panel-context';
 import {
   ArrowLeftRight,
   Calendar,
@@ -112,6 +113,7 @@ const setData = {
 };
 
 export default function SetPage() {
+  const { openCart } = useCartPanel();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
@@ -161,7 +163,7 @@ export default function SetPage() {
       .filter((item) => item.inSet && !removedFromSet.includes(item.id))
       .map((item) => item.id);
     setCartItems([...cartItems, ...setItems.filter((id) => !cartItems.includes(id))]);
-    navigate('/cart');
+    openCart();
   };
 
   const toggleItemSelection = (itemId: number) => {

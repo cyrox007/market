@@ -1011,6 +1011,13 @@ export interface Store {
 }
 
 export interface CartItem {
+  stock?: number | null;
+  stock_known?: boolean | null;
+  in_stock?: boolean | null;
+  available_to_order?: boolean | null;
+  is_sellable_bundle?: boolean;
+  is_bundle_configured?: boolean | null;
+  bundle_components?: Array<{ product_id: number; name: string; quantity: number; sku?: string; unit_price?: number; total?: number }>;
   price_source?: 'private_link' | 'catalog';
   id: number;
   product_id: number;

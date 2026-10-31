@@ -14,7 +14,7 @@ vi.mock('./useRegion', () => ({ useRegion: () => ({ getRegionId: () => null }) }
 vi.mock('../contexts/cart-toast-context', () => ({ useCartToast: () => ({ showCartToast }) }));
 
 const api = vi.hoisted(() => ({
-  cart: { get: vi.fn(), add: vi.fn(), update: vi.fn(), remove: vi.fn() },
+  cart: { get: vi.fn(), add: vi.fn(), update: vi.fn(), remove: vi.fn(), clear: vi.fn() },
 }));
 vi.mock('../lib/api', () => ({ api }));
 
@@ -48,6 +48,24 @@ beforeEach(() => {
 });
 
 describe('useCart.setCartQuantity', () => {
+  it('очистка во время быстрых кликов не восстанавливает строку и следующее добавление делает POST', async () => {
+    const server = deferred<unknown>();
+    api.cart.update.mockReturnValueOnce(server.promise);
+    api.cart.clear.mockResolvedValue({ message: '' });
+    api.cart.remove.mockResolvedValue({ message: '' });
+    api.cart.add.mockResolvedValue({ item: line(99, 7, 1), was_adjusted: false, message: '' });
+    const { result } = await renderCart(cartOf(line(55, 7, 1)), cartOf());
+    act(() => result.current.setCartQuantity(7, 2));
+    await waitFor(() => expect(api.cart.update).toHaveBeenCalledTimes(1));
+    let clearing!: Promise<unknown>;
+    act(() => { result.current.setCartQuantity(7, 3); clearing = result.current.clearCart(); });
+    await act(async () => { server.resolve({ item: line(55, 7, 2), was_adjusted: false, message: '' }); await clearing; });
+    await flush();
+    expect(quantityOf(result.current.cart, 7)).toBe(0);
+    expect(api.cart.update).toHaveBeenCalledTimes(1);
+    act(() => result.current.setCartQuantity(7, 1, { preview: { name: 'Стол', price: 100 } }));
+    await waitFor(() => expect(api.cart.add).toHaveBeenCalledWith(expect.objectContaining({ product_id: 7, quantity: 1 })));
+  });
   it('shows a new line at once and takes its id from the server', async () => {
     const server = deferred<unknown>();
     api.cart.add.mockReturnValue(server.promise);

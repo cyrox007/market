@@ -13,6 +13,7 @@ import { subscribeToRevalidate, revalidateCache } from './lib/revalidate-cache';
 import type { SSRContext } from './types/ssr';
 import FirstVisitRegionModal from './components/FirstVisitRegionModal';
 import { CartToastProvider } from './contexts/CartToastContext';
+import { CartPanelProvider } from './contexts/CartPanelContext';
 
 interface AppProps {
   ssrContext?: SSRContext;
@@ -45,12 +46,14 @@ function App({ ssrContext, Router, routerProps = {} }: AppProps = {}) {
             <AuthProvider initialUser={ssrContext?.user} authChecked={ssrContext?.authChecked}>
               <CountersProvider initialCounters={ssrContext?.counters}>
                 <RegionProvider initialRegion={ssrContext?.region}>
-                  <CartToastProvider>
-                    <Suspense fallback={<PageContentFallback />}>
-                      <AppRoutes />
-                    </Suspense>
-                    <FirstVisitRegionModal />
-                  </CartToastProvider>
+                  <CartPanelProvider>
+                    <CartToastProvider>
+                      <Suspense fallback={<PageContentFallback />}>
+                        <AppRoutes />
+                      </Suspense>
+                      <FirstVisitRegionModal />
+                    </CartToastProvider>
+                  </CartPanelProvider>
                 </RegionProvider>
               </CountersProvider>
             </AuthProvider>

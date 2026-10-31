@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, ChevronsRight, Copy, ShoppingCart, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import CartLink from '../../../components/cart/CartLink';
 import { QuantityStepper } from '../../../components/ui/composites';
 import { Badge, Button, Tooltip } from '../../../components/ui/primitives';
 import type { BadgeVariant } from '../../../components/ui/primitives/Badge';
@@ -167,8 +167,7 @@ export default function BuyBlock({
               disabled={cart.isBusy}
               onChange={(next) => (next > cart.quantity ? cart.increment() : cart.decrement())}
             />
-            <Link
-              to="/cart"
+            <CartLink
               className={cn(
                 'inline-flex h-[52px] flex-1 items-center justify-center gap-1 rounded-btn bg-brand-yellow px-4',
                 'whitespace-nowrap text-16 font-medium text-ink shadow-card outline-none',
@@ -178,7 +177,7 @@ export default function BuyBlock({
             >
               Перейти в корзину
               <ChevronsRight aria-hidden="true" className="size-5" />
-            </Link>
+            </CartLink>
           </div>
         ) : (
           <Button
