@@ -48,6 +48,55 @@ beforeEach(() => {
 });
 
 describe('useCart.setCartQuantity', () => {
+  it('rolls back only the failed price line while preserving another line of the same SKU', async () => {
+    const request = deferred<unknown>();
+    const discounted = { ...line(10, 7, 1), price: 60, total: 60 };
+    const catalog = line(20, 7, 2);
+    api.cart.update.mockReturnValueOnce(request.promise);
+    const { result } = await renderCart(cartOf(discounted, catalog));
+    act(() => result.current.setCartLineQuantity(10, 4));
+    await waitFor(() => expect(api.cart.update).toHaveBeenCalledTimes(1));
+    expect(result.current.cart?.subtotal).toBe(440);
+    await act(async () => request.reject({ status: 422, data: { message: 'Нет остатка' } }));
+    await waitFor(() => expect(result.current.cart?.items).toEqual([discounted, catalog]));
+    expect(showCartToast).toHaveBeenCalledWith('Нет остатка', 'error');
+  });
+  it('clears a pending priced-line intent even after its desired quantity returns to the original', async () => {
+    const request = deferred<unknown>();
+    api.cart.update.mockReturnValueOnce(request.promise);
+    api.cart.remove.mockResolvedValue({});
+    api.cart.clear.mockResolvedValue({});
+    const discounted = { ...line(10, 7, 1), price: 60, total: 60 };
+    const { result } = await renderCart(cartOf(discounted, line(20, 7, 1)), cartOf());
+    act(() => result.current.setCartLineQuantity(10, 2));
+    await waitFor(() => expect(api.cart.update).toHaveBeenCalledTimes(1));
+    let clearing!: Promise<unknown>;
+    act(() => { result.current.setCartLineQuantity(10, 1); clearing = result.current.clearCart(); });
+    await act(async () => { request.resolve({ item: { ...discounted, id: 11, quantity: 2, total: 120 }, was_adjusted: false, message: '' }); await clearing; });
+    await flush();
+    expect(result.current.cart?.items).toEqual([]);
+    expect(api.cart.update).toHaveBeenCalledTimes(1);
+    expect(api.cart.add).not.toHaveBeenCalled();
+    expect(showCartToast).not.toHaveBeenCalled();
+  });
+  it('accumulates clicks for one price line and uses its latest server id without changing its sibling', async () => {
+    const first = deferred<unknown>();
+    const privateLine = { ...line(10, 7, 1), price: 60, total: 60, is_private: true };
+    const sibling = line(20, 7, 1);
+    api.cart.update.mockReturnValueOnce(first.promise).mockResolvedValueOnce({
+      item: { ...privateLine, id: 12, quantity: 4, total: 240 }, was_adjusted: false, message: '',
+    });
+    const { result } = await renderCart(cartOf(privateLine, sibling), cartOf({ ...privateLine, id: 12, quantity: 4, total: 240 }, sibling));
+    act(() => result.current.setCartLineQuantity(10, 2));
+    await waitFor(() => expect(api.cart.update).toHaveBeenCalledTimes(1));
+    act(() => result.current.setCartLineQuantity(10, 3));
+    act(() => result.current.setCartLineQuantity(10, 4));
+    expect(result.current.cart?.items).toEqual([{ ...privateLine, quantity: 4, total: 240 }, sibling]);
+    await act(async () => first.resolve({ item: { ...privateLine, id: 11, quantity: 2, total: 120 }, was_adjusted: false, message: '' }));
+    await waitFor(() => expect(result.current.cart?.items).toEqual([{ ...privateLine, id: 12, quantity: 4, total: 240 }, sibling]));
+    expect(api.cart.update.mock.calls.map(([id, body]) => [id, body.quantity])).toEqual([[10, 2], [11, 4]]);
+    expect(api.cart.add).not.toHaveBeenCalled();
+  });
   it('очистка во время быстрых кликов не восстанавливает строку и следующее добавление делает POST', async () => {
     const server = deferred<unknown>();
     api.cart.update.mockReturnValueOnce(server.promise);
@@ -58,11 +107,13 @@ describe('useCart.setCartQuantity', () => {
     act(() => result.current.setCartQuantity(7, 2));
     await waitFor(() => expect(api.cart.update).toHaveBeenCalledTimes(1));
     let clearing!: Promise<unknown>;
-    act(() => { result.current.setCartQuantity(7, 3); clearing = result.current.clearCart(); });
+    act(() => { result.current.setCartQuantity(7, 1); clearing = result.current.clearCart(); });
     await act(async () => { server.resolve({ item: line(55, 7, 2), was_adjusted: false, message: '' }); await clearing; });
     await flush();
     expect(quantityOf(result.current.cart, 7)).toBe(0);
     expect(api.cart.update).toHaveBeenCalledTimes(1);
+    expect(api.cart.add).not.toHaveBeenCalled();
+    expect(showCartToast).not.toHaveBeenCalled();
     act(() => result.current.setCartQuantity(7, 1, { preview: { name: 'Стол', price: 100 } }));
     await waitFor(() => expect(api.cart.add).toHaveBeenCalledWith(expect.objectContaining({ product_id: 7, quantity: 1 })));
   });

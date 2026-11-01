@@ -22,6 +22,9 @@ interface CartSync {
   previews: Map<number, Partial<CartItem>>;
   /** id строки на сервере: экран может уже не показывать строку, а удалить её надо */
   lineIds: Map<number, number>;
+  /** Stable intent keys for independently priced lines; server ids can change after PUT. */
+  lineKeys: Map<number, number>;
+  lines: Map<number, CartItem>;
   /** Были изменения — когда очередь опустеет, сверить корзину с сервером */
   dirty: boolean;
   /** Значения последнего рендера хука: ключ кэша зависит от региона */
@@ -47,6 +50,15 @@ async function ensureRemoved(request: Promise<unknown>): Promise<void> {
  */
 const cartSyncs = new WeakMap<Cache, CartSync>();
 
+function replacePricedLine(cart: Cart | undefined, id: number, replacement?: CartItem): Cart | undefined {
+  if (!cart) return cart;
+  const exists = cart.items.some((item) => item.id === id);
+  const items = cart.items.flatMap((item) => item.id === id ? replacement ? [replacement] : [] : [item]);
+  if (!exists && replacement) items.push(replacement);
+  return { ...cart, items, subtotal: items.reduce((sum, item) => sum + item.total, 0),
+    item_count: items.reduce((sum, item) => sum + item.quantity, 0), is_empty: items.length === 0 };
+}
+
 function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
   const existing = cartSyncs.get(cache);
   if (existing) return existing;
@@ -57,12 +69,31 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
   const sync: CartSync = {
     previews: new Map(),
     lineIds: new Map(),
+    lineKeys: new Map(),
+    lines: new Map(),
     dirty: false,
     context: { cartKey: '/api/cart', regionId: null, showCartToast: () => {} },
     quantities: createIntentSync<number>({
       send: async (productId, quantity, confirmed) => {
         sync.dirty = true;
         const regionId = sync.context.regionId ?? undefined;
+        if (productId < 0) {
+          const previous = sync.lines.get(productId)!;
+          if (quantity === 0) {
+            await ensureRemoved(api.cart.remove(previous.id));
+            return 0;
+          }
+          const result = await api.cart.update(previous.id, { quantity, region_id: regionId });
+          sync.lines.set(productId, result.item);
+          sync.lineKeys.set(result.item.id, productId);
+          updateCart((cart) => {
+            const shown = cart?.items.find((item) => item.id === previous.id);
+            if (!shown) return cart;
+            return replacePricedLine(cart, previous.id, { ...result.item, quantity: shown.quantity, total: result.item.price * shown.quantity });
+          });
+          if (result.was_adjusted) sync.context.showCartToast(result.message, 'success');
+          return result.item.quantity;
+        }
         // Сервер пересоздаёт строку на каждое изменение — id берём из последнего ответа
         const lineId = sync.lineIds.get(productId) ?? 0;
         if (quantity === 0) {
@@ -81,7 +112,11 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
         return result.item.quantity;
       },
       apply: (productId, quantity) =>
-        updateCart((cart) => setLineQuantity(cart, productId, quantity, sync.previews.get(productId))),
+        updateCart((cart) => {
+          if (productId >= 0) return setLineQuantity(cart, productId, quantity, sync.previews.get(productId));
+          const line = sync.lines.get(productId)!;
+          return replacePricedLine(cart, line.id, quantity > 0 ? { ...line, quantity, total: line.price * quantity } : undefined);
+        }),
       onError: (_productId, error) => sync.context.showCartToast(getCartErrorMessage(error), 'error'),
     }),
   };
@@ -265,6 +300,9 @@ export function useCart() {
       // Пока запрос количества в полёте, новые клики могли накопиться в intent-sync.
       // После очистки их целью должен стать 0, иначе отложенный PUT/POST вернёт товар.
       const current = cache.get(cartKey)?.data as Cart | undefined;
+      for (const [key, line] of cartSync.lines) {
+        if (cartSync.quantities.isPending(key)) cartSync.quantities.set(key, 0, line.quantity);
+      }
       for (const item of current?.items ?? []) {
         if (cartSync.quantities.isPending(item.product_id)) {
           cartSync.quantities.set(item.product_id, 0, item.quantity);
@@ -281,6 +319,8 @@ export function useCart() {
         try {
           await api.cart.clear();
           cartSync.lineIds.clear();
+          cartSync.lineKeys.clear();
+          cartSync.lines.clear();
         } catch (err) {
           await syncCartFromServer();
           throw err;
@@ -316,6 +356,22 @@ export function useCart() {
     [cache, cartKey, setCartQuantity],
   );
 
+  const setCartLineQuantity = useCallback((itemId: number, quantity: number, options?: { max?: number }) => {
+    const current = cache.get(cartKey)?.data as Cart | undefined;
+    const key = cartSync.lineKeys.get(itemId) ?? -itemId;
+    const known = cartSync.lines.get(key);
+    const shown = current?.items.find((item) => item.id === (known?.id ?? itemId));
+    if (!shown && !known) return;
+    if (!known && shown && current?.items.filter((item) => item.product_id === shown.product_id).length === 1) {
+      setCartQuantity(shown.product_id, quantity, options);
+      return;
+    }
+    if (!known || !cartSync.quantities.isPending(key)) cartSync.lines.set(key, shown ?? known!);
+    cartSync.lineKeys.set(itemId, key);
+    const target = Math.max(0, options?.max === undefined ? quantity : Math.min(quantity, options.max));
+    cartSync.quantities.set(key, target, shown?.quantity ?? 0);
+  }, [cache, cartKey, cartSync, setCartQuantity]);
+
   // Вне мутации — через очередь; внутри задач syncCartFromServer зовётся напрямую
   const loadCart = useCallback(async () => {
     await runSessionRead(syncCartFromServer);
@@ -328,6 +384,7 @@ export function useCart() {
     addToCart,
     adjustCartQuantity,
     setCartQuantity,
+    setCartLineQuantity,
     updateQuantity,
     updateVariant,
     removeFromCart,

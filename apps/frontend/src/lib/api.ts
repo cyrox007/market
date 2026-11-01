@@ -1206,8 +1206,9 @@ export interface Order {
   cancelled_due_to_unpaid_timeout?: boolean;
 }
 
-export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null }
+export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null; ready?: ReadyRange | null; hours?: string | null }
 export interface WarehouseOption {
+  delivery?: ReadyRange | null;
   warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
   total_fulfillment_cost: number; service_options: {
     assembly: { available: boolean; required: boolean; price: number | null };
@@ -1312,6 +1313,8 @@ export interface PaymentMethod {
 }
 
 export interface Address {
+  floor?: string | null;
+  intercom?: string | null;
   directory_external_id?: string | null;
   id: number;
   title?: string | null;
@@ -1332,6 +1335,8 @@ export interface Address {
 }
 
 export interface AddressData {
+  floor?: string;
+  intercom?: string;
   directory_external_id?: string;
   title?: string;
   address?: string;

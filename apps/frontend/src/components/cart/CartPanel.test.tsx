@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   isLoading: false,
   error: null as string | null,
   setCartQuantity: vi.fn(),
-  updateQuantity: vi.fn(),
+  setCartLineQuantity: vi.fn(),
   removeFromCart: vi.fn(),
   clearCart: vi.fn(),
   reloadCart: vi.fn(),
@@ -121,7 +121,7 @@ describe('панель корзины', () => {
     const row = screen.getByRole('article', { name: 'Шкаф' });
     expect(within(row).getByRole('button', { name: 'Уменьшить количество' })).toBeDisabled();
     fireEvent.click(within(row).getByRole('button', { name: 'Увеличить количество' }));
-    expect(mocks.setCartQuantity).toHaveBeenCalledWith(12, 2, { max: 2 });
+    expect(mocks.setCartLineQuantity).toHaveBeenCalledWith(1, 2, { max: 2 });
     expect(
       within(screen.getByRole('article', { name: 'Стол' })).getByRole('button', {
         name: 'Увеличить количество',
@@ -135,19 +135,19 @@ describe('панель корзины', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Добавить в избранное' }));
     expect(mocks.toggleWishlist).toHaveBeenCalledWith(12);
     fireEvent.click(screen.getByRole('button', { name: 'Удалить товар' }));
-    expect(mocks.setCartQuantity).toHaveBeenCalledWith(12, 0);
+    expect(mocks.setCartLineQuantity).toHaveBeenCalledWith(1, 0, { max: undefined });
   });
   it('различает две строки одного SKU с обычной и закрытой ценой', async () => {
-    fill(line(), line({ id: 2, price_source: 'private_link' }));
+    fill(line({ stock: 3 }), line({ id: 2, stock: 3, price_source: 'private_link' }));
     mocks.removeFromCart.mockResolvedValue(undefined);
-    mocks.updateQuantity.mockResolvedValue(undefined);
+
     render(<App />);
     open();
     const rows = screen.getAllByRole('article', { name: 'Шкаф' });
     fireEvent.click(within(rows[1]).getByRole('button', { name: 'Увеличить количество' }));
-    await waitFor(() => expect(mocks.updateQuantity).toHaveBeenCalledWith(2, 2));
+    await waitFor(() => expect(mocks.setCartLineQuantity).toHaveBeenCalledWith(2, 2, { max: 2 }));
     fireEvent.click(within(rows[1]).getByRole('button', { name: 'Удалить товар' }));
-    await waitFor(() => expect(mocks.removeFromCart).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(mocks.setCartLineQuantity).toHaveBeenCalledWith(2, 0, { max: undefined }));
     expect(mocks.setCartQuantity).not.toHaveBeenCalled();
   });
   it('исключает недоступный товар из итогов и объясняет блокировку', () => {

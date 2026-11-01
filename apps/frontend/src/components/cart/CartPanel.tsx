@@ -26,9 +26,7 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
     cart,
     isLoading,
     error,
-    setCartQuantity,
-    updateQuantity,
-    removeFromCart,
+    setCartLineQuantity,
     clearCart,
     reloadCart,
   } = useCart();
@@ -39,7 +37,6 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [actionError, setActionError] = useState('');
-  const [updatingLines, setUpdatingLines] = useState<Set<number>>(() => new Set());
   useEffect(() => {
     if (!open) {
       setConfirmClear(false);
@@ -56,29 +53,12 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
     // Заменяем временную запись панели: «Назад» должен вернуть исходную страницу один раз.
     navigate(path, { replace });
   };
-  async function changeLine(item: (typeof items)[number], quantity: number, max?: number) {
-    if (updatingLines.has(item.id)) return;
-    if (items.filter((line) => line.product_id === item.product_id).length === 1) {
-      if (quantity === 0) setCartQuantity(item.product_id, 0);
-      else setCartQuantity(item.product_id, quantity, { max });
-      return;
-    }
-    // Закрытая и обычная цены одного SKU — разные строки; здесь нужен именно id строки.
-    setUpdatingLines((previous) => new Set(previous).add(item.id));
-    try {
-      if (quantity === 0) await removeFromCart(item.id);
-      else await updateQuantity(item.id, quantity);
-    } catch (problem) {
-      setActionError(getCartErrorMessage(problem));
-    } finally {
-      setUpdatingLines((previous) => {
-        const next = new Set(previous);
-        next.delete(item.id);
-        return next;
-      });
-    }
+  function changeLine(item: (typeof items)[number], quantity: number, max?: number) {
+    // Один SKU с разными ценами: накапливаем намерения по конкретной строке.
+    const siblingQuantity = items.filter((line) => line.product_id === item.product_id && line.id !== item.id)
+      .reduce((sum, line) => sum + line.quantity, 0);
+    setCartLineQuantity(item.id, quantity, { max: max === undefined ? undefined : Math.max(item.quantity, max - siblingQuantity) });
   }
-
   async function confirm() {
     if (clearing) return;
     setClearing(true);
@@ -158,8 +138,7 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
               loading ||
               unavailable ||
               clearing ||
-              confirmClear ||
-              updatingLines.size > 0
+              confirmClear
             }
             aria-describedby={unavailable ? 'cart-unavailable' : undefined}
             onClick={() => goTo('/checkout')}
@@ -258,7 +237,7 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
               onRemove={() => void changeLine(item, 0)}
               onQuantity={(quantity, max) => void changeLine(item, quantity, max)}
               onNavigate={goTo}
-              disabled={clearing || updatingLines.has(item.id)}
+              disabled={clearing}
             />
           ))}
         </div>
