@@ -162,6 +162,18 @@ export default function CartPanelItem({
           unavailable && 'opacity-50',
         )}
       >
+        {item.old_total != null &&
+          item.old_total > item.total &&
+          (item.discount_amount ?? 0) > 0 && (
+            <span className="mb-1 flex flex-wrap items-center justify-end gap-2 text-12 font-normal text-ink-secondary">
+              <del>{item.old_total.toLocaleString('ru-RU')} ₽</del>
+              {!!item.discount_percent && (
+                <span className="rounded-pill bg-brand-red/10 px-2 py-0.5 text-brand-red">
+                  −{item.discount_percent}%
+                </span>
+              )}
+            </span>
+          )}
         {item.total.toLocaleString('ru-RU')} ₽
       </p>
     </article>

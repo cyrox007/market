@@ -12,7 +12,7 @@ import Sheet from '../ui/primitives/Sheet';
 import Button from '../ui/primitives/Button';
 import IconButton from '../ui/primitives/IconButton';
 import CartPanelItem from './CartPanelItem';
-import { cartPanelTotals, cartQuantityLabel } from './cartPanelModel';
+import { cartPanelTotals, cartPanelSavings, cartQuantityLabel } from './cartPanelModel';
 import { isSheetHistoryEntry } from '../ui/primitives/sheetHistory';
 
 export default function CartPanel() {
@@ -22,14 +22,7 @@ export default function CartPanel() {
 }
 
 function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const {
-    cart,
-    isLoading,
-    error,
-    setCartLineQuantity,
-    clearCart,
-    reloadCart,
-  } = useCart();
+  const { cart, isLoading, error, setCartLineQuantity, clearCart, reloadCart } = useCart();
   const { wishlistProductIds, toggleWishlist } = useWishlistAndCompare();
   const { showCartToast } = useCartToast();
   const narrow = useMediaQuery(BELOW_MD);
@@ -45,6 +38,7 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
   }, [open]);
   const items = cart?.items ?? [];
   const totals = cartPanelTotals(items);
+  const savings = cartPanelSavings(items);
   const loading = !cart && isLoading;
   const unavailable = totals.hasUnavailable;
   const goTo = (path: string) => {
@@ -55,9 +49,12 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
   };
   function changeLine(item: (typeof items)[number], quantity: number, max?: number) {
     // Один SKU с разными ценами: накапливаем намерения по конкретной строке.
-    const siblingQuantity = items.filter((line) => line.product_id === item.product_id && line.id !== item.id)
+    const siblingQuantity = items
+      .filter((line) => line.product_id === item.product_id && line.id !== item.id)
       .reduce((sum, line) => sum + line.quantity, 0);
-    setCartLineQuantity(item.id, quantity, { max: max === undefined ? undefined : Math.max(item.quantity, max - siblingQuantity) });
+    setCartLineQuantity(item.id, quantity, {
+      max: max === undefined ? undefined : Math.max(item.quantity, max - siblingQuantity),
+    });
   }
   async function confirm() {
     if (clearing) return;
@@ -117,8 +114,16 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
               aria-hidden="true"
               className="min-w-0 flex-1 border-b border-dashed border-surface-border"
             />
-            <span className="whitespace-nowrap">{totals.subtotal.toLocaleString('ru-RU')} ₽</span>
+            <span className="whitespace-nowrap">
+              {(savings.old_subtotal ?? totals.subtotal).toLocaleString('ru-RU')} ₽
+            </span>
           </div>
+          {!!savings.discount_total && (
+            <div className="flex justify-between gap-4 text-14 text-brand-red">
+              <span>Скидка</span>
+              <span>−{savings.discount_total.toLocaleString('ru-RU')} ₽</span>
+            </div>
+          )}
           <div className="flex justify-between gap-4 text-20 font-semibold">
             <span>Итого</span>
             <span data-testid="cart-total">{totals.subtotal.toLocaleString('ru-RU')} ₽</span>
@@ -133,13 +138,7 @@ function CartPanelContent({ open, onClose }: { open: boolean; onClose: () => voi
             size="lg"
             fullWidth
             className="shadow-card max-vsm:!h-11 max-vsm:!text-14"
-            disabled={
-              !items.length ||
-              loading ||
-              unavailable ||
-              clearing ||
-              confirmClear
-            }
+            disabled={!items.length || loading || unavailable || clearing || confirmClear}
             aria-describedby={unavailable ? 'cart-unavailable' : undefined}
             onClick={() => goTo('/checkout')}
           >

@@ -1,4 +1,4 @@
-import type { Cart, CartItem, Product } from '../lib/api';
+﻿import type { Cart, CartItem, Product } from '../lib/api';
 
 /** ID товара для POST /cart (вариация, если родитель вариативный) */
 export function resolveProductIdForCart(product: {
@@ -54,15 +54,25 @@ export function findCartLineForProduct(
   return pool[0];
 }
 
-export function productPreviewFromProduct(product: {
-  id: number;
-  name: string;
-  slug: string;
-  price: number;
-  thumbnail?: string | null;
-  image?: string | null;
-  sku?: string;
-} & Pick<CartItem, 'stock' | 'stock_known' | 'in_stock' | 'available_to_order' | 'is_sellable_bundle' | 'is_bundle_configured'>): Partial<CartItem> {
+export function productPreviewFromProduct(
+  product: {
+    id: number;
+    name: string;
+    slug: string;
+    price: number;
+    thumbnail?: string | null;
+    image?: string | null;
+    sku?: string;
+  } & Pick<
+    CartItem,
+    | 'stock'
+    | 'stock_known'
+    | 'in_stock'
+    | 'available_to_order'
+    | 'is_sellable_bundle'
+    | 'is_bundle_configured'
+  >,
+): Partial<CartItem> {
   return {
     name: product.name,
     slug: product.slug,
@@ -107,14 +117,7 @@ export function mergeCartItem(cart: Cart | null | undefined, item: CartItem): Ca
   } else {
     items.unshift(item);
   }
-  const subtotal = items.reduce((s, i) => s + (i.total ?? i.price * i.quantity), 0);
-  const item_count = items.reduce((s, i) => s + i.quantity, 0);
-  return {
-    items,
-    subtotal,
-    item_count,
-    is_empty: items.length === 0,
-  };
+  return withTotals(items);
 }
 
 export function patchCartQuantity(
@@ -171,26 +174,52 @@ export function patchCartQuantity(
     } else {
       const price = items[idx].price;
       items[idx] = {
-        ...items[idx],
+        ...cartLineWithQuantity(items[idx], nextQty),
         quantity: nextQty,
         total: price * nextQty,
       };
     }
   }
+  return withTotals(items);
+}
+
+export function withTotals(items: CartItem[]): Cart {
   const subtotal = items.reduce((s, i) => s + (i.total ?? i.price * i.quantity), 0);
+  const discount_total =
+    Math.round(items.reduce((sum, item) => sum + (item.discount_amount ?? 0), 0) * 100) / 100;
   const item_count = items.reduce((s, i) => s + i.quantity, 0);
   return {
     items,
     subtotal,
+    old_subtotal: Math.round((subtotal + discount_total) * 100) / 100,
+    discount_total,
     item_count,
     is_empty: items.length === 0,
   };
 }
 
-function withTotals(items: CartItem[]): Cart {
-  const subtotal = items.reduce((s, i) => s + (i.total ?? i.price * i.quantity), 0);
-  const item_count = items.reduce((s, i) => s + i.quantity, 0);
-  return { items, subtotal, item_count, is_empty: items.length === 0 };
+/** Project only the server's unit comparison price while a quantity change is pending. */
+export function cartLineWithQuantity<T extends Partial<CartItem>>(item: T, quantity: number) {
+  const total = Math.round((item.price ?? 0) * quantity * 100) / 100;
+  const old_total =
+    item.old_price != null &&
+    item.old_price > (item.price ?? 0) &&
+    item.price_source !== 'private_link' &&
+    !item.is_sellable_bundle
+      ? Math.round(item.old_price * quantity * 100) / 100
+      : null;
+  return {
+    ...item,
+    quantity,
+    total,
+    ...(item.old_price !== undefined || item.discount_amount !== undefined
+      ? {
+          old_total,
+          discount_amount:
+            old_total == null ? 0 : Math.max(0, Math.round((old_total - total) * 100) / 100),
+        }
+      : {}),
+  };
 }
 
 /**
@@ -219,11 +248,11 @@ export function setLineQuantity(
     slug: null,
     image: null,
     sku: null,
-    ...base,
+    ...cartLineWithQuantity(base, quantity),
     product_id: productId,
     price,
     quantity,
-    total: price * quantity,
+    total: Math.round(price * quantity * 100) / 100,
   };
   if (idx >= 0) items[idx] = next;
   else items.unshift(next);
@@ -231,13 +260,15 @@ export function setLineQuantity(
 }
 
 /** Данные строки с сервера (id, цена), количество — как сейчас на экране */
-export function mergeServerLine(cart: Cart | null | undefined, item: CartItem): Cart | null | undefined {
-  const shown = cart?.items.find((i) => i.product_id === item.product_id);
-  if (!shown) return cart;
-  return setLineQuantity(
-    setLineQuantity(cart, item.product_id, 0),
-    item.product_id,
-    shown.quantity,
-    item,
-  );
+export function mergeServerLine(
+  cart: Cart | null | undefined,
+  item: CartItem,
+): Cart | null | undefined {
+  if (!cart) return cart;
+  const index = cart.items.findIndex((line) => line.product_id === item.product_id);
+  if (index < 0) return cart;
+  const items = [...cart.items];
+  // Сервер может сменить id строки; сохраняем её место и последнее количество с экрана.
+  items[index] = cartLineWithQuantity(item, items[index].quantity);
+  return withTotals(items);
 }

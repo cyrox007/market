@@ -1,5 +1,6 @@
 ﻿import { Info } from 'lucide-react';
 import CheckoutSelect from './CheckoutSelect';
+import CheckoutDeliveryEstimate from './CheckoutDeliveryEstimate';
 import { Radio, RadioGroup } from '../../../components/ui/primitives/Radio';
 import Checkbox from '../../../components/ui/primitives/Checkbox';
 import Input from '../../../components/ui/primitives/Input';
@@ -108,11 +109,7 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
             </select>
           </label>
         )}
-        {c.selected && (
-          <p className="text-14 text-ink-secondary">
-            Срок доставки: {c.selected.delivery ? formatReady(c.selected.delivery) : 'уточняется'}
-          </p>
-        )}
+        {c.selected && <CheckoutDeliveryEstimate option={c.selected} />}
         {services && (
           <div className="space-y-4 rounded-card bg-surface-grey/50 p-4">
             <h3 className="text-16 font-semibold">Дополнительно</h3>

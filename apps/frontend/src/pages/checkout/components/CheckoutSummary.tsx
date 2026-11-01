@@ -7,6 +7,7 @@ import { cartQuantityLabel } from '../../../components/cart/cartPanelModel';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
 
 export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutState }) {
+  const discount = !c.direct && c.cart?.subtotal === c.subtotal ? (c.cart.discount_total ?? 0) : 0;
   const rows = !c.direct
     ? (c.cart?.items ?? [])
     : (c.prepared?.priced_components?.map((part) => ({
@@ -18,6 +19,8 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSta
         image: null,
         variation_attributes: [],
         bundle_components: [],
+        old_total: null,
+        discount_amount: 0,
       })) ??
       c.items.map((item) => ({
         id: item.product_id,
@@ -28,6 +31,8 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSta
         total: c.subtotal,
         variation_attributes: [],
         bundle_components: [],
+        old_total: null,
+        discount_amount: 0,
       })));
   const money = (value: number) => `${value.toLocaleString('ru-RU')} ₽`;
   return (
@@ -73,7 +78,17 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSta
               <p className="text-12 text-ink-secondary">
                 {item.quantity} шт. × {money(item.price)}
               </p>
-              <p className="text-14 font-semibold">{money(item.total)}</p>
+              <p className="flex flex-wrap items-baseline gap-2 text-14 font-semibold">
+                {money(item.total)}
+                {discount > 0 &&
+                  item.old_total != null &&
+                  item.old_total > item.total &&
+                  (item.discount_amount ?? 0) > 0 && (
+                    <del className="text-12 font-normal text-ink-secondary">
+                      {money(item.old_total)}
+                    </del>
+                  )}
+              </p>
             </div>
           </div>
         ))}
@@ -85,8 +100,14 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSta
             aria-hidden="true"
             className="flex-1 border-b border-dashed border-surface-border"
           />
-          <span>{money(c.subtotal)}</span>
+          <span>{money(discount > 0 ? (c.cart?.old_subtotal ?? c.subtotal) : c.subtotal)}</span>
         </div>
+        {discount > 0 && (
+          <div className="flex justify-between gap-3 text-14 text-brand-red">
+            <span>Скидка</span>
+            <span>−{money(discount)}</span>
+          </div>
+        )}
         <div className="flex items-baseline gap-2 text-14">
           <span className="text-ink-secondary">
             {c.mode === 'pickup' ? 'Самовывоз' : 'Доставка и услуги'}

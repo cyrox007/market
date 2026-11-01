@@ -1011,6 +1011,10 @@ export interface Store {
 }
 
 export interface CartItem {
+  old_price?: number | null;
+  old_total?: number | null;
+  discount_amount?: number;
+  discount_percent?: number | null;
   stock?: number | null;
   stock_known?: boolean | null;
   in_stock?: boolean | null;
@@ -1043,6 +1047,8 @@ export interface CartItem {
 }
 
 export interface Cart {
+  old_subtotal?: number;
+  discount_total?: number;
   items: CartItem[];
   subtotal: number;
   item_count: number;
@@ -1208,6 +1214,17 @@ export interface Order {
 
 export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null; ready?: ReadyRange | null; hours?: string | null }
 export interface WarehouseOption {
+  delivery_days_min?: number | null;
+  delivery_days_max?: number | null;
+  has_preorders?: boolean;
+  delivery_estimate_unavailable?: boolean;
+  delivery_schedule?: {
+    status: 'estimate_only' | 'requires_confirmation';
+    date_selection_enabled: false;
+    time_selection_enabled: false;
+    confirmation_required: true;
+    notice: string;
+  };
   delivery?: ReadyRange | null;
   warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
   total_fulfillment_cost: number; service_options: {

@@ -1,3 +1,4 @@
+﻿import { isOnlineCardPaymentMethod } from '../../../utils/paymentUtils';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -155,8 +156,11 @@ export function useWarehouseCheckout() {
       .list()
       .then((response) => {
         if (active) {
-          setMethods(response.data);
-          setPayment(response.data.find(selectable)?.code || '');
+          const checkoutMethods = response.data.filter(
+            (method) => method.code === 'cash' || isOnlineCardPaymentMethod(method.code),
+          );
+          setMethods(checkoutMethods);
+          setPayment(checkoutMethods.find(selectable)?.code || '');
         }
       })
       .catch(() => {

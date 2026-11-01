@@ -109,13 +109,13 @@ it('selects the default saved address and sends address_id without legacy locati
 });
 afterEach(cleanup);
 
-it('shows digital ruble as coming soon and chooses an available payment method', async () => {
+it('disables an upcoming gateway and chooses an available online payment method', async () => {
   vi.mocked(api.paymentMethods.list).mockResolvedValue({
     data: [
       {
         id: 2,
-        code: 'digital_ruble',
-        name: 'Цифровой рубль',
+        code: 'card_ecom',
+        name: 'Онлайн-оплата',
         is_active: false,
         is_coming_soon: true,
         selectable: false,
@@ -123,7 +123,7 @@ it('shows digital ruble as coming soon and chooses an available payment method',
       },
       {
         id: 1,
-        code: 'card',
+        code: 'card_in_store',
         name: 'Банковская карта',
         is_active: true,
         selectable: true,
@@ -142,7 +142,7 @@ it('shows digital ruble as coming soon and chooses an available payment method',
     ),
   );
   fireEvent.click(screen.getByRole('combobox', { name: 'Способ оплаты' }));
-  const option = await screen.findByRole('option', { name: 'Цифровой рубль — Скоро' });
+  const option = await screen.findByRole('option', { name: 'Онлайн-оплата — Скоро' });
   expect(option).toHaveAttribute('aria-disabled', 'true');
   expect(screen.getByRole('combobox', { name: 'Способ оплаты' })).toHaveTextContent(
     'Банковская карта',
@@ -154,8 +154,8 @@ it('cannot submit when only coming soon methods exist, including a forged select
     data: [
       {
         id: 2,
-        code: 'digital_ruble',
-        name: 'Цифровой рубль',
+        code: 'card_ecom',
+        name: 'Онлайн-оплата',
         is_active: false,
         is_coming_soon: true,
         selectable: false,
@@ -168,11 +168,11 @@ it('cannot submit when only coming soon methods exist, including a forged select
       <Checkout />
     </MemoryRouter>,
   );
-  await screen.findByText('Другие способы');
+  await screen.findByText('Нет доступных способов оплаты');
   fireEvent.click(screen.getByRole('combobox', { name: 'Способ оплаты' }));
-  await screen.findByRole('option', { name: 'Цифровой рубль — Скоро' });
+  await screen.findByRole('option', { name: 'Онлайн-оплата — Скоро' });
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('option', { name: 'Цифровой рубль — Скоро' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Онлайн-оплата — Скоро' }));
   expect(
     (screen.getByRole('button', { name: 'Оформить заказ' }) as HTMLButtonElement).disabled,
   ).toBe(true);
@@ -187,7 +187,7 @@ async function contacts() {
   fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'buyer@example.test' } });
   fireEvent.click(screen.getByRole('checkbox'));
   await waitFor(() =>
-    expect(screen.getByRole('combobox', { name: 'Способ оплаты' })).toHaveTextContent('Наличные'),
+    expect(screen.getByRole('radio', { name: 'Наличными при получении' })).toBeChecked(),
   );
 }
 it('joins the three contact fields into the server contact_name without extra spaces', async () => {
@@ -322,7 +322,7 @@ it('prefills the one-click form and sends its comment with the direct item', asy
   fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'buyer@example.test' } });
   fireEvent.click(screen.getByRole('checkbox'));
   await waitFor(() =>
-    expect(screen.getByRole('combobox', { name: 'Способ оплаты' })).toHaveTextContent('Наличные'),
+    expect(screen.getByRole('radio', { name: 'Наличными при получении' })).toBeChecked(),
   );
   fireEvent.click(screen.getByText('Выбрать дом'));
   await waitFor(() =>
@@ -368,4 +368,74 @@ it('preserves a saved address without a directory GUID when switching delivery m
   await waitFor(() =>
     expect(api.shipping.quote).toHaveBeenLastCalledWith(expect.objectContaining({ address_id: 8 })),
   );
+});
+it.each([
+  { status: 'estimate_only', min: 3, max: 6, text: 'Ориентировочный срок: 3–6 дней' },
+  { status: 'requires_confirmation', min: 3, max: 6, text: 'Срок уточняется' },
+  { status: 'estimate_only', min: null, max: null, text: 'Срок уточняется' },
+])(
+  'labels the delivery estimate without promising a date: $status $min',
+  async ({ status, min, max, text }) => {
+    vi.mocked(api.shipping.quote).mockResolvedValue({
+      available: true,
+      subtotal: 1000,
+      options: [],
+      selected: {
+        warehouse_id: 4,
+        warehouse_name: 'Центральный',
+        delivery_cost: 500,
+        assembly_cost: 0,
+        total_fulfillment_cost: 500,
+        delivery_days_min: min,
+        delivery_days_max: max,
+        delivery: { days_min: 3, days_max: 6, label: 'Доставка 5 ноября' },
+        delivery_schedule: {
+          status: status as 'estimate_only' | 'requires_confirmation',
+          date_selection_enabled: false,
+          time_selection_enabled: false,
+          confirmation_required: true,
+          notice:
+            'Срок ориентировочный. Дату и время доставки согласует менеджер после оформления заказа.',
+        },
+        service_options: {
+          assembly: { available: false, required: false, price: null },
+          handling: [],
+          additional: [],
+        },
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Checkout />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByText('Выбрать дом'));
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.getByText(/Дату и время доставки согласует менеджер/)).toBeInTheDocument();
+    expect(screen.queryByText(/Доставка 5 ноября/)).not.toBeInTheDocument();
+  },
+);
+it('offers only online and cash, with a gateway list only for online payment', async () => {
+  vi.mocked(api.paymentMethods.list).mockResolvedValue({
+    data: [
+      { id: 1, code: 'card', name: 'Картой при получении', is_active: true, sort_order: 0 },
+      { id: 2, code: 'card_in_store', name: 'Райффайзен', is_active: true, sort_order: 1 },
+      { id: 3, code: 'card_sberbank', name: 'Сбербанк', is_active: true, sort_order: 2 },
+      { id: 4, code: 'cash', name: 'Наличные', is_active: true, sort_order: 3 },
+    ],
+  });
+  render(
+    <MemoryRouter>
+      <Checkout />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByRole('radio', { name: 'Онлайн' })).toBeChecked());
+  expect(screen.queryByRole('radio', { name: 'Другие способы' })).not.toBeInTheDocument();
+  expect(screen.getAllByText('Райффайзен')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('combobox', { name: 'Способ оплаты' }));
+  expect(screen.getAllByRole('option')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('option', { name: 'Сбербанк' }));
+  expect(screen.getByRole('combobox', { name: 'Способ оплаты' })).toHaveTextContent('Сбербанк');
+  fireEvent.click(screen.getByRole('radio', { name: 'Наличными при получении' }));
+  expect(screen.queryByRole('combobox', { name: 'Способ оплаты' })).not.toBeInTheDocument();
 });

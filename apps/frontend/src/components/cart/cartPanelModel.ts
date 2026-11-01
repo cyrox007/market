@@ -2,6 +2,7 @@ import type { CartItem } from '../../lib/api';
 import { availabilityOf } from '../../lib/availability';
 import { plural } from '../../lib/plural';
 import { isUnconfiguredKit } from '../../utils/cartProduct';
+import { withTotals } from '../../utils/cartProduct';
 
 export const cartQuantityLabel = (quantity: number) =>
   `${quantity} ${plural(quantity, ['товар', 'товара', 'товаров'])}`;
@@ -24,4 +25,8 @@ export function cartPanelTotals(items: CartItem[]) {
     },
     { quantity: 0, subtotal: 0, hasUnavailable: false },
   );
+}
+
+export function cartPanelSavings(items: CartItem[]) {
+  return withTotals(items.filter((item) => cartItemAvailability(item).status !== 'out'));
 }

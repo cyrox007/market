@@ -217,3 +217,26 @@ it('switching to pickup while a real session read is pending ignores its stale d
   );
   expect(await screen.findByText('Заказ принят')).toBeInTheDocument();
 });
+it('shows server discounts in checkout without changing the payable subtotal', async () => {
+  vi.mocked(api.cart.get).mockResolvedValue({
+    ...cart,
+    old_subtotal: 1500,
+    discount_total: 500,
+    items: [
+      {
+        ...cart.items[0],
+        old_price: 1500,
+        old_total: 1500,
+        discount_amount: 500,
+        discount_percent: 33,
+      },
+    ],
+  });
+  renderCheckout();
+  await fillGuest();
+  await waitFor(() =>
+    expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent(/1\s500/),
+  );
+  expect(screen.getByText('Скидка').parentElement).toHaveTextContent('−500 ₽');
+  expect(screen.getByText('Стоимость товаров').parentElement).toHaveTextContent(/1\s500/);
+});
