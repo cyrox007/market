@@ -50,56 +50,14 @@ class RelatedProductsUnifiedEditorTest extends TestCase
         Livewire::test(RelatedProductsRelationManager::class, [
             'ownerRecord' => $wardrobe, 'pageClass' => EditProduct::class,
         ])
-            ->assertSee('Управлять сериями')
-            ->assertSee('Что сейчас показывается покупателю')
+            ->assertSee('Добавить сопутствующие')
+            ->assertDontSee('Управлять сериями')
+            ->assertDontSee('Участие в сериях')
+            ->assertSee('Показывается покупателю')
             ->assertSee('Вручную')
             ->assertSee('Серия: Бруно')
             ->assertSee('Антресоль Бруно')
             ->assertSee('Комод');
-    }
-
-    public function test_series_membership_and_global_recommendation_switch_live_in_related_section(): void
-    {
-        $wardrobe = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
-        $mezzanine = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
-        $collection = $this->series($mezzanine);
-        $collection->forceFill(['recommend_collection_members' => false])->save();
-
-        $page = Livewire::test(RelatedProductsRelationManager::class, [
-            'ownerRecord' => $wardrobe, 'pageClass' => EditProduct::class,
-        ]);
-
-        $page->mountTableAction('manageSeriesRecommendations')
-            ->setActionData([
-                'collection_id' => $collection->id,
-                'operation' => 'add',
-            ])
-            ->callMountedAction()->assertHasNoActionErrors();
-
-        $this->assertTrue((bool) $collection->fresh()->recommend_collection_members);
-        $this->assertTrue($collection->products()->where('products.id', $wardrobe->id)->exists());
-        $this->getJson('/api/v1/products/'.$wardrobe->id.'/related')
-            ->assertOk()->assertJsonPath('data.0.id', $mezzanine->id);
-
-    }
-
-    public function test_series_recommendations_can_be_disabled_from_existing_related_section(): void
-    {
-        $wardrobe = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
-        $mezzanine = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
-        $collection = $this->series($wardrobe, $mezzanine);
-
-        Livewire::test(RelatedProductsRelationManager::class, [
-            'ownerRecord' => $wardrobe, 'pageClass' => EditProduct::class,
-        ])->mountTableAction('manageSeriesRecommendations')
-            ->setActionData([
-                'collection_id' => $collection->id,
-                'operation' => 'disable',
-            ])
-            ->callMountedAction()->assertHasNoActionErrors();
-
-        $this->assertFalse((bool) $collection->fresh()->recommend_collection_members);
-        $this->assertTrue($collection->products()->where('products.id', $wardrobe->id)->exists());
     }
 
     public function test_fallback_recommendations_appear_as_real_rows_instead_of_empty_manual_table(): void
@@ -113,7 +71,7 @@ class RelatedProductsUnifiedEditorTest extends TestCase
             ->assertCanSeeTableRecords([$other])
             ->assertSee('Автоподбор')
             ->assertSee('На сайте')
-            ->assertSee('Массово добавить');
+            ->assertSee('Добавить сопутствующие');
     }
 
     public function test_bulk_add_filters_by_manufacturer_and_creates_manual_links(): void
@@ -148,7 +106,7 @@ class RelatedProductsUnifiedEditorTest extends TestCase
         ]);
     }
 
-    public function test_bulk_add_to_series_keeps_existing_manual_recommendations(): void
+    public function test_add_related_preserves_existing_links_without_changing_collections(): void
     {
         $owner = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
         $mezzanine = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
@@ -168,8 +126,10 @@ class RelatedProductsUnifiedEditorTest extends TestCase
             ->callMountedAction()
             ->assertHasNoActionErrors();
 
-        $this->assertTrue($collection->products()->where('products.id', $owner->id)->exists());
-        $this->assertTrue($collection->products()->where('products.id', $mezzanine->id)->exists());
+        $this->assertSame(0, $collection->products()->count());
+        $this->assertDatabaseHas('product_related_products', [
+            'product_id' => $owner->id, 'related_product_id' => $mezzanine->id,
+        ]);
         $this->assertSame([$manual->id, $mezzanine->id],
             collect($this->getJson('/api/v1/products/'.$owner->id.'/related')
                 ->assertOk()->json('data'))->pluck('id')->all());

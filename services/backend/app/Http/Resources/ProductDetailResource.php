@@ -497,7 +497,7 @@ class ProductDetailResource extends JsonResource
             'price' => $productPrice, // ВАЖНО: Цена с применением правил корзины
             'old_price' => $effectiveOldPrice,
             'delivery_days' => $deliveryDays,
-            'delivery_days_source' => 'legacy_region_rule',
+            'delivery_days_source' => 'warehouse_fulfillment',
             'delivery_quote_endpoint' => '/api/v1/shipping/quote',
             'discount_percent' => $effectiveOldPrice !== null && $effectiveOldPrice > $productPrice ? (int) round((1 - $productPrice / $effectiveOldPrice) * 100) : null,
             // Для детальной карточки: изображения по умолчанию в HD, с fallback на оригиналы

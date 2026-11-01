@@ -58,8 +58,6 @@ class ProductResource extends Resource
             \App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductVariationAttributeSelectionRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductReviewsRelationManager::class,
-            \App\Filament\Resources\Products\RelationManagers\ProductRegionRulesRelationManager::class,
-            \App\Filament\Resources\Products\RelationManagers\VariantRegionRulesRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\RelatedProductsRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\ProductBundleProductsRelationManager::class,
             \App\Filament\Resources\Products\RelationManagers\SellableBundleComponentsRelationManager::class,

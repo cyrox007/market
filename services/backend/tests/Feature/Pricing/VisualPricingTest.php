@@ -48,17 +48,17 @@ class VisualPricingTest extends TestCase
         $this->assertEquals(0, $this->price($sku)['price']);
     }
 
-    public function test_regional_price_is_the_base_and_dates_are_immediate(): void
+    public function test_legacy_region_rules_do_not_change_pricing_policy_base(): void
     {
         $sku = Product::factory()->create(['price' => 1000]);
         $region = ShippingLocation::factory()->create();
         ProductRegionRule::create(['product_id' => $sku->id, 'shipping_location_id' => $region->id, 'price_override' => 1200, 'is_active' => true]);
         $rule = $this->rule(['starts_at' => now()->addHour()]);
-        $this->assertEquals(1200, $this->price($sku, $region)['price']);
+        $this->assertEquals(1000, $this->price($sku, $region)['price']);
         $this->travel(2)->hours();
-        $this->assertEquals(1080, $this->price($sku, $region)['price']);
+        $this->assertEquals(900, $this->price($sku, $region)['price']);
         $rule->update(['ends_at' => now()]);
-        $this->assertEquals(1200, $this->price($sku, $region)['price']);
+        $this->assertEquals(1000, $this->price($sku, $region)['price']);
     }
 
     public function test_product_group_parent_variants_and_exclusions(): void

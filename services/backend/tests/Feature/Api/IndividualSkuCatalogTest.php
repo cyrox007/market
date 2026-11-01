@@ -86,7 +86,7 @@ class IndividualSkuCatalogTest extends TestCase
         $this->getJson('/api/v1/products')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $simple->id);
     }
 
-    public function test_regional_offer_price_and_visibility_do_not_leak_to_siblings(): void
+    public function test_archived_region_rules_do_not_change_sku_prices_or_visibility(): void
     {
         [$category, $parent, $red, $blue, $simple] = $this->items();
         $location = ShippingLocation::factory()->create(['is_active' => true]);
@@ -95,14 +95,14 @@ class IndividualSkuCatalogTest extends TestCase
             ['product_id' => $parent->id, 'variant_id' => $blue->id, 'shipping_location_id' => $location->id, 'price_override' => null, 'is_hidden' => true, 'is_active' => true, 'priority' => 100],
         ]);
         $query = '?shipping_location_id='.$location->id.'&sort_by=price&sort_order=asc';
-        $response = $this->getJson('/api/v1/products'.$query)->assertOk()->assertJsonCount(2, 'data');
-        $this->assertSame([$simple->id, $red->id], array_column($response->json('data'), 'id'));
-        $this->assertSame(900.0, (float) $response->json('data.1.price'));
-        $this->getJson('/api/v1/products'.$query.'&price_min=800')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $red->id);
-        $this->getJson('/api/v1/products/count'.$query.'&price_min=800')->assertExactJson(['total' => 1]);
+        $response = $this->getJson('/api/v1/products'.$query)->assertOk()->assertJsonCount(3, 'data');
+        $this->assertSame([$red->id, $simple->id, $blue->id], array_column($response->json('data'), 'id'));
+        $this->assertSame(100.0, (float) $response->json('data.0.price'));
+        $this->getJson('/api/v1/products'.$query.'&price_min=250')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $blue->id);
+        $this->getJson('/api/v1/products/count'.$query.'&price_min=250')->assertExactJson(['total' => 1]);
     }
 
-    public function test_specific_visible_offer_overrides_hidden_parent_rule(): void
+    public function test_archived_parent_hiding_rule_does_not_hide_active_skus(): void
     {
         [$category, $parent, $red, $blue, $simple] = $this->items();
         $location = ShippingLocation::factory()->create(['is_active' => true]);
@@ -111,7 +111,7 @@ class IndividualSkuCatalogTest extends TestCase
             ['product_id' => $parent->id, 'variant_id' => $red->id, 'shipping_location_id' => $location->id, 'is_hidden' => false, 'is_active' => true, 'priority' => 100],
         ]);
         $response = $this->getJson('/api/v1/products?shipping_location_id='.$location->id)->assertOk();
-        $this->assertEqualsCanonicalizing([$red->id, $simple->id], array_column($response->json('data'), 'id'));
+        $this->assertEqualsCanonicalizing([$red->id, $blue->id, $simple->id], array_column($response->json('data'), 'id'));
     }
 
     public function test_home_lists_and_existing_manual_collections_return_skus_not_groups(): void

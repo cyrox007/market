@@ -12,7 +12,7 @@ class ProductApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_products_index_excludes_hidden_items_for_location(): void
+    public function test_products_index_ignores_archived_region_hiding_rules(): void
     {
         $location = ShippingLocation::factory()->create([
             'type' => 'region',
@@ -43,7 +43,7 @@ class ProductApiTest extends TestCase
 
         $ids = collect($response->json('data'))->pluck('id');
         $this->assertTrue($ids->contains($visibleProduct->id));
-        $this->assertFalse($ids->contains($hiddenProduct->id));
+        $this->assertTrue($ids->contains($hiddenProduct->id));
     }
 }
 

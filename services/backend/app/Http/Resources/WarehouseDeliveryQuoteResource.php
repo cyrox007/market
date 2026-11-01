@@ -24,6 +24,18 @@ class WarehouseDeliveryQuoteResource extends JsonResource
     {
         $private = ['profile_fingerprint', 'warehouse_fingerprint', 'store_fingerprint', 'global_stock_deltas'];
         $public = Arr::except($option, $private);
+        if (array_key_exists('delivery_days_min', $public)) {
+            // This is an ETA range, not evidence that a date/time slot is free.
+            $public['delivery_schedule'] = [
+                'status' => ! empty($public['delivery_estimate_unavailable'])
+                    || ! empty($public['has_preorders'])
+                    ? 'requires_confirmation' : 'estimate_only',
+                'date_selection_enabled' => false,
+                'time_selection_enabled' => false,
+                'confirmation_required' => true,
+                'notice' => 'Срок ориентировочный. Дату и время доставки согласует менеджер после оформления заказа.',
+            ];
+        }
         if (isset($public['warehouse_allocations'])) {
             $public['warehouse_allocations'] = array_map(
                 fn (array $source): array => Arr::except($source, $private),

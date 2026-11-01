@@ -36,18 +36,15 @@ class BulkCollectionMembershipTest extends TestCase
         ]);
     }
 
-    public function test_mass_action_assigns_explicit_series_and_enables_mutual_recommendations(): void
+    public function test_existing_collection_membership_service_remains_compatible_without_admin_series_action(): void
     {
         $series = $this->bruno();
         $wardrobe = Product::factory()->create(['name' => 'Шкаф Бруно', 'state' => 'active']);
         $mezzanine = Product::factory()->create(['name' => 'Антресоль Бруно', 'state' => 'active']);
         $unrelated = Product::factory()->create(['name' => 'Шкаф другой коллекции', 'state' => 'active']);
 
-        Livewire::test(ListProducts::class)->callTableBulkAction('bulk_collection_membership', [
-            $wardrobe, $mezzanine,
-        ], data: [
-            'collection_id' => $series->id, 'operation' => 'add', 'enable_recommendations' => true,
-        ])->assertHasNoTableBulkActionErrors();
+        Livewire::test(ListProducts::class)->assertTableBulkActionDoesNotExist('bulk_collection_membership');
+        app(BulkCollectionMembership::class)->apply($series->id, [$wardrobe->id, $mezzanine->id], 'add', true);
 
         $this->assertDatabaseHas('product_product_collection', [
             'product_collection_id' => $series->id, 'product_id' => $wardrobe->id,

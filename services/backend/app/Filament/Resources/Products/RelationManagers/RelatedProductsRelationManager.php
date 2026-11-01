@@ -4,12 +4,11 @@ namespace App\Filament\Resources\Products\RelationManagers;
 
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
-use App\Models\Product\ProductCollection;
-use App\Services\Catalog\BulkCollectionMembership;
 use App\Services\Product\RelatedProductsResolver;
 use App\Services\Product\ProductManufacturer;
 use App\Services\Product\BulkRelatedProducts;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -50,7 +49,7 @@ class RelatedProductsRelationManager extends RelationManager
             ->query(fn (): Builder => $this->editorQuery())
             ->description(fn (): HtmlString => $this->recommendationsOverview())
             ->emptyStateHeading('Сопутствующие товары не назначены')
-            ->emptyStateDescription('Выберите производителя и товары кнопкой «Массово добавить» или настройте рекомендации серии.')
+            ->emptyStateDescription('Нажмите «Добавить сопутствующие» и выберите товары.')
             ->columns([
                 TextColumn::make('display_order')
                     ->label('#')
@@ -104,29 +103,11 @@ class RelatedProductsRelationManager extends RelationManager
             ])
             ->headerActions([
                 Action::make('bulkAddRelated')
-                    ->label('Массово добавить')
+                    ->label('Добавить сопутствующие')
                     ->icon('heroicon-o-squares-plus')
-                    ->modalHeading('Массовое добавление сопутствующих товаров')
+                    ->modalHeading('Добавить сопутствующие товары')
                     ->modalDescription('Сначала отфильтруйте фабрику, затем выберите конкретные товары. Фильтр сам ничего не добавляет. Выбираются карточки товаров, а не отдельные цветовые SKU.')
                     ->form([
-                        Select::make('operation')
-                            ->label('Куда добавить')
-                            ->options([
-                                'manual' => 'В сопутствующие текущего товара (двусторонняя связь)',
-                                'series' => 'В мебельную серию (взаимные рекомендации)',
-                            ])
-                            ->default('manual')
-                            ->live()
-                            ->required(),
-                        Select::make('collection_id')
-                            ->label('Мебельная серия')
-                            ->options(fn (): array => ProductCollection::query()->active()
-                                ->where('is_auto', false)->whereNull('scope_type')
-                                ->orderBy('name')->pluck('name', 'id')->all())
-                            ->searchable()
-                            ->visible(fn ($get): bool => $get('operation') === 'series')
-                            ->required(fn ($get): bool => $get('operation') === 'series')
-                            ->helperText('Текущий товар и выбранные карточки будут включены в эту серию.'),
                         Select::make('manufacturer_name')
                             ->label('Производитель / фабрика')
                             ->options(fn (): array => collect(app(ProductManufacturer::class)->options())
@@ -186,26 +167,13 @@ class RelatedProductsRelationManager extends RelationManager
                             return;
                         }
                         try {
-                            if (($data['operation'] ?? 'manual') === 'series') {
-                                $collection = ProductCollection::findOrFail((int) ($data['collection_id'] ?? 0));
-                                Gate::authorize('update', $collection);
-                                foreach (Product::query()->whereIn('id', $valid)->get() as $target) {
-                                    Gate::authorize('update', $target);
-                                }
-                                $result = app(BulkCollectionMembership::class)->apply(
-                                    (int) $collection->id, array_merge([(int) $owner->id], $valid),
-                                    'add', true
-                                );
-                                $message = "Добавлено в серию: {$result['added']} товаров.";
-                            } else {
-                                foreach (Product::query()->whereIn('id', $valid)->get() as $target) {
-                                    Gate::authorize('update', $target);
-                                }
-                                $result = app(BulkRelatedProducts::class)->apply(
-                                    [(int) $owner->id], $valid, 'add'
-                                );
-                                $message = "Добавлено двусторонних связей: {$result['added']}.";
+                            foreach (Product::query()->whereIn('id', $valid)->get() as $target) {
+                                Gate::authorize('update', $target);
                             }
+                            $result = app(BulkRelatedProducts::class)->apply(
+                                [(int) $owner->id], $valid, 'add'
+                            );
+                            $message = "Добавлено связей: {$result['added']}.";
                             $this->editorRows = null;
                             Notification::make()->title('Сопутствующие товары обновлены')
                                 ->body($message)->success()->send();
@@ -215,159 +183,36 @@ class RelatedProductsRelationManager extends RelationManager
                                 ->danger()->send();
                         }
                     }),
-                Action::make('manageSeriesRecommendations')
-                    ->label('Управлять сериями')
-                    ->icon('heroicon-o-rectangle-stack')
-                    ->modalHeading('Сопутствующие товары мебельной серии')
-                    ->form([
-                        Select::make('collection_id')
-                            ->label('Мебельная серия')
-                            ->options(fn (): array => ProductCollection::query()
-                                ->active()->where('is_auto', false)->whereNull('scope_type')
-                                ->orderBy('name')->pluck('name', 'id')->all())
-                            ->searchable()
-                            ->required()
-                            ->helperText('Существующая ручная подборка товаров. Рекомендации настраиваются здесь же, без отдельного механизма.'),
-                        Select::make('operation')
-                            ->label('Действие')
-                            ->options([
-                                'add' => 'Добавить эту карточку в серию',
-                                'remove' => 'Убрать эту карточку из серии',
-                                'enable' => 'Включить взаимные рекомендации всей серии',
-                                'disable' => 'Выключить взаимные рекомендации всей серии',
-                            ])
-                            ->default('add')->required()
-                            ->helperText('При добавлении товара взаимные рекомендации серии включаются. Ручные связи сохраняются.'),
-                    ])
-                    ->action(function (array $data): void {
-                        $owner = $this->getOwnerRecord();
-                        $collection = ProductCollection::findOrFail((int) ($data['collection_id'] ?? 0));
-                        Gate::authorize('update', $owner);
-                        Gate::authorize('update', $collection);
-                        try {
-                            $operation = (string) ($data['operation'] ?? 'add');
-                            if (in_array($operation, ['enable', 'disable'], true)) {
-                                if (! $collection->products()->where('products.id', $owner->id)->exists()) {
-                                    throw ValidationException::withMessages([
-                                        'collection_id' => 'Товар не входит в выбранную серию. Сначала добавьте его в серию.',
-                                    ]);
-                                }
-                                $collection->forceFill([
-                                    'recommend_collection_members' => $operation === 'enable',
-                                ])->save();
-                                Notification::make()
-                                    ->title('Рекомендации серии обновлены')->success()->send();
-                                return;
-                            }
-
-                            $result = app(BulkCollectionMembership::class)->apply(
-                                (int) $collection->id,
-                                [(int) $owner->id],
-                                $operation,
-                                $operation === 'add'
-                            );
-                            Notification::make()
-                                ->title('Сопутствующие товары серии обновлены')
-                                ->body("Добавлено в серию: {$result['added']}; убрано: {$result['removed']}.")
-                                ->success()->send();
-                        } catch (ValidationException $error) {
-                            Notification::make()
-                                ->title('Не удалось обновить серию')
-                                ->body(implode(' ', $error->validator->errors()->all()))
-                                ->danger()->send();
-                        }
-                    }),
-                Action::make('recommendationMode')
-                    ->label('Режим рекомендаций')
-                    ->icon('heroicon-o-adjustments-horizontal')
-                    ->fillForm(fn (): array => ['related_products_mode' => $this->getOwnerRecord()->related_products_mode ?? 'legacy'])
-                    ->form([
-                        Select::make('related_products_mode')
-                            ->label('Режим отображения')
-                            ->options([
-                                'legacy' => 'Ручные связи + серии (ручные первыми, остальное автоматически)',
-                                'manual' => 'Только вручную выбранные товары',
-                                'automatic' => 'Автоматическая подборка',
-                                'off' => 'Выключено',
-                            ])
-                            ->required(),
-                    ])
-                    ->action(function (array $data): void {
-                        $owner = $this->getOwnerRecord();
-                        $mode = $data['related_products_mode'] === 'legacy' ? null : $data['related_products_mode'];
-                        // Vanilo Product mass-assignment does not include this
-                        // extension attribute; update() silently discards it.
-                        $owner->forceFill(['related_products_mode' => $mode])->save();
-                        Product::flushAllProductCaches();
-                        Notification::make()->title('Режим рекомендаций сохранён')->success()->send();
-                    }),
-                Action::make('attach')
-                    ->label('Добавить сопутствующий товар')
-                    ->icon('heroicon-o-plus')
-                    ->form([
-                        Select::make('related_product_id')
-                            ->label('Товар')
-                            ->searchable()
-                            ->getSearchResultsUsing(function (string $search) {
-                                $owner = $this->getOwnerRecord();
-                                $existingIds = $owner->relatedProducts()->pluck('products.id')->toArray();
-
-                                return Product::query()
-                                    ->whereNull('parent_product_id') // не показываем вариации
-                                    ->where('id', '!=', $owner->getKey())
-                                    ->whereNotIn('id', $existingIds)
-                                    ->active()
-                                    ->where(function ($query) use ($search) {
-                                        $query->where('name', 'like', "%{$search}%")
-                                            ->orWhere('sku', 'like', "%{$search}%");
-                                    })
-                                    ->limit(50)
-                                    ->get()
-                                    ->mapWithKeys(fn(Product $product) => [
-                                        $product->id => $product->name . ' (SKU: ' . $product->sku . ')',
-                                    ]);
-                            })
-                            ->getOptionLabelUsing(function ($value): ?string {
-                                $product = Product::find($value);
-                                return $product ? $product->name . ' (SKU: ' . $product->sku . ')' : null;
-                            })
-                            ->required(),
-                    ])
-                    ->action(function (array $data): void {
-                        $owner = $this->getOwnerRecord();
-                        $related = Product::find($data['related_product_id'] ?? null);
-
-                        if (!$related) {
-                            Notification::make()
-                                ->title('Ошибка')
-                                ->body('Выбранный товар не найден')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        if ($owner->is($related)) {
-                            Notification::make()
-                                ->title('Ошибка')
-                                ->body('Нельзя добавить товар в сопутствующие к самому себе')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        $owner->attachRelatedProduct($related);
-
-                        Notification::make()
-                            ->title('Сопутствующий товар добавлен')
-                            ->success()
-                            ->send();
-                    }),
+                ActionGroup::make([
+                    Action::make('recommendationMode')
+                        ->label('Что показывать покупателю')
+                        ->icon('heroicon-o-adjustments-horizontal')
+                        ->fillForm(fn (): array => ['related_products_mode' => $this->getOwnerRecord()->related_products_mode ?? 'legacy'])
+                        ->form([
+                            Select::make('related_products_mode')
+                                ->label('Режим отображения')
+                                ->options([
+                                    'legacy' => 'Выбранные товары; если список пуст — автоподбор',
+                                    'manual' => 'Только вручную выбранные товары',
+                                    'automatic' => 'Автоматическая подборка',
+                                    'off' => 'Выключено',
+                                ])
+                                ->required(),
+                        ])
+                        ->action(function (array $data): void {
+                            $owner = $this->getOwnerRecord();
+                            $mode = $data['related_products_mode'] === 'legacy' ? null : $data['related_products_mode'];
+                            // Vanilo Product mass-assignment does not include this
+                            // extension attribute; update() silently discards it.
+                            $owner->forceFill(['related_products_mode' => $mode])->save();
+                            Product::flushAllProductCaches();
+                            Notification::make()->title('Режим рекомендаций сохранён')->success()->send();
+                        }),
+                ])->label('Настройки')->icon('heroicon-o-cog-6-tooth')->button(),
             ])
             ->recordActions([
                 EditAction::make('order')
-                    ->label('Порядок ручной связи')
+                    ->label('Порядок')
                     ->visible(fn (Product $record): bool => $this->editorRows()[$record->id]['manual'] ?? false)
                     ->form([
                         TextInput::make('sort_order')->label('Порядок')->integer()->minValue(0)->required(),
@@ -385,7 +230,7 @@ class RelatedProductsRelationManager extends RelationManager
                         $this->editorRows = null;
                     }),
                 Action::make('detach')
-                    ->label('Убрать ручную связь')
+                    ->label('Убрать из сопутствующих')
                     ->icon('heroicon-o-trash')
                     ->visible(fn (Product $record): bool => $this->editorRows()[$record->id]['manual'] ?? false)
                     ->requiresConfirmation()
@@ -498,38 +343,8 @@ class RelatedProductsRelationManager extends RelationManager
      */
     private function recommendationsOverview(): HtmlString
     {
-        $owner = $this->getOwnerRecord();
-        $mode = match ($owner->related_products_mode) {
-            'off' => 'Отключено',
-            'manual' => 'Только вручную',
-            'automatic' => 'Рекомендации серий и автоматический подбор',
-            default => 'Ручные рекомендации + серии',
-        };
-
-        $series = ProductCollection::query()
-            ->where('is_auto', false)->whereNull('scope_type')
-            ->whereHas('products', fn ($query) => $query->where('products.id', $owner->id))
-            ->orderBy('name')->get(['id', 'name', 'is_active', 'recommend_collection_members']);
-        $seriesLabels = $series->map(function (ProductCollection $collection): string {
-            $state = $collection->is_active && $collection->recommend_collection_members
-                ? 'рекомендации включены' : 'рекомендации выключены';
-            return '<span class="inline-block me-2">' . e($collection->name) . ' (' . e($state) . ')</span>';
-        })->implode(' ');
-
         $rows = $this->editorRows();
         $visible = count(array_filter($rows, fn (array $row): bool => $row['visible']));
-        $manual = count(array_filter($rows, fn (array $row): bool => $row['manual']));
-        return new HtmlString(
-            '<div class="space-y-1 text-sm">'
-            . '<p><strong>Режим:</strong> ' . e($mode)
-            . '. <strong>Что сейчас показывается покупателю:</strong> ' . $visible
-            . '. <strong>Ручных связей:</strong> ' . $manual . '.</p>'
-            . '<p><strong>Участие в сериях:</strong> '
-            . ($seriesLabels !== '' ? $seriesLabels : 'Нет назначенных серий') . '</p>'
-            . '<p class="text-gray-500">Ниже единая таблица: ручные связи, рекомендации серий и автоподбор. '
-            . 'Строки с пометкой «Не показывается» сохранены, но скрыты текущим режимом. '
-            . 'Чтобы массово добавить товары по производителю, нажмите «Массово добавить».</p>'
-            . '</div>'
-        );
+        return new HtmlString('Показывается покупателю: ' . $visible . '.');
     }
 }

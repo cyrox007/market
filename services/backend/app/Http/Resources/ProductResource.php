@@ -218,7 +218,7 @@ class ProductResource extends JsonResource
             'manufacturer' => app(\App\Services\Product\ProductManufacturer::class)->value($this->resource),
             'price' => $price,
             'delivery_days' => $deliveryDays,
-            'delivery_days_source' => 'legacy_region_rule',
+            'delivery_days_source' => 'warehouse_fulfillment',
             'delivery_quote_endpoint' => '/api/v1/shipping/quote',
             'old_price' => $oldPrice,
             'discount_percent' => $oldPrice !== null && $oldPrice > $price ? (int) round((1 - $price / $oldPrice) * 100) : null,

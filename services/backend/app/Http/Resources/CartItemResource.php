@@ -29,6 +29,10 @@ class CartItemResource extends JsonResource
                 'price' => (float) ($this->price ?? 0),
                 'quantity' => (int) ($this->quantity ?? 1),
                 'total' => (float) ($this->price ?? 0) * (int) ($this->quantity ?? 1),
+                'old_price' => null,
+                'old_total' => null,
+                'discount_amount' => 0.0,
+                'discount_percent' => null,
                 'image' => null,
                 'sku' => null,
                 'is_variant' => false,
@@ -106,7 +110,15 @@ class CartItemResource extends JsonResource
             : ($product ? $warehouseStockResolver->resolveForProduct($product, $region) : 0);
 
         $quantity = (int) ($this->quantity ?? 1);
-        $total = $regionalPrice * $quantity;
+        $total = round($regionalPrice * $quantity, 2);
+        // Same comparison rule as catalogue: no invented strike-through
+        // for fixed-price bundles or private price links.
+        $privateOfferLine = filled(($this->configuration ?? [])['private_offer_hash'] ?? null);
+        $oldPrice = ($isBundle || $privateOfferLine) ? null : app(\App\Services\Pricing\PricingEngine::class)
+            ->oldPrice($product, $region, (float) $regionalPrice);
+        $oldPrice = $oldPrice !== null && $oldPrice > $regionalPrice ? round((float) $oldPrice, 2) : null;
+        $oldTotal = $oldPrice === null ? null : round($oldPrice * $quantity, 2);
+        $discountAmount = $oldTotal === null ? 0.0 : max(0.0, round($oldTotal - $total, 2));
 
         return [
             'id' => $this->id ?? $this->getKey(),
@@ -114,6 +126,10 @@ class CartItemResource extends JsonResource
             'name' => $product->name ?? null,
             'slug' => $productForSlug->slug ?? null, // Slug для ссылки на товар (родительский, если это вариация)
             'price' => $regionalPrice,
+            'old_price' => $oldPrice,
+            'old_total' => $oldTotal,
+            'discount_amount' => $discountAmount,
+            'discount_percent' => $oldPrice === null ? null : (int) round((1 - $regionalPrice / $oldPrice) * 100),
             'is_sellable_bundle' => (bool) $isBundle,
             'is_bundle_configured' => ! $isBundle || $bundleQuote !== null,
             'available_to_order' => $isBundle ? ($bundleQuote !== null && app(\App\Services\Product\SellableBundle::class)->canOrder($bundleQuote['items']))
