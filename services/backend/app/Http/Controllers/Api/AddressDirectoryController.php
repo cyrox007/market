@@ -62,9 +62,15 @@ class AddressDirectoryController extends Controller
         }
         try {
             $items = $directory->options($level, array_filter($query, fn ($v) => $v !== null && $v !== ''));
+            $status = $directory->lastListCacheStatus();
             $response = response()->json(['data' => $items])
-                ->header('Cache-Control', 'private, no-store')
-                ->header('X-Address-Directory-Cache', $directory->lastListCacheStatus());
+                ->header('X-Address-Directory-Cache', $status);
+            // Preserve the existing conditional ETag/public caching of fresh
+            // regions. Only degraded answers must never be cached by browsers
+            // or intermediate proxies.
+            if ($status === 'stale') {
+                $response->headers->set('Cache-Control', 'private, no-store');
+            }
             // A stale response is a navigation aid, NOT an address verification.
             if ($directory->lastListCacheAge() !== null) {
                 $response->headers->set('X-Address-Directory-Cache-Age', (string) $directory->lastListCacheAge());
