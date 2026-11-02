@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button, IconButton, Popover } from '../../components/ui/primitives';
 import { dateKey } from './dateKey';
@@ -38,6 +38,16 @@ export default function DeliverySchedule({
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => parseDate(value.date));
   const anchor = useRef<HTMLButtonElement>(null);
+  const dayRow = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = dayRow.current;
+    const selected = row?.querySelector<HTMLElement>('button[aria-pressed="true"]');
+    if (!row || !selected) return;
+    const bounds = row.getBoundingClientRect();
+    const item = selected.getBoundingClientRect();
+    if (item.right > bounds.right) row.scrollLeft += item.right - bounds.right;
+    else if (item.left < bounds.left) row.scrollLeft -= bounds.left - item.left;
+  }, [value.date]);
   const id = useId();
   const selectedDay = days.find((day) => day.date === value.date);
   const selectedSlot = selectedDay?.slots.find((slot) => slot.id === value.slotId);
@@ -69,28 +79,35 @@ export default function DeliverySchedule({
         Доставим: {fullDate(value.date)}
         {selectedSlot && ` с ${selectedSlot.start} до ${selectedSlot.end}`}
       </p>
-      <div className="flex min-w-0 gap-3" role="group" aria-label="День доставки">
-        <div className="scroll-thin flex min-w-0 flex-1 gap-3 overflow-x-auto pb-1">
-          {quickDays.map((day) => (
-            <Button
-              key={day.date}
-              size="sm"
-              variant={day.date === value.date ? 'primary' : 'secondary'}
-              disabled={!day.slots.length}
-              aria-label={fullDate(day.date)}
-              aria-pressed={day.date === value.date}
-              onClick={() => choose(day)}
-              className="!h-[72px] !w-[42px] shrink-0 !px-0"
-            >
-              <span className="flex flex-col gap-2">
-                <span className="text-12 font-medium uppercase">
-                  {parseDate(day.date).toLocaleDateString('ru-RU', { weekday: 'short' })}
-                </span>
-                <span className="text-14 font-semibold">{parseDate(day.date).getDate()}</span>
+      <div
+        ref={dayRow}
+        className="scroll-hidden flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain"
+        role="group"
+        aria-label="День доставки"
+      >
+        {quickDays.map((day) => (
+          <Button
+            key={day.date}
+            size="sm"
+            variant={
+              day.date === value.date && days.slice(0, 7).some((item) => item.date === day.date)
+                ? 'primary'
+                : 'secondary'
+            }
+            disabled={!day.slots.length}
+            aria-label={fullDate(day.date)}
+            aria-pressed={day.date === value.date}
+            onClick={() => choose(day)}
+            className={`!h-[72px] !w-[42px] shrink-0 !px-0 ${day.date === value.date && !days.slice(0, 7).some((item) => item.date === day.date) ? 'border border-brand-yellow !bg-surface' : ''}`}
+          >
+            <span className="flex flex-col gap-2">
+              <span className="text-12 font-medium uppercase">
+                {parseDate(day.date).toLocaleDateString('ru-RU', { weekday: 'short' })}
               </span>
-            </Button>
-          ))}
-        </div>
+              <span className="text-14 font-semibold">{parseDate(day.date).getDate()}</span>
+            </span>
+          </Button>
+        ))}
         <button
           ref={anchor}
           type="button"

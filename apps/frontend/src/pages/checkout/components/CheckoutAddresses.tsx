@@ -60,13 +60,13 @@ export default function CheckoutAddresses({ checkout: c }: { checkout: CheckoutS
           const address = addresses.find((item) => item.id === Number(value));
           if (address) c.selectAddress(address);
         }}
-        className="gap-3 max-md:grid max-md:grid-cols-2 max-vsm:!flex max-vsm:!flex-row max-vsm:overflow-x-auto max-vsm:pb-1"
+        className="scroll-hidden gap-3 max-md:grid max-md:grid-cols-2 max-vsm:!flex max-vsm:!flex-row max-vsm:overflow-x-auto max-vsm:overscroll-x-contain"
       >
         {addresses.map((address) => (
           <Radio
             key={address.id}
             value={String(address.id)}
-            className={`items-start border p-5 max-vsm:min-w-[280px] max-vsm:max-w-[90%] max-vsm:shrink-0 ${address.id === c.addressId ? 'border-brand-yellow !bg-surface' : 'border-surface-border !bg-surface'}`}
+            className={`!items-start border p-5 max-vsm:min-w-[280px] max-vsm:max-w-[90%] max-vsm:shrink-0 ${address.id === c.addressId ? 'border-brand-yellow !bg-surface' : 'border-surface-border !bg-surface'}`}
             label={
               <span className="block space-y-3">
                 <span className="flex flex-wrap items-center gap-2">

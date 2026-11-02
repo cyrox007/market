@@ -1,4 +1,3 @@
-﻿import { Info } from 'lucide-react';
 import CheckoutSelect from './CheckoutSelect';
 import CheckoutDeliveryEstimate from './CheckoutDeliveryEstimate';
 import { Radio, RadioGroup } from '../../../components/ui/primitives/Radio';
@@ -6,7 +5,7 @@ import Checkbox from '../../../components/ui/primitives/Checkbox';
 import Input from '../../../components/ui/primitives/Input';
 import CheckoutAddresses from './CheckoutAddresses';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
-import { formatReady } from '../../product/lib/delivery';
+import CheckoutPickupNotice from './CheckoutPickupNotice';
 
 export const checkoutField =
   'block min-h-12 w-full rounded-btn border border-surface-stroke/[0.08] bg-surface px-4 py-3 text-14 text-ink outline-none focus:border-ink-secondary disabled:opacity-50';
@@ -194,19 +193,7 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
             Для этих товаров нет доступных точек самовывоза.
           </p>
         )}
-        {c.pickupPoint && (
-          <div className="flex items-start gap-3 rounded-btn bg-brand-yellow/15 p-4 text-14">
-            <Info aria-hidden="true" className="size-5 shrink-0" />
-            <p>
-              <strong className="font-semibold">Обратите внимание:</strong> товар можно забрать
-              {c.pickupPoint.ready
-                ? ` — ${formatReady(c.pickupPoint.ready)}`
-                : ' после подтверждения готовности'}
-              {c.pickupPoint.address ? ` по адресу ${c.pickupPoint.address}` : ''}.
-              {c.pickupPoint.hours && ` Часы работы: ${c.pickupPoint.hours}`}
-            </p>
-          </div>
-        )}
+        {c.pickupPoint && <CheckoutPickupNotice point={c.pickupPoint} />}
       </div>
     </section>
   );

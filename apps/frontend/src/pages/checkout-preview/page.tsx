@@ -7,6 +7,7 @@ import { CheckoutContacts, type CheckoutContact } from '../checkout/components/C
 import CheckoutSummary, { type CheckoutSummaryState } from '../checkout/components/CheckoutSummary';
 import CheckoutPayment from '../checkout/components/CheckoutPayment';
 import CheckoutSelect from '../checkout/components/CheckoutSelect';
+import CheckoutPickupNotice from '../checkout/components/CheckoutPickupNotice';
 import { checkoutContactErrors } from '../checkout/contactValidation';
 import { previewCart, previewPaymentMethods, previewDeliveryDays } from './fixtures';
 import DeliverySchedule, { type DeliverySelection } from './DeliverySchedule';
@@ -106,13 +107,13 @@ export default function CheckoutPreview() {
                   label="Адрес доставки"
                   value={address}
                   onChange={setAddress}
-                  className="gap-3"
+                  className="scroll-hidden gap-3 max-md:grid max-md:grid-cols-2 max-vsm:!flex max-vsm:!flex-row max-vsm:overflow-x-auto max-vsm:overscroll-x-contain"
                 >
                   {['Дом', 'Дача'].map((title) => (
                     <Radio
                       key={title}
                       value={title}
-                      className={`items-start border p-5 !bg-surface ${address === title ? 'border-brand-yellow' : 'border-surface-border'}`}
+                      className={`!items-start border p-5 !bg-surface max-vsm:min-w-[280px] max-vsm:max-w-[90%] max-vsm:shrink-0 ${address === title ? 'border-brand-yellow' : 'border-surface-border'}`}
                       label={
                         <span className="block space-y-3">
                           <span className="flex items-center gap-2 text-16 font-semibold">
@@ -142,12 +143,22 @@ export default function CheckoutPreview() {
                 />
               </>
             ) : (
-              <CheckoutSelect
-                label="Точка самовывоза"
-                value="demo"
-                onChange={() => {}}
-                options={[{ value: 'demo', label: 'Демо-магазин — г. Липецк, ул. Советская, 64' }]}
-              />
+              <div className="space-y-4">
+                <CheckoutSelect
+                  label="Точка самовывоза"
+                  value="demo"
+                  onChange={() => {}}
+                  options={[
+                    { value: 'demo', label: 'Демо-магазин — г. Липецк, ул. Советская, 64' },
+                  ]}
+                />
+                <CheckoutPickupNotice
+                  point={{
+                    ready: { days_min: 0, days_max: 6, label: 'с 02.11.26 по 08.11.26' },
+                    address: null,
+                  }}
+                />
+              </div>
             )}
           </section>
           <section className="space-y-4">

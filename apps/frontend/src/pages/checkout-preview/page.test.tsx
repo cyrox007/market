@@ -35,6 +35,21 @@ it('lets the owner preview an enabled checkout without sending an order or payme
   expect(fetch).not.toHaveBeenCalled();
 });
 
+it('shows the pickup notice after choosing pickup and hides the delivery calendar', () => {
+  render(
+    <MemoryRouter>
+      <CheckoutPreview />
+    </MemoryRouter>,
+  );
+  fireEvent.click(screen.getByRole('radio', { name: 'Самовывоз' }));
+  expect(screen.getByText(/Обратите внимание, товар можно забрать/)).toHaveTextContent(
+    'с 02.11.26 по 08.11.26',
+  );
+  expect(
+    screen.queryByRole('button', { name: 'Открыть календарь доставки' }),
+  ).not.toBeInTheDocument();
+});
+
 it('selects a day and interval, resets an unavailable interval, and chooses a date from the next calendar month', async () => {
   render(
     <MemoryRouter>

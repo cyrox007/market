@@ -34,6 +34,16 @@
 }
 
 @layer utilities {
+  /* Свайповые ряды адресов и дат: прокрутка сохраняется без видимой полосы. */
+  .scroll-hidden {
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+  }
+
+  .scroll-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Прокрутка внутри панели или окна: тонкая полоса, место под неё занято — содержимое не прыгает */
   .scroll-thin {
     scrollbar-gutter: stable;
