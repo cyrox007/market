@@ -116,6 +116,34 @@ class AddressDirectoryOutageCacheTest extends TestCase
         $client->options('regions');
     }
 
+    public function test_failure_cooldown_avoids_repeated_remote_timeouts_for_known_cities(): void
+    {
+        $old = [['externalId' => self::GUID, 'name' => 'Липецк']];
+        $new = [['externalId' => self::GUID, 'name' => 'Липецк', 'updated' => true]];
+        Http::fakeSequence()->push($old)->push([], 503)->push($new);
+        $client = app(AddressDirectoryClient::class);
+        $query = ['q' => 'Липецк'];
+        $this->assertSame($old, $client->options('localities', $query));
+        $this->travel(31)->seconds();
+        $this->assertSame($old, $client->options('localities', $query));
+        $this->assertSame($old, $client->options('localities', $query));
+        Http::assertSentCount(2); // Third read is immediate, not another 3s timeout.
+
+        $this->travel(31)->seconds();
+        $this->assertSame($new, $client->options('localities', $query));
+        $this->assertSame('live', $client->lastListCacheStatus());
+        Http::assertSentCount(3);
+    }
+
+    public function test_cache_warm_command_dry_run_sends_no_http_requests(): void
+    {
+        config()->set('address_directory.warm_localities', 'Москва,Липецк');
+        Http::fake();
+        $this->artisan('address-directory:warm-cache', ['--dry-run' => true])
+            ->assertExitCode(0);
+        Http::assertNothingSent();
+    }
+
     public function test_no_successful_cache_still_returns_unavailable(): void
     {
         Http::fake(['*' => Http::response([], 503)]);
