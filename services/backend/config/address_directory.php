@@ -28,6 +28,8 @@ return [
     'stale_enabled' => (bool) env('ADDRESS_DIRECTORY_STALE_ENABLED', true),
     'stale_ttl' => (int) env('ADDRESS_DIRECTORY_STALE_TTL', 604800), // 7 days
     'search_stale_ttl' => (int) env('ADDRESS_DIRECTORY_SEARCH_STALE_TTL', 86400), // 1 day
+    // After an upstream failure, serve known lists immediately while probing no more than once per key in this window.
+    'failure_cooldown' => (int) env('ADDRESS_DIRECTORY_FAILURE_COOLDOWN', 30),
     // Optional hourly warm-up of popular city queries, configured by operator.
     'warm_schedule' => (bool) env('ADDRESS_DIRECTORY_WARM_SCHEDULE', false),
     'warm_localities' => (string) env('ADDRESS_DIRECTORY_WARM_LOCALITIES', ''),
