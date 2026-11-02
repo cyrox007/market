@@ -26,7 +26,8 @@ class WarmAddressDirectoryCache extends Command
 
         $errors = 0;
         foreach ($queries as $item) {
-            $label = $item['level'].($item['query']['q'] ?? '' ? ': '.$item['query']['q'] : '');
+            $city = $item['query']['q'] ?? null;
+            $label = $item['level'].($city ? ': '.$city : '');
             if ($this->option('dry-run')) {
                 $this->line('PLANNED '.$label);
                 continue;
