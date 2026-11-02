@@ -56,8 +56,9 @@ ADDRESS_DIRECTORY_FAILURE_COOLDOWN=30
 `{ "data": [...] }`. Добавлен ответный заголовок
 `X-Address-Directory-Cache: live|fresh|stale`.
 При `stale` также: `X-Address-Directory-Cache-Age: <seconds>`.
-`Cache-Control: private, no-store` запрещает клиенту/прокси независимо
-кэшировать ответ с неподтверждённой свежестью.
+Для ответов `stale` заголовок `Cache-Control: private, no-store` запрещает
+клиенту/прокси закреплять устаревшие данные. При `live` и `fresh` прежнее
+публичное ETag-кэширование `/regions` продолжает работать.
 
 ## Предпрогрев часто запрашиваемых городов
 
