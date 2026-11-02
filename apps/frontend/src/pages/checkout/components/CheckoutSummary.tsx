@@ -1,7 +1,5 @@
-import { Link } from 'react-router-dom';
 import { ImageIcon } from 'lucide-react';
 import Button from '../../../components/ui/primitives/Button';
-import Checkbox from '../../../components/ui/primitives/Checkbox';
 import CartLink from '../../../components/cart/CartLink';
 import { cartQuantityLabel } from '../../../components/cart/cartPanelModel';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
@@ -136,25 +134,6 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSta
             Удалите недоступные товары. <CartLink className="underline">Открыть корзину</CartLink>
           </p>
         )}
-        <Checkbox
-          required
-          checked={c.consent}
-          onChange={c.setConsent}
-          className="items-start !text-12"
-          label={
-            <>
-              Принимаю{' '}
-              <Link to="/oferta" className="underline">
-                оферту
-              </Link>{' '}
-              и условия{' '}
-              <Link to="/privacy" className="underline">
-                обработки персональных данных
-              </Link>
-              .
-            </>
-          }
-        />
         <Button
           type="submit"
           shape="rounded"
@@ -166,10 +145,6 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSta
         >
           Оформить заказ
         </Button>
-        <p className="text-12 text-ink-secondary">
-          После оформления — 60 минут в обработке у менеджера. В это время заказ можно отменить
-          самостоятельно.
-        </p>
       </div>
     </aside>
   );

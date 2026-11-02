@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { Button } from '../../../components/ui/primitives';
+import { PAGE_CONTAINER } from '../../../lib/layout';
 
 export function ProductPageSkeleton() {
   return (
@@ -18,16 +19,15 @@ export function ProductPageSkeleton() {
 
 export function ProductNotFound() {
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-[1280px] mx-auto px-4 py-12">
-        <h1 className="text-2xl font-bold mb-3">Товар не найден</h1>
-        <p className="text-gray-600 mb-6">Возможно, он снят с продажи или ссылка устарела.</p>
-        <Link
-          to="/catalog"
-          className="inline-block px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-        >
+    <div className={`${PAGE_CONTAINER} py-12 max-vsm:py-8 text-ink`}>
+      <div className="rounded-card bg-surface-grey p-10 max-md:p-6 max-vsm:p-5">
+        <h1 className="font-display text-32 max-vsm:text-24 font-bold mb-3">Товар не найден</h1>
+        <p className="text-16 text-ink-secondary mb-6">
+          Возможно, он снят с продажи или ссылка устарела.
+        </p>
+        <Button to="/catalog" size="lg" className="max-vsm:w-full">
           Перейти в каталог
-        </Link>
+        </Button>
       </div>
     </div>
   );
@@ -36,25 +36,21 @@ export function ProductNotFound() {
 /** Сбой связи или ошибка сервера — не «не найден» */
 export function ProductLoadError({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-[1280px] mx-auto px-4 py-12">
-        <h1 className="text-2xl font-bold mb-3">Не удалось загрузить товар</h1>
-        <p className="text-gray-600 mb-6">
+    <div className={`${PAGE_CONTAINER} py-12 max-vsm:py-8 text-ink`}>
+      <div className="rounded-card bg-surface-grey p-10 max-md:p-6 max-vsm:p-5" role="alert">
+        <h1 className="font-display text-32 max-vsm:text-24 font-bold mb-3">
+          Не удалось загрузить товар
+        </h1>
+        <p className="text-16 text-ink-secondary mb-6">
           Проверьте соединение и попробуйте ещё раз. Если не поможет, зайдите чуть позже.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={onRetry}
-            className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-          >
+        <div className="flex flex-wrap gap-3 max-vsm:flex-col">
+          <Button onClick={onRetry} size="lg" className="max-vsm:w-full">
             Попробовать снова
-          </button>
-          <Link
-            to="/catalog"
-            className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
+          </Button>
+          <Button to="/catalog" variant="outline" size="lg" className="max-vsm:w-full">
             Перейти в каталог
-          </Link>
+          </Button>
         </div>
       </div>
     </div>

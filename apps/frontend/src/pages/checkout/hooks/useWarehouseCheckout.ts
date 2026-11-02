@@ -14,6 +14,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { runSessionRead, runSessionTask } from '../../../lib/session-queue';
 import { cartPanelTotals } from '../../../components/cart/cartPanelModel';
 import type { CheckoutContact } from '../components/CheckoutContacts';
+import { checkoutContactErrors, normalizeCheckoutPhone } from '../contactValidation';
 
 export const selectable = (method?: PaymentMethod) =>
   !!method && method.is_active !== false && !method.is_coming_soon && method.selectable !== false;
@@ -102,6 +103,7 @@ export function useWarehouseCheckout() {
     ),
   );
   const editedContact = useRef(false);
+  const [contactValidationAttempted, setContactValidationAttempted] = useState(false);
   const updateContact = (value: CheckoutContact) => {
     editedContact.current = true;
     setContact(value);
@@ -111,7 +113,6 @@ export function useWarehouseCheckout() {
       setContact(contactFrom(user.name, user.phone || '', user.email || ''));
   }, [user, oneClick]);
   const [comment, setComment] = useState(oneClick?.comment || '');
-  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const [quoteRevision, setQuoteRevision] = useState(0);
@@ -290,18 +291,15 @@ export function useWarehouseCheckout() {
     !!items.length &&
     !hasUnavailable &&
     selectable(methods.find((method) => method.code === payment)) &&
-    consent &&
     (mode === 'delivery' ? !!selected && !!(building || addressId) : !!pickupPoint);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit || submitting.current) return;
-    if (
-      !contact.lastName.trim() ||
-      !contact.firstName.trim() ||
-      contact.phone.replace(/\D/g, '').length < 10 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim())
-    ) {
-      setError('Заполните фамилию, имя, телефон и почту.');
+    setContactValidationAttempted(true);
+    const contactErrors = checkoutContactErrors(contact);
+    const firstInvalid = Object.keys(contactErrors)[0];
+    if (firstInvalid) {
+      event.currentTarget.querySelector<HTMLInputElement>(`input[name="${firstInvalid}"]`)?.focus();
       return;
     }
     submitting.current = true;
@@ -315,7 +313,7 @@ export function useWarehouseCheckout() {
             .map((part) => part.trim())
             .filter(Boolean)
             .join(' '),
-          contact_phone: contact.phone.trim(),
+          contact_phone: normalizeCheckoutPhone(contact.phone),
           contact_email: contact.email.trim(),
           payment_method: payment,
           delivery_type: mode,
@@ -412,13 +410,12 @@ export function useWarehouseCheckout() {
     additional,
     setAdditional,
     contact,
+    contactValidationAttempted,
     setContact: updateContact,
     comment,
     setComment,
     details,
     setDetails,
-    consent,
-    setConsent,
     busy,
     calculating,
     error: [error, confirmation].filter(Boolean).join(' '),

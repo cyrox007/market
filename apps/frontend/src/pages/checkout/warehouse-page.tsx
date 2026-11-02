@@ -47,7 +47,11 @@ export default function WarehouseCheckout() {
         className="grid grid-cols-[minmax(0,480px)_minmax(0,1fr)] items-start gap-11 max-md:grid-cols-1 max-md:gap-11"
       >
         <div className="min-w-0 space-y-8">
-          <CheckoutContacts value={checkout.contact} onChange={checkout.setContact} />
+          <CheckoutContacts
+            value={checkout.contact}
+            onChange={checkout.setContact}
+            showErrors={checkout.contactValidationAttempted}
+          />
           <CheckoutDelivery checkout={checkout} />
           <section className="space-y-4">
             <h2 className="text-20 font-semibold max-vsm:text-16">

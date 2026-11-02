@@ -1,4 +1,4 @@
-﻿import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Checkout from './warehouse-page';
@@ -98,7 +98,6 @@ it('selects the default saved address and sends address_id without legacy locati
   await waitFor(() =>
     expect(api.shipping.quote).toHaveBeenCalledWith(expect.objectContaining({ address_id: 8 })),
   );
-  fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.submit(screen.getByRole('button', { name: 'Оформить заказ' }).closest('form')!);
   await waitFor(() =>
     expect(api.orders.create).toHaveBeenCalledWith(
@@ -171,7 +170,6 @@ it('cannot submit when only coming soon methods exist, including a forged select
   await screen.findByText('Нет доступных способов оплаты');
   fireEvent.click(screen.getByRole('combobox', { name: 'Способ оплаты' }));
   await screen.findByRole('option', { name: 'Онлайн-оплата — Скоро' });
-  fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('option', { name: 'Онлайн-оплата — Скоро' }));
   expect(
     (screen.getByRole('button', { name: 'Оформить заказ' }) as HTMLButtonElement).disabled,
@@ -185,7 +183,6 @@ async function contacts() {
   fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Покупатель' } });
   fireEvent.change(screen.getByLabelText('Телефон'), { target: { value: '+79001234567' } });
   fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'buyer@example.test' } });
-  fireEvent.click(screen.getByRole('checkbox'));
   await waitFor(() =>
     expect(screen.getByRole('radio', { name: 'Наличными при получении' })).toBeChecked(),
   );
@@ -320,7 +317,6 @@ it('prefills the one-click form and sends its comment with the direct item', asy
   expect(screen.getByLabelText('Телефон')).toHaveValue('+7 (912) 345-67-89');
   expect(screen.getByLabelText('Комментарий к заказу')).toHaveValue('Позвоните после 18');
   fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'buyer@example.test' } });
-  fireEvent.click(screen.getByRole('checkbox'));
   await waitFor(() =>
     expect(screen.getByRole('radio', { name: 'Наличными при получении' })).toBeChecked(),
   );

@@ -123,7 +123,6 @@ async function fillGuest() {
   fireEvent.change(screen.getByLabelText('Отчество'), { target: { value: 'Петрович' } });
   fireEvent.change(screen.getByLabelText('Телефон'), { target: { value: '+79001234567' } });
   fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'buyer@example.test' } });
-  fireEvent.click(screen.getByRole('checkbox', { name: /Принимаю/ }));
   fireEvent.change(screen.getByRole('combobox', { name: 'Город' }), { target: { value: 'Лип' } });
   fireEvent.click(await screen.findByRole('option', { name: 'г. Липецк' }));
   fireEvent.focus(screen.getByRole('combobox', { name: 'Улица' }));
@@ -132,6 +131,113 @@ async function fillGuest() {
   fireEvent.click(await screen.findByRole('option', { name: 'д. 64' }));
 }
 
+it('adds +7 after the second digit without interrupting typing and preserves editing and deletion', async () => {
+  renderCheckout();
+  await screen.findByText('Стол');
+  const phone = screen.getByLabelText('Телефон') as HTMLInputElement;
+  fireEvent.focus(phone);
+  fireEvent.input(phone, { target: { value: '9', selectionStart: 1 }, inputType: 'insertText' });
+  expect(phone).toHaveValue('9');
+  fireEvent.input(phone, { target: { value: '99', selectionStart: 2 }, inputType: 'insertText' });
+  expect(phone).toHaveValue('+799');
+  expect(phone.selectionStart).toBe(4);
+  for (const digit of '96565455') {
+    fireEvent.input(phone, {
+      target: { value: phone.value + digit, selectionStart: phone.value.length + 1 },
+      inputType: 'insertText',
+    });
+  }
+  expect(phone).toHaveValue('+79996565455');
+  fireEvent.input(phone, {
+    target: { value: '+79986565455', selectionStart: 5 },
+    inputType: 'insertReplacementText',
+  });
+  expect(phone.selectionStart).toBe(5);
+  fireEvent.input(phone, {
+    target: { value: '+7998656545', selectionStart: 11 },
+    inputType: 'deleteContentBackward',
+  });
+  fireEvent.blur(phone);
+  expect(phone).toHaveValue('+7998656545');
+  expect(phone).toHaveAttribute('aria-invalid', 'true');
+  fireEvent.input(phone, { target: { value: '' }, inputType: 'deleteContentBackward' });
+  fireEvent.blur(phone);
+  expect(phone).toHaveValue('');
+  fireEvent.input(phone, { target: { value: '8', selectionStart: 1 }, inputType: 'insertText' });
+  expect(phone).toHaveValue('8');
+  fireEvent.input(phone, { target: { value: '89', selectionStart: 2 }, inputType: 'insertText' });
+  expect(phone).toHaveValue('+79');
+  expect(phone.selectionStart).toBe(3);
+  for (const digit of '995655566') {
+    fireEvent.input(phone, {
+      target: { value: phone.value + digit, selectionStart: phone.value.length + 1 },
+      inputType: 'insertText',
+    });
+  }
+  expect(phone).toHaveValue('+79995655566');
+});
+
+it.each([
+  ['9996565455', '+79996565455'],
+  ['+79996565455', '+79996565455'],
+  ['89995655566', '+79995655566'],
+  ['8 (999) 565-55-66', '+79995655566'],
+  ['7996565455', '+77996565455'],
+])(
+  'normalizes pasted or replaced phone %s immediately and sends %s to the server',
+  async (entered, expected) => {
+    vi.mocked(api.orders.create).mockResolvedValue({ order: { id: 99, can_pay: false } } as Awaited<
+      ReturnType<typeof api.orders.create>
+    >);
+    const { container } = renderCheckout();
+    await fillGuest();
+    const phone = screen.getByLabelText('Телефон');
+    fireEvent.change(phone, { target: { value: entered } });
+    expect(phone).toHaveValue(expected);
+    fireEvent.blur(phone);
+    expect(phone).toHaveValue(expected);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Оформить заказ' })).toBeEnabled(),
+    );
+    fireEvent.submit(container.querySelector('form')!);
+    expect(await screen.findByText('Заказ принят')).toBeInTheDocument();
+    expect(api.orders.create).toHaveBeenCalledWith(
+      expect.objectContaining({ contact_phone: expected }),
+    );
+  },
+);
+
+it('rejects invalid contacts beside the fields and submits after they are corrected', async () => {
+  vi.mocked(api.orders.create).mockResolvedValue({ order: { id: 99, can_pay: false } } as Awaited<
+    ReturnType<typeof api.orders.create>
+  >);
+  const { container } = renderCheckout();
+  await fillGuest();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Оформить заказ' })).toBeEnabled());
+  const phone = screen.getByLabelText('Телефон');
+  const email = screen.getByLabelText('Почта');
+  fireEvent.change(phone, { target: { value: 'буквы' } });
+  expect(phone).toHaveValue('');
+  fireEvent.blur(phone);
+  expect(phone).toHaveAccessibleDescription(
+    'Введите российский номер телефона: 10 цифр или 11 с 7/8.',
+  );
+  fireEvent.change(email, { target: { value: 'непочта' } });
+  fireEvent.blur(email);
+  expect(email).toHaveAccessibleDescription('Введите почту в формате name@example.ru.');
+  fireEvent.submit(container.querySelector('form')!);
+  expect(api.orders.create).not.toHaveBeenCalled();
+  fireEvent.change(phone, { target: { value: '+799912345678901' } });
+  fireEvent.change(email, { target: { value: 'buyer@example.test' } });
+  fireEvent.submit(container.querySelector('form')!);
+  expect(api.orders.create).not.toHaveBeenCalled();
+  fireEvent.change(phone, { target: { value: '8 (900) 123-45-67' } });
+  expect(phone).not.toHaveAttribute('aria-invalid');
+  expect(email).not.toHaveAttribute('aria-invalid');
+  fireEvent.submit(container.querySelector('form')!);
+  expect(await screen.findByText('Заказ принят')).toBeInTheDocument();
+});
+
 it('guest delivery submits the chosen directory building, live SWR subtotal and details once during a delayed order', async () => {
   const calculation = deferred<WarehouseQuote>();
   const order = deferred<Awaited<ReturnType<typeof api.orders.create>>>();
@@ -139,6 +245,8 @@ it('guest delivery submits the chosen directory building, live SWR subtotal and 
   vi.mocked(api.orders.create).mockReturnValueOnce(order.promise);
   const { container } = renderCheckout();
   await fillGuest();
+  expect(screen.queryByRole('checkbox', { name: /Принимаю/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(/60 минут в обработке/)).not.toBeInTheDocument();
   await screen.findByText('Рассчитываем доставку…');
   expect(screen.getByRole('button', { name: 'Оформить заказ' })).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Квартира / помещение'), { target: { value: '17' } });
