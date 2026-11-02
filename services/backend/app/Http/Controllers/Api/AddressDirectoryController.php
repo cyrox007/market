@@ -61,7 +61,15 @@ class AddressDirectoryController extends Controller
             return response()->json(['message' => 'Выберите регион или введите название населённого пункта.'], 422);
         }
         try {
-            return response()->json(['data' => $directory->options($level, array_filter($query, fn ($v) => $v !== null && $v !== ''))]);
+            $items = $directory->options($level, array_filter($query, fn ($v) => $v !== null && $v !== ''));
+            $response = response()->json(['data' => $items])
+                ->header('Cache-Control', 'private, no-store')
+                ->header('X-Address-Directory-Cache', $directory->lastListCacheStatus());
+            // A stale response is a navigation aid, NOT an address verification.
+            if ($directory->lastListCacheAge() !== null) {
+                $response->headers->set('X-Address-Directory-Cache-Age', (string) $directory->lastListCacheAge());
+            }
+            return $response;
         } catch (ValidationException $error) {
             throw $error;
         } catch (Throwable $error) {
