@@ -169,6 +169,7 @@ class AddressDirectoryClient
         $this->lastListCacheStatus = 'live';
         $this->lastListCacheAge = null;
         $staleKey = $key.':last-good';
+        $cooldownKey = $key.':upstream-cooldown';
         $fresh = Cache::get($key);
         if (is_array($fresh) && ($cacheEmpty || $fresh !== [])) {
             $this->lastListCacheStatus = 'fresh';
@@ -180,8 +181,17 @@ class AddressDirectoryClient
             return $fresh;
         }
 
+        // After the first failure, don't make every visitor wait for an
+        // upstream timeout. Recheck once the brief per-list cooldown expires.
+        if ((bool) config('address_directory.stale_enabled', true)
+            && Cache::get($cooldownKey) === true
+            && ($lastGood = $this->lastGoodList($staleKey)) !== null) {
+            return $lastGood;
+        }
+
         try {
             $items = $load();
+            Cache::forget($cooldownKey);
             if ($cacheEmpty || $items !== []) {
                 Cache::put($key, $items, $items === [] ? min($ttl, 30) : $ttl);
             } else {
@@ -195,10 +205,10 @@ class AddressDirectoryClient
             // An upstream 5xx, bad JSON or timeout can use a previously
             // successful LIST. A 4xx invalid address does not reach here.
             if ((bool) config('address_directory.stale_enabled', true) && $staleTtl > 0) {
-                $lastGood = Cache::get($staleKey);
-                if (is_array($lastGood) && ! empty($lastGood['items']) && is_array($lastGood['items'])) {
-                    $this->lastListCacheStatus = 'stale';
-                    $this->lastListCacheAge = max(0, now()->timestamp - (int) ($lastGood['cached_at'] ?? 0));
+                $lastGood = $this->lastGoodList($staleKey);
+                if ($lastGood !== null) {
+                    Cache::put($cooldownKey, true,
+                        max(1, (int) config('address_directory.failure_cooldown', 30)));
                     if (Cache::add($key.':fallback-logged', true, 300)) {
                         Log::warning('Address directory listing served from last successful cache', [
                             'key_hash' => sha1($key),
@@ -206,11 +216,23 @@ class AddressDirectoryClient
                             'upstream_error' => $error->getMessage(),
                         ]);
                     }
-                    return $lastGood['items'];
+                    return $lastGood;
                 }
             }
             throw $error;
         }
+    }
+
+    private function lastGoodList(string $key): ?array
+    {
+        $lastGood = Cache::get($key);
+        if (! is_array($lastGood) || ! is_array($lastGood['items'] ?? null)
+            || $lastGood['items'] === []) {
+            return null;
+        }
+        $this->lastListCacheStatus = 'stale';
+        $this->lastListCacheAge = max(0, now()->timestamp - (int) ($lastGood['cached_at'] ?? 0));
+        return $lastGood['items'];
     }
 
     private function request(): PendingRequest
