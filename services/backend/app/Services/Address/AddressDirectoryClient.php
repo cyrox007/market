@@ -2,14 +2,31 @@
 
 namespace App\Services\Address;
 
+use Closure;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Illuminate\Validation\ValidationException;
 
 class AddressDirectoryClient
 {
+    private string $lastListCacheStatus = 'live';
+
+    private ?int $lastListCacheAge = null;
+
+    /** Cache diagnostics for response headers; no changes to the JSON API. */
+    public function lastListCacheStatus(): string
+    {
+        return $this->lastListCacheStatus;
+    }
+
+    public function lastListCacheAge(): ?int
+    {
+        return $this->lastListCacheAge;
+    }
+
     public function status(): array
     {
         return $this->get(rtrim(config('address_directory.directory_path'), '/').'/status', unwrap: false);
@@ -29,19 +46,29 @@ class AddressDirectoryClient
             throw new RuntimeException('Unsupported directory level');
         }
 
+        // Canonicalized arguments share the same backend cache entry even if
+        // the caller supplies query params in a different order.
+        ksort($query);
         $cacheKey = 'address-directory:options:'.sha1($level.':'.json_encode($query));
-        $items = Cache::remember(
-            $cacheKey,
-            min(300, (int) config('address_directory.cache_ttl')),
-            fn (): array => $this->get(rtrim(config('address_directory.directory_path'), '/').'/'.$level, $query,
-                invalidSelectionField: isset($query['parentExternalId']) ? 'parentExternalId' : null)
-        );
-
-        // Houses are arriving incrementally: an empty result is not stable
-        // absence and must not conceal a newly transferred building for 5 minutes.
-        if ($level === 'buildings' && $items === []) {
-            Cache::forget($cacheKey);
+        $ttl = max(1, (int) config('address_directory.options_ttl.'.$level,
+            min(300, (int) config('address_directory.cache_ttl'))));
+        // Autocomplete changes on every keystroke: keep those entries short.
+        $staleTtl = max(0, (int) config('address_directory.stale_ttl', 604800));
+        if (filled($query['q'] ?? null)) {
+            $ttl = min($ttl, max(1, (int) config('address_directory.search_ttl', 300)));
+            $staleTtl = min($staleTtl, max(0, (int) config('address_directory.search_stale_ttl', 86400)));
         }
+
+        $items = $this->cachedList(
+            $cacheKey,
+            $ttl,
+            $staleTtl,
+            fn (): array => $this->get(rtrim(config('address_directory.directory_path'), '/').'/'.$level, $query,
+                invalidSelectionField: isset($query['parentExternalId']) ? 'parentExternalId' : null),
+            // Empty lists are normal during incremental building import, but
+            // must not mask a newly transferred building or become stale data.
+            $level !== 'buildings'
+        );
 
         if ($level !== 'localities') {
             return $items;
@@ -81,16 +108,18 @@ class AddressDirectoryClient
             return [];
         }
 
-        $buildings = Cache::remember(
+        $buildings = $this->cachedList(
             'address-directory:warehouse-search:'.sha1($query.':'.$limit),
-            (int) config('address_directory.cache_ttl'),
+            max(1, (int) config('address_directory.search_ttl', 300)),
+            max(0, (int) config('address_directory.search_stale_ttl', 86400)),
             fn (): array => array_values(array_filter(
                 $this->get(config('address_directory.search_path'), [
                     'q' => $query,
                     'limit' => max(1, min($limit, 50)),
                 ]),
                 static fn (array $item): bool => ($item['kind'] ?? null) === 'building'
-            ))
+            )),
+            false
         );
 
         foreach ($buildings as $building) {
@@ -124,6 +153,64 @@ class AddressDirectoryClient
                 config('address_directory.hierarchy_path')
             ), invalidSelectionField: 'directory_external_id')
         );
+    }
+
+    /**
+     * Two-tier cache: short-lived fresh listings, plus the last successful
+     * non-empty answer for temporary UPSTREAM failures (stale-if-error).
+     *
+     * Only discovery lists use this fallback. Address hierarchies used for
+     * delivery quotes and orders remain strict and expire normally.
+     * Explicit invalid-selection responses (ValidationException) are never
+     * hidden by old data.
+     */
+    private function cachedList(string $key, int $ttl, int $staleTtl, Closure $load, bool $cacheEmpty): array
+    {
+        $this->lastListCacheStatus = 'live';
+        $this->lastListCacheAge = null;
+        $staleKey = $key.':last-good';
+        $fresh = Cache::get($key);
+        if (is_array($fresh) && ($cacheEmpty || $fresh !== [])) {
+            $this->lastListCacheStatus = 'fresh';
+            // Also seed the stale tier from existing installations with
+            // cached fresh data but no last-good entry yet.
+            if ($fresh !== [] && $staleTtl > 0 && ! Cache::has($staleKey)) {
+                Cache::put($staleKey, ['items' => $fresh, 'cached_at' => now()->timestamp], $staleTtl);
+            }
+            return $fresh;
+        }
+
+        try {
+            $items = $load();
+            if ($cacheEmpty || $items !== []) {
+                Cache::put($key, $items, $items === [] ? min($ttl, 30) : $ttl);
+            } else {
+                Cache::forget($key);
+            }
+            if ($items !== [] && $staleTtl > 0) {
+                Cache::put($staleKey, ['items' => $items, 'cached_at' => now()->timestamp], $staleTtl);
+            }
+            return $items;
+        } catch (RuntimeException $error) {
+            // An upstream 5xx, bad JSON or timeout can use a previously
+            // successful LIST. A 4xx invalid address does not reach here.
+            if ((bool) config('address_directory.stale_enabled', true) && $staleTtl > 0) {
+                $lastGood = Cache::get($staleKey);
+                if (is_array($lastGood) && ! empty($lastGood['items']) && is_array($lastGood['items'])) {
+                    $this->lastListCacheStatus = 'stale';
+                    $this->lastListCacheAge = max(0, now()->timestamp - (int) ($lastGood['cached_at'] ?? 0));
+                    if (Cache::add($key.':fallback-logged', true, 300)) {
+                        Log::warning('Address directory listing served from last successful cache', [
+                            'key_hash' => sha1($key),
+                            'age_seconds' => $this->lastListCacheAge,
+                            'upstream_error' => $error->getMessage(),
+                        ]);
+                    }
+                    return $lastGood['items'];
+                }
+            }
+            throw $error;
+        }
     }
 
     private function request(): PendingRequest
