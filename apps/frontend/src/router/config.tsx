@@ -50,6 +50,8 @@ const devRoutes: RouteObject[] = [];
 if (import.meta.env.DEV) {
   const UiSandbox = lazy(() => import('../pages/ui-sandbox/page'));
   devRoutes.push({ path: '__ui', element: <UiSandbox /> });
+  const CheckoutPreview = lazy(() => import('../pages/checkout-preview/page'));
+  devRoutes.push({ path: '__checkout-preview', element: <CheckoutPreview /> });
 }
 
 const routes: RouteObject[] = [

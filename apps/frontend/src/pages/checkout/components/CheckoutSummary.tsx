@@ -4,7 +4,25 @@ import CartLink from '../../../components/cart/CartLink';
 import { cartQuantityLabel } from '../../../components/cart/cartPanelModel';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
 
-export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutState }) {
+export type CheckoutSummaryState = Pick<
+  CheckoutState,
+  | 'cart'
+  | 'direct'
+  | 'prepared'
+  | 'items'
+  | 'directProduct'
+  | 'subtotal'
+  | 'total'
+  | 'fulfillment'
+  | 'mode'
+  | 'calculating'
+  | 'selected'
+  | 'hasUnavailable'
+  | 'busy'
+  | 'canSubmit'
+>;
+
+export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSummaryState }) {
   const discount = !c.direct && c.cart?.subtotal === c.subtotal ? (c.cart.discount_total ?? 0) : 0;
   const rows = !c.direct
     ? (c.cart?.items ?? [])

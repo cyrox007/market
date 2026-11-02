@@ -4,7 +4,11 @@ import type { CheckoutState } from '../hooks/useWarehouseCheckout';
 import { selectable } from '../hooks/useWarehouseCheckout';
 import CheckoutSelect from './CheckoutSelect';
 
-export default function CheckoutPayment({ checkout: c }: { checkout: CheckoutState }) {
+export default function CheckoutPayment({
+  checkout: c,
+}: {
+  checkout: Pick<CheckoutState, 'methods' | 'payment' | 'setPayment'>;
+}) {
   const online = c.methods.filter((method) => isOnlineCardPaymentMethod(method.code));
   const current = c.methods.find((method) => method.code === c.payment);
   const group = c.payment === 'cash' ? 'cash' : 'online';
