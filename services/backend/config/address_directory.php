@@ -13,5 +13,20 @@ return [
     'directory_path' => env('ADDRESS_DIRECTORY_PATH', '/api/v2/address'),
     'timeout' => (float) env('ADDRESS_DIRECTORY_TIMEOUT', 3),
     'connect_timeout' => (float) env('ADDRESS_DIRECTORY_CONNECT_TIMEOUT', 1.5),
-    'cache_ttl' => (int) env('ADDRESS_DIRECTORY_CACHE_TTL', 86400),
+    'cache_ttl' => (int) env('ADDRESS_DIRECTORY_CACHE_TTL', 86400), // hierarchy: strict, no stale fallback
+    // Fresh list TTLs. The backend must keep frequently requested cities and
+    // regions locally instead of reaching the upstream directory every time.
+    'options_ttl' => [
+        'regions' => (int) env('ADDRESS_DIRECTORY_REGIONS_TTL', 86400),
+        'localities' => (int) env('ADDRESS_DIRECTORY_LOCALITIES_TTL', 3600),
+        'streets' => (int) env('ADDRESS_DIRECTORY_STREETS_TTL', 1800),
+        'buildings' => (int) env('ADDRESS_DIRECTORY_BUILDINGS_TTL', 300),
+    ],
+    'search_ttl' => (int) env('ADDRESS_DIRECTORY_SEARCH_TTL', 300),
+    // Keep the last successful, NON-EMPTY listing longer than its fresh TTL.
+    // Only used when the upstream API fails, NEVER to validate delivery orders.
+    'stale_enabled' => (bool) env('ADDRESS_DIRECTORY_STALE_ENABLED', true),
+    'stale_ttl' => (int) env('ADDRESS_DIRECTORY_STALE_TTL', 604800), // 7 days
+    'search_stale_ttl' => (int) env('ADDRESS_DIRECTORY_SEARCH_STALE_TTL', 86400), // 1 day
+
 ];
