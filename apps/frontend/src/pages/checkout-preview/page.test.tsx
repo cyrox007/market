@@ -20,6 +20,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('adds optional services to the total and keeps required assembly selected', () => {
+  render(
+    <MemoryRouter>
+      <CheckoutPreview />
+    </MemoryRouter>,
+  );
+  fireEvent.click(screen.getByRole('checkbox', { name: /Сборка мебели/ }));
+  expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent('365 000');
+  fireEvent.click(screen.getByRole('button', { name: 'Дополнительные услуги' }));
+  expect(screen.getByRole('button', { name: 'Дополнительные услуги' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Дополнительные услуги' }));
+  expect(screen.getByRole('checkbox', { name: /Сборка мебели/ })).toBeChecked();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Вывоз упаковки/ }));
+  expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent('365 000');
+  fireEvent.click(screen.getByRole('checkbox', { name: /Подъём/ }));
+  expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent('366 000');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Обязательная сборка (демо)' }));
+  expect(screen.getByRole('checkbox', { name: /Сборка мебели/ })).toBeDisabled();
+  expect(screen.getByRole('checkbox', { name: /Сборка мебели/ })).toBeChecked();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Услуги настроены (демо)' }));
+  expect(screen.queryByRole('region', { name: 'Дополнительные услуги' })).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent('362 000');
+  fireEvent.click(screen.getByRole('radio', { name: 'Самовывоз' }));
+  expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent('360 000');
+});
+
 it('lets the owner preview an enabled checkout without sending an order or payment', async () => {
   const fetch = vi
     .spyOn(globalThis, 'fetch')

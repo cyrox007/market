@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { PAGE_CONTAINER } from '../../lib/layout';
-import { Button, Modal, Radio, RadioGroup } from '../../components/ui/primitives';
+import { Button, Checkbox, Modal, Radio, RadioGroup } from '../../components/ui/primitives';
+import CheckoutServices from '../checkout/components/CheckoutServices';
 import { CheckoutContacts, type CheckoutContact } from '../checkout/components/CheckoutContacts';
 import CheckoutSummary, { type CheckoutSummaryState } from '../checkout/components/CheckoutSummary';
 import CheckoutPayment from '../checkout/components/CheckoutPayment';
@@ -29,7 +30,19 @@ export default function CheckoutPreview() {
     date: '2026-11-03',
     slotId: 'afternoon',
   });
-  const fulfillment = mode === 'delivery' ? 2000 : 0;
+  const [assembly, setAssembly] = useState(false);
+  const [required, setRequired] = useState(false);
+  const [configured, setConfigured] = useState(true);
+  const [handling, setHandling] = useState<number | null>(null);
+  const [floor, setFloor] = useState(5);
+  const [additional, setAdditional] = useState<number[]>([]);
+  const assemblyCost = configured && (assembly || required) ? 3000 : 0;
+  const servicesCost = configured
+    ? assemblyCost +
+      (handling ? (handling === 1 ? 1000 : floor * 300) : 0) +
+      (additional.includes(2) ? 500 : 0)
+    : 0;
+  const fulfillment = mode === 'delivery' ? 2000 + servicesCost : 0;
   const summary: CheckoutSummaryState = {
     cart: previewCart,
     direct: false,
@@ -45,8 +58,8 @@ export default function CheckoutPreview() {
       warehouse_id: 1,
       warehouse_name: 'Демо-склад',
       delivery_cost: 2000,
-      assembly_cost: 0,
-      total_fulfillment_cost: 2000,
+      assembly_cost: assemblyCost,
+      total_fulfillment_cost: fulfillment,
     },
     hasUnavailable: false,
     busy: false,
@@ -68,6 +81,10 @@ export default function CheckoutPreview() {
         <Link to="/checkout" className="underline">
           Вернуться к рабочему оформлению
         </Link>
+        <div className="flex flex-wrap gap-4">
+          <Checkbox label="Услуги настроены (демо)" checked={configured} onChange={setConfigured} />
+          <Checkbox label="Обязательная сборка (демо)" checked={required} onChange={setRequired} />
+        </div>
       </div>
       <form
         onSubmit={submit}
@@ -140,6 +157,45 @@ export default function CheckoutPreview() {
                   days={previewDeliveryDays}
                   value={delivery}
                   onChange={setDelivery}
+                />
+                <CheckoutServices
+                  services={{
+                    assembly: {
+                      available: configured,
+                      required: configured && required,
+                      price: 3000,
+                    },
+                    handling: configured
+                      ? [
+                          {
+                            id: 1,
+                            name: 'На лифте — 1 000 ₽',
+                            requires_floor: true,
+                            max_floor: 30,
+                          },
+                          {
+                            id: 2,
+                            name: 'По лестнице — 300 ₽ / этаж',
+                            requires_floor: true,
+                            max_floor: 20,
+                          },
+                        ]
+                      : [],
+                    additional: configured
+                      ? [
+                          { id: 1, name: 'Вывоз упаковки', price: 0 },
+                          { id: 2, name: 'Вынос старой мебели', price: 500 },
+                        ]
+                      : [],
+                  }}
+                  assembly={assembly}
+                  setAssembly={setAssembly}
+                  handling={handling}
+                  setHandling={setHandling}
+                  floor={floor}
+                  setFloor={setFloor}
+                  additional={additional}
+                  setAdditional={setAdditional}
                 />
               </>
             ) : (

@@ -1,7 +1,7 @@
 import CheckoutSelect from './CheckoutSelect';
 import CheckoutDeliveryEstimate from './CheckoutDeliveryEstimate';
 import { Radio, RadioGroup } from '../../../components/ui/primitives/Radio';
-import Checkbox from '../../../components/ui/primitives/Checkbox';
+import CheckoutServices from './CheckoutServices';
 import Input from '../../../components/ui/primitives/Input';
 import CheckoutAddresses from './CheckoutAddresses';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
@@ -109,73 +109,7 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
           </label>
         )}
         {c.selected && <CheckoutDeliveryEstimate option={c.selected} />}
-        {services && (
-          <div className="space-y-4 rounded-card bg-surface-grey/50 p-4">
-            <h3 className="text-16 font-semibold">Дополнительно</h3>
-            {!!services.handling.length && (
-              <>
-                <label className="block space-y-2 text-14">
-                  Подъём / занос
-                  <select
-                    value={c.handling || ''}
-                    onChange={(event) => c.setHandling(Number(event.target.value) || null)}
-                    className={checkoutField}
-                  >
-                    <option value="">Не требуется</option>
-                    {services.handling.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block space-y-2 text-14">
-                  Этаж для подъёма
-                  <Input
-                    type="number"
-                    min={1}
-                    max={
-                      services.handling.find((option) => option.id === c.handling)?.max_floor || 20
-                    }
-                    value={c.floor}
-                    onChange={(event) => c.setFloor(Number(event.target.value))}
-                    shape="rounded"
-                    tone="outline"
-                  />
-                </label>
-              </>
-            )}
-            {services.assembly.available && (
-              <Checkbox
-                label={`Сборка${services.assembly.required ? ' (обязательная)' : ''}${services.assembly.price == null ? ' — цена уточняется' : ` — ${services.assembly.price.toLocaleString('ru-RU')} ₽`}`}
-                checked={c.assembly || services.assembly.required}
-                disabled={services.assembly.required}
-                onChange={c.setAssembly}
-              />
-            )}
-            {services.additional.map((service) => (
-              <Checkbox
-                key={service.id}
-                label={`${service.name} — ${service.price.toLocaleString('ru-RU')} ₽`}
-                checked={c.additional.includes(service.id)}
-                onChange={(checked) =>
-                  c.setAdditional(
-                    checked
-                      ? [...c.additional, service.id]
-                      : c.additional.filter((id) => id !== service.id),
-                  )
-                }
-              />
-            ))}
-            {!services.assembly.available &&
-              !services.handling.length &&
-              !services.additional.length && (
-                <p className="text-14 text-ink-secondary">
-                  Дополнительные услуги для этого варианта не предлагаются.
-                </p>
-              )}
-          </div>
-        )}
+        {services && <CheckoutServices {...c} services={services} />}
       </div>
       <div hidden={c.mode !== 'pickup'} className={c.mode === 'pickup' ? 'space-y-4' : 'hidden'}>
         <CheckoutSelect
