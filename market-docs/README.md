@@ -25,7 +25,7 @@
 | Адреса и ГАР | [интеграция адресов](address-directory-frontend-launch.md) | `AddressDirectoryClient`, `DeliveryAddressResolver` |
 | Операторы | [заказы в админке](admin-orders-workspace.md) | Filament-ресурсы заказов и платежей |
 
-Основной API: `/api/v1`; фактический перечень определяется `services/backend/routes/api.php`. Пакет `services/backend/public/api-docs/openapi.json` — вспомогательная спецификация, её нужно пересверять с маршрутами на каждом релизе.
+Основной API: `/api/v1`; фактический перечень определяется `services/backend/routes/api.php`. В этом PR [OpenAPI](../services/backend/public/api-docs/openapi.json) согласована с **93 операциями**; дальнейшую сверку на каждом релизе выполняет [CI-проверка маршрутов](../scripts/check-openapi-routes.mjs).
 
 ### Зафиксированные архитектурные решения
 
