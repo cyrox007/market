@@ -1,10 +1,12 @@
 # Эквайринг Сбербанка (e-commerce API)
 
+> **Безопасность и актуальность (03.11.2026):** ранее этот документ содержал логин и строку, похожую на пароль. Примеры реквизитов заменены на заглушки. **Если эти значения когда-либо использовались, отзовите их в банке и проверьте историю доступа.** Содержимое ниже описывает настройку исходной версии на `develop`. Исправления подтверждения оплаты, перевода копеек в рубли и защищённых возвратов находятся в **незавершённом [PR #139](https://github.com/cyrox007/market/pull/139)**; не считать их выложенными до merge, банковского теста и деплоя. Возвраты денег и изменение payment status нельзя проверять на боевом клиентском заказе без отдельного регламента.
+
 ## Переменные окружения (тест)
 
 ```env
-SBERBANK_ACQUIRING_USERNAME=testMerchant_071
-SBERBANK_ACQUIRING_PASSWORD="Sbertest2026123456%"
+SBERBANK_ACQUIRING_USERNAME=your_test_merchant_login
+SBERBANK_ACQUIRING_PASSWORD="set-using-a-secret-manager"
 SBERBANK_ACQUIRING_BASE_URL=https://ecomtest.sberbank.ru
 SBERBANK_ACQUIRING_API_FORMAT=ecom
 APP_FRONTEND_URL=https://demo.site.zone
