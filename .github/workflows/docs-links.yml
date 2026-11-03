@@ -5,6 +5,9 @@ on:
     paths:
       - '**/*.md'
       - 'scripts/check-doc-links.mjs'
+      - 'scripts/check-openapi-routes.mjs'
+      - 'services/backend/routes/api.php'
+      - 'services/backend/public/api-docs/openapi.json'
       - '.github/workflows/docs-links.yml'
   push:
     branches: [develop]
@@ -26,3 +29,5 @@ jobs:
           node-version: '22'
       - name: Verify links in active docs
         run: node scripts/check-doc-links.mjs
+      - name: Verify OpenAPI matches Laravel routes
+        run: node scripts/check-openapi-routes.mjs
