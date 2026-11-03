@@ -28,6 +28,12 @@
         "in": "header",
         "name": "X-XSRF-TOKEN",
         "description": "CSRF-токен. Читается из куки XSRF-TOKEN и передаётся заголовком для небезопасных методов (POST/PUT/DELETE) на sanctum-эндпоинтах."
+      },
+      "sanctum": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Laravel Sanctum token",
+        "description": "Альтернатива сессионной авторизации. Для SPA используется сессионная cookie; Bearer-токен должен принадлежать пользователю и иметь нужные права."
       }
     },
     "schemas": {
@@ -2829,6 +2835,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -2865,6 +2874,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -2932,6 +2944,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -3007,6 +3022,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -3079,6 +3097,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -3130,6 +3151,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -5107,6 +5131,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -5261,6 +5288,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -5338,6 +5368,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -5434,6 +5467,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -5488,6 +5524,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -5538,6 +5577,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -5654,6 +5696,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -5747,6 +5792,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -5884,6 +5932,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -5974,6 +6025,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
