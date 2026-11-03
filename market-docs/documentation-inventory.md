@@ -86,7 +86,7 @@
 | [`services/backend/docs/CRITICAL_ENDPOINTS.md`](../services/backend/docs/CRITICAL_ENDPOINTS.md) | **НЕ ИСПОЛЬЗОВАТЬ** | Не применять команды/контракт без перепроверки |
 | [`services/backend/docs/GATEWAY_PATTERN.md`](../services/backend/docs/GATEWAY_PATTERN.md) | **ПРОВЕРИТЬ** | Точечно сверить контракт с кодом и тестами |
 | [`services/backend/docs/HOME_SLIDERS.md`](../services/backend/docs/HOME_SLIDERS.md) | **ПРОВЕРИТЬ** | Точечно сверить контракт с кодом и тестами |
-| [`services/backend/docs/INVENTORY_SYSTEM.md`](../services/backend/docs/INVENTORY_SYSTEM.md) | **ПРОВЕРИТЬ** | есть утверждения о приоритете shipping_location_id — перепроверить |
+| [`services/backend/docs/INVENTORY_SYSTEM.md`](../services/backend/docs/INVENTORY_SYSTEM.md) | **ПРОВЕРИТЬ** | Выявлена устаревшая схема 1С/Vanilo и неверный образец заказа; добавлен проверенный по коду действующий путь синхронизации. Старые примеры не применять, остальное требует дополнительной сверки |
 | [`services/backend/docs/MAIL_EVENTS_SYSTEM.md`](../services/backend/docs/MAIL_EVENTS_SYSTEM.md) | **ПРОВЕРИТЬ** | Точечно сверить контракт с кодом и тестами |
 | [`services/backend/docs/PAYMENT_SBERBANK_ACQUIRING.md`](../services/backend/docs/PAYMENT_SBERBANK_ACQUIRING.md) | **ПРОВЕРИТЬ** | проверить настройку мерчанта; изменения в незавершённом PR #139 не считать выпущенными; заменить пароль-пример |
 | [`services/backend/docs/PRODUCT_VARIATIONS.md`](../services/backend/docs/PRODUCT_VARIATIONS.md) | **ПРОВЕРИТЬ** | Точечно сверить контракт с кодом и тестами |
