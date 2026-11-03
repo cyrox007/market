@@ -6,13 +6,19 @@ use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
+use App\Services\Product\ProductColorImport;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Vanilo\Category\Models\Taxonomy;
-use Illuminate\Support\Facades\File;
 
 class ProductVariantsSeeder extends Seeder
 {
+    public function __construct(private readonly ProductColorImport $colorImport = new ProductColorImport)
+    {
+    }
+
     /**
      * Массив доступных изображений
      */
@@ -74,18 +80,18 @@ class ProductVariantsSeeder extends Seeder
         $this->addRandomImage($sofa1, 'gallery');
 
         $sofa1Variants = [
-            ['color' => 'Серый', 'color_code' => '#808080', 'length' => 180, 'price' => 34990, 'original_price' => 42990, 'stock' => 5],
-            ['color' => 'Серый', 'color_code' => '#808080', 'length' => 210, 'price' => 37990, 'original_price' => 45990, 'stock' => 3],
-            ['color' => 'Серый', 'color_code' => '#808080', 'length' => 240, 'price' => 40990, 'original_price' => 48990, 'stock' => 2],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'length' => 180, 'price' => 34990, 'original_price' => 42990, 'stock' => 4],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'length' => 210, 'price' => 37990, 'original_price' => 45990, 'stock' => 3],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'length' => 240, 'price' => 40990, 'original_price' => 48990, 'stock' => 1],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'length' => 180, 'price' => 36990, 'original_price' => 44990, 'stock' => 6],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'length' => 210, 'price' => 39990, 'original_price' => 47990, 'stock' => 4],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'length' => 240, 'price' => 42990, 'original_price' => 50990, 'stock' => 2],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'length' => 180, 'price' => 35990, 'original_price' => 43990, 'stock' => 3],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'length' => 210, 'price' => 38990, 'original_price' => 46990, 'stock' => 2],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'length' => 240, 'price' => 41990, 'original_price' => 49990, 'stock' => 1],
+            ['color' => 'Серый', 'length' => 180, 'price' => 34990, 'original_price' => 42990, 'stock' => 5],
+            ['color' => 'Серый', 'length' => 210, 'price' => 37990, 'original_price' => 45990, 'stock' => 3],
+            ['color' => 'Серый', 'length' => 240, 'price' => 40990, 'original_price' => 48990, 'stock' => 2],
+            ['color' => 'Бежевый', 'length' => 180, 'price' => 34990, 'original_price' => 42990, 'stock' => 4],
+            ['color' => 'Бежевый', 'length' => 210, 'price' => 37990, 'original_price' => 45990, 'stock' => 3],
+            ['color' => 'Бежевый', 'length' => 240, 'price' => 40990, 'original_price' => 48990, 'stock' => 1],
+            ['color' => 'Темно-синий', 'length' => 180, 'price' => 36990, 'original_price' => 44990, 'stock' => 6],
+            ['color' => 'Темно-синий', 'length' => 210, 'price' => 39990, 'original_price' => 47990, 'stock' => 4],
+            ['color' => 'Темно-синий', 'length' => 240, 'price' => 42990, 'original_price' => 50990, 'stock' => 2],
+            ['color' => 'Коричневый', 'length' => 180, 'price' => 35990, 'original_price' => 43990, 'stock' => 3],
+            ['color' => 'Коричневый', 'length' => 210, 'price' => 38990, 'original_price' => 46990, 'stock' => 2],
+            ['color' => 'Коричневый', 'length' => 240, 'price' => 41990, 'original_price' => 49990, 'stock' => 1],
         ];
 
         foreach ($sofa1Variants as $idx => $variantData) {
@@ -104,8 +110,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $sofa1->id,
-                    'color' => $variantData['color'],
-                    'color_code' => $variantData['color_code'],
                     'length' => $variantData['length'],
                     'width' => 95,
                     'height' => 88,
@@ -147,17 +151,17 @@ class ProductVariantsSeeder extends Seeder
         $this->addRandomImage($sofaCorner1, 'gallery');
 
         $sofaCorner1Variants = [
-            ['color' => 'Серый', 'color_code' => '#808080', 'length' => 240, 'width' => 150, 'price' => 54990, 'original_price' => 64990, 'stock' => 3],
-            ['color' => 'Серый', 'color_code' => '#808080', 'length' => 280, 'width' => 180, 'price' => 64990, 'original_price' => 74990, 'stock' => 2],
-            ['color' => 'Серый', 'color_code' => '#808080', 'length' => 320, 'width' => 200, 'price' => 74990, 'original_price' => 84990, 'stock' => 1],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'length' => 240, 'width' => 150, 'price' => 54990, 'original_price' => 64990, 'stock' => 2],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'length' => 280, 'width' => 180, 'price' => 64990, 'original_price' => 74990, 'stock' => 1],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'length' => 320, 'width' => 200, 'price' => 74990, 'original_price' => 84990, 'stock' => 1],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'length' => 240, 'width' => 150, 'price' => 56990, 'original_price' => 66990, 'stock' => 4],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'length' => 280, 'width' => 180, 'price' => 66990, 'original_price' => 76990, 'stock' => 2],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'length' => 320, 'width' => 200, 'price' => 76990, 'original_price' => 86990, 'stock' => 1],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'length' => 240, 'width' => 150, 'price' => 55990, 'original_price' => 65990, 'stock' => 2],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'length' => 280, 'width' => 180, 'price' => 65990, 'original_price' => 75990, 'stock' => 1],
+            ['color' => 'Серый', 'length' => 240, 'width' => 150, 'price' => 54990, 'original_price' => 64990, 'stock' => 3],
+            ['color' => 'Серый', 'length' => 280, 'width' => 180, 'price' => 64990, 'original_price' => 74990, 'stock' => 2],
+            ['color' => 'Серый', 'length' => 320, 'width' => 200, 'price' => 74990, 'original_price' => 84990, 'stock' => 1],
+            ['color' => 'Бежевый', 'length' => 240, 'width' => 150, 'price' => 54990, 'original_price' => 64990, 'stock' => 2],
+            ['color' => 'Бежевый', 'length' => 280, 'width' => 180, 'price' => 64990, 'original_price' => 74990, 'stock' => 1],
+            ['color' => 'Бежевый', 'length' => 320, 'width' => 200, 'price' => 74990, 'original_price' => 84990, 'stock' => 1],
+            ['color' => 'Темно-синий', 'length' => 240, 'width' => 150, 'price' => 56990, 'original_price' => 66990, 'stock' => 4],
+            ['color' => 'Темно-синий', 'length' => 280, 'width' => 180, 'price' => 66990, 'original_price' => 76990, 'stock' => 2],
+            ['color' => 'Темно-синий', 'length' => 320, 'width' => 200, 'price' => 76990, 'original_price' => 86990, 'stock' => 1],
+            ['color' => 'Коричневый', 'length' => 240, 'width' => 150, 'price' => 55990, 'original_price' => 65990, 'stock' => 2],
+            ['color' => 'Коричневый', 'length' => 280, 'width' => 180, 'price' => 65990, 'original_price' => 75990, 'stock' => 1],
         ];
 
         foreach ($sofaCorner1Variants as $variantData) {
@@ -176,8 +180,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $sofaCorner1->id,
-                    'color' => $variantData['color'],
-                    'color_code' => $variantData['color_code'],
                     'length' => $variantData['length'],
                     'width' => $variantData['width'],
                     'height' => 90,
@@ -218,12 +220,12 @@ class ProductVariantsSeeder extends Seeder
         $this->addRandomImage($bed1, 'gallery');
 
         $bed1Variants = [
-            ['color' => 'Белая', 'color_code' => '#FFFFFF', 'price' => 44990, 'original_price' => 54990, 'stock' => 5],
-            ['color' => 'Серая', 'color_code' => '#808080', 'price' => 44990, 'original_price' => 54990, 'stock' => 4],
-            ['color' => 'Бежевая', 'color_code' => '#F5F5DC', 'price' => 44990, 'original_price' => 54990, 'stock' => 3],
-            ['color' => 'Коричневая', 'color_code' => '#8B4513', 'price' => 45990, 'original_price' => 55990, 'stock' => 4],
-            ['color' => 'Темно-коричневая', 'color_code' => '#654321', 'price' => 45990, 'original_price' => 55990, 'stock' => 2],
-            ['color' => 'Черная', 'color_code' => '#000000', 'price' => 46990, 'original_price' => 56990, 'stock' => 3],
+            ['color' => 'Белая', 'price' => 44990, 'original_price' => 54990, 'stock' => 5],
+            ['color' => 'Серая', 'price' => 44990, 'original_price' => 54990, 'stock' => 4],
+            ['color' => 'Бежевая', 'price' => 44990, 'original_price' => 54990, 'stock' => 3],
+            ['color' => 'Коричневая', 'price' => 45990, 'original_price' => 55990, 'stock' => 4],
+            ['color' => 'Темно-коричневая', 'price' => 45990, 'original_price' => 55990, 'stock' => 2],
+            ['color' => 'Черная', 'price' => 46990, 'original_price' => 56990, 'stock' => 3],
         ];
 
         foreach ($bed1Variants as $variantData) {
@@ -242,8 +244,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $bed1->id,
-                    'color' => $variantData['color'],
-                    'color_code' => $variantData['color_code'],
                     'length' => 200,
                     'width' => 160,
                     'height' => 110,
@@ -283,12 +283,12 @@ class ProductVariantsSeeder extends Seeder
         $this->addRandomImage($bedSingle1, 'gallery');
 
         $bedSingle1Variants = [
-            ['color' => 'Белая', 'color_code' => '#FFFFFF', 'length' => 200, 'width' => 90, 'price' => 24990, 'original_price' => 29990, 'stock' => 4],
-            ['color' => 'Белая', 'color_code' => '#FFFFFF', 'length' => 200, 'width' => 120, 'price' => 27990, 'original_price' => 32990, 'stock' => 3],
-            ['color' => 'Серая', 'color_code' => '#808080', 'length' => 200, 'width' => 90, 'price' => 24990, 'original_price' => 29990, 'stock' => 3],
-            ['color' => 'Серая', 'color_code' => '#808080', 'length' => 200, 'width' => 120, 'price' => 27990, 'original_price' => 32990, 'stock' => 2],
-            ['color' => 'Бежевая', 'color_code' => '#F5F5DC', 'length' => 200, 'width' => 90, 'price' => 24990, 'original_price' => 29990, 'stock' => 2],
-            ['color' => 'Бежевая', 'color_code' => '#F5F5DC', 'length' => 200, 'width' => 120, 'price' => 27990, 'original_price' => 32990, 'stock' => 1],
+            ['color' => 'Белая', 'length' => 200, 'width' => 90, 'price' => 24990, 'original_price' => 29990, 'stock' => 4],
+            ['color' => 'Белая', 'length' => 200, 'width' => 120, 'price' => 27990, 'original_price' => 32990, 'stock' => 3],
+            ['color' => 'Серая', 'length' => 200, 'width' => 90, 'price' => 24990, 'original_price' => 29990, 'stock' => 3],
+            ['color' => 'Серая', 'length' => 200, 'width' => 120, 'price' => 27990, 'original_price' => 32990, 'stock' => 2],
+            ['color' => 'Бежевая', 'length' => 200, 'width' => 90, 'price' => 24990, 'original_price' => 29990, 'stock' => 2],
+            ['color' => 'Бежевая', 'length' => 200, 'width' => 120, 'price' => 27990, 'original_price' => 32990, 'stock' => 1],
         ];
 
         foreach ($bedSingle1Variants as $variantData) {
@@ -307,8 +307,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $bedSingle1->id,
-                    'color' => $variantData['color'],
-                    'color_code' => $variantData['color_code'],
                     'length' => $variantData['length'],
                     'width' => $variantData['width'],
                     'height' => 100,
@@ -370,8 +368,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $table1->id,
-                    'color' => 'Натуральное дерево',
-                    'color_code' => '#8B4513',
                     'length' => $variantData['length'],
                     'width' => $variantData['width'],
                     'height' => 75,
@@ -411,11 +407,11 @@ class ProductVariantsSeeder extends Seeder
         $this->addRandomImage($chair1, 'gallery');
 
         $chair1Variants = [
-            ['color' => 'Белый', 'color_code' => '#FFFFFF', 'price' => 4490, 'original_price' => 5490, 'stock' => 15],
-            ['color' => 'Черный', 'color_code' => '#000000', 'price' => 4490, 'original_price' => 5490, 'stock' => 12],
-            ['color' => 'Серый', 'color_code' => '#808080', 'price' => 4490, 'original_price' => 5490, 'stock' => 10],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'price' => 4590, 'original_price' => 5590, 'stock' => 8],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'price' => 4490, 'original_price' => 5490, 'stock' => 9],
+            ['color' => 'Белый', 'price' => 4490, 'original_price' => 5490, 'stock' => 15],
+            ['color' => 'Черный', 'price' => 4490, 'original_price' => 5490, 'stock' => 12],
+            ['color' => 'Серый', 'price' => 4490, 'original_price' => 5490, 'stock' => 10],
+            ['color' => 'Коричневый', 'price' => 4590, 'original_price' => 5590, 'stock' => 8],
+            ['color' => 'Бежевый', 'price' => 4490, 'original_price' => 5490, 'stock' => 9],
         ];
 
         foreach ($chair1Variants as $variantData) {
@@ -434,8 +430,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $chair1->id,
-                    'color' => $variantData['color'],
-                    'color_code' => $variantData['color_code'],
                     'length' => 45,
                     'width' => 45,
                     'height' => 85,
@@ -476,14 +470,14 @@ class ProductVariantsSeeder extends Seeder
         $this->addRandomImage($armchair1, 'gallery');
 
         $armchair1Variants = [
-            ['color' => 'Серый', 'color_code' => '#808080', 'width' => 85, 'price' => 19990, 'original_price' => 24990, 'stock' => 4],
-            ['color' => 'Серый', 'color_code' => '#808080', 'width' => 95, 'price' => 21990, 'original_price' => 26990, 'stock' => 3],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'width' => 85, 'price' => 19990, 'original_price' => 24990, 'stock' => 3],
-            ['color' => 'Бежевый', 'color_code' => '#F5F5DC', 'width' => 95, 'price' => 21990, 'original_price' => 26990, 'stock' => 2],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'width' => 85, 'price' => 20990, 'original_price' => 25990, 'stock' => 2],
-            ['color' => 'Коричневый', 'color_code' => '#8B4513', 'width' => 95, 'price' => 22990, 'original_price' => 27990, 'stock' => 1],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'width' => 85, 'price' => 20990, 'original_price' => 25990, 'stock' => 3],
-            ['color' => 'Темно-синий', 'color_code' => '#000080', 'width' => 95, 'price' => 22990, 'original_price' => 27990, 'stock' => 2],
+            ['color' => 'Серый', 'width' => 85, 'price' => 19990, 'original_price' => 24990, 'stock' => 4],
+            ['color' => 'Серый', 'width' => 95, 'price' => 21990, 'original_price' => 26990, 'stock' => 3],
+            ['color' => 'Бежевый', 'width' => 85, 'price' => 19990, 'original_price' => 24990, 'stock' => 3],
+            ['color' => 'Бежевый', 'width' => 95, 'price' => 21990, 'original_price' => 26990, 'stock' => 2],
+            ['color' => 'Коричневый', 'width' => 85, 'price' => 20990, 'original_price' => 25990, 'stock' => 2],
+            ['color' => 'Коричневый', 'width' => 95, 'price' => 22990, 'original_price' => 27990, 'stock' => 1],
+            ['color' => 'Темно-синий', 'width' => 85, 'price' => 20990, 'original_price' => 25990, 'stock' => 3],
+            ['color' => 'Темно-синий', 'width' => 95, 'price' => 22990, 'original_price' => 27990, 'stock' => 2],
         ];
 
         foreach ($armchair1Variants as $variantData) {
@@ -502,8 +496,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $armchair1->id,
-                    'color' => $variantData['color'],
-                    'color_code' => $variantData['color_code'],
                     'length' => 90,
                     'width' => $variantData['width'],
                     'height' => 95,
@@ -565,8 +557,6 @@ class ProductVariantsSeeder extends Seeder
                     'units_sold' => 0,
                     'is_variable' => false,
                     'parent_product_id' => $wardrobe1->id,
-                    'color' => 'Белый глянец',
-                    'color_code' => '#FFFFFF',
                     'length' => $variantData['length'],
                     'width' => $variantData['width'],
                     'height' => $variantData['height'],
@@ -650,7 +640,9 @@ class ProductVariantsSeeder extends Seeder
                 return;
             }
 
+            // Источник — файлы существующих медиа: копируем, а не перемещаем.
             $product->addMedia($imagePath)
+                ->preservingOriginal()
                 ->toMediaCollection($collection);
 
             $this->command->info("   ✓ Изображение добавлено: {$product->name} ({$collection})");
@@ -679,17 +671,8 @@ class ProductVariantsSeeder extends Seeder
     {
         $sync = [];
 
-        $colorAttr = Attribute::where('slug', 'color')->where('is_use_in_variations', true)->first();
-        if ($colorAttr && $colorName !== null && $colorName !== '') {
-            $colorValue = AttributeValue::where('attribute_id', $colorAttr->id)
-                ->where(function ($q) use ($colorName) {
-                    $q->where('value', $colorName)
-                        ->orWhere('slug', \Str::slug($colorName));
-                })
-                ->first();
-            if ($colorValue) {
-                $sync[$colorValue->id] = ['attribute_id' => $colorAttr->id];
-            }
+        if ($colorName !== null && $colorName !== '') {
+            $this->colorImport->setMainColor((int) $variant->id, $colorName);
         }
 
         $sizeAttr = Attribute::where('slug', 'size')->where('is_use_in_variations', true)->first();
@@ -712,5 +695,12 @@ class ProductVariantsSeeder extends Seeder
         }
 
         $variant->variantAttributeValues()->sync($sync);
+
+        // «Вариант» обязателен в форме вариации: название берётся из скобок в названии вариации.
+        $label = preg_match('/\(([^()]+)\)\s*$/u', (string) $variant->name, $match) ? trim($match[1]) : (string) $variant->name;
+        DB::table('product_product_attributes')->updateOrInsert(
+            ['product_id' => $variant->id, 'attribute_id' => Attribute::ensureVariantAttribute()->id],
+            ['attribute_value_id' => null, 'custom_value' => $label, 'updated_at' => now()],
+        );
     }
 }

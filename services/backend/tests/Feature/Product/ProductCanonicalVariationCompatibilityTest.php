@@ -15,26 +15,6 @@ class ProductCanonicalVariationCompatibilityTest extends TestCase
 
     public function test_legacy_named_helpers_are_backed_by_canonical_attributes_only(): void
     {
-        $color = Attribute::create([
-            'name' => 'Цвет',
-            'slug' => Attribute::SLUG_COLOR,
-            'type' => 'color',
-            'is_filterable' => true,
-            'is_use_in_variations' => true,
-        ]);
-        $gray = AttributeValue::create([
-            'attribute_id' => $color->id,
-            'value' => 'Серый',
-            'slug' => 'seryi',
-            'color_code' => '#808080',
-        ]);
-        $blue = AttributeValue::create([
-            'attribute_id' => $color->id,
-            'value' => 'Синий',
-            'slug' => 'sinii',
-            'color_code' => '#0000ff',
-        ]);
-
         $size = Attribute::create([
             'name' => 'Размер',
             'slug' => Attribute::SLUG_SIZE,
@@ -62,58 +42,30 @@ class ProductCanonicalVariationCompatibilityTest extends TestCase
         $grayQueen = Product::factory()->create([
             'state' => Product::ACTIVE,
             'parent_product_id' => $parent->id,
-            'color' => 'Legacy Red',
-            'color_code' => '#ff0000',
             'length' => 999,
             'width' => 888,
         ]);
         $blueKing = Product::factory()->create([
             'state' => Product::ACTIVE,
             'parent_product_id' => $parent->id,
-            'color' => 'Legacy Green',
-            'color_code' => '#00ff00',
             'length' => 160,
             'width' => 200,
         ]);
 
-        $this->attach($grayQueen, $color, $gray);
         $this->attach($grayQueen, $size, $queen);
-        $this->attach($blueKing, $color, $blue);
         $this->attach($blueKing, $size, $king);
 
-        $colors = $parent->getAvailableColors();
         $sizes = $parent->getAvailableSizes();
 
-        $this->assertEqualsCanonicalizing(['seryi', 'sinii'], $colors->pluck('slug')->all());
         $this->assertEqualsCanonicalizing(['160x200', '180x200'], $sizes->pluck('slug')->all());
-        $this->assertFalse($colors->pluck('value')->contains('Legacy Red'));
         $this->assertFalse($sizes->pluck('value')->contains('999x888'));
 
-        $this->assertTrue($parent->getVariantByAttributes('seryi', '160x200')->is($grayQueen));
-        $this->assertTrue($parent->getVariantByAttributes('Синий', '180x200')->is($blueKing));
-
-        $sizesForGray = $parent->getAvailableSizesForColor('seryi');
-        $colorsForQueen = $parent->getAvailableColorsForSize('160x200');
-
-        $this->assertSame(['160x200'], $sizesForGray->pluck('slug')->all());
-        $this->assertSame(['seryi'], $colorsForQueen->pluck('slug')->all());
+        $this->assertTrue($parent->getVariantByVariationAttributes([Attribute::SLUG_SIZE => '160x200'])->is($grayQueen));
+        $this->assertTrue($parent->getVariantByVariationAttributes([Attribute::SLUG_SIZE => '180x200'])->is($blueKing));
     }
 
-    public function test_simple_product_helpers_use_regular_canonical_attributes_not_dimensions_or_legacy_color(): void
+    public function test_simple_product_helpers_use_regular_canonical_attributes_not_dimensions(): void
     {
-        $color = Attribute::create([
-            'name' => 'Цвет',
-            'slug' => Attribute::SLUG_COLOR,
-            'type' => 'color',
-            'is_filterable' => true,
-            'is_use_in_variations' => true,
-        ]);
-        $gray = AttributeValue::create([
-            'attribute_id' => $color->id,
-            'value' => 'Серый',
-            'slug' => 'seryi',
-            'color_code' => '#808080',
-        ]);
         $size = Attribute::create([
             'name' => 'Размер',
             'slug' => Attribute::SLUG_SIZE,
@@ -130,15 +82,12 @@ class ProductCanonicalVariationCompatibilityTest extends TestCase
         $product = Product::factory()->create([
             'is_variable' => false,
             'parent_product_id' => null,
-            'color' => 'Legacy Black',
             'length' => 100,
             'width' => 50,
             'height' => 40,
         ]);
-        $product->attributes()->attach($color->id, ['attribute_value_id' => $gray->id]);
         $product->attributes()->attach($size->id, ['attribute_value_id' => $compact->id]);
 
-        $this->assertSame(['seryi'], $product->getAvailableColors()->pluck('slug')->all());
         $this->assertSame(['compact'], $product->getAvailableSizes()->pluck('slug')->all());
         $this->assertFalse($product->getAvailableSizes()->pluck('value')->contains('100x50'));
     }

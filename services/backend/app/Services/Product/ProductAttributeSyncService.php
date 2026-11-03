@@ -19,9 +19,9 @@ class ProductAttributeSyncService
         DB::transaction(function () use ($product, $rows, $attributeIds): void {
             DB::table('products')->where('id', $product->id)->lockForUpdate()->first();
             $delete = DB::table('product_product_attributes')->where('product_id', $product->id);
-            if ($attributeIds !== null) {
-                $delete->whereIn('attribute_id', $attributeIds);
-            }
+            $attributeIds !== null
+                ? $delete->whereIn('attribute_id', $attributeIds)
+                : $delete->whereNotIn('attribute_id', Attribute::hiddenIds());
             $delete->delete();
 
             $insert = [];

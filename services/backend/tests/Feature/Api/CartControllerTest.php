@@ -64,8 +64,6 @@ class CartControllerTest extends TestCase
         // Создаем вариацию
         $variant = Product::factory()->create([
             'parent_product_id' => $parentProduct->id,
-            'color' => 'Серый',
-            'color_code' => '#808080',
             'length' => 280,
             'width' => 180,
             'state' => 'active',
@@ -81,7 +79,7 @@ class CartControllerTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJson([
-                'message' => 'Для вариативного товара необходимо указать variation_attributes',
+                'message' => 'Для вариативного товара необходимо указать variation_attributes или color_options',
             ]);
 
         // Добавляем саму вариацию по ID (актуальный контракт API)
@@ -114,7 +112,6 @@ class CartControllerTest extends TestCase
         // Создаем вариацию
         Product::factory()->create([
             'parent_product_id' => $parentProduct->id,
-            'color' => 'Серый',
             'length' => 280,
             'width' => 180,
             'state' => 'active',
@@ -124,13 +121,12 @@ class CartControllerTest extends TestCase
         $response = $this->postJson('/api/v1/cart', [
             'product_id' => $parentProduct->id,
             'quantity' => 1,
-            'color' => 'Несуществующий цвет',
-            'size' => '999x999',
+            'color_options' => ['main' => 'net-takogo-cveta'],
         ]);
 
-        $response->assertStatus(422)
+        $response->assertStatus(404)
             ->assertJson([
-                'message' => 'Для вариативного товара необходимо указать variation_attributes',
+                'message' => 'Вариация товара не найдена. Проверьте выбранные параметры.',
             ]);
     }
 
