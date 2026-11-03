@@ -1,5 +1,7 @@
 # Система доставки (Shipping Locations + Carriers + Delivery Handling)
 
+> **Редакционная пометка 03.11.2026.** ⚠️ **Историческая система доставки.** API `/api/v1/shipping/locations`, `/shipping/calculate`, `/shipping/carriers` и `/shipping/shipping-methods` не определяют текущий контракт в `develop`. Не восстанавливать старые endpoints и не применять описанные формулы тарифов. Используйте [складскую доставку](../../../market-docs/warehouse-only-fulfillment.md).
+
 ## Обзор
 
 Система доставки построена на единой таблице **`shipping_locations`** с иерархией (parent/children) и наследованием цен/настроек.
