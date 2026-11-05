@@ -43,6 +43,35 @@ export default function CheckoutPreview() {
       (additional.includes(2) ? 500 : 0)
     : 0;
   const fulfillment = mode === 'delivery' ? 2000 + servicesCost : 0;
+  const services = {
+    assembly: {
+      available: configured,
+      required: configured && required,
+      price: 3000,
+    },
+    handling: configured
+      ? [
+          {
+            id: 1,
+            name: 'На лифте — 1 000 ₽',
+            requires_floor: true,
+            max_floor: 30,
+          },
+          {
+            id: 2,
+            name: 'По лестнице — 300 ₽ / этаж',
+            requires_floor: true,
+            max_floor: 20,
+          },
+        ]
+      : [],
+    additional: configured
+      ? [
+          { id: 1, name: 'Вывоз упаковки', price: 0 },
+          { id: 2, name: 'Вынос старой мебели', price: 500 },
+        ]
+      : [],
+  };
   const summary: CheckoutSummaryState = {
     cart: previewCart,
     direct: false,
@@ -60,6 +89,7 @@ export default function CheckoutPreview() {
       delivery_cost: 2000,
       assembly_cost: assemblyCost,
       total_fulfillment_cost: fulfillment,
+      service_options: services,
     },
     hasUnavailable: false,
     busy: false,
@@ -159,35 +189,7 @@ export default function CheckoutPreview() {
                   onChange={setDelivery}
                 />
                 <CheckoutServices
-                  services={{
-                    assembly: {
-                      available: configured,
-                      required: configured && required,
-                      price: 3000,
-                    },
-                    handling: configured
-                      ? [
-                          {
-                            id: 1,
-                            name: 'На лифте — 1 000 ₽',
-                            requires_floor: true,
-                            max_floor: 30,
-                          },
-                          {
-                            id: 2,
-                            name: 'По лестнице — 300 ₽ / этаж',
-                            requires_floor: true,
-                            max_floor: 20,
-                          },
-                        ]
-                      : [],
-                    additional: configured
-                      ? [
-                          { id: 1, name: 'Вывоз упаковки', price: 0 },
-                          { id: 2, name: 'Вынос старой мебели', price: 500 },
-                        ]
-                      : [],
-                  }}
+                  services={services}
                   assembly={assembly}
                   setAssembly={setAssembly}
                   handling={handling}
