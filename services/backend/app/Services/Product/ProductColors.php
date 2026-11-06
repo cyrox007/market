@@ -29,6 +29,44 @@ class ProductColors
         (new EloquentCollection($variants->all()))->loadMissing(self::EAGER);
     }
 
+    /**
+     * Prepare one swatch palette per parent group for catalog SKU cards.
+     * Fetch siblings in batches, including offers on other pagination pages.
+     * Selected colors always belong to the actual SKU, never its siblings.
+     */
+    public function preloadCatalogPalettes(iterable $products): void
+    {
+        $items = collect($products)->filter(fn ($product) => $product instanceof Product);
+        $groupIds = $items->map(fn (Product $product) => $product->isVariant()
+            ? (int) $product->parent_product_id
+            : ($product->isVariable() ? (int) $product->id : null))
+            ->filter()->unique()->values()->all();
+
+        $palettes = [];
+        if ($groupIds !== []) {
+            $parents = Product::query()->active()->whereKey($groupIds)->get()->keyBy('id');
+            $siblings = Product::query()->active()->whereIn('parent_product_id', $groupIds)
+                ->select(['id', 'parent_product_id', 'state'])
+                ->with(self::EAGER)->orderBy('id')->get()->groupBy('parent_product_id');
+
+            foreach ($groupIds as $groupId) {
+                $parent = $parents->get($groupId);
+                $variants = $siblings->get($groupId, new EloquentCollection());
+                $palettes[$groupId] = $parent && $parent->isVariable()
+                    ? $this->palette($parent, $variants)
+                    : [];
+            }
+        }
+
+        foreach ($items as $product) {
+            $groupId = $product->isVariant() ? (int) $product->parent_product_id
+                : ($product->isVariable() ? (int) $product->id : 0);
+            // Keep the batch result on the SKU itself; multiple collections
+            // serialized in one response must not overwrite each other's map.
+            $product->setRelation('catalogColorPalette', $palettes[$groupId] ?? []);
+        }
+    }
+
     /** Цвета самого товара или вариации. */
     public function rows(Product $product): array
     {
