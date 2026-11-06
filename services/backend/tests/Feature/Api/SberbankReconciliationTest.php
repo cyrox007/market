@@ -221,6 +221,28 @@ class SberbankReconciliationTest extends TestCase
         $this->assertEquals('paid', (string) $payment->fresh()->getRawOriginal('status'));
     }
 
+    public function test_fractional_bank_refund_status_cannot_confirm_completion(): void
+    {
+        [$order, $payment] = $this->payment('cancelled', 'paid', 1234.56);
+        config(['orders.automatic_cancel_refunds' => true, 'orders.sberbank_auto_refunds' => true]);
+        \App\Models\Payment\PaymentRefund::create([
+            'payment_id' => $payment->id, 'refund_id' => 'CANCEL-SBER-'.$payment->id,
+            'amount' => 1234.56, 'status' => 'in_progress', 'gateway' => 'sberbank_acquiring',
+        ]);
+        $client = \Mockery::mock(SberbankAcquiringClient::class);
+        $client->shouldReceive('getOrderStatusExtended')->once()->with(self::BANK_ID)
+            ->andReturn(['errorCode' => 0, 'orderStatus' => '4.9', 'amount' => 123456,
+                'paymentAmountInfo' => ['refundedAmount' => 123456]]);
+        $client->shouldNotReceive('refundOrder');
+        $this->app->instance(SberbankAcquiringClient::class, $client);
+
+        app(AutomaticOrderRefunds::class)->execute($order->id);
+        $this->assertDatabaseHas('payment_refunds', [
+            'payment_id' => $payment->id, 'status' => 'in_progress',
+        ]);
+        $this->assertEquals('paid', (string) $payment->fresh()->getRawOriginal('status'));
+    }
+
     public function test_fractional_refunded_amount_cannot_confirm_a_full_bank_refund(): void
     {
         [$order, $payment] = $this->payment('cancelled', 'paid', 1234.56);
