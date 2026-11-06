@@ -96,9 +96,11 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             return;
         }
 
-        // Callback orderId must belong to the payment being updated: it is
-        // never sufficient to resolve a payable solely from an order number.
-        if ($mdOrder && $payment->remote_id && ! hash_equals((string) $payment->remote_id, (string) $mdOrder)) {
+        // A bank payment must already be bound to this order. An orderNumber
+        // alone is not a safe payment identifier (registration retries may share
+        // that order). Fail closed when registration did not persist remote_id.
+        $boundRemoteId = trim((string) ($payment->remote_id ?? ''));
+        if ($boundRemoteId === '' || ($mdOrder && ! hash_equals($boundRemoteId, (string) $mdOrder))) {
             $gatewayLog->log(self::GATEWAY_ID, 'callback_rejected', 'Идентификатор банка не совпадает с платёжной записью',
                 ['order_id' => $order->id, 'payment_id' => $payment->id], $payment, 'payment', 'warning');
             return;
@@ -125,7 +127,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         // --- Р-1: обратная сверка статуса у банка. Callback — лишь триггер;
         // факт оплаты определяется прямым запросом getOrderStatusExtended, а НЕ полями callback.
         $bank = app(SberbankAcquiringClient::class)->getOrderStatusExtended(
-            (string) ($mdOrder ?? ''),
+            $boundRemoteId,
             (string) ($orderNumber ?? $order->number)
         );
 
@@ -186,7 +188,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             'operation' => $paid ? 'deposited' : ($failed ? 'declined' : 'pending'),
             'status' => $paid ? 1 : ($failed ? 0 : 'PENDING'),
             'amount' => $paid ? round($bankAmount / 100, 2) : 0.0,
-            'mdOrder' => (string) ($mdOrder ?? ''),
+            'mdOrder' => $boundRemoteId,
             'orderNumber' => $order->number,
             'actionCode' => $bank['actionCode'] ?? null,
             'message' => $bank['actionCodeDescription'] ?? $bank['errorMessage'] ?? null,
