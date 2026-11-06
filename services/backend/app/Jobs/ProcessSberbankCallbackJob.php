@@ -142,11 +142,15 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         }
 
         // No errorCode is not proof of success; bank replies must be complete.
-        $errorCode = isset($bank['errorCode']) && is_numeric($bank['errorCode'])
-            ? (int) $bank['errorCode'] : -1;
-        $bankOrderStatus = isset($bank['orderStatus']) ? (int) $bank['orderStatus'] : -1;
-        $bankAmount = isset($bank['amount']) && is_numeric($bank['amount'])
-            ? (int) $bank['amount'] : 0; // Сбер отвечает в КОПЕЙКАХ
+        // Bank integers must be integral values, not fractional strings/floats
+        // silently truncated into a valid status or a matching amount.
+        $errorCode = filter_var($bank['errorCode'] ?? null, FILTER_VALIDATE_INT);
+        $bankOrderStatus = filter_var($bank['orderStatus'] ?? null, FILTER_VALIDATE_INT);
+        $bankAmount = filter_var($bank['amount'] ?? null, FILTER_VALIDATE_INT);
+        $errorCode = $errorCode !== false && $errorCode !== null ? $errorCode : -1;
+        $bankOrderStatus = $bankOrderStatus !== false && $bankOrderStatus !== null ? $bankOrderStatus : -1;
+        $bankAmount = $bankAmount !== false && $bankAmount !== null && $bankAmount > 0
+            ? $bankAmount : 0; // Сбер отвечает в КОПЕЙКАХ
         $expectedAmount = (int) round(((float) $payment->getAmount()) * 100);
 
         // Bank status 2 with EXACT amount is the only authoritative proof of
