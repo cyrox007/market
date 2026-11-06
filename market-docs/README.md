@@ -1,6 +1,6 @@
 # Документация «Светофора мебели»
 
-**Единая точка входа.** Сверено с `develop` на 03.11.2026 (SHA `3ad09fc`). Источник истины — реализованный API/сервисы/тесты в конкретной ветке, а не дата документа. **Production может быть старее.**
+**Единая точка входа.** Первичный аудит проведён 03.11.2026 (SHA `3ad09fc`); контракты цветов и адресного кэша дополнительно сверены 06.11.2026 с `develop` после PR #140, #143, #144. Источник истины — реализованный API/сервисы/тесты в конкретной ветке, а не дата документа. **Production может быть старее.**
 
 ## С чего начать
 
@@ -18,7 +18,7 @@
 
 | Домен | Читайте в первую очередь | Источник для проверки |
 | --- | --- | --- |
-| Каталог и SKU | [отдельные SKU](catalog-individual-sku-api.md), [комплекты](bundle-multi-warehouse-stock.md) | `ProductController`, `SellableBundle`, `BundlePricing` |
+| Каталог, SKU и цветовые решения | [отдельные SKU и цвета](catalog-individual-sku-api.md), [комплекты](bundle-multi-warehouse-stock.md) | `ProductController`, `ProductColors`, `SellableBundle`, `BundlePricing` |
 | Цены и акции | [вывод старых правил](retired-product-region-rules.md), [скидки корзины](cart-discounts-and-delivery-estimates.md) | `PricingEngine`, `CartItemResource` |
 | Корзина, заказы и отмена | [пилот checkout](pilot-checkout-implementation.md), [складской контракт](warehouse-only-fulfillment.md) | `CartController`, `OrderController`, `AutomaticOrderRefunds` |
 | Склады и самовывоз | [складская доставка](warehouse-only-fulfillment.md), [несколько складов](bundle-multi-warehouse-stock.md), [тарифы услуг](warehouse-service-store-cleanup.md) | `WarehouseDeliveryQuote`, `WarehouseServices` |
@@ -45,7 +45,8 @@
 Состояние **на дату ревизии** (проверять заново на GitHub):
 
 - [PR #139](https://github.com/cyrox007/market/pull/139): исправления Сбера и безопасный возврат, **draft**, не часть `develop`.
-- [PR #140](https://github.com/cyrox007/market/pull/140): резервная выдача кэша адресов при outage, **open**, не часть `develop`.
+- [PR #140](https://github.com/cyrox007/market/pull/140): резервная выдача кэша адресов при outage, **merged 06.11.2026**; настройки прогрева и мониторинг требуют отдельной проверки при развёртывании.
+- [PR #143](https://github.com/cyrox007/market/pull/143) и [PR #144](https://github.com/cyrox007/market/pull/144): новая модель цветовых решений и компактная выдача в каталоге, корзине, прямом оформлении — **merged 06.11.2026**. Фронтенд PR #142 адаптируется отдельно.
 
 Даже после merge нельзя утверждать «работает на боевом» без проверки развёрнутого SHA, конфигурации и сквозных сценариев.
 
