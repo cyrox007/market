@@ -17,9 +17,10 @@ class ProductResource extends JsonResource
 {
     public static function collection($resource)
     {
-        if (! request()->boolean('_list_view')) {
-            app(ProductColors::class)->preload($resource instanceof AbstractPaginator ? $resource->getCollection() : $resource);
-        }
+        $products = $resource instanceof AbstractPaginator ? $resource->getCollection() : $resource;
+        $colors = app(ProductColors::class);
+        $colors->preload($products);
+        $colors->preloadCatalogPalettes($products);
 
         return parent::collection($resource);
     }
@@ -130,9 +131,12 @@ class ProductResource extends JsonResource
 
         $isListView = (bool) $request->get('_list_view', false);
 
-        // Для списка карточек не рассчитываем палитру цветов — эти данные не используются в ProductCard.
-        $colors = $isListView ? [] : app(ProductColors::class)->rows($this->resource);
-        $palette = $isListView ? [] : app(ProductColors::class)->palette($this->resource);
+        // The list returns real SKU colors and a batch-loaded palette of all
+        // active siblings (including siblings outside the current page).
+        $colors = app(ProductColors::class)->rows($this->resource);
+        $palette = $this->resource->relationLoaded('catalogColorPalette')
+            ? $this->resource->getRelation('catalogColorPalette')
+            : app(ProductColors::class)->palette($this->resource);
 
         // В режиме списка не грузим и не сериализуем полные характеристики — снижает размер ответа и нагрузку
         $specifications = [];

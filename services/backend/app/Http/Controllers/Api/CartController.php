@@ -117,7 +117,7 @@ class CartController extends Controller
             // Это необходимо для правильного применения правил корзины в CartItemResource
             $items->load([
                 'product' => function ($query) {
-                    $query->with('parentProduct');
+                    $query->with(['parentProduct', ...\App\Services\Product\ProductColors::EAGER]);
                 }
             ]);
         }

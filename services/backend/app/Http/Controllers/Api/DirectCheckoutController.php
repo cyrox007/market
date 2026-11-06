@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Order\DirectCheckout;
+use App\Services\Product\ProductColors;
 use App\Services\Pricing\PricingEngine;
 use App\Services\Product\SellableBundle;
 use App\Models\Product\Product;
@@ -27,9 +28,21 @@ class DirectCheckoutController extends Controller
                 (int) $data['bundle_id'], isset($data['primary_sku_id']) ? (int) $data['primary_sku_id'] : null,
                 (int) $data['quantity'], $region
             );
+            $colors = app(ProductColors::class);
+            $chosenSku = Product::findOrFail($data['primary_sku_id'] ?? $data['bundle_id']);
+            // Preserve the physical items[] submit contract; colors are display-only.
+            $parts = $quote['priced_components'] ?? [];
+            $componentSkus = Product::query()->whereIn('id', array_column($parts, 'product_id'))
+                ->with(ProductColors::EAGER)->get()->keyBy('id');
+            $quote['priced_components'] = array_map(
+                fn (array $part): array => [...$part, 'colors' => ($sku = $componentSkus->get($part['product_id']))
+                    ? $colors->rows($sku) : []],
+                $parts
+            );
             return response()->json([
                 'mode' => 'direct_bundle_checkout',
                 ...$quote,
+                'colors' => $colors->rows($chosenSku),
                 'submit_endpoint' => '/api/v1/orders',
                 'message' => 'Проверьте склад и оформите весь комплект одной покупкой.',
             ]);
@@ -43,6 +56,7 @@ class DirectCheckoutController extends Controller
         return response()->json([
             'mode' => 'direct_checkout',
             'items' => [['product_id' => $item->product_id, 'quantity' => $item->quantity]],
+            'colors' => app(ProductColors::class)->rows($item->buyable),
             'unit_price' => $price['price'], 'subtotal' => round($price['price'] * $item->quantity, 2),
             'submit_endpoint' => '/api/v1/orders',
             'message' => 'Перейдите к оформлению заказа. Корзина не изменена; заказ ещё не создан.',
