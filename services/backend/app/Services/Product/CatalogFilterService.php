@@ -14,6 +14,10 @@ class CatalogFilterService
 {
     public const DIMENSIONS = ['width' => 'sirina-mm', 'depth' => 'glubina-mm', 'height' => 'vysota-mm'];
 
+    public function __construct(private readonly ColorCatalogFilter $colors = new ColorCatalogFilter)
+    {
+    }
+
     private array $attributesBySlug = [];
 
     private array $matches = [];
@@ -47,10 +51,15 @@ class CatalogFilterService
     public function filters(array $input, array $mandatory = [], ?string $except = null): array
     {
         $attrs = $input['attributes'] ?? [];
-        foreach (['colors' => Attribute::SLUG_COLOR, 'sizes' => Attribute::SLUG_SIZE] as $key => $slug) {
-            $values = $this->tokens($input[$key] ?? []);
-            $attrs[$slug] = array_values(array_unique(array_merge($this->tokens($attrs[$slug] ?? []), $values)));
-        }
+        $values = $this->tokens($input['sizes'] ?? []);
+        $attrs[Attribute::SLUG_SIZE] = array_values(array_unique(array_merge($this->tokens($attrs[Attribute::SLUG_SIZE] ?? []), $values)));
+        $colorFilters = $this->colors->filters(
+            $this->tokens($input['colors'] ?? []),
+            array_map(fn ($values) => $this->tokens($values), (array) ($input['element_colors'] ?? [])),
+            array_key_exists('colors', $mandatory) ? $this->tokens($mandatory['colors']) : null,
+            $except,
+        );
+        unset($mandatory['colors']);
         if ($except !== null) {
             unset($attrs[$except], $input[$except.'_min'], $input[$except.'_max']);
             if (isset(self::DIMENSIONS[$except])) {
@@ -60,15 +69,6 @@ class CatalogFilterService
                 $input['on_sale'] = false;
             }
         }
-        // Normalize both aliases before intersection: a room's attr_color cannot be
-        // overridden by the user's colors alias (or vice versa).
-        if (array_key_exists('colors', $mandatory)) {
-            $roomColors = $this->tokens($mandatory['colors']);
-            $mandatory['attributes'][Attribute::SLUG_COLOR] = isset($mandatory['attributes'][Attribute::SLUG_COLOR])
-                ? array_values(array_intersect($roomColors, $this->tokens($mandatory['attributes'][Attribute::SLUG_COLOR])))
-                : $roomColors;
-            unset($mandatory['colors']);
-        }
         $narrowed = RoomFilters::narrow($mandatory, [
             'price_min' => $input['price_min'] ?? null,
             'price_max' => $input['price_max'] ?? null,
@@ -76,7 +76,7 @@ class CatalogFilterService
         ]);
         $attrs = $narrowed['attributes'] ?? [];
 
-        return array_replace($input, $narrowed, ['attributes' => $attrs]);
+        return array_replace($input, $narrowed, ['attributes' => $attrs], $colorFilters);
     }
 
     public function apply(Builder $roots, array $filters): Builder
@@ -90,7 +90,7 @@ class CatalogFilterService
 
     private function hasPredicates(array $filters): bool
     {
-        if (! empty($filters['attributes']) || ! empty($filters['on_sale'])) {
+        if (! empty($filters['attributes']) || ! empty($filters['on_sale']) || $this->colors->hasPredicates($filters)) {
             return true;
         }
         foreach (array_merge(['price'], array_keys(self::DIMENSIONS)) as $key) {
@@ -139,6 +139,7 @@ class CatalogFilterService
                     });
             });
         }
+        $this->colors->apply($sku, $filters);
         foreach (self::DIMENSIONS as $key => $slug) {
             $min = $filters[$key.'_min'] ?? null;
             $max = $filters[$key.'_max'] ?? null;
@@ -201,7 +202,7 @@ class CatalogFilterService
     {
         $direct = $this->rows($attribute)->selectRaw('product_id as sku_id, attribute_value_id, custom_value');
         // Variation attributes are SKU-specific; parent's option list must not grant every SKU all colors.
-        if ($attribute->is_use_in_variations || in_array($attribute->slug, [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE], true)) {
+        if ($attribute->is_use_in_variations || $attribute->slug === Attribute::SLUG_SIZE) {
             return $direct;
         }
         $inherited = DB::table('products as inheriting_sku')
@@ -246,7 +247,7 @@ class CatalogFilterService
 
     public function meta(Builder $roots, array $input, array $mandatory = []): array
     {
-        $meta = ['price' => ['min' => 0, 'max' => 0], 'colors' => [], 'sizes' => [],
+        $meta = ['price' => ['min' => 0, 'max' => 0], 'colors' => [], 'color_elements' => [], 'sizes' => [],
             'attributes' => [], 'manufacturers' => [], 'dimensions' => [], 'facet_mode' => 'excluding_self'];
         $priceSkus = $this->skus($roots, $this->filters($input, $mandatory, 'price'));
         $prices = $priceSkus->selectRaw('MIN(catalog_prices.effective_price) AS min_price, MAX(catalog_prices.effective_price) AS max_price')->first();
@@ -269,13 +270,14 @@ class CatalogFilterService
             }
             $meta['dimensions'][$key] = $range;
         }
+        $meta = array_replace($meta, $this->colors->meta(fn (string $except) => $this->facetIds($roots, $this->filters($input, $mandatory, $except))));
         $rootIds = (clone $roots)->reorder()->select('products.id');
         $parentIds = (clone $roots)->reorder()->select('products.parent_product_id');
         $scopeIds = Product::query()->active()->where(fn ($q) => $q->whereIn('id', clone $rootIds)
             ->orWhereIn('id', clone $parentIds))->select('id');
         $usedAttributes = DB::table('product_product_attributes')->whereIn('product_id', clone $scopeIds)->select('attribute_id');
         foreach (Attribute::whereIn('id', $usedAttributes)->where(fn ($q) => $q->where('is_filterable', true)
-            ->orWhereIn('slug', [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
+            ->orWhereIn('slug', [Attribute::SLUG_SIZE, Attribute::SLUG_MANUFACTURER]))->orderBy('sort_order')->get() as $attribute) {
             $this->attributesBySlug[$attribute->slug] = $attribute;
             if (in_array($attribute->slug, self::DIMENSIONS, true)) {
                 continue; // Numeric dimensions have a separate range contract.
@@ -285,18 +287,16 @@ class CatalogFilterService
                 ->join('products as sku', 'sku.id', '=', 'facet.sku_id')
                 ->leftJoin('product_attribute_values as val', 'val.id', '=', 'facet.attribute_value_id')
                 ->whereIn('facet.sku_id', $skus)
-                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, val.color_code, COUNT(DISTINCT sku.id) as product_count')
-                ->groupBy('facet.attribute_value_id', 'facet.custom_value', 'val.value', 'val.slug', 'val.color_code')
+                ->selectRaw('facet.attribute_value_id, facet.custom_value, val.value, val.slug, COUNT(DISTINCT sku.id) as product_count')
+                ->groupBy('facet.attribute_value_id', 'facet.custom_value', 'val.value', 'val.slug')
                 ->get()->map(function ($v) {
                     $name = trim((string) ($v->value ?? $v->custom_value));
 
                     return ['id' => $v->attribute_value_id, 'name' => $name, 'value' => $name,
                         'slug' => $v->slug ?: (Str::slug($name) ?: 'value-'.substr(sha1(mb_strtolower($name)), 0, 12)),
-                        'code' => $v->color_code, 'count' => (int) $v->product_count];
+                        'count' => (int) $v->product_count];
                 })->filter(fn ($v) => $v['name'] !== '')->sortBy('name')->values()->all();
-            if ($attribute->slug === Attribute::SLUG_COLOR) {
-                $meta['colors'] = $values;
-            } elseif ($attribute->slug === Attribute::SLUG_SIZE) {
+            if ($attribute->slug === Attribute::SLUG_SIZE) {
                 $meta['sizes'] = $values;
             } elseif ($values !== []) {
                 $meta['attributes'][] = ['id' => $attribute->id, 'name' => $attribute->name,

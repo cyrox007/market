@@ -15,6 +15,12 @@ if (config('cache_segments.warm_schedule', true)) {
     Schedule::command('cache:warm-hot')->hourly()->withoutOverlapping(30);
 }
 
+// Opt-in warm-up for frequently requested regions/cities. Never warms address hierarchies
+// or substitutes expired directory data for checkout address verification.
+if (config('address_directory.warm_schedule', false)) {
+    Schedule::command('address-directory:warm-cache')->hourly()->withoutOverlapping(10);
+}
+
 Schedule::command('orders:cancel-expired-unpaid')
     ->everyMinute()
     ->withoutOverlapping(10);

@@ -6,12 +6,17 @@ use App\Actions\Inventory\Sync\ApplyOneCStockSnapshotAction;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
+use App\Services\Product\ProductColorImport;
 use App\Services\Product\ProductManufacturer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class TransferProductWriter
 {
+    public function __construct(private readonly ProductColorImport $colorImport = new ProductColorImport)
+    {
+    }
+
     public function applyTable(int $rowId): Product
     {
         if (! app()->environment(['local', 'testing'])) {
@@ -169,6 +174,13 @@ class TransferProductWriter
             foreach ($data['characteristics'] as $item) {
                 $name = trim((string) ($item['name'] ?? ''));
                 $values = $item['values'] ?? [];
+                if (ProductColorImport::isColorField($name)) {
+                    $colors = array_filter(array_map(fn ($value) => is_scalar($value) ? (string) $value : '', is_array($values) ? $values : [$values]));
+                    $colors = $grouped ? $colors : array_slice($colors, 0, 1);
+                    $this->colorImport->setMainColor((int) $product->id, ProductColorImport::compositeName($colors), $colors);
+
+                    continue;
+                }
                 $value = $grouped && is_array($values)
                     ? implode(' / ', array_values(array_unique(array_filter(array_map(fn ($value) => is_scalar($value) ? trim((string) $value) : '', $values), fn ($value) => $value !== ''))))
                     : trim((string) (is_array($values) ? ($values[0] ?? '') : $values));
@@ -204,7 +216,7 @@ class TransferProductWriter
                     $parent->save();
                 }
                 $attributeIds = app(\App\Actions\Product\GetVariationAttributesForProductAction::class)->execute($parent)->pluck('id')->all();
-                $dimensionSlugs = array_map(fn ($name) => Attribute::canonicalSlugForName($name), ['Цвет', 'Размер', 'Ширина', 'Высота', 'Длина', 'Глубина', 'Ширина (мм)', 'Высота (мм)', 'Глубина (мм)']);
+                $dimensionSlugs = array_map(fn ($name) => Attribute::canonicalSlugForName($name), ['Размер', 'Ширина', 'Высота', 'Длина', 'Глубина', 'Ширина (мм)', 'Высота (мм)', 'Глубина (мм)']);
                 $apiAttributeIds = $product->attributes()->where(fn ($query) => $query->where('is_use_in_variations', true)->orWhereIn('product_attributes.slug', $dimensionSlugs))->pluck('product_attributes.id')->all();
                 $parent->variationAttributeSelection()->syncWithoutDetaching(array_unique(array_merge($attributeIds, $apiAttributeIds)));
                 $label = mb_substr((string) $product->name, 0, max(0, 250 - mb_strlen((string) $product->sku))).' — '.$product->sku;
@@ -243,8 +255,8 @@ class TransferProductWriter
 
             return;
         }
-        $attribute = Attribute::firstOrCreate(['slug' => $slug], ['name' => $name, 'type' => $slug === Attribute::SLUG_COLOR ? 'color' : 'text',
-            'is_filterable' => true, 'allow_custom_value' => true, 'is_use_in_variations' => in_array($slug, [Attribute::SLUG_COLOR, Attribute::SLUG_SIZE], true)]);
+        $attribute = Attribute::firstOrCreate(['slug' => $slug], ['name' => $name, 'type' => 'text',
+            'is_filterable' => true, 'allow_custom_value' => true, 'is_use_in_variations' => $slug === Attribute::SLUG_SIZE]);
         $value = mb_substr($value, 0, 255);
         $valueSlug = mb_substr(Str::slug($value), 0, 180).'-'.substr(sha1($value), 0, 12);
         $attributeValue = AttributeValue::firstOrCreate(['attribute_id' => $attribute->id, 'slug' => $valueSlug], ['value' => $value]);

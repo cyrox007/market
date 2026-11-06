@@ -59,7 +59,7 @@ class DatabaseSeeder extends Seeder
         // Заполняем каталог мебельными категориями и товарами
         $this->call(FurnitureCatalogSeeder::class);
 
-        // Атрибуты (Цвет, Размер, Комплект) с is_use_in_variations — до сидера вариаций
+        // Атрибуты (Размер, Комплект) с is_use_in_variations — до сидера вариаций
         $this->call(ProductAttributesSeeder::class);
 
         // Добавляем атрибуты вариаций категориям (для демо)

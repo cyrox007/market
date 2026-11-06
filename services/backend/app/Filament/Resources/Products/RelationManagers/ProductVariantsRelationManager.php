@@ -7,34 +7,34 @@ use App\Actions\Product\BuildMergedProductDraftAction;
 use App\Actions\Product\DetachVariantFromParentAction;
 use App\Actions\Product\GetVariationAttributesForProductAction;
 use App\Actions\Product\SyncVariantVariationAttributesAction;
+use App\Filament\Forms\ProductColorRowsField;
 use App\Filament\Forms\WarehouseStocksFormComponents;
 use App\Filament\Resources\Products\ProductResource;
+use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
 use App\Models\Settings\ProductStockSettings;
 use App\Services\Inventory\WarehouseStockResolver;
-use App\Models\Product\AttributeValue;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
-use Filament\Schemas\Components\Section;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\ColorPicker;
-use Illuminate\Support\Str;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Vanilo\Product\Models\ProductState;
 
 class ProductVariantsRelationManager extends RelationManager
@@ -160,7 +160,6 @@ class ProductVariantsRelationManager extends RelationManager
                         }
                     })
                     ->createOptionForm(function () use ($attr) {
-                        $isColor = $attr->type === 'color';
                         $fields = [
                             TextInput::make('value')
                                 ->label('Название значения')
@@ -171,10 +170,6 @@ class ProductVariantsRelationManager extends RelationManager
                                 ->label('Слаг')
                                 ->helperText('Оставьте пустым для автоматической генерации'),
                         ];
-                        if ($isColor) {
-                            $fields[] = ColorPicker::make('color_code')
-                                ->label('HEX цвета');
-                        }
                         $fields[] = TextInput::make('sort_order')
                             ->label('Порядок')
                             ->numeric()
@@ -251,7 +246,6 @@ class ProductVariantsRelationManager extends RelationManager
                         : 'Параметр торгового предложения'
                     )
                     ->createOptionForm(function () use ($attr) {
-                        $isColor = $attr->type === 'color';
                         $fields = [
                             TextInput::make('value')
                                 ->label('Название значения')
@@ -262,10 +256,6 @@ class ProductVariantsRelationManager extends RelationManager
                                 ->label('Слаг')
                                 ->helperText('Оставьте пустым для автоматической генерации'),
                         ];
-                        if ($isColor) {
-                            $fields[] = ColorPicker::make('color_code')
-                                ->label('HEX цвета');
-                        }
                         $fields[] = TextInput::make('sort_order')
                             ->label('Порядок')
                             ->numeric()
@@ -298,12 +288,14 @@ class ProductVariantsRelationManager extends RelationManager
         // Остальные параметры вариации
         if (!empty($otherVariationAttributesSectionFields)) {
             $components[] = Section::make('Параметры вариации')
-                ->description('Атрибуты, которые отличают вариации друг от друга (цвет, размер, комплект и т.п.).')
+                ->description('Атрибуты, которые отличают вариации друг от друга (размер, комплект и т.п.).')
                 ->schema($otherVariationAttributesSectionFields)
                 ->columns(2)
                 ->collapsible()
                 ->collapsed();
         }
+
+        $components[] = ProductColorRowsField::section('Цвета этой вариации; палитра товара собирается из вариаций.');
 
         $components[] = Section::make('Склад (1С)')
             ->description('Идентификатор в 1С и остатки по складам. Данные обновляются через очередь integration-1c.')
@@ -399,6 +391,7 @@ class ProductVariantsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with(['colorRows.element', 'colorRows.solution']))
             ->columns([
                 ImageColumn::make('admin_image')
                     ->label('Фото')
@@ -423,7 +416,7 @@ class ProductVariantsRelationManager extends RelationManager
                 TextColumn::make('variation_params')
                     ->label('Параметры')
                     ->html()
-                    ->formatStateUsing(function (Product $record) {
+                    ->state(function (Product $record) {
                         $record->load('variantAttributes');
                         $valueIds = $record->variantAttributes->pluck('pivot.attribute_value_id')->filter()->unique()->values();
                         $attributeValues = $valueIds->isNotEmpty()
@@ -434,18 +427,18 @@ class ProductVariantsRelationManager extends RelationManager
                             $val = $pivot->custom_value !== null && $pivot->custom_value !== ''
                                 ? $pivot->custom_value
                                 : ($attributeValues->get($pivot->attribute_value_id)?->value ?? '—');
-                            $isColor = $attr->type === 'color';
-                            $colorCode = $isColor && $pivot->attribute_value_id
-                                ? ($attributeValues->get($pivot->attribute_value_id)?->color_code ?? null)
-                                : null;
-                            if ($colorCode) {
-                                $safe = htmlspecialchars($colorCode, ENT_QUOTES, 'UTF-8');
-                                return '<span class="inline-flex items-center gap-1"><span style="width:12px;height:12px;border-radius:50%;background:' . $safe . ';border:1px solid #ccc;display:inline-block;vertical-align:middle" title="' . $safe . '"></span> ' . e($attr->name) . ': ' . e($val) . '</span>';
-                            }
                             return e($attr->name) . ': ' . e($val);
                         });
-                        return $parts->implode(', ') ?: '—';
+                        return $parts->implode('<br>') ?: '—';
                     }),
+
+                TextColumn::make('colors_display')
+                    ->label('Цвета')
+                    ->state(fn (Product $record): array => $record->colorRows->map(
+                        fn ($row) => ($row->element?->name ?? 'Цвет') . ': ' . $row->solution->name
+                    )->all())
+                    ->listWithLineBreaks()
+                    ->placeholder('—'),
 
                 TextColumn::make('price')
                     ->label('Цена')

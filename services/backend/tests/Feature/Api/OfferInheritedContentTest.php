@@ -99,7 +99,7 @@ class OfferInheritedContentTest extends TestCase
         $other = Product::factory()->create(['parent_product_id' => $parent->id]);
         $material = Attribute::create(['name' => 'Материал корпуса', 'slug' => 'body-material', 'type' => 'text', 'is_use_in_variations' => false]);
         $filling = Attribute::create(['name' => 'Наполнение', 'slug' => 'filling', 'type' => 'text', 'is_use_in_variations' => false]);
-        $color = Attribute::create(['name' => 'Цвет', 'slug' => 'color', 'type' => 'text', 'is_use_in_variations' => true]);
+        $color = Attribute::create(['name' => 'Обивка', 'slug' => 'obivka', 'type' => 'text', 'is_use_in_variations' => true]);
         $parent->attributes()->attach($material->id, ['custom_value' => 'ЛДСП']);
         $parent->attributes()->attach($filling->id, ['custom_value' => '3 секции']);
         $parent->attributes()->attach($color->id, ['custom_value' => 'Не наследовать']);
@@ -109,7 +109,7 @@ class OfferInheritedContentTest extends TestCase
         $other->attributes()->attach($material->id, ['custom_value' => 'МДФ']);
         $direct = $this->getJson('/api/v1/products/'.$white->slug)->assertOk()->json('product.specifications');
         $this->assertSame('ЛДСП', collect($direct)->firstWhere('slug', 'body-material')['value']);
-        $this->assertSame('Белый', collect($direct)->firstWhere('slug', 'color')['value']);
+        $this->assertSame('Белый', collect($direct)->firstWhere('slug', 'obivka')['value']);
         $otherSpecs = $other->fresh()->buildEffectiveSpecificationsForApi();
         $this->assertSame(['body-material', 'filling'], array_slice(array_column($otherSpecs, 'slug'), 0, 2));
         $this->assertSame(['МДФ', '4 секции'], array_slice(array_column($otherSpecs, 'value'), 0, 2));

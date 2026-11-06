@@ -4,19 +4,18 @@ namespace App\Filament\Resources\Rooms\Schemas;
 
 use App\Filament\Support\LucideIconSelect;
 use App\Models\Product\Attribute;
-use App\Models\Product\Product;
+use App\Models\Product\Color\BaseColor;
 use App\Models\Product\Room;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Str;
 use RalphJSmit\Filament\SEO\SEO;
 
 class RoomForm
@@ -203,18 +202,11 @@ class RoomForm
     }
 
     /**
-     * Цвета существующих товаров (код => название).
+     * Базовые цвета (код => название).
      */
     private static function colorOptions(): array
     {
-        return Product::query()
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->distinct()
-            ->orderBy('color')
-            ->pluck('color')
-            ->mapWithKeys(fn ($c) => [Str::slug($c) => $c])
-            ->all();
+        return BaseColor::query()->orderBy('sort_order')->pluck('name', 'slug')->all();
     }
 
     /**

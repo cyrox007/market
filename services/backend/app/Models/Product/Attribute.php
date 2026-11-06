@@ -15,11 +15,13 @@ class Attribute extends Model
     /** Slug атрибута «Производитель» (импорт из 1С, фильтры, карточка товара) */
     public const SLUG_MANUFACTURER = 'proizvoditel';
 
-    /** Slug атрибута «Цвет». Единственный канонический источник цвета для вариаций. */
-    public const SLUG_COLOR = 'color';
-
     /** Slug коммерческого атрибута «Размер». Не связан с физическими length/width/height. */
     public const SLUG_SIZE = 'size';
+
+    /** Старая характеристика «Цвет»: заменена цветовыми решениями, записи остаются в базе до очистки данных. */
+    public const SLUG_LEGACY_COLOR = 'color';
+
+    public const SCOPE_WITHOUT_LEGACY_COLOR = 'without_legacy_color';
 
     /** Slug атрибута «Вариант» — используется в вариациях, значение вручную или из импорта (опции) */
     public const SLUG_VARIANT = 'variant';
@@ -31,7 +33,6 @@ class Attribute extends Model
     public static function canonicalSlugForName(string $name): string
     {
         return match (mb_strtolower(trim($name))) {
-            'цвет', 'color' => self::SLUG_COLOR,
             'размер', 'size' => self::SLUG_SIZE,
             default => Str::slug($name),
         };
@@ -74,6 +75,8 @@ class Attribute extends Model
     {
         parent::boot();
 
+        static::addGlobalScope(self::SCOPE_WITHOUT_LEGACY_COLOR, fn ($query) => $query->where('product_attributes.slug', '!=', self::SLUG_LEGACY_COLOR));
+
         // Сбрасываем кэш товаров при изменении атрибута
         static::saved(function ($attribute) {
             \App\Models\Product\Product::flushAllProductCaches();
@@ -82,6 +85,13 @@ class Attribute extends Model
         static::deleted(function ($attribute) {
             \App\Models\Product\Product::flushAllProductCaches();
         });
+    }
+
+    /** @return int[] id характеристик, скрытых от форм, фильтров и API */
+    public static function hiddenIds(): array
+    {
+        return static::withoutGlobalScope(self::SCOPE_WITHOUT_LEGACY_COLOR)
+            ->where('slug', self::SLUG_LEGACY_COLOR)->pluck('id')->all();
     }
 
     protected $fillable = [

@@ -106,8 +106,8 @@ class OzonCategoryImportServiceTest extends TestCase
                 'Название товара' => 'Комплект тумб 450x400, Серый',
                 'Предельная цена без акций, руб.*' => 10000,
                 'Название модели (для объединения в одну карточку)*' => 'Комплект тумб X',
-                'Цвет товара' => 'серый',
-                'Название цвета' => 'Серый',
+                'Цвет товара' => 'серый; белый',
+                'Название цвета' => 'Дуб Вотан/Серый',
             ],
             [
                 'Артикул*' => '3002',
@@ -139,6 +139,14 @@ class OzonCategoryImportServiceTest extends TestCase
             2,
             \DB::table('product_product_attributes')->whereIn('product_id', $variants->pluck('id'))->count(),
         );
+
+        // «Название цвета» — решение, «Цвет товара» — его базовые цвета.
+        $main = fn (Product $variant) => $variant->colorRows()->whereNull('color_element_id')->sole()->solution()->with('baseColors')->sole();
+        $this->assertSame('Дуб Вотан/Серый', $main($variants[0])->name);
+        $this->assertEqualsCanonicalizing(['Серый', 'Белый'], $main($variants[0])->baseColors->pluck('name')->all());
+        $this->assertSame('Бежевый', $main($variants[1])->name);
+        $this->assertSame(['Бежевый'], $main($variants[1])->baseColors->pluck('name')->all());
+        $this->assertFalse(\DB::table('product_attributes')->where('slug', 'color')->exists());
     }
 
     public function test_existing_simple_products_are_reused_when_ozon_groups_them(): void

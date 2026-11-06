@@ -1,59 +1,77 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Backend API / Admin — Светофор мебели
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**Laravel 12 + PHP 8.2+, Filament 4, Vanilo 5.1.** Это backend интернет-магазина, а не чистый шаблон Laravel.
 
-## About Laravel
+Полная [карта проекта](../../market-docs/system-overview.md) · [единая документация](../../market-docs/README.md) · [аварийное восстановление](../../market-docs/disaster-recovery.md) · [реестр старых документов](../../market-docs/documentation-inventory.md).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Важные каталоги
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Путь | Назначение |
+| --- | --- |
+| `routes/api.php` | Публичное API `/api/v1`, актуальные маршруты |
+| `app/Http/Controllers/Api/` | Валидация, ответы каталога, корзины, заказов и адресов |
+| `app/Services/Pricing/` | Ценовые политики, персональные цены |
+| `app/Services/Product/` | Товары, предложения, продаваемые комплекты |
+| `app/Services/Inventory/` | Фактические складские остатки, синхронизация с 1С |
+| `app/Services/Shipping/` | Складские тарифы, доставка, самовывоз, услуги |
+| `app/Services/Address/` | Адресный справочник и разрешение здания ГАР/КЛАДР |
+| `app/Payment/`, `app/Jobs/` | Банковские шлюзы, подтверждения, фоновые задания |
+| `app/Models/Order/` | Заказы и статусы |
+| `routes/console.php` | Планировщик фоновых задач и обработчиков |
+| `tests/` | Unit/feature и сквозные регрессии |
+| `public/api-docs/openapi.json` | Спецификация; сравнивать с реальными маршрутами |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Локальный запуск
 
-## Learning Laravel
+Рекомендуемый путь — через корневой `docker-compose.yml`:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```bash
+# В корне репозитория:
+docker compose up -d --build
+docker compose exec app php artisan migrate
+docker compose exec app php artisan test
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Для разработки без Docker выполнять команды **из services/backend**, а не из корня:
 
-## Laravel Sponsors
+```bash
+cd services/backend
+composer install
+cp .env.example .env
+php artisan key:generate
+# Настроить локальную БД и окружение, затем:
+php artisan migrate
+php artisan test
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Окружение production использует отдельные значения для БД, очередей, доступа к 1С, банков, SMTP и адресного API. **Не копировать локальные секреты из Docker в production.** Не выполнять миграции, сидеры, очистку БД и платежные операции на боевом сервере без отката и проверенной резервной копии.
 
-### Premium Partners
+## Что представляет собой актуальный API
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- **Каталог и SKU:** `/products`, `/products/{slug}`, `/products/search`.
+- **Корзина:** `/cart`, добавление, установка количества, удаление; SKU определяет бэкенд.
+- **Адреса:** `/address-directory/status`, `/address-directory/{level}`, `/address-directory/hierarchy/{externalId}`.
+- **Доставка/самовывоз:** `POST /shipping/quote`, `POST /shipping/pickup-options`. Старые API shipping_locations/carriers/calculate из архивных инструкций не являются активным контрактом.
+- **Оформление:** `POST /orders`, а `POST /orders/one-click` — подготовка прямой покупки, **не созданный заказ**.
+- **Цены:** `PricingEngine`, а не архивные `product_region_rules`.
+- **Скидки корзины:** `subtotal` уже актуален; `old_subtotal`/`discount_total` — сравнение.
+- **Доставка:** точный календарь свободных дней и временных слотов не поддерживается; `delivery_date`/`delivery_time` нельзя передавать от клиента.
 
-## Contributing
+Детали и ограничения: [актуальный складской контракт](../../market-docs/warehouse-only-fulfillment.md), [цены и скидки](../../market-docs/cart-discounts-and-delivery-estimates.md), [адреса](../../market-docs/address-directory-frontend-launch.md), [действие заказов](../../market-docs/pilot-checkout-implementation.md).
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Запуск проверок
 
-## Code of Conduct
+```bash
+cd services/backend
+composer test
+# Или из корня с Docker:
+# docker compose exec app php artisan test
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Проходящие тесты конкретной ветки **не подтверждают** наличие банковских реквизитов, новых миграций или доступность production/Beget. Последовательность релиза и аварийного восстановления должна быть проверена отдельно. Нельзя объявлять изменения незакрытого PR выпущенными в production.
 
-## Security Vulnerabilities
+## Эксплуатационная безопасность
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Никогда не повторять запрос оплаты или возврата после таймаута без независимой сверки банка. При восстановлении бэкапа сверять заказы, платежи и резервы с 1С. Секреты не размещать в Git, документах и логах. Если в старой инструкции виден «пример» реального пароля — считать его потенциально скомпрометированным до подтверждения обратного.
 
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Старые руководства `docs/SHIPPING_SYSTEM.md`, `docs/CARRIERS_SYSTEM.md` и `TEST_ORDERS_API.md` являются историческими и **не должны** служить инструкцией внедрения нового checkout. Вся документация классифицирована в [реестре](../../market-docs/documentation-inventory.md).

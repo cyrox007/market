@@ -24,7 +24,6 @@ class AttributeValueQuickCreate
         $validated = Validator::make([...$data, 'attribute_id' => $attributeId], [
             'attribute_id' => ['required', 'integer', 'exists:product_attributes,id'],
             'value' => ['required', 'string', 'max:255'],
-            'color_code' => ['nullable', 'string', 'max:32'],
         ], [
             'value.required' => 'Введите значение характеристики. Если окно сбросилось, откройте его заново.',
             'attribute_id.required' => 'Сначала выберите характеристику.',
@@ -42,7 +41,6 @@ class AttributeValueQuickCreate
             'attribute_id' => $validated['attribute_id'],
             'value' => $validated['value'],
             'slug' => $slug,
-            'color_code' => $validated['color_code'] ?? null,
         ])->id;
     }
 }

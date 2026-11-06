@@ -8,6 +8,7 @@ use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Services\Catalog\AbstractCatalogImport;
 use App\Services\Catalog\Integrations\OpenCart\OpenCartXlsxReader;
+use App\Services\Product\ProductColorImport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Vanilo\Category\Models\Taxonomy;
@@ -62,6 +63,14 @@ class OpenCartXlsxCatalogImport extends AbstractCatalogImport
 
     /** product_id (OpenCart) => list of image URLs (лист AdditionalImages) */
     protected array $additionalImagesByProductId = [];
+
+    private ?ProductColorImport $colorImport = null;
+
+    /** Один на прогон импорта: кэш решений и базовых цветов живёт между строками. */
+    protected function colorImport(): ProductColorImport
+    {
+        return $this->colorImport ??= new ProductColorImport;
+    }
 
     public function import(array $options = []): \App\Services\Catalog\DTO\CatalogImportResult
     {
@@ -1019,6 +1028,11 @@ class OpenCartXlsxCatalogImport extends AbstractCatalogImport
                     'sort_order' => 0,
                 ]
             );
+            if (ProductColorImport::isColorField((string) $attr->name)) {
+                $this->colorImport()->setMainColor((int) $product->id, $valueForDb);
+
+                continue;
+            }
             // slug для значений атрибутов должен быть коротким и стабильным (в XLSX бывают очень длинные тексты)
             $hash = substr(md5($value), 0, 10);
             $base = Str::slug(mb_substr($value, 0, 80));

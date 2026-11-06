@@ -373,3 +373,26 @@ html {
 .fi-fo-table-repeater.product-attributes-table > table {
     overflow: visible;
 }
+
+.fi-fo-table-repeater.product-color-rows-table > table {
+    overflow: visible;
+}
+
+.product-color-rows-table .product-color-rows-reorder-cell {
+    width: 2.5rem;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+}
+
+.product-color-rows-table .fi-select-input-value-label {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.product-color-rows-table .product-color-rows-reorder-cell .fi-fo-table-repeater-actions {
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: center;
+}

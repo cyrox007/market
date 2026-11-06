@@ -119,7 +119,7 @@ class AttributeTemplatesTest extends TestCase
     {
         $width = $this->attribute('Ширина (мм)');
         $material = $this->attribute('Материал');
-        $color = $this->attribute('Цвет', ['slug' => Attribute::SLUG_COLOR, 'is_use_in_variations' => true]);
+        $color = $this->attribute('Обивка', ['slug' => 'obivka', 'is_use_in_variations' => true]);
         $template = $this->template('Диваны', [$width, $material, $color]);
 
         $product = Product::factory()->create(['state' => 'active']);
@@ -151,7 +151,7 @@ class AttributeTemplatesTest extends TestCase
     public function test_variable_product_accepts_shared_variation_attribute_defaults(): void
     {
         $material = $this->attribute('Материал');
-        $color = $this->attribute('Цвет', ['slug' => Attribute::SLUG_COLOR, 'is_use_in_variations' => true]);
+        $color = $this->attribute('Обивка', ['slug' => 'obivka', 'is_use_in_variations' => true]);
         $template = $this->template('Диваны', [$color, $material]);
 
         $product = Product::factory()->create(['state' => 'active', 'is_variable' => true]);

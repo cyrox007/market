@@ -8,10 +8,11 @@ use App\Models\Product\ProductDeliveryBlock;
 use App\Models\Product\ProductDocument;
 use App\Models\Product\ProductFeatureBlock;
 use App\Models\Shipping\ShippingLocation;
+use App\Services\Inventory\WarehousePriorityResolver;
 use App\Services\Inventory\WarehouseStockResolver;
+use App\Services\Product\ProductColors;
 use App\Services\Product\ProductRegionRuleService;
 use App\Services\Seo\SeoApiTransformer;
-use App\Services\Inventory\WarehousePriorityResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Log;
@@ -194,6 +195,8 @@ class ProductDetailResource extends JsonResource
         // ВАЖНО: Для вариативных товаров возвращаем все вариации
         // Фронтенд будет сравнивать цвет и размер с каждой вариацией
         $variants = [];
+        $colorVariants = null;
+        $productColors = app(ProductColors::class);
         $deliveryDays = null;
         $productPriceFromCheapestVariant = null;
         $skuFromCheapestVariant = null;
@@ -206,9 +209,9 @@ class ProductDetailResource extends JsonResource
                 $allVariants = $allVariants->filter(fn ($variant) => $regionRuleService->isVisibleInRegion($sourceProduct, $region, $variant));
             }
             app(\App\Services\Pricing\PricingEngine::class)->preload($allVariants->pluck('id')->all(), $region);
+            $colorVariants = $allVariants->values()->loadMissing(ProductColors::EAGER);
 
-            $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver, $sourceProduct) {
-                $variantPrice = (float) $variant->price;
+            $variants = $allVariants->map(function ($variant) use ($region, $regionRuleService, $warehouseStockResolver, $sourceProduct, $productColors) {
                 $variantPrice = $regionRuleService->getPriceForRegion($sourceProduct, $region, $variant);
 
                 $variant->setRelation('parentProduct', (clone $sourceProduct)->unsetRelation('variants'));
@@ -230,7 +233,6 @@ class ProductDetailResource extends JsonResource
                     }
                 }
 
-                $colors = $variant->getColorsArray();
                 return [
                     'id' => $variant->id,
                     'name' => $variant->name,
@@ -254,7 +256,7 @@ class ProductDetailResource extends JsonResource
                     'description' => $variant->getEffectiveDescription(),
                     //'excerpt' => $variant->excerpt,
                     'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
-                    'colors' => $colors,
+                    'colors' => $productColors->rows($variant),
                 ];
             })->values()->toArray();
 
@@ -560,7 +562,10 @@ class ProductDetailResource extends JsonResource
             'feature_blocks' => $featureBlocks,
             'delivery_blocks' => $deliveryBlocks,
             'documents' => $this->documentsForApi($sourceProduct),
-            'colors' => $this->getColorsArray(),
+            'colors' => $productColors->rows($this->resource),
+            'palette' => $sourceProduct->isVariable() ? $productColors->palette($sourceProduct, $colorVariants) : [],
+            'color_options' => $sourceProduct->isVariable() ? $productColors->options($sourceProduct, $colorVariants) : [],
+            'selected_color_options' => $this->resource->isVariant() ? (object) $productColors->selected($this->resource) : null,
         ];
     }
 

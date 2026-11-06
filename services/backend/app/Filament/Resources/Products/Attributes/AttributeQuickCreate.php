@@ -22,7 +22,6 @@ class AttributeQuickCreate
                 ->options([
                     'text' => 'Текст',
                     'select' => 'Список',
-                    'color' => 'Цвет',
                     'number' => 'Число',
                 ])
                 ->default('text')

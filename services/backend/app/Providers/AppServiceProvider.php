@@ -2,38 +2,44 @@
 
 namespace App\Providers;
 
-use App\Models\Shipping\ShippingLocation;
+use App\Contracts\Gateway\GatewayLoggerInterface;
 use App\Models\Inventory\ProductWarehouseStock;
+use App\Models\Order\Order;
+use App\Models\Payment\PaymentMethod;
+use App\Models\Payment\PaymentMethod as AppPaymentMethod;
+use App\Models\Product\Color\BaseColor;
+use App\Models\Product\Color\ColorElement;
+use App\Models\Product\Color\ColorSolution;
+use App\Models\Shipping\AdditionalService;
+use App\Models\Shipping\Carrier;
+use App\Models\Shipping\ShippingLocation;
+use App\Models\User;
+use App\Observers\ColorSolutionIconObserver;
 use App\Observers\ProductWarehouseStockObserver;
+use App\Payment\Gateways\RaiffeisenAcquiringGateway;
+use App\Payment\Gateways\RaiffeisenEcomGateway;
+use App\Payment\Gateways\SberbankAcquiringGateway;
+use App\Policies\ColorDictionaryPolicy;
+use App\Services\Gateway\DatabaseGatewayLogger;
 use App\Services\Inventory\Contracts\InventorySyncInterface;
 use App\Services\Inventory\Integrations\Integration1CApiService;
 use App\Services\Inventory\StockAvailabilityService;
 use App\Services\Inventory\StockService;
 use App\Services\Payment\Contracts\PaymentMethodAvailabilityInterface;
 use App\Services\Payment\PaymentMethodAvailabilityService;
-use App\Models\User;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\ServiceProvider;
-use App\Models\Order\Order;
-use App\Models\Payment\PaymentMethod as AppPaymentMethod;
-use App\Models\Shipping\Carrier;
-use App\Models\Shipping\AdditionalService;
-use App\Models\Payment\PaymentMethod;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Route;
-use Vanilo\Payment\PaymentGateways;
-use Vanilo\Payment\Gateways\NullGateway;
-use App\Contracts\Gateway\GatewayLoggerInterface;
-use App\Payment\Gateways\RaiffeisenAcquiringGateway;
-use App\Payment\Gateways\RaiffeisenEcomGateway;
-use App\Payment\Gateways\SberbankAcquiringGateway;
-use App\Services\Gateway\DatabaseGatewayLogger;
 use App\Services\Payment\RaiffeisenEcomClientFactory;
 use App\Services\Payment\RaiffeisenEcomRefundService;
 use Filament\Forms\Components\BaseFileUpload;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Vanilo\Payment\Gateways\NullGateway;
+use Vanilo\Payment\PaymentGateways;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -89,6 +95,9 @@ class AppServiceProvider extends ServiceProvider
             \Illuminate\Support\Facades\Gate::policy($pricingModel, \App\Policies\PricingRulePolicy::class);
         }
         Gate::policy(\App\Models\Order\OneClickLead::class, \App\Policies\OneClickLeadPolicy::class);
+        foreach ([BaseColor::class, ColorSolution::class, ColorElement::class] as $colorModel) {
+            Gate::policy($colorModel, ColorDictionaryPolicy::class);
+        }
         Gate::before(function ($user, string $ability): ?bool {
             if ($user instanceof User && $user->hasRole('super_admin')) {
                 return true;
@@ -99,6 +108,7 @@ class AppServiceProvider extends ServiceProvider
 
         ProductWarehouseStock::observe(ProductWarehouseStockObserver::class);
         \Vanilo\Payment\Models\PaymentProxy::modelClass()::observe(\App\Observers\PaidPaymentIdentityObserver::class);
+        Media::observe(ColorSolutionIconObserver::class);
 
         // Р-4: лимиты частоты на чувствительных эндпоинтах (login — по IP и email).
         RateLimiter::for('auth-strict', fn (Request $r) => Limit::perMinute(10)->by($r->ip() . '|' . mb_strtolower(trim((string) $r->input('email')))));

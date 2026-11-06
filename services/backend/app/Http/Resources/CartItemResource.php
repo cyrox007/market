@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehouseStockResolver;
+use App\Services\Product\ProductColors;
 use App\Services\Product\ProductRegionRuleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -37,6 +38,7 @@ class CartItemResource extends JsonResource
                 'sku' => null,
                 'is_variant' => false,
                 'variation_attributes' => [],
+                'colors' => [],
                 'delivery_days' => null,
             ];
         }
@@ -144,6 +146,7 @@ class CartItemResource extends JsonResource
             'sku' => $product->sku ?? null,
             'is_variant' => $product ? $product->isVariant() : false,
             'variation_attributes' => $variationAttributes,
+            'colors' => app(ProductColors::class)->rows($product),
             'delivery_days' => $deliveryDays,
             'stock' => $resolvedStock,
         ];

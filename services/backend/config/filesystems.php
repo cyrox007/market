@@ -47,6 +47,16 @@ return [
             'report' => false,
         ],
 
+        // Медиатека в тестах: отдельный каталог, номера тестовых медиа совпадают с локальными.
+        'media_testing' => [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/media'),
+            'url' => env('APP_URL').'/storage-testing',
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
