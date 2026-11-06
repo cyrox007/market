@@ -7,6 +7,7 @@ import {
   type PaymentMethod,
   type PickupOption,
   type ProductDetail,
+  type ProductColorRow,
   type WarehouseQuote,
 } from '../../../lib/api';
 import { useCart } from '../../../hooks/useCart';
@@ -19,10 +20,12 @@ import { checkoutContactErrors, normalizeCheckoutPhone } from '../contactValidat
 export const selectable = (method?: PaymentMethod) =>
   !!method && method.is_active !== false && !method.is_coming_soon && method.selectable !== false;
 type Prepared = {
+  colors?: ProductColorRow[];
   items: Array<{ product_id: number; quantity: number }>;
   subtotal: number;
   unit_price?: number;
   priced_components?: Array<{
+    colors?: ProductColorRow[];
     product_id: number;
     name: string;
     sku: string;

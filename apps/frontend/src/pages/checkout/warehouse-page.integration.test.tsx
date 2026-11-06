@@ -334,6 +334,18 @@ it('shows server discounts in checkout without changing the payable subtotal', a
       {
         ...cart.items[0],
         old_price: 1500,
+        colors: [
+          {
+            element: { id: 1, name: 'Фасад', slug: 'fasad' },
+            solution: {
+              id: 1,
+              name: 'Дуб Юкон',
+              slug: 'oak',
+              icon_url: '/oak.png',
+              base_colors: [],
+            },
+          },
+        ],
         old_total: 1500,
         discount_amount: 500,
         discount_percent: 33,
@@ -346,5 +358,6 @@ it('shows server discounts in checkout without changing the payable subtotal', a
     expect(screen.getByLabelText('Итоговая стоимость')).toHaveTextContent(/1\s500/),
   );
   expect(screen.getByText('Скидка').parentElement).toHaveTextContent('−500 ₽');
+  expect(screen.getByText('Фасад: Дуб Юкон')).toBeInTheDocument();
   expect(screen.getByText('Стоимость товаров').parentElement).toHaveTextContent(/1\s500/);
 });

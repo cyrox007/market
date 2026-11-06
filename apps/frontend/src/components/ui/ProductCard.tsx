@@ -43,24 +43,34 @@ const IN_CART_BUTTON = cn(
 );
 
 function toSwatches(product: Product): ColorSwatch[] {
-  return (product.colors ?? []).flatMap((color) => {
-    const solution = color.solution;
-    const value = solution?.icon_url
-      ? `url(${JSON.stringify(solution.icon_url)}) center / cover`
-      : (solution?.base_colors[0]?.hex ?? color.code);
-    return value
+  if (product.palette?.length) {
+    const solutions = new Map<number, ColorSwatch>();
+    for (const group of product.palette) {
+      for (const solution of group.solutions) {
+        if (!solutions.has(solution.id))
+          solutions.set(solution.id, {
+            value: solution.slug,
+            title: [group.element?.name, solution.name].filter(Boolean).join(': '),
+            solution,
+          });
+      }
+    }
+    return [...solutions.values()];
+  }
+  return (product.colors ?? []).flatMap((color) =>
+    color.solution
       ? [
           {
-            value,
-            title: solution
-              ? [color.element?.name, solution.name].filter(Boolean).join(': ')
-              : (color.name ?? undefined),
+            value: color.solution.slug,
+            title: [color.element?.name, color.solution.name].filter(Boolean).join(': '),
+            solution: color.solution,
           },
         ]
-      : [];
-  });
+      : color.code
+        ? [{ value: color.code, title: color.name ?? undefined }]
+        : [],
+  );
 }
-
 function ProductCard({
   product,
   onAddToCart,
@@ -293,11 +303,11 @@ function ProductCard({
               />
             )}
             {swatches.length > 0 && (
-              // По акции рядом две цены — цветам остаётся два кубика, иначе цена не влезает в строку
               <ColorSwatches
                 colors={swatches}
                 limit={onSale ? 2 : 4}
                 mobileLimit={onSale ? 2 : 3}
+                className="shrink-0"
               />
             )}
           </div>
@@ -323,6 +333,7 @@ function areEqual(prev: ProductCardProps, next: ProductCardProps): boolean {
     prev.product.thumbnail === next.product.thumbnail &&
     prev.product.image === next.product.image &&
     prev.product.colors === next.product.colors &&
+    prev.product.palette === next.product.palette &&
     prev.cartQuantity === next.cartQuantity &&
     prev.isFavorite === next.isFavorite &&
     prev.isInCompare === next.isInCompare &&

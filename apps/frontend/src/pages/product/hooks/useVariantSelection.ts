@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { ProductDetail, ProductVariant } from '../../../lib/api';
+import type { ProductDetail, ProductVariant, ColorSolution } from '../../../lib/api';
 import { chooseValue, defaultVariant, isValueAvailable, variantFromParam } from '../lib/variants';
 
 export const VARIANT_PARAM = 'variant';
@@ -14,6 +14,7 @@ export interface VariantAttributeView {
     name: string;
     code: string | null;
     image?: string | null;
+    solution?: ColorSolution;
     selected: boolean;
     available: boolean;
   }[];
@@ -69,6 +70,7 @@ export function useVariantSelection(product: ProductDetail) {
             name: option.solution.name,
             code: option.solution.base_colors[0]?.hex ?? null,
             image: option.solution.icon_url,
+            solution: option.solution,
           })),
         })),
         ...(product.variation_attributes ?? []),
@@ -85,6 +87,7 @@ export function useVariantSelection(product: ProductDetail) {
               name: v.name ?? v.slug!,
               code: v.code ?? null,
               image: 'image' in v ? (v.image as string | null) : null,
+              solution: 'solution' in v ? (v.solution as ColorSolution) : undefined,
               selected: v.slug === current?.value_slug,
               available: isValueAvailable(
                 variants,

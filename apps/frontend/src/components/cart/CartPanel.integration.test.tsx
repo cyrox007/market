@@ -40,6 +40,12 @@ beforeEach(() => {
 
 it('быстрые клики меняют только выбранную ценовую строку через настоящую очередь и SWR', async () => {
   const privateLine: CartItem = {
+    colors: [
+      {
+        element: { id: 1, name: 'Фасад', slug: 'fasad' },
+        solution: { id: 1, name: 'Дуб Юкон', slug: 'oak', icon_url: '/oak.png', base_colors: [] },
+      },
+    ],
     id: 10,
     product_id: 7,
     name: 'Закрытая цена',
@@ -88,6 +94,7 @@ it('быстрые клики меняют только выбранную це�
   );
   fireEvent.click(screen.getByText('Открыть'));
   const row = await screen.findByRole('article', { name: 'Закрытая цена' });
+  expect(within(row).getByText('Фасад: Дуб Юкон')).toBeInTheDocument();
   fireEvent.click(within(row).getByRole('button', { name: 'Увеличить количество' }));
   await waitFor(() => expect(api.cart.update).toHaveBeenCalledTimes(1));
   fireEvent.click(within(row).getByRole('button', { name: 'Увеличить количество' }));
@@ -95,6 +102,9 @@ it('быстрые клики меняют только выбранную це�
   // Общий остаток SKU = 5: четыре здесь и одна штука по цене каталога.
   fireEvent.click(within(row).getByRole('button', { name: 'Увеличить количество' }));
   expect(screen.getByTestId('cart-total')).toHaveTextContent('340 ₽');
+  expect(
+    within(screen.getByRole('article', { name: 'Закрытая цена' })).getByText('Фасад: Дуб Юкон'),
+  ).toBeInTheDocument();
   expect(
     within(screen.getByRole('article', { name: 'Каталог' })).getByRole('button', {
       name: 'Уменьшить количество',

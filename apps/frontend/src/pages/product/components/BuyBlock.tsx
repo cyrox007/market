@@ -17,6 +17,7 @@ import { formatPrice, formatRating } from '../lib/productText';
 import { isSellableOffer } from '../lib/variants';
 import BundleComposition from './BundleComposition';
 import VariantPicker from './VariantPicker';
+import SelectedColors from '../../../components/ui/composites/SelectedColors';
 
 export interface BuyBlockCart {
   quantity: number;
@@ -143,6 +144,14 @@ export default function BuyBlock({
       )}
 
       <VariantPicker attributes={attributes} onSelect={onSelectValue} disabled={disabled} />
+      <SelectedColors
+        colors={(item.colors ?? []).flatMap((row) =>
+          row.solution &&
+          !product.color_options?.some((group) => group.key === (row.element?.slug ?? 'main'))
+            ? [{ element: row.element ?? null, solution: row.solution }]
+            : [],
+        )}
+      />
 
       {parts.length > 0 && <BundleComposition key={selectedVariant?.id} parts={parts} />}
 

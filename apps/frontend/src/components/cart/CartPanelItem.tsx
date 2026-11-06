@@ -6,6 +6,7 @@ import { isUnconfiguredKit } from '../../utils/cartProduct';
 import ProductLink from '../ui/ProductLink';
 import IconButton from '../ui/primitives/IconButton';
 import QuantityStepper from '../ui/composites/QuantityStepper';
+import SelectedColors from '../ui/composites/SelectedColors';
 import { cartItemAvailability } from './cartPanelModel';
 
 interface Props {
@@ -112,6 +113,7 @@ export default function CartPanelItem({
             </IconButton>
           </div>
         </div>
+        <SelectedColors colors={item.colors} />
         {variantText && (
           <div
             className={cn(

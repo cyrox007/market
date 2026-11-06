@@ -1,6 +1,7 @@
 import { ImageIcon } from 'lucide-react';
 import Button from '../../../components/ui/primitives/Button';
 import CartLink from '../../../components/cart/CartLink';
+import SelectedColors from '../../../components/ui/composites/SelectedColors';
 import { cartQuantityLabel } from '../../../components/cart/cartPanelModel';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
 
@@ -28,6 +29,7 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSum
     ? (c.cart?.items ?? [])
     : (c.prepared?.priced_components?.map((part) => ({
         id: part.product_id,
+        colors: part.colors,
         name: part.name,
         price: part.unit_price,
         quantity: part.quantity,
@@ -40,6 +42,11 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSum
       })) ??
       c.items.map((item) => ({
         id: item.product_id,
+        colors:
+          c.prepared?.colors ??
+          c.directProduct?.colors?.flatMap((row) =>
+            row.solution ? [{ element: row.element ?? null, solution: row.solution }] : [],
+          ),
         name: c.directProduct?.name || `Товар № ${item.product_id}`,
         image: c.directProduct?.thumbnail || c.directProduct?.image,
         price: c.prepared?.unit_price ?? c.subtotal / item.quantity,
@@ -79,6 +86,7 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSum
             </div>
             <div className="min-w-0 flex-1 space-y-1.5">
               <p className="break-words text-16 font-medium max-vsm:text-14">{item.name}</p>
+              <SelectedColors colors={item.colors} />
               {!!item.variation_attributes?.length && (
                 <p className="text-14 text-ink-secondary">
                   {item.variation_attributes

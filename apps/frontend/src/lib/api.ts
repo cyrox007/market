@@ -234,11 +234,12 @@ export const api = {
     count: () => fetchAPI<{ count: number }>('/cart/count'),
   },
   orders: {
-    prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
+    prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number; colors?: ProductColorRow[] }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
     prepareBundle: (bundle_id: number, primary_sku_id: number, quantity: number) => fetchAPI<{
       items: Array<{ product_id: number; quantity: number }>;
       subtotal: number;
-      priced_components: Array<{ product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }>;
+      colors?: ProductColorRow[];
+      priced_components: Array<{ colors?: ProductColorRow[]; product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }>;
     }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ bundle_id, primary_sku_id, quantity }) }),
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
     get: (id: number) => fetchAPI<{ order: Order }>(`/order-access/${id}`, { headers: guestOrderHeaders(id) }),
@@ -675,6 +676,7 @@ export interface WarehouseStockInfo {
   stocks?: Array<{ warehouse_id: number; warehouse_name: string; quantity: number }>;
 }
 export interface Product extends WarehouseStockInfo {
+  palette?: ColorPaletteGroup[];
   is_visible_in_region?: boolean;
   id: number;
   name: string;
@@ -884,6 +886,15 @@ export interface ColorSolution {
   base_colors: { id: number; name: string; slug: string; hex: string | null }[];
 }
 
+export interface ProductColorRow {
+  element: { id: number; name: string; slug: string } | null;
+  solution: ColorSolution;
+}
+export interface ColorPaletteGroup {
+  element: { name: string; slug: string } | null;
+  solutions: ColorSolution[];
+}
+
 export interface SizeOption {
   id?: number | null;
   name?: string | null;
@@ -1023,6 +1034,7 @@ export interface Store {
 }
 
 export interface CartItem {
+  colors?: ProductColorRow[];
   old_price?: number | null;
   old_total?: number | null;
   discount_amount?: number;

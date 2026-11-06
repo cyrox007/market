@@ -292,6 +292,18 @@ it('prefills the one-click form and sends its comment with the direct item', asy
   vi.mocked(api.orders.prepare).mockResolvedValue({
     items: [{ product_id: 42, quantity: 2 }],
     subtotal: 2000,
+    colors: [
+      {
+        element: null,
+        solution: {
+          id: 1,
+          name: 'Прямой серый материал',
+          slug: 'gray',
+          icon_url: null,
+          base_colors: [],
+        },
+      },
+    ],
   });
   render(
     <MemoryRouter
@@ -316,6 +328,7 @@ it('prefills the one-click form and sends its comment with the direct item', asy
   expect(screen.getByLabelText('Имя')).toHaveValue('Иван');
   expect(screen.getByLabelText('Телефон')).toHaveValue('+7 (912) 345-67-89');
   expect(screen.getByLabelText('Комментарий к заказу')).toHaveValue('Позвоните после 18');
+  expect(await screen.findByText('Прямой серый материал')).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'buyer@example.test' } });
   await waitFor(() =>
     expect(screen.getByRole('radio', { name: 'Наличными при получении' })).toBeChecked(),
