@@ -64,6 +64,49 @@ const renderAt = (url: string, item: ProductDetail = product) =>
   );
 
 describe('выбор варианта на странице товара', () => {
+  it('preserves the material when changing size and shows material images', () => {
+    const item = {
+      ...product,
+      variation_attributes: [
+        {
+          attribute_slug: 'size',
+          attribute_name: 'Размер',
+          type: 'select',
+          values: [
+            { slug: 'small', name: 'Малый' },
+            { slug: 'large', name: 'Большой' },
+          ],
+        },
+      ],
+      variants: [
+        [10, 'gray', 'small'],
+        [11, 'gray', 'large'],
+        [12, 'beige', 'small'],
+        [13, 'beige', 'large'],
+      ].map(([id, color, size]) => ({
+        ...variant(Number(id), String(color), true),
+        colors: [{ element: null, solution: { slug: color } }],
+        variation_attributes: [{ attribute_slug: 'size', value_slug: size }],
+      })),
+      color_options: [
+        {
+          key: 'main',
+          element: null,
+          options: ['gray', 'beige'].map((key) => ({
+            key,
+            solution: { name: key, slug: key, icon_url: `/material-${key}.png`, base_colors: [] },
+            variant_ids: key === 'gray' ? [10, 11] : [12, 13],
+          })),
+        },
+      ],
+    } as unknown as ProductDetail;
+    const { result } = renderAt('/product/divan?variant=10', item);
+    expect(result.current.selection.attributes[0].values[0].image).toBe('/material-gray.png');
+    act(() => result.current.selection.selectValue('solution:main', 'beige'));
+    expect(result.current.selection.selectedVariant?.id).toBe(12);
+    act(() => result.current.selection.selectValue('size', 'large'));
+    expect(result.current.selection.selectedVariant?.id).toBe(13);
+  });
   it('без параметра — первый в наличии, адрес не трогаем', () => {
     const { result } = renderAt('/product/divan');
     expect(result.current.selection.selectedVariant?.id).toBe(11);

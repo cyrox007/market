@@ -19,6 +19,33 @@ const product = {
 } as unknown as Product;
 
 describe('ProductCard', () => {
+  it('shows sibling material palette rather than only the selected SKU color', () => {
+    const solution = (id: number) => ({
+      id,
+      name: `Материал ${id}`,
+      slug: String(id),
+      icon_url: `/material-${id}.png`,
+      base_colors: [],
+    });
+    render(
+      <MemoryRouter>
+        <ProductCard
+          product={{
+            ...product,
+            colors: [{ solution: solution(1) }],
+            palette: [
+              {
+                element: null,
+                solutions: [solution(1), solution(2), solution(3), solution(4), solution(5)],
+              },
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('group', { name: 'Доступных цветов: 5' })).toBeInTheDocument();
+    expect(screen.getAllByText('+2').length).toBeGreaterThan(0);
+  });
   it('passes every quick click on plus to the page, none is swallowed', () => {
     // Сервер ещё не ответил ни на один клик
     const onIncreaseCart = vi.fn(() => new Promise<void>(() => {}));

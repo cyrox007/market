@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+﻿import { useCallback, useEffect, useRef } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import type { Cache, ScopedMutator } from 'swr';
 import { api } from '../lib/api';
@@ -11,6 +11,8 @@ import { useCartToast } from '../contexts/cart-toast-context';
 import { getCartErrorMessage } from '../utils/cartErrors';
 import {
   findCartLineForProduct,
+  cartLineWithQuantity,
+  withTotals,
   mergeCartItem,
   mergeServerLine,
   patchCartQuantity,
@@ -22,6 +24,9 @@ interface CartSync {
   previews: Map<number, Partial<CartItem>>;
   /** id строки на сервере: экран может уже не показывать строку, а удалить её надо */
   lineIds: Map<number, number>;
+  /** Stable intent keys for independently priced lines; server ids can change after PUT. */
+  lineKeys: Map<number, number>;
+  lines: Map<number, CartItem>;
   /** Были изменения — когда очередь опустеет, сверить корзину с сервером */
   dirty: boolean;
   /** Значения последнего рендера хука: ключ кэша зависит от региона */
@@ -47,6 +52,20 @@ async function ensureRemoved(request: Promise<unknown>): Promise<void> {
  */
 const cartSyncs = new WeakMap<Cache, CartSync>();
 
+function replacePricedLine(
+  cart: Cart | undefined,
+  id: number,
+  replacement?: CartItem,
+): Cart | undefined {
+  if (!cart) return cart;
+  const exists = cart.items.some((item) => item.id === id);
+  const items = cart.items.flatMap((item) =>
+    item.id === id ? (replacement ? [replacement] : []) : [item],
+  );
+  if (!exists && replacement) items.push(replacement);
+  return { ...cart, ...withTotals(items) };
+}
+
 function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
   const existing = cartSyncs.get(cache);
   if (existing) return existing;
@@ -57,12 +76,35 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
   const sync: CartSync = {
     previews: new Map(),
     lineIds: new Map(),
+    lineKeys: new Map(),
+    lines: new Map(),
     dirty: false,
     context: { cartKey: '/api/cart', regionId: null, showCartToast: () => {} },
     quantities: createIntentSync<number>({
       send: async (productId, quantity, confirmed) => {
         sync.dirty = true;
         const regionId = sync.context.regionId ?? undefined;
+        if (productId < 0) {
+          const previous = sync.lines.get(productId)!;
+          if (quantity === 0) {
+            await ensureRemoved(api.cart.remove(previous.id));
+            return 0;
+          }
+          const result = await api.cart.update(previous.id, { quantity, region_id: regionId });
+          sync.lines.set(productId, result.item);
+          sync.lineKeys.set(result.item.id, productId);
+          updateCart((cart) => {
+            const shown = cart?.items.find((item) => item.id === previous.id);
+            if (!shown) return cart;
+            return replacePricedLine(
+              cart,
+              previous.id,
+              cartLineWithQuantity(result.item, shown.quantity),
+            );
+          });
+          if (result.was_adjusted) sync.context.showCartToast(result.message, 'success');
+          return result.item.quantity;
+        }
         // Сервер пересоздаёт строку на каждое изменение — id берём из последнего ответа
         const lineId = sync.lineIds.get(productId) ?? 0;
         if (quantity === 0) {
@@ -74,15 +116,29 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
         const result =
           lineId > 0
             ? await api.cart.update(lineId, { quantity, region_id: regionId })
-            : await api.cart.add({ product_id: productId, quantity: quantity - confirmed, region_id: regionId });
+            : await api.cart.add({
+                product_id: productId,
+                quantity: quantity - confirmed,
+                region_id: regionId,
+              });
         sync.lineIds.set(productId, result.item.id);
         if (result.was_adjusted) sync.context.showCartToast(result.message, 'success');
         updateCart((cart) => mergeServerLine(cart, result.item));
         return result.item.quantity;
       },
       apply: (productId, quantity) =>
-        updateCart((cart) => setLineQuantity(cart, productId, quantity, sync.previews.get(productId))),
-      onError: (_productId, error) => sync.context.showCartToast(getCartErrorMessage(error), 'error'),
+        updateCart((cart) => {
+          if (productId >= 0)
+            return setLineQuantity(cart, productId, quantity, sync.previews.get(productId));
+          const line = sync.lines.get(productId)!;
+          return replacePricedLine(
+            cart,
+            line.id,
+            quantity > 0 ? cartLineWithQuantity(line, quantity) : undefined,
+          );
+        }),
+      onError: (_productId, error) =>
+        sync.context.showCartToast(getCartErrorMessage(error), 'error'),
     }),
   };
   onIdle(() => {
@@ -93,7 +149,9 @@ function getCartSync(cache: Cache, mutate: ScopedMutator): CartSync {
       .then((fresh) => {
         // Пока шла сверка, успели кликнуть — после их отправки будет новая сверка
         if (sync.quantities.hasPending()) return;
-        sync.lineIds = new Map(fresh.items.filter((i) => i.id > 0).map((i) => [i.product_id, i.id]));
+        sync.lineIds = new Map(
+          fresh.items.filter((i) => i.id > 0).map((i) => [i.product_id, i.id]),
+        );
         void mutate(cartKey, fresh, { revalidate: false });
       })
       .catch(() => {});
@@ -121,13 +179,17 @@ export function useCart() {
     error,
     isLoading,
     mutate: mutateCart,
-  } = useSWR(cartKey, () => runSessionRead(() => api.cart.get(regionId ? { region_id: regionId } : undefined)), {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: true,
-    revalidateIfStale: false,
-    keepPreviousData: true,
-    dedupingInterval: 5000,
-  });
+  } = useSWR(
+    cartKey,
+    () => runSessionRead(() => api.cart.get(regionId ? { region_id: regionId } : undefined)),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      revalidateIfStale: false,
+      keepPreviousData: true,
+      dedupingInterval: 5000,
+    },
+  );
 
   useEffect(() => {
     if (typeof cart?.item_count === 'number') {
@@ -197,7 +259,9 @@ export function useCart() {
           if (!item) return current;
           const delta = quantity - item.quantity;
           if (delta === 0) return current;
-          return current?.items.filter((i) => i.product_id === item.product_id).length === 1 ? patchCartQuantity(current ?? null, item.product_id, delta) : current;
+          return current?.items.filter((i) => i.product_id === item.product_id).length === 1
+            ? patchCartQuantity(current ?? null, item.product_id, delta)
+            : current;
         });
 
         try {
@@ -246,7 +310,9 @@ export function useCart() {
         await applyCartToCache((current) => {
           const item = current?.items?.find((i) => i.id === itemId);
           if (!item) return current;
-          return current?.items.filter((i) => i.product_id === item.product_id).length === 1 ? patchCartQuantity(current ?? null, item.product_id, -item.quantity) : current;
+          return current?.items.filter((i) => i.product_id === item.product_id).length === 1
+            ? patchCartQuantity(current ?? null, item.product_id, -item.quantity)
+            : current;
         });
 
         try {
@@ -260,25 +326,37 @@ export function useCart() {
     [applyCartToCache, syncCartFromServer],
   );
 
-  const clearCart = useCallback(
-    () =>
-      runSessionTask(async () => {
-        await applyCartToCache(() => ({
-          items: [],
-          subtotal: 0,
-          item_count: 0,
-          is_empty: true,
-        }));
+  const clearCart = useCallback(() => {
+    // Пока запрос количества в полёте, новые клики могли накопиться в intent-sync.
+    // После очистки их целью должен стать 0, иначе отложенный PUT/POST вернёт товар.
+    const current = cache.get(cartKey)?.data as Cart | undefined;
+    for (const [key, line] of cartSync.lines) {
+      if (cartSync.quantities.isPending(key)) cartSync.quantities.set(key, 0, line.quantity);
+    }
+    for (const item of current?.items ?? []) {
+      if (cartSync.quantities.isPending(item.product_id)) {
+        cartSync.quantities.set(item.product_id, 0, item.quantity);
+      }
+    }
+    return runSessionTask(async () => {
+      await applyCartToCache(() => ({
+        items: [],
+        subtotal: 0,
+        item_count: 0,
+        is_empty: true,
+      }));
 
-        try {
-          await api.cart.clear();
-        } catch (err) {
-          await syncCartFromServer();
-          throw err;
-        }
-      }),
-    [applyCartToCache, syncCartFromServer],
-  );
+      try {
+        await api.cart.clear();
+        cartSync.lineIds.clear();
+        cartSync.lineKeys.clear();
+        cartSync.lines.clear();
+      } catch (err) {
+        await syncCartFromServer();
+        throw err;
+      }
+    });
+  }, [applyCartToCache, syncCartFromServer, cache, cartKey, cartSync]);
 
   /** Поставить количество товара; клики копятся, на сервер уходит итог — market-docs/32 */
   const setCartQuantity = useCallback(
@@ -287,7 +365,10 @@ export function useCart() {
       quantity: number,
       options?: { preview?: Partial<CartItem>; /** остаток; нет — без ограничения */ max?: number },
     ) => {
-      const target = Math.max(0, options?.max === undefined ? quantity : Math.min(quantity, options.max));
+      const target = Math.max(
+        0,
+        options?.max === undefined ? quantity : Math.min(quantity, options.max),
+      );
       if (options?.preview) cartSync.previews.set(productId, options.preview);
       const shown = findCartLineForProduct(cache.get(cartKey)?.data as Cart | undefined, productId);
       if (shown && shown.id > 0) cartSync.lineIds.set(productId, shown.id);
@@ -306,6 +387,32 @@ export function useCart() {
     [cache, cartKey, setCartQuantity],
   );
 
+  const setCartLineQuantity = useCallback(
+    (itemId: number, quantity: number, options?: { max?: number }) => {
+      const current = cache.get(cartKey)?.data as Cart | undefined;
+      const key = cartSync.lineKeys.get(itemId) ?? -itemId;
+      const known = cartSync.lines.get(key);
+      const shown = current?.items.find((item) => item.id === (known?.id ?? itemId));
+      if (!shown && !known) return;
+      if (
+        !known &&
+        shown &&
+        current?.items.filter((item) => item.product_id === shown.product_id).length === 1
+      ) {
+        setCartQuantity(shown.product_id, quantity, options);
+        return;
+      }
+      if (!known || !cartSync.quantities.isPending(key)) cartSync.lines.set(key, shown ?? known!);
+      cartSync.lineKeys.set(itemId, key);
+      const target = Math.max(
+        0,
+        options?.max === undefined ? quantity : Math.min(quantity, options.max),
+      );
+      cartSync.quantities.set(key, target, shown?.quantity ?? 0);
+    },
+    [cache, cartKey, cartSync, setCartQuantity],
+  );
+
   // Вне мутации — через очередь; внутри задач syncCartFromServer зовётся напрямую
   const loadCart = useCallback(async () => {
     await runSessionRead(syncCartFromServer);
@@ -318,6 +425,7 @@ export function useCart() {
     addToCart,
     adjustCartQuantity,
     setCartQuantity,
+    setCartLineQuantity,
     updateQuantity,
     updateVariant,
     removeFromCart,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { api, type Order } from '../../../lib/api';
 import { consumeGuestOrderLink } from '../../../lib/guest-order-access';
 import OrderStatusBadge from '../../../components/orders/OrderStatusBadge';
@@ -7,6 +7,7 @@ import OrderTracking from '../../../components/orders/OrderTracking';
 import OrderItemsList from '../../../components/orders/OrderItemsList';
 import { formatDate } from '../../../utils/orderUtils';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCartPanel } from '../../../contexts/cart-panel-context';
 import {
   buildPaymentUrl,
   closePaymentTab,
@@ -18,10 +19,12 @@ import {
 } from '../../../utils/paymentUtils';
 import Icon from '../../../components/ui/icons/Icon';
 import { ChevronRight, Info, TriangleAlert } from 'lucide-react';
+import { Button } from '../../../components/ui/primitives';
+import { PAGE_CONTAINER } from '../../../lib/layout';
 
 export default function OrderDetail() {
+  const { openCart } = useCartPanel();
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, updateProfile } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
@@ -231,7 +234,7 @@ export default function OrderDetail() {
         alert(message);
       }
 
-      navigate('/cart');
+      openCart();
     } catch (err: any) {
       console.error('Failed to repeat order:', err);
       const errorMessage = err?.data?.message || err?.message || 'Ошибка повторения заказа';
@@ -285,7 +288,7 @@ export default function OrderDetail() {
       <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-yellow"></div>
             <p className="mt-4 text-gray-600">Загрузка заказа...</p>
           </div>
         </div>
@@ -295,28 +298,27 @@ export default function OrderDetail() {
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
-            <p className="text-red-600">{error || 'Заказ не найден'}</p>
-            <div className="mt-4 flex gap-3 justify-center">
-              <button
-                onClick={() => navigate('/orders')}
-                className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors"
-              >
+      <div className={`${PAGE_CONTAINER} py-12 max-vsm:py-8 text-ink`}>
+          <div className="rounded-card bg-surface-grey p-10 max-md:p-6 max-vsm:p-5" role="alert">
+            <h1 className="font-display text-32 max-vsm:text-24 font-bold mb-6">
+              {error || 'Заказ не найден'}
+            </h1>
+            <div className="flex flex-wrap gap-3 max-vsm:flex-col">
+              <Button to="/orders" size="lg" className="max-vsm:w-full">
                 Вернуться к заказам
-              </button>
+              </Button>
               {error && (
-                <button
+                <Button
                   onClick={() => id && loadOrder(parseInt(id))}
-                  className="border border-gray-300 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                  variant="outline"
+                  size="lg"
+                  className="max-vsm:w-full"
                 >
                   Попробовать снова
-                </button>
+                </Button>
               )}
             </div>
           </div>
-        </div>
       </div>
     );
   }

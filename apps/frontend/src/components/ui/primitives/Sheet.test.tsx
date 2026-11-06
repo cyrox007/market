@@ -48,6 +48,15 @@ const openIt = () => {
 };
 
 describe('Sheet', () => {
+  it('opens from the right edge without changing the existing dialog behavior', () => {
+    render(<Harness side="right" />);
+    openIt();
+    const dialog = screen.getByRole('dialog', { name: 'Фильтры' });
+    expect(dialog).toHaveAttribute('data-variant', 'right');
+    expect(dialog).toHaveClass('right-0');
+    expect(screen.queryByTestId('sheet-grip')).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+  });
   it('renders nothing until opened', () => {
     render(<Harness />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

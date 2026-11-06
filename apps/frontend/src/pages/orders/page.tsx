@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api, type Order } from '../../lib/api';
 import OrderStatusBadge from '../../components/orders/OrderStatusBadge';
 import OrderTracking from '../../components/orders/OrderTracking';
@@ -17,6 +17,7 @@ import {
 
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { useCartPanel } from '../../contexts/cart-panel-context';
 import Icon from '../../components/ui/icons/Icon';
 import { ChevronRight, ClipboardList, ImageIcon, TriangleAlert } from 'lucide-react';
 
@@ -29,7 +30,7 @@ const iconColorClasses: Record<string, string> = {
 };
 
 export default function Orders() {
-  const navigate = useNavigate();
+  const { openCart } = useCartPanel();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -134,7 +135,7 @@ export default function Orders() {
         alert(message);
       }
 
-      navigate('/cart');
+      openCart();
     } catch (err: any) {
       console.error('Failed to repeat order:', err);
       const errorMessage = err?.data?.message || err?.message || 'Ошибка повторения заказа';

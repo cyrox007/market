@@ -234,11 +234,12 @@ export const api = {
     count: () => fetchAPI<{ count: number }>('/cart/count'),
   },
   orders: {
-    prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
+    prepare: (product_id: number, quantity: number) => fetchAPI<{ items: Array<{ product_id: number; quantity: number }>; subtotal: number; colors?: ProductColorRow[] }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ product_id, quantity }) }),
     prepareBundle: (bundle_id: number, primary_sku_id: number, quantity: number) => fetchAPI<{
       items: Array<{ product_id: number; quantity: number }>;
       subtotal: number;
-      priced_components: Array<{ product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }>;
+      colors?: ProductColorRow[];
+      priced_components: Array<{ colors?: ProductColorRow[]; product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }>;
     }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ bundle_id, primary_sku_id, quantity }) }),
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
     get: (id: number) => fetchAPI<{ order: Order }>(`/order-access/${id}`, { headers: guestOrderHeaders(id) }),
@@ -675,6 +676,7 @@ export interface WarehouseStockInfo {
   stocks?: Array<{ warehouse_id: number; warehouse_name: string; quantity: number }>;
 }
 export interface Product extends WarehouseStockInfo {
+  palette?: ColorPaletteGroup[];
   is_visible_in_region?: boolean;
   id: number;
   name: string;
@@ -757,7 +759,7 @@ export interface ProductVariant extends WarehouseStockInfo {
   stock_known?: boolean;
   available_to_order?: boolean;
   color?: { name: string; slug: string; code?: string | null } | null;
-  colors?: { id: number; value: string; slug: string; color_code: string | null }[];
+  colors?: ColorOption[];
   size?: { name: string; slug: string; value: string } | null;
   images: string[];
   variation_attributes?: SelectedVariationItem[];
@@ -819,6 +821,8 @@ export interface ProductDocument {
 }
 
 export interface ProductDetail extends Product {
+  color_options?: { key: string; element: { name: string; slug: string } | null; options: { key: string; solution: ColorSolution; variant_ids: number[] }[] }[];
+  palette?: { element: { name: string; slug: string } | null; solutions: ColorSolution[] }[];
   images: string[];
   /** false — остаток бэку неизвестен, число не показываем */
   stock_known?: boolean;
@@ -864,12 +868,31 @@ export interface ProductPagePayload {
 }
 
 export interface ColorOption {
+  element?: { id: number; name: string; slug: string } | null;
+  solution?: ColorSolution;
   id?: number | null;
   name?: string | null;
   slug?: string | null;
   code?: string | null;
   /** Количество товаров с этим цветом в категории; 0 — опция недоступна (показать серой) */
   count?: number;
+}
+
+export interface ColorSolution {
+  id: number;
+  name: string;
+  slug: string;
+  icon_url: string | null;
+  base_colors: { id: number; name: string; slug: string; hex: string | null }[];
+}
+
+export interface ProductColorRow {
+  element: { id: number; name: string; slug: string } | null;
+  solution: ColorSolution;
+}
+export interface ColorPaletteGroup {
+  element: { name: string; slug: string } | null;
+  solutions: ColorSolution[];
 }
 
 export interface SizeOption {
@@ -1011,6 +1034,18 @@ export interface Store {
 }
 
 export interface CartItem {
+  colors?: ProductColorRow[];
+  old_price?: number | null;
+  old_total?: number | null;
+  discount_amount?: number;
+  discount_percent?: number | null;
+  stock?: number | null;
+  stock_known?: boolean | null;
+  in_stock?: boolean | null;
+  available_to_order?: boolean | null;
+  is_sellable_bundle?: boolean;
+  is_bundle_configured?: boolean | null;
+  bundle_components?: Array<{ product_id: number; name: string; quantity: number; sku?: string; unit_price?: number; total?: number }>;
   price_source?: 'private_link' | 'catalog';
   id: number;
   product_id: number;
@@ -1036,6 +1071,8 @@ export interface CartItem {
 }
 
 export interface Cart {
+  old_subtotal?: number;
+  discount_total?: number;
   items: CartItem[];
   subtotal: number;
   item_count: number;
@@ -1199,8 +1236,20 @@ export interface Order {
   cancelled_due_to_unpaid_timeout?: boolean;
 }
 
-export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null }
+export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null; ready?: ReadyRange | null; hours?: string | null }
 export interface WarehouseOption {
+  delivery_days_min?: number | null;
+  delivery_days_max?: number | null;
+  has_preorders?: boolean;
+  delivery_estimate_unavailable?: boolean;
+  delivery_schedule?: {
+    status: 'estimate_only' | 'requires_confirmation';
+    date_selection_enabled: false;
+    time_selection_enabled: false;
+    confirmation_required: true;
+    notice: string;
+  };
+  delivery?: ReadyRange | null;
   warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
   total_fulfillment_cost: number; service_options: {
     assembly: { available: boolean; required: boolean; price: number | null };
@@ -1305,6 +1354,8 @@ export interface PaymentMethod {
 }
 
 export interface Address {
+  floor?: string | null;
+  intercom?: string | null;
   directory_external_id?: string | null;
   id: number;
   title?: string | null;
@@ -1325,6 +1376,8 @@ export interface Address {
 }
 
 export interface AddressData {
+  floor?: string;
+  intercom?: string;
   directory_external_id?: string;
   title?: string;
   address?: string;

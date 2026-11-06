@@ -10,7 +10,7 @@ interface QuantityStepperProps {
   decrementLabel?: string;
   incrementLabel?: string;
   /** yellow — страница товара: жёлтые круги, значение в рамке (market-docs/56, cart-in-cart.png) */
-  tone?: 'card' | 'yellow';
+  tone?: 'card' | 'yellow' | 'cart';
   disabled?: boolean;
   className?: string;
 }
@@ -44,13 +44,21 @@ export default function QuantityStepper({
   const canDecrement = !disabled && value > min;
   const canIncrement = !disabled && (max === undefined || value < max);
   const yellow = tone === 'yellow';
+  const cart = tone === 'cart';
 
   return (
-    <div className={cn('inline-flex items-center gap-2', className)}>
+    <div
+      className={cn(
+        'inline-flex items-center',
+        cart ? 'gap-1 rounded-pill bg-surface-grey px-1.5' : 'gap-2',
+        className,
+      )}
+    >
       <IconButton
         label={decrementLabel}
         variant={yellow ? 'yellow' : 'grey'}
         elevated={!yellow}
+        className={cart ? '!size-9 !bg-transparent !shadow-none max-vsm:!size-8' : undefined}
         disabled={!canDecrement}
         onClick={() => onChange?.(value - 1)}
       >
@@ -62,6 +70,7 @@ export default function QuantityStepper({
         className={cn(
           'inline-flex h-10 w-[55px] shrink-0 items-center justify-center rounded-btn bg-surface text-14 text-ink',
           yellow && 'border border-surface-stroke/[0.08]',
+          cart && '!h-9 !w-7 !bg-transparent max-vsm:!h-8 max-vsm:!w-5',
         )}
       >
         {value}
@@ -71,6 +80,7 @@ export default function QuantityStepper({
         label={incrementLabel}
         variant={yellow ? 'yellow' : 'white'}
         elevated={!yellow}
+        className={cart ? '!size-9 !bg-transparent !shadow-none max-vsm:!size-8' : undefined}
         disabled={!canIncrement}
         onClick={() => onChange?.(value + 1)}
       >
