@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Product\Category;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Cache;
 use Tests\Concerns\ProductColorFixtures;
@@ -69,6 +70,38 @@ class ProductColorsApiTest extends TestCase
         $this->getJson('/api/v1/products/sofa-colors?color_options[fasad]=oak-white')->assertOk()->assertJsonPath('product.id', $a->id);
         $this->getJson('/api/v1/products/sofa-colors?color_options[main]=gray&color_options[fasad]=oak-white')
             ->assertOk()->assertJsonPath('product.selected_color_options', null);
+    }
+
+    public function test_catalog_returns_each_sku_colors_and_complete_sibling_palette_across_pages(): void
+    {
+        [$parent, $whiteOak, $whiteBlack, $grayBlack] = $this->sofa();
+        $category = Category::factory()->create();
+        $parent->taxons()->attach($category);
+        $inactive = Product::factory()->create(['parent_product_id' => $parent->id, 'state' => 'inactive']);
+        $this->colorRow($inactive, 'pink');
+
+        $expected = [
+            $whiteOak->id => ['main' => 'white', 'fasad' => 'oak-white', 'korpus' => 'oak'],
+            $whiteBlack->id => ['main' => 'white', 'fasad' => 'black', 'korpus' => 'oak'],
+            $grayBlack->id => ['main' => 'gray', 'fasad' => 'black', 'korpus' => 'oak'],
+        ];
+        $seen = [];
+        for ($page = 1; $page <= 3; $page++) {
+            $response = $this->getJson('/api/v1/products?category_slug='.$category->slug.'&per_page=1&page='.$page)
+                ->assertOk()->assertJsonPath('meta.total', 3);
+            $sku = $response->json('data.0');
+            $seen[] = $sku['id'];
+            $this->assertSame($parent->id, $sku['parent_id']);
+            $this->assertSame($expected[$sku['id']], $this->keys($sku['colors']));
+
+            $palette = collect($sku['palette'])->keyBy(fn ($row) => $row['element']['slug'] ?? 'main');
+            $this->assertSame(['white', 'gray'], array_column($palette['main']['solutions'], 'slug'));
+            $this->assertSame(['oak-white', 'black'], array_column($palette['fasad']['solutions'], 'slug'));
+            $this->assertSame(['oak'], array_column($palette['korpus']['solutions'], 'slug'));
+            $this->assertEqualsCanonicalizing(['oak', 'white'], array_column($palette['fasad']['solutions'][0]['base_colors'], 'slug'));
+            $this->assertArrayHasKey('icon_url', $palette['fasad']['solutions'][0]);
+        }
+        $this->assertEqualsCanonicalizing(array_keys($expected), $seen);
     }
 
     /** @return array<string, string> элемент → slug решения */

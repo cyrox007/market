@@ -50,6 +50,8 @@ class PublicReferencePerformanceTest extends TestCase
     {
         $directory = \Mockery::mock(\App\Services\Address\AddressDirectoryClient::class);
         $directory->shouldReceive('options')->once()->with('regions', [])->andReturn([['externalId' => '48', 'name' => 'Липецкая область']]);
+        $directory->shouldReceive('lastListCacheStatus')->once()->andReturn('live');
+        $directory->shouldReceive('lastListCacheAge')->once()->andReturn(null);
         $this->app->instance(\App\Services\Address\AddressDirectoryClient::class, $directory);
         $response = $this->getJson('/api/v1/address-directory/regions')->assertOk();
         $this->assertNotNull($response->headers->get('ETag'));

@@ -11,10 +11,13 @@ use App\Services\Product\SellableBundle;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
+use Tests\Concerns\ProductColorFixtures;
 use Tests\TestCase;
 
 class SellableBundleCheckoutTest extends TestCase
 {
+    use ProductColorFixtures;
+
     private function kit(): array
     {
         $root = Product::factory()->create(['name' => 'Шкаф', 'sku' => 'WARDROBE', 'price' => 1500,
@@ -24,6 +27,21 @@ class SellableBundleCheckoutTest extends TestCase
             'parent_product_id' => $extraParent->id, 'stock' => 10, 'external_id' => '1c-blue']);
         $root->sellableBundleComponents()->attach($extra->id, ['quantity' => 2, 'sort_order' => 1]);
         return [$root, $extraParent, $extra];
+    }
+
+    public function test_direct_bundle_preparation_returns_offer_and_physical_component_colors(): void
+    {
+        [$root, , $extra] = $this->kit();
+        $this->colorRow($root, 'oak-white', 'fasad', ['oak', 'white']);
+        $this->colorRow($extra, 'graphite', 'korpus');
+        $response = $this->postJson('/api/v1/orders/one-click', [
+            'bundle_id' => $root->id, 'quantity' => 1,
+        ])->assertOk()->assertJsonPath('colors.0.element.slug', 'fasad');
+        $parts = collect($response->json('priced_components'))->keyBy('product_id');
+        $this->assertSame('oak-white', $parts[$root->id]['colors'][0]['solution']['slug']);
+        $this->assertSame('korpus', $parts[$extra->id]['colors'][0]['element']['slug']);
+        $this->assertSame('graphite', $parts[$extra->id]['colors'][0]['solution']['slug']);
+        $this->assertSame(['product_id', 'quantity'], array_keys($response->json('items.0')));
     }
 
     public function test_simple_bundle_api_returns_priced_primary_and_all_components(): void

@@ -1,10 +1,27 @@
 # Система управления остатками и интеграция с 1С
 
-## Обзор
+> **Редакционная пометка 03.11.2026.** ⚠️ **Смешанный документ:** разделы об интеграции 1С полезны, но указанный приоритет `shipping_location_id`/старой региональной видимости и часть схем доставки относятся к прежним этапам. Для действующих цен и заказов использовать [архитектуру](../../../market-docs/system-overview.md), [источники запасов](../../../market-docs/warehouse-only-fulfillment.md) и реализацию `StockAvailabilityService`. Не использовать этот файл как нормативный API без сверки.
+
+## Актуальная сверка интеграции 1С и складских резервов (03.11.2026)
+
+**Проверено по исходникам `develop` (`3ad09fc7046a65e8102e57f36707102a5aa41831`), но не по production.** Ниже сохранён первоначальный текст как исторический: его примеры нельзя использовать как текущий протокол и команды выполнения.
+
+- **Заказы → 1С:** [`OrderOneCSyncDispatcher`](../app/Support/Integration/OrderOneCSyncDispatcher.php) ставит [`SyncOrderTo1CJob`](../app/Jobs/Integration/SyncOrderTo1CJob.php) после коммита и с учётом периода охлаждения заказа. В job вызываются [`BuildOrderSyncPayloadAction`](../app/Actions/Integration/Integration1C/BuildOrderSyncPayloadAction.php) и [`SyncOrdersTo1CAction`](../app/Actions/Integration/Integration1C/SyncOrdersTo1CAction.php).
+- **Текущий запрос заказов:** `POST {ONEC_API_BASE_URL}{ONEC_ORDERS_PATH}`, где путь по умолчанию `/api/v2/orders/sync`; тело `{"orders":[...]}`. Сервер требует **подтверждение по каждому заказу**, одного HTTP 200 недостаточно. Настройки: [`config/services.php`](../config/services.php) в разделе `integration_1c`; для работы нужны корректная конфигурация и обработчик очереди `integration-orders`.
+- **Схема заказа:** поля `orderId`, `createdAt`, `fullName`, `addressExternalId`, `warehouseExternalId` (необязателен для составных заказов), `pickFromStore`, `products`, `status` и серверные суммы. Старые `delivery_date` / `delivery_time` **не служат действующим контрактом checkout и синхронизации**; не отправляйте их, ориентируясь на пример ниже.
+- **Получение остатков из 1С:** [`OneCInventoryStockClient`](../app/Services/Inventory/Integrations/OneCInventoryStockClient.php) запрашивает `/api/v1/integration/1c/v2/cache/products/{external_id}/stocks` (настраиваемый путь). Эти настройки берутся из [`config/catalog_import.php`](../config/catalog_import.php) в разделе `svetofor_1c`, **не** из параметров отправки заказов в `config/services.php`.
+- **Резервирование при оформлении:** [`WarehouseOrderStock`](../app/Services/Shipping/WarehouseOrderStock.php) резервирует, освобождает или потребляет складские остатки на основании `fulfillment_snapshot` под транзакционными блокировками. Не заменять это ручным вызовом исторических `DecreaseStockAction`/событий из примеров ниже.
+- **Исторический `OneCApiService` и список `/api/orders` ниже:** класс `OneCApiService` отсутствует в дереве проверенного коммита; приведённые endpoints **не являются подтверждённым текущим протоколом магазина с 1С**. Не использовать их в новых интеграциях без отдельной сверки с принимающей системой.
+
+Действующие бизнес-инварианты: [складской checkout](../../../market-docs/warehouse-only-fulfillment.md), [архитектура](../../../market-docs/system-overview.md). Фактическую доступность внешней 1С, значение переменных и актуальность production нужно проверять отдельно.
+
+---
+
+## Обзор (исторический текст)
 
 Система управления остатками полностью интегрирована с Vanilo Framework и готова к обмену данными с внешними системами (1С, другие ERP).
 
-## Актуальные инварианты API (каталог/корзина)
+## Исторические утверждения об API (каталог/корзина) — не использовать как контракт
 
 - Входной региональный контекст: сначала `shipping_location_id`, затем legacy `region_id`.
 - Для списков каталога (`/products`, `/products/search`) региональная видимость применяется на уровне SQL-фильтрации, а не post-filter на фронтенде.
@@ -45,7 +62,7 @@
 -   **`OrderWasCancelled`** - автоматически возвращает остатки
 -   **`OrderWasCompleted`** - обновляет статистику продаж
 
-### Как это работает
+### Историческая схема событий — не применять к checkout
 
 1. При создании заказа в `OrderController`:
 
@@ -89,7 +106,7 @@ ONEC_API_KEY=your-api-key
 ONEC_API_TIMEOUT=30
 ```
 
-### API Endpoints 1С
+### Исторический список предполагаемых endpoints 1С (не подтверждён)
 
 Система ожидает следующие endpoints в 1С:
 
@@ -116,7 +133,7 @@ ONEC_API_TIMEOUT=30
 5. **GET `/api/products/{sku}`** - получение товара по артикулу
     - Возвращает данные товара
 
-### Формат данных заказа для 1С
+### Старый пример данных заказа для 1С (не соответствует текущему payload)
 
 ```json
 {
