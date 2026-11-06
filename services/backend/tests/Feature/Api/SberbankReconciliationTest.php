@@ -71,6 +71,39 @@ class SberbankReconciliationTest extends TestCase
         $this->assertEquals('paid', (string) $payment->fresh()->getRawOriginal('status'));
     }
 
+    public function test_order_number_only_callback_checks_stored_bank_payment_id(): void
+    {
+        [$order, $payment] = $this->payment();
+        $client = \Mockery::mock(SberbankAcquiringClient::class);
+        $client->shouldReceive('getOrderStatusExtended')->once()
+            ->with(self::BANK_ID, $order->number)
+            ->andReturn(['errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456]);
+        $this->app->instance(SberbankAcquiringClient::class, $client);
+        (new ProcessSberbankCallbackJob([
+            'orderNumber' => $order->number, 'status' => 1, 'operation' => 'deposited',
+        ]))->handle(app(GatewayLoggerInterface::class));
+
+        $this->assertEquals(1234.56, (float) $payment->fresh()->amount_paid);
+        $this->assertSame('paid', (string) $payment->fresh()->getRawOriginal('status'));
+    }
+
+    public function test_callback_without_persisted_bank_payment_id_is_not_confirmed(): void
+    {
+        [$order, $payment] = $this->payment();
+        $payment->remote_id = null;
+        $payment->save();
+        $client = \Mockery::mock(SberbankAcquiringClient::class);
+        $client->shouldNotReceive('getOrderStatusExtended');
+        $this->app->instance(SberbankAcquiringClient::class, $client);
+        (new ProcessSberbankCallbackJob([
+            'mdOrder' => self::BANK_ID, 'orderNumber' => $order->number,
+            'status' => 1, 'operation' => 'deposited',
+        ]))->handle(app(GatewayLoggerInterface::class));
+
+        $this->assertSame(0.0, (float) $payment->fresh()->amount_paid);
+        $this->assertSame('pending', (string) $payment->fresh()->getRawOriginal('status'));
+    }
+
     public function test_failed_bank_status_never_records_an_amount_or_refund_task(): void
     {
         [$order, $payment] = $this->payment();
