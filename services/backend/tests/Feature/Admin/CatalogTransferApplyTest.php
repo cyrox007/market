@@ -48,6 +48,19 @@ class CatalogTransferApplyTest extends TestCase
         $this->assertSame('Своя фабрика', app(\App\Services\Product\ProductManufacturer::class)->value($product->fresh()));
     }
 
+    public function test_api_color_becomes_main_color_not_characteristic(): void
+    {
+        $row = $this->row();
+        $writer = app(TransferProductWriter::class);
+        $product = $writer->applyTable($row);
+        $writer->applyApi($row, ['characteristics' => [['name' => 'Цвет', 'values' => ['Белая']]], 'stocks' => []]);
+
+        $main = $product->colorRows()->whereNull('color_element_id')->sole()->solution()->with('baseColors')->sole();
+        $this->assertSame('Белая', $main->name);
+        $this->assertSame(['Белый'], $main->baseColors->pluck('name')->all());
+        $this->assertFalse(DB::table('product_attributes')->where('slug', 'color')->exists());
+    }
+
     public function test_api_creates_missing_warehouse_then_records_stock_and_clears_stale_stock(): void
     {
         $id = $this->row();

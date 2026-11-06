@@ -10,6 +10,7 @@ use App\Models\Product\Attribute;
 use App\Models\Product\AttributeValue;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
+use App\Services\Product\ProductColorImport;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -58,6 +59,7 @@ final class OzonCategoryImportService
     public function __construct(
         private readonly OzonXlsxReader $reader,
         private readonly SyncVariantVariationAttributesAction $syncVariantAttributes,
+        private readonly ProductColorImport $colorImport,
     ) {
     }
 
@@ -246,7 +248,7 @@ final class OzonCategoryImportService
                 $product->parentProduct->taxons()->syncWithoutDetaching([$category->id]);
             }
 
-            $this->syncProductAttributes($product, $row, $headers, $product->isVariant());
+            $this->syncProductAttributes($product, $row, $headers);
 
             if ($isNew) {
                 $stats['created_products']++;
@@ -342,7 +344,7 @@ final class OzonCategoryImportService
                 $product->save();
                 $product->taxons()->syncWithoutDetaching([$category->id]);
 
-                $this->syncProductAttributes($product, $row, $headers, true);
+                $this->syncProductAttributes($product, $row, $headers);
                 $this->syncVariationAttributes(
                     $parent,
                     $product,
@@ -467,14 +469,15 @@ final class OzonCategoryImportService
     /**
      * @param array<string, string> $headers
      */
-    private function syncProductAttributes(Product $product, array $row, array $headers, bool $isVariant): void
+    private function syncProductAttributes(Product $product, array $row, array $headers): void
     {
+        $this->syncMainColor($product, $row);
         foreach (($row['fields'] ?? []) as $normalizedHeader => $rawValue) {
             $normalizedHeader = (string) $normalizedHeader;
             if (! $this->shouldImportAsAttribute($normalizedHeader, $rawValue)) {
                 continue;
             }
-            if ($isVariant && in_array($normalizedHeader, [OzonXlsxReader::FIELD_COLOR, OzonXlsxReader::FIELD_COLOR_NAME], true)) {
+            if (in_array($normalizedHeader, [OzonXlsxReader::FIELD_COLOR, OzonXlsxReader::FIELD_COLOR_NAME], true)) {
                 continue;
             }
 
@@ -482,6 +485,14 @@ final class OzonCategoryImportService
             $attribute = $this->resolveAttribute($normalizedHeader, $displayName);
             $this->replaceProductAttribute($product, $attribute, $rawValue);
         }
+    }
+
+    /** «Название цвета» — цветовое решение, «Цвет товара» — его базовые цвета; без названия решение называется по цветам. */
+    private function syncMainColor(Product $product, array $row): void
+    {
+        $colors = $this->splitMultipleValues(trim((string) ($row['color'] ?? '')));
+        $name = trim((string) ($row['color_name'] ?? ''));
+        $this->colorImport->setMainColor((int) $product->id, $name !== '' ? $name : ProductColorImport::compositeName($colors), $colors);
     }
 
     /**
@@ -535,19 +546,6 @@ final class OzonCategoryImportService
         $formData = ['variation_custom_' . $variantAttribute->id => $variantLabel];
         $attributeIds = [(int) $variantAttribute->id];
 
-        $colorRaw = trim((string) ($row['color'] ?? ''));
-        if ($colorRaw !== '') {
-            $colorAttribute = $this->ensureColorVariationAttribute();
-            $valueIds = [];
-            foreach ($this->splitMultipleValues($colorRaw) as $value) {
-                $valueIds[] = $this->resolveAttributeValue($colorAttribute, $value)->id;
-            }
-            if ($valueIds !== []) {
-                $formData['variation_attr_' . $colorAttribute->id] = $valueIds;
-                $attributeIds[] = (int) $colorAttribute->id;
-            }
-        }
-
         foreach ($category->variationAttributes()->get() as $attribute) {
             if (in_array((int) $attribute->id, $attributeIds, true)) {
                 continue;
@@ -574,7 +572,7 @@ final class OzonCategoryImportService
             return;
         }
 
-        if ($attribute->type === 'select' || $attribute->type === 'color' || ! $attribute->allow_custom_value) {
+        if ($attribute->type === 'select' || ! $attribute->allow_custom_value) {
             $values = $this->splitMultipleValues($value);
             $ids = array_map(
                 fn (string $part): int => (int) $this->resolveAttributeValue($attribute, $part)->id,
@@ -600,46 +598,10 @@ final class OzonCategoryImportService
         return null;
     }
 
-    private function ensureColorVariationAttribute(): Attribute
-    {
-        $attribute = Attribute::query()->firstOrCreate(
-            ['slug' => Attribute::SLUG_COLOR],
-            [
-                'name' => 'Цвет',
-                'type' => 'color',
-                'is_filterable' => true,
-                'is_use_in_variations' => true,
-                'allow_custom_value' => false,
-                'is_multiple' => true,
-                'sort_order' => 10,
-            ],
-        );
-
-        $changes = [];
-        if (! $attribute->is_use_in_variations) {
-            $changes['is_use_in_variations'] = true;
-        }
-        if (! $attribute->is_multiple) {
-            $changes['is_multiple'] = true;
-        }
-        if ($attribute->type !== 'color') {
-            $changes['type'] = 'color';
-        }
-        if ($changes !== []) {
-            $attribute->forceFill($changes)->saveQuietly();
-        }
-
-        $this->attributeCache[Attribute::SLUG_COLOR] = $attribute;
-
-        return $attribute;
-    }
-
     private function resolveAttribute(string $normalizedHeader, string $displayName): Attribute
     {
         $name = $this->cleanAttributeName($displayName);
-        $slug = $normalizedHeader === OzonXlsxReader::FIELD_COLOR
-            ? Attribute::SLUG_COLOR
-            : Attribute::canonicalSlugForName($name);
+        $slug = Attribute::canonicalSlugForName($name);
         if ($slug === '') {
             $slug = 'ozon-' . substr(sha1(mb_strtolower($name)), 0, 16);
         }
@@ -650,12 +612,12 @@ final class OzonCategoryImportService
 
         $defaults = [
             'name' => $name,
-            'type' => $slug === Attribute::SLUG_COLOR ? 'color' : 'text',
-            'is_filterable' => $slug === Attribute::SLUG_COLOR,
+            'type' => 'text',
+            'is_filterable' => false,
             'is_required' => false,
             'is_use_in_variations' => false,
-            'allow_custom_value' => $slug !== Attribute::SLUG_COLOR,
-            'is_multiple' => $slug === Attribute::SLUG_COLOR,
+            'allow_custom_value' => true,
+            'is_multiple' => false,
             'sort_order' => 100,
         ];
 
@@ -667,19 +629,6 @@ final class OzonCategoryImportService
         }
         if ($attribute === null) {
             $attribute = Attribute::query()->create(array_merge(['slug' => $slug], $defaults));
-        }
-
-        if ($slug === Attribute::SLUG_COLOR) {
-            $changes = [];
-            if ($attribute->type !== 'color') {
-                $changes['type'] = 'color';
-            }
-            if (! $attribute->is_multiple) {
-                $changes['is_multiple'] = true;
-            }
-            if ($changes !== []) {
-                $attribute->forceFill($changes)->saveQuietly();
-            }
         }
 
         $this->attributeCache[$slug] = $attribute;
@@ -701,7 +650,6 @@ final class OzonCategoryImportService
 
         $now = now();
         $useValues = $attribute->type === 'select'
-            || $attribute->type === 'color'
             || ! $attribute->allow_custom_value;
 
         if ($useValues) {

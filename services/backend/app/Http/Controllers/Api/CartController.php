@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Support\Facades\DB;
-
 use App\Actions\Cart\AddToCartAction;
 use App\Actions\Cart\Exceptions\CartItemNotFoundException;
 use App\Actions\Cart\Exceptions\CartProductUnavailableException;
@@ -13,9 +11,10 @@ use App\Http\Resources\CartItemResource;
 use App\Models\Product\Product;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Product\ProductRegionRuleService;
+use App\Services\Product\ProductVariantSelector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Vanilo\Cart\Facades\Cart;
 
@@ -31,6 +30,7 @@ class CartController extends Controller
         protected ProductRegionRuleService $regionRuleService,
         protected AddToCartAction $addToCart,
         protected UpdateCartItemQuantityAction $updateCartItemQuantity,
+        protected ProductVariantSelector $variantSelector,
     ) {
     }
 
@@ -171,8 +171,8 @@ class CartController extends Controller
      *             required={"product_id"},
      *             @OA\Property(property="product_id", type="integer", example=1, description="ID товара"),
      *             @OA\Property(property="quantity", type="integer", example=1, minimum=1, description="Количество (по умолчанию 1)"),
-     *             @OA\Property(property="color_slug", type="string", nullable=true, example="red", description="Slug цвета (для вариативных товаров)"),
-     *             @OA\Property(property="size_slug", type="string", nullable=true, example="large", description="Slug размера (для вариативных товаров)")
+     *             @OA\Property(property="size_slug", type="string", nullable=true, example="large", description="Slug размера (для вариативных товаров)"),
+     *             @OA\Property(property="color_options", type="object", description="Выбор вариации по цвету: ключ группы → ключ варианта из ProductDetail.color_options")
      *         )
      *     ),
      *     @OA\Response(
@@ -197,6 +197,8 @@ class CartController extends Controller
             'variation_attributes' => 'sometimes|array',
             'variation_attributes.*.attribute_slug' => 'required_with:variation_attributes|string',
             'variation_attributes.*.value_slug' => 'required_with:variation_attributes|string',
+            'color_options' => 'sometimes|array',
+            'color_options.*' => 'string',
         ]);
 
         $product = Product::findOrFail($validated['product_id']);
@@ -206,9 +208,10 @@ class CartController extends Controller
             // Уже вариация — используем как есть
         } elseif ($product->isVariable()) {
             $variationAttributes = $validated['variation_attributes'] ?? [];
-            if (empty($variationAttributes)) {
+            $colorOptions = ProductVariantSelector::colorSelection($validated['color_options'] ?? []);
+            if (empty($variationAttributes) && $colorOptions === []) {
                 return response()->json([
-                    'message' => 'Для вариативного товара необходимо указать variation_attributes',
+                    'message' => 'Для вариативного товара необходимо указать variation_attributes или color_options',
                     'product_name' => $product->name,
                 ], 422);
             }
@@ -216,7 +219,7 @@ class CartController extends Controller
             foreach ($variationAttributes as $va) {
                 $attrs[$va['attribute_slug']] = $va['value_slug'];
             }
-            $variant = $product->getVariantByVariationAttributes($attrs);
+            $variant = $this->variantSelector->variant($product, $attrs, $colorOptions);
             if (!$variant) {
                 return response()->json([
                     'message' => 'Вариация товара не найдена. Проверьте выбранные параметры.',
@@ -287,6 +290,8 @@ class CartController extends Controller
             'variation_attributes' => 'sometimes|array',
             'variation_attributes.*.attribute_slug' => 'required_with:variation_attributes|string',
             'variation_attributes.*.value_slug' => 'required_with:variation_attributes|string',
+            'color_options' => 'sometimes|array',
+            'color_options.*' => 'string',
         ]);
         $itemId = (int) $itemId;
 
@@ -307,12 +312,13 @@ class CartController extends Controller
         }
 
         $variationAttributes = $validated['variation_attributes'] ?? [];
-        if ($parentProduct->isVariable() && !empty($variationAttributes)) {
+        $colorOptions = ProductVariantSelector::colorSelection($validated['color_options'] ?? []);
+        if ($parentProduct->isVariable() && (!empty($variationAttributes) || $colorOptions !== [])) {
             $attrs = [];
             foreach ($variationAttributes as $va) {
                 $attrs[$va['attribute_slug']] = $va['value_slug'];
             }
-            $variant = $parentProduct->getVariantByVariationAttributes($attrs);
+            $variant = $this->variantSelector->variant($parentProduct, $attrs, $colorOptions);
             if (!$variant) {
                 return response()->json([
                     'message' => 'Вариация товара не найдена. Проверьте выбранные параметры.',

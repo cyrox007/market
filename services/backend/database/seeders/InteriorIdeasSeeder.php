@@ -6,8 +6,6 @@ use App\Models\Page\InteriorIdea;
 use App\Models\Page\InteriorIdeaHotspot;
 use App\Models\Product\Product;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
 
 class InteriorIdeasSeeder extends Seeder
 {
@@ -170,6 +168,7 @@ class InteriorIdeasSeeder extends Seeder
         if ($imagePath && file_exists($imagePath)) {
             try {
                 $idea->addMedia($imagePath)
+                    ->preservingOriginal()
                     ->toMediaCollection('image');
 
                 $this->command->info("   ✓ Изображение добавлено: {$imageName}");

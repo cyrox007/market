@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Filament\Forms\ProductColorRowsField;
 use App\Filament\Resources\Products\Attributes\AttributeQuickCreate;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeTemplate;
@@ -9,7 +10,6 @@ use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
 use App\Models\Product\ProductDocument;
 use Filament\Actions\Action;
-use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -49,6 +49,8 @@ class ProductClassicForm extends ProductForm
                         Group::make([
                             self::imagesSection(),
                             self::documentsSection(),
+                            ProductColorRowsField::section()
+                                ->visible(fn (Get $get): bool => ! $get('is_variable')),
                             self::dimensionsSection(),
                             self::taxShippingSection(),
                             self::seoSection(),
@@ -201,7 +203,7 @@ class ProductClassicForm extends ProductForm
     protected static function attributesSection(): Section
     {
         return Section::make('Характеристики товара')
-            ->description('Габариты для фильтров: «Ширина (мм)», «Глубина (мм)», «Высота (мм)» — только числа без «мм». Цвет и торговый размер вариативного товара задавайте у предложений; общие свойства наследуются, если у предложения нет своего значения.')
+            ->description('Габариты для фильтров: «Ширина (мм)», «Глубина (мм)», «Высота (мм)» — только числа без «мм». Торговый размер вариативного товара задавайте у предложений; общие свойства наследуются, если у предложения нет своего значения.')
             ->key('product_attributes_section')
             ->headerActions([self::applyAttributeTemplateAction()])
             ->schema([
@@ -261,12 +263,6 @@ class ProductClassicForm extends ProductForm
                             })
                             ->createOptionForm([
                                 TextInput::make('value')->label('Значение')->required()->maxLength(255),
-                                ColorPicker::make('color_code')
-                                    ->label('Цвет')
-                                    ->visible(function ($get) {
-                                        $attrId = $get('../../attribute_id');
-                                        return $attrId && Attribute::find($attrId)?->type === 'color';
-                                    }),
                             ])
                             ->createOptionUsing(fn (array $data, $get): int => \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create($data, $get('attribute_id'))),
 
