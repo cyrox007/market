@@ -96,6 +96,16 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             return;
         }
 
+        // A bank payment must already be bound to this order. An orderNumber
+        // alone is not a safe payment identifier (registration retries may share
+        // that order). Fail closed when registration did not persist remote_id.
+        $boundRemoteId = trim((string) ($payment->remote_id ?? ''));
+        if ($boundRemoteId === '' || ($mdOrder && ! hash_equals($boundRemoteId, (string) $mdOrder))) {
+            $gatewayLog->log(self::GATEWAY_ID, 'callback_rejected', 'Идентификатор банка не совпадает с платёжной записью',
+                ['order_id' => $order->id, 'payment_id' => $payment->id], $payment, 'payment', 'warning');
+            return;
+        }
+
         $gateway = $payment->getMethod()->getGateway();
         if (!$gateway instanceof SberbankAcquiringGateway) {
             Log::warning('ProcessSberbankCallbackJob: invalid gateway for payment', ['payment_id' => $payment->id]);
@@ -117,7 +127,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         // --- Р-1: обратная сверка статуса у банка. Callback — лишь триггер;
         // факт оплаты определяется прямым запросом getOrderStatusExtended, а НЕ полями callback.
         $bank = app(SberbankAcquiringClient::class)->getOrderStatusExtended(
-            (string) ($mdOrder ?? ''),
+            $boundRemoteId,
             (string) ($orderNumber ?? $order->number)
         );
 
@@ -133,16 +143,24 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             return;
         }
 
-        $errorCode = (int) ($bank['errorCode'] ?? 0);
-        $bankOrderStatus = isset($bank['orderStatus']) ? (int) $bank['orderStatus'] : -1;
-        $bankAmount = (int) ($bank['amount'] ?? 0); // копейки
+        // No errorCode is not proof of success; bank replies must be complete.
+        // Bank integers must be integral values, not fractional strings/floats
+        // silently truncated into a valid status or a matching amount.
+        $errorCode = filter_var($bank['errorCode'] ?? null, FILTER_VALIDATE_INT);
+        $bankOrderStatus = filter_var($bank['orderStatus'] ?? null, FILTER_VALIDATE_INT);
+        $bankAmount = filter_var($bank['amount'] ?? null, FILTER_VALIDATE_INT);
+        $errorCode = $errorCode !== false && $errorCode !== null ? $errorCode : -1;
+        $bankOrderStatus = $bankOrderStatus !== false && $bankOrderStatus !== null ? $bankOrderStatus : -1;
+        $bankAmount = $bankAmount !== false && $bankAmount !== null && $bankAmount > 0
+            ? $bankAmount : 0; // Сбер отвечает в КОПЕЙКАХ
         $expectedAmount = (int) round(((float) $payment->getAmount()) * 100);
 
-        // Оплата подтверждена = orderStatus 2 (полная авторизация) и запрос без ошибки.
-        $paid = ($errorCode === 0 && $bankOrderStatus === 2);
+        // Bank status 2 with EXACT amount is the only authoritative proof of
+        // payment. A missing amount must not confirm payment either.
+        $paid = ($errorCode === 0 && $bankOrderStatus === 2
+            && $bankAmount > 0 && $bankAmount === $expectedAmount);
 
-        // Сверка суммы: банк должен подтвердить ровно сумму заказа (если сумму вернул).
-        if ($paid && $bankAmount > 0 && $bankAmount !== $expectedAmount) {
+        if ($errorCode === 0 && $bankOrderStatus === 2 && ! $paid) {
             $gatewayLog->log(self::GATEWAY_ID, 'callback_rejected', 'Сумма банка не совпадает с заказом: ' . $bankAmount . ' коп vs ' . $expectedAmount . ' коп — оплата не проведена', [
                 'order_id' => $order->id,
                 'order_number' => $order->number,
@@ -156,11 +174,21 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         }
 
         // Обновление платежа/заказа — по ДОВЕРЕННОМУ статусу банка, а не по телу callback.
+        // 0/1/5 = registered/authorized/in authentication, not a bank refusal.
+        // 3/6 = reversed/declined, 4 = refunded and handled by refund flow.
+        if ($errorCode !== 0 || $bankOrderStatus === 4) {
+            $gatewayLog->log(self::GATEWAY_ID, 'callback_unverified',
+                'Неподтверждённый или возвращённый статус банка — платёж не меняем',
+                ['order_id' => $order->id, 'bank_order_status' => $bankOrderStatus, 'error_code' => $errorCode],
+                $payment, 'payment', 'warning');
+            return;
+        }
+        $failed = in_array($bankOrderStatus, [3, 6], true);
         $trustedPayload = [
-            'operation' => $paid ? 'deposited' : 'declined',
-            'status' => $paid ? 1 : 0,
-            'amount' => $bankAmount ?: $expectedAmount,
-            'mdOrder' => (string) ($mdOrder ?? ''),
+            'operation' => $paid ? 'deposited' : ($failed ? 'declined' : 'pending'),
+            'status' => $paid ? 1 : ($failed ? 0 : 'PENDING'),
+            'amount' => $paid ? round($bankAmount / 100, 2) : 0.0,
+            'mdOrder' => $boundRemoteId,
             'orderNumber' => $order->number,
             'actionCode' => $bank['actionCode'] ?? null,
             'message' => $bank['actionCodeDescription'] ?? $bank['errorMessage'] ?? null,
@@ -205,7 +233,9 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                     'Оплата получена (Сбербанк)',
                     null
                 );
-            } else {
+            } elseif ($order->status !== OrderStatus::CANCELLED->value) {
+                // A late bank settlement for an already cancelled order must
+                // create a refund review, NOT re-export a cancelled sale to 1C.
                 OrderOneCSyncDispatcher::dispatch((int) $order->id);
             }
         } else {
