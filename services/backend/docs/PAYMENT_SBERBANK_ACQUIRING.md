@@ -19,7 +19,7 @@ APP_URL=https://demo1.site.zone
 
 ## Промышленная среда
 
-Используйте креды из ЛК (userName / merchantLogin совпадают, например `P_4823025960%`).
+Используйте креды из ЛК (userName / merchantLogin совпадают, например `YOUR_MERCHANT_LOGIN`).
 
 1. Смените временный пароль на постоянный (мин. 18 символов, цифра + заглавная латиница):  
    https://www.sberbank.ru/help/business/sbbol/100667  
