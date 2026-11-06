@@ -3,7 +3,9 @@
   "info": {
     "title": "Svetofor Furniture API",
     "version": "1.0.0",
-    "description": "API для интернет-магазина мебели"
+    "description": "API интернет-магазина; список маршрутов сверяется с routes/api.php, а схемы цветов обновлены после PR #143/#144 (06.11.2026). Production проверяется отдельно.",
+    "x-documentation-reviewed-at": "2026-11-06",
+    "x-reviewed-source": "develop@b7a022da"
   },
   "servers": [
     {
@@ -28,6 +30,12 @@
         "in": "header",
         "name": "X-XSRF-TOKEN",
         "description": "CSRF-токен. Читается из куки XSRF-TOKEN и передаётся заголовком для небезопасных методов (POST/PUT/DELETE) на sanctum-эндпоинтах."
+      },
+      "sanctum": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Laravel Sanctum token",
+        "description": "Альтернатива сессионной авторизации. Для SPA используется сессионная cookie; Bearer-токен должен принадлежать пользователю и иметь нужные права."
       }
     },
     "schemas": {
@@ -255,6 +263,30 @@
           }
         }
       },
+      "ColorOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
       "SizeOption": {
         "type": "object",
         "properties": {
@@ -314,7 +346,7 @@
           "sku": {
             "type": "string",
             "nullable": true,
-            "description": "В СПИСКАХ = null (isListView), заполнен в detail (GET /products/{slug})"
+            "description": "Артикул конкретного SKU; присутствует в списках."
           },
           "price": {
             "type": "number"
@@ -392,7 +424,7 @@
             "items": {
               "$ref": "#/components/schemas/ProductColorRow"
             },
-            "description": "Цвета товара или вариации. В режиме списка (_list_view) пусто."
+            "description": "Цвета именно этого SKU (element + solution), в том числе в облегчённом списке."
           },
           "default_size": {
             "oneOf": [
@@ -468,15 +500,22 @@
           },
           "delivery_days_source": {
             "type": "string",
-            "description": "delivery_days — старое региональное правило, не новый расчёт склада",
             "enum": [
-              "legacy_region_rule"
-            ]
+              "warehouse_fulfillment"
+            ],
+            "description": "Сроки по складскому контракту, не legacy региональное правило"
           },
           "delivery_quote_endpoint": {
             "type": "string",
             "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
             "example": "/api/v1/shipping/quote"
+          },
+          "palette": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorPalette"
+            },
+            "description": "Доступные цветовые решения активных предложений родителя, включая предложения за пределами страницы; не означает наличие на складе."
           },
           "default_color_options": {
             "type": "object",
@@ -489,16 +528,9 @@
               "main": "belyi",
               "fasad": "dub-votan-belyi"
             }
-          },
-          "palette": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProductColorPalette"
-            },
-            "description": "Палитра вариативного товара; иначе пусто. В режиме списка (_list_view) пусто."
           }
         },
-        "description": "Карточка товара. Поля сверены с кодом ProductResource (ветка main) и локальным API. ВНИМАНИЕ: код main опережает демо-стенд demo1.site.zone — на стенде ещё есть excerpt (удалён в main) и нет backorder/stocks. category/categories появляются только в detail (when taxons загружены). В списках sku/image_hd/image_fullhd = null (isListView)."
+        "description": "Облегчённая позиция каталога: самостоятельный SKU или активное предложение. Изображение и цена относятся к этому SKU; цвета передаются по новой модели element → solution."
       },
       "ProductVariant": {
         "type": "object",
@@ -730,7 +762,7 @@
             "items": {
               "$ref": "#/components/schemas/ProductColorRow"
             },
-            "description": "Цвета простого товара или выбранной вариации; у вариативного товара пусто"
+            "description": "Выбранные цветовые решения конкретного SKU; на родительской вариативной группе может быть пусто."
           },
           "feature_blocks": {
             "type": "array",
@@ -808,15 +840,21 @@
           },
           "delivery_days_source": {
             "type": "string",
-            "description": "delivery_days — старое региональное правило, не новый расчёт склада",
             "enum": [
-              "legacy_region_rule"
+              "warehouse_fulfillment"
             ]
           },
           "delivery_quote_endpoint": {
             "type": "string",
             "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
             "example": "/api/v1/shipping/quote"
+          },
+          "palette": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorPalette"
+            },
+            "description": "Палитра вариативного товара; иначе пусто"
           },
           "color_options": {
             "type": "array",
@@ -835,13 +873,6 @@
               "main": "belyi",
               "fasad": "dub-votan-belyi"
             }
-          },
-          "palette": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProductColorPalette"
-            },
-            "description": "Палитра вариативного товара; иначе пусто"
           }
         },
         "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, feature_blocks, delivery_blocks, nearest_stock."
@@ -1318,198 +1349,6 @@
         },
         "description": "Стандартный ответ 422 Laravel: message + errors по полям."
       },
-      "ShippingLocationBrief": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "parent_id": {
-            "type": "integer",
-            "nullable": true
-          },
-          "name": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "location_type": {
-            "type": "string"
-          },
-          "postal_code": {
-            "type": "string",
-            "nullable": true
-          },
-          "pickup_enabled": {
-            "type": "boolean",
-            "nullable": true
-          },
-          "pickup_notice": {
-            "type": "string",
-            "nullable": true
-          },
-          "effective_pickup_enabled": {
-            "type": "boolean"
-          },
-          "parent": {
-            "type": "object",
-            "nullable": true
-          }
-        },
-        "description": "Локация в списке GET /shipping/locations."
-      },
-      "Carrier": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "is_active": {
-            "type": "boolean"
-          },
-          "configuration": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "nullable": true
-              },
-              "description": {
-                "type": "string",
-                "nullable": true
-              }
-            }
-          }
-        },
-        "description": "Перевозчик (GET /shipping/carriers)."
-      },
-      "DeliveryHandlingType": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "requires_floor": {
-            "type": "boolean"
-          },
-          "max_floor": {
-            "type": "integer",
-            "nullable": true
-          },
-          "requires_elevator": {
-            "type": "boolean"
-          }
-        },
-        "description": "Тип обработки доставки (подъём/этаж). GET /shipping/delivery-handling-types."
-      },
-      "AdditionalService": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "icon": {
-            "type": "string",
-            "nullable": true
-          },
-          "price_type": {
-            "type": "string"
-          },
-          "price": {
-            "type": "number"
-          },
-          "base_price": {
-            "type": "number"
-          }
-        },
-        "description": "Доп. услуга (сборка/подъём). GET /shipping/additional-services?location_id=."
-      },
-      "ShippingMethodOption": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "base_price": {
-            "type": "number"
-          },
-          "free_delivery_threshold": {
-            "type": "number",
-            "nullable": true
-          },
-          "delivery_days_min": {
-            "type": "integer",
-            "nullable": true
-          },
-          "delivery_days_max": {
-            "type": "integer",
-            "nullable": true
-          },
-          "priority": {
-            "type": "integer",
-            "nullable": true
-          },
-          "source": {
-            "type": "string",
-            "nullable": true
-          },
-          "price": {
-            "type": "number"
-          },
-          "carrier": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "name": {
-                "type": "string"
-              },
-              "code": {
-                "type": "string",
-                "nullable": true
-              }
-            }
-          }
-        },
-        "description": "Способ доставки для локации (GET /shipping/shipping-methods?location_id=)."
-      },
       "ShippingLocationTreeNode": {
         "type": "object",
         "properties": {
@@ -1613,65 +1452,6 @@
           }
         },
         "description": "Узел дерева локаций (GET /shipping/locations/tree). Рекурсивный: active_children — дочерние узлы той же структуры. Числовые поля доставки/сборки заполнены на узлах с настроенной доставкой, иначе null."
-      },
-      "ShippingCalculation": {
-        "type": "object",
-        "properties": {
-          "delivery_price": {
-            "type": "number"
-          },
-          "handling_price": {
-            "type": "number",
-            "nullable": true
-          },
-          "assembly_price": {
-            "type": "number",
-            "nullable": true
-          },
-          "total": {
-            "type": "number"
-          },
-          "free_delivery_threshold": {
-            "type": "number",
-            "nullable": true
-          },
-          "delivery_days": {
-            "nullable": true,
-            "description": "null | {min,max}",
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "min": {
-                    "type": "integer"
-                  },
-                  "max": {
-                    "type": "integer"
-                  }
-                }
-              }
-            ]
-          },
-          "delivery_days_min": {
-            "type": "integer",
-            "nullable": true
-          },
-          "delivery_days_max": {
-            "type": "integer",
-            "nullable": true
-          },
-          "assembly_days": {
-            "type": "integer",
-            "nullable": true
-          },
-          "requires_assembly": {
-            "type": "boolean"
-          },
-          "base_price": {
-            "type": "number"
-          }
-        },
-        "description": "Результат калькулятора доставки. КРИТИЧНО: total идёт в стоимость заказа."
       },
       "TeamMember": {
         "type": "object",
@@ -1818,6 +1598,40 @@
           "delivery_days": {
             "type": "integer",
             "nullable": true
+          },
+          "old_price": {
+            "type": "number",
+            "nullable": true,
+            "description": "Сравнительная цена единицы или null; не вычитать повторно"
+          },
+          "old_total": {
+            "type": "number",
+            "nullable": true,
+            "description": "Сравнительная сумма строки или null"
+          },
+          "discount_amount": {
+            "type": "number",
+            "description": "Экономия строки, уже учтена в total",
+            "example": 100
+          },
+          "discount_percent": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Процент экономии от old_price, не всегда процент конкретного правила"
+          },
+          "price_source": {
+            "type": "string",
+            "enum": [
+              "catalog",
+              "private_link"
+            ]
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorRow"
+            },
+            "description": "Цвета выбранного SKU (элемент и цветовое решение); не цвета родителя/соседних вариантов."
           }
         }
       },
@@ -2445,6 +2259,41 @@
                 }
               }
             }
+          },
+          "delivery_schedule": {
+            "type": "object",
+            "description": "Оценка, а НЕ подтвержденный календарь курьерских слотов",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "estimate_only",
+                  "requires_confirmation"
+                ]
+              },
+              "date_selection_enabled": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "time_selection_enabled": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "confirmation_required": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "notice": {
+                "type": "string",
+                "description": "Дату и время согласует менеджер"
+              }
+            }
           }
         }
       },
@@ -2717,10 +2566,6 @@
       "description": "Способы оплаты и колбэки платёжных шлюзов"
     },
     {
-      "name": "Regions",
-      "description": "Регионы и локации доставки"
-    },
-    {
       "name": "Addresses",
       "description": "Адреса пользователя"
     },
@@ -2747,6 +2592,22 @@
     {
       "name": "User",
       "description": "Профиль и настройки пользователя"
+    },
+    {
+      "name": "AddressDirectory",
+      "description": "ГАР/КЛАДР; отдельный адресный сервис"
+    },
+    {
+      "name": "Localities",
+      "description": "Поиск населённых пунктов"
+    },
+    {
+      "name": "PrivateOffers",
+      "description": "Закрытые персональные предложения"
+    },
+    {
+      "name": "OrderAccess",
+      "description": "Заказы владельца и гостя по защищённому токену"
     }
   ],
   "paths": {
@@ -2961,6 +2822,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -2997,6 +2861,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -3064,6 +2931,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -3139,6 +3009,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -3211,6 +3084,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -3262,6 +3138,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -3340,7 +3219,7 @@
       "get": {
         "operationId": "getProducts",
         "summary": "Получить список товаров",
-        "description": "Каталог с фильтрацией по одному активному SKU: цвет, размер, цена, акция, характеристики и габариты не могут совпасть на разных вариантах. Общие характеристики наследуются от родителя, если SKU не переопределил значение; параметры вариаций не наследуют родительский список опций. Стабильный дополнительный порядок ID asc. meta.filters для категории/набора категорий/комнаты, иначе null. facet_mode=excluding_self: каждый фасет учитывает остальные пользовательские фильтры, исключая собственный выбор; обязательные ограничения комнаты сохраняются. count — уникальные карточки, не SKU; нулевые значения опущены. Цена, диапазоны, фильтрация и сортировка учитывают регион и авторизованного покупателя: сначала региональная цена, затем одно подходящее ценовое правило с наибольшим приоритетом. Передавайте сессию или Bearer-токен; user_id из запроса не используется. Ответ private, no-store: нельзя помещать персональные цены в общий кеш.",
+        "description": "Каталог с фильтрацией по одному активному SKU: цвет, размер, цена, акция, характеристики и габариты не могут совпасть на разных вариантах. Общие характеристики наследуются от родителя, если SKU не переопределил значение; параметры вариаций не наследуют родительский список опций. Стабильный дополнительный порядок ID asc. meta.filters для категории/набора категорий/комнаты, иначе null. facet_mode=excluding_self: каждый фасет учитывает остальные пользовательские фильтры, исключая собственный выбор; обязательные ограничения комнаты сохраняются. count — число отдельных SKU; нулевые значения опущены. Цена, диапазоны, фильтрация и сортировка учитывают регион и авторизованного покупателя: сначала региональная цена, затем одно подходящее ценовое правило с наибольшим приоритетом. Передавайте сессию или Bearer-токен; user_id из запроса не используется. Ответ private, no-store: нельзя помещать персональные цены в общий кеш.",
         "tags": [
           "Products"
         ],
@@ -3463,23 +3342,6 @@
               "type": "array",
               "items": {
                 "type": "string"
-              }
-            }
-          },
-          {
-            "name": "element_colors",
-            "in": "query",
-            "required": false,
-            "style": "deepObject",
-            "explode": true,
-            "description": "Фильтр по цвету элемента: element_colors[<slug элемента>][]=<slug базового цвета>",
-            "schema": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
               }
             }
           },
@@ -3684,6 +3546,23 @@
               "minimum": -180,
               "maximum": 180
             }
+          },
+          {
+            "name": "element_colors",
+            "in": "query",
+            "required": false,
+            "style": "deepObject",
+            "explode": true,
+            "description": "Фильтр по цвету элемента: element_colors[<slug элемента>][]=<slug базового цвета>",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
           }
         ],
         "responses": {
@@ -3724,9 +3603,8 @@
                             "colors": {
                               "type": "array",
                               "items": {
-                                "$ref": "#/components/schemas/BaseColorFacet"
-                              },
-                              "description": "Базовые цвета основного цвета, только встречающиеся в выборке; по убыванию count"
+                                "type": "object"
+                              }
                             },
                             "sizes": {
                               "type": "array",
@@ -3824,13 +3702,6 @@
                                 "type": "object"
                               },
                               "description": "Производители из характеристики proizvoditel: id, name, slug, count. Те же значения, что в attributes[slug=proizvoditel]. Счётчики учитывают остальные фильтры, исключая собственный выбор производителя."
-                            },
-                            "color_elements": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/components/schemas/ColorElementFacet"
-                              },
-                              "description": "Фильтры по элементам; есть, только если в выборке есть такие цвета"
                             }
                           },
                           "nullable": true
@@ -4308,7 +4179,7 @@
         ],
         "security": [
           {
-            "session": []
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -4338,13 +4209,22 @@
                       }
                     },
                     "subtotal": {
-                      "type": "number"
+                      "type": "number",
+                      "description": "Фактическая сумма товаров после ценовых правил; стоимость доставки/услуг не включена"
                     },
                     "item_count": {
                       "type": "integer"
                     },
                     "is_empty": {
                       "type": "boolean"
+                    },
+                    "old_subtotal": {
+                      "type": "number",
+                      "description": "Сумма товаров до скидок; только сравнение"
+                    },
+                    "discount_total": {
+                      "type": "number",
+                      "description": "Экономия по корзине, уже учтена в subtotal; НЕЛЬЗЯ вычитать повторно"
                     }
                   }
                 }
@@ -4362,7 +4242,7 @@
         ],
         "security": [
           {
-            "session": []
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -4477,7 +4357,7 @@
         ],
         "security": [
           {
-            "session": []
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -4510,7 +4390,7 @@
         ],
         "security": [
           {
-            "session": []
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -4560,7 +4440,7 @@
         ],
         "security": [
           {
-            "session": []
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -4681,7 +4561,7 @@
         ],
         "security": [
           {
-            "session": []
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -4963,758 +4843,6 @@
         }
       }
     },
-    "/api/v1/regions": {
-      "get": {
-        "operationId": "getRegions",
-        "summary": "Список регионов",
-        "tags": [
-          "Regions"
-        ],
-        "responses": {
-          "200": {
-            "description": "Список регионов/локаций",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ShippingLocation"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/regions/tree": {
-      "get": {
-        "operationId": "getRegionTree",
-        "summary": "Дерево регионов",
-        "tags": [
-          "Regions"
-        ],
-        "responses": {
-          "200": {
-            "description": "Дерево локаций",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ShippingLocation"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/regions/detect": {
-      "get": {
-        "operationId": "detectRegion",
-        "summary": "Автоопределение региона",
-        "description": "Определяет регион по IP/умолчанию. Влияет на видимость товаров, цены, доставку и оплату.",
-        "tags": [
-          "Regions"
-        ],
-        "responses": {
-          "200": {
-            "description": "Определённый регион",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "region": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/ShippingLocation"
-                        }
-                      ],
-                      "nullable": true
-                    },
-                    "source": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "city",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Название города для определения региона"
-          }
-        ]
-      }
-    },
-    "/api/v1/shipping/locations": {
-      "get": {
-        "operationId": "getShippingLocations",
-        "summary": "Локации доставки",
-        "tags": [
-          "Shipping"
-        ],
-        "parameters": [
-          {
-            "name": "type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "federal_district",
-                "region",
-                "locality"
-              ]
-            }
-          },
-          {
-            "name": "parent_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Локации доставки",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ShippingLocationBrief"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/shipping/locations/tree": {
-      "get": {
-        "operationId": "getShippingLocationTree",
-        "summary": "Дерево локаций доставки",
-        "tags": [
-          "Shipping"
-        ],
-        "parameters": [
-          {
-            "name": "parent_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "max_depth",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 3,
-              "default": 3
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Дерево локаций доставки (рекурсивное)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ShippingLocationTreeNode"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/shipping/locations/{locationId}": {
-      "get": {
-        "operationId": "getShippingLocationInfo",
-        "summary": "Информация о локации",
-        "tags": [
-          "Shipping"
-        ],
-        "parameters": [
-          {
-            "name": "locationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Детальная локация со способами доставки и перевозчиками",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "type": {
-                          "type": "string"
-                        },
-                        "location_type": {
-                          "type": "string"
-                        },
-                        "full_path": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "effective_pickup_enabled": {
-                          "type": "boolean"
-                        },
-                        "effective_delivery_price": {
-                          "type": "number",
-                          "nullable": true
-                        },
-                        "effective_free_delivery_threshold": {
-                          "type": "number",
-                          "nullable": true
-                        },
-                        "effective_requires_assembly": {
-                          "type": "boolean"
-                        },
-                        "delivery_handling_types": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/DeliveryHandlingType"
-                          }
-                        },
-                        "carriers": {
-                          "type": "array",
-                          "items": {
-                            "type": "object"
-                          }
-                        },
-                        "shipping_methods": {
-                          "type": "array",
-                          "items": {
-                            "type": "object"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Локация не найдена",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "object"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/shipping/calculate": {
-      "post": {
-        "operationId": "calculateShipping",
-        "summary": "Расчёт доставки по локации",
-        "description": "КРИТИЧНО: результат формирует стоимость доставки в заказе. Возвращает 422 available=false с reasons, если доставка недоступна.",
-        "tags": [
-          "Shipping"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "location_id"
-                ],
-                "properties": {
-                  "location_id": {
-                    "type": "integer",
-                    "description": "Локация доставки (exists)"
-                  },
-                  "order_amount": {
-                    "type": "number",
-                    "minimum": 0,
-                    "nullable": true
-                  },
-                  "delivery_handling_type_id": {
-                    "type": "integer",
-                    "nullable": true
-                  },
-                  "floor": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 20,
-                    "nullable": true
-                  },
-                  "requires_assembly": {
-                    "type": "boolean",
-                    "nullable": true
-                  },
-                  "order_weight": {
-                    "type": "number",
-                    "minimum": 0,
-                    "nullable": true
-                  },
-                  "order_volume": {
-                    "type": "number",
-                    "minimum": 0,
-                    "nullable": true
-                  },
-                  "region_id": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "Локация для применения региональных правил"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Расчёт доставки по локации",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "calculation": {
-                      "$ref": "#/components/schemas/ShippingCalculation"
-                    },
-                    "location": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "type": {
-                          "type": "string"
-                        },
-                        "full_path": {
-                          "type": "string",
-                          "nullable": true
-                        }
-                      }
-                    },
-                    "available_delivery_handling_types": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DeliveryHandlingType"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Доставка недоступна или ошибка валидации",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "object"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/shipping/shipping-methods": {
-      "get": {
-        "operationId": "getShippingMethods",
-        "summary": "Способы доставки",
-        "tags": [
-          "Shipping"
-        ],
-        "responses": {
-          "200": {
-            "description": "Способы доставки для локации",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ShippingMethodOption"
-                      }
-                    },
-                    "shipping_resolution": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "location": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "type": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "location_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "exists:shipping_locations — обязателен"
-          },
-          {
-            "name": "order_amount",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "minimum": 0
-            }
-          }
-        ]
-      }
-    },
-    "/api/v1/shipping/shipping-methods/calculate": {
-      "post": {
-        "operationId": "calculateShippingMethod",
-        "summary": "Расчёт стоимости способа доставки",
-        "description": "КРИТИЧНО: итоговая стоимость выбранного способа доставки.",
-        "tags": [
-          "Shipping"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "shipping_method_id",
-                  "location_id"
-                ],
-                "properties": {
-                  "shipping_method_id": {
-                    "type": "integer",
-                    "description": "exists:shipping_methods"
-                  },
-                  "location_id": {
-                    "type": "integer",
-                    "description": "exists:shipping_locations"
-                  },
-                  "order_amount": {
-                    "type": "number",
-                    "minimum": 0,
-                    "nullable": true
-                  },
-                  "delivery_handling_type_id": {
-                    "type": "integer",
-                    "nullable": true
-                  },
-                  "floor": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 20,
-                    "nullable": true
-                  },
-                  "requires_assembly": {
-                    "type": "boolean",
-                    "nullable": true
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Расчёт стоимости способа доставки",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "shipping_method": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "carrier": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "integer"
-                            },
-                            "name": {
-                              "type": "string"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "calculation": {
-                      "$ref": "#/components/schemas/ShippingCalculation"
-                    },
-                    "delivery_days": {
-                      "nullable": true,
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "min": {
-                              "type": "integer"
-                            },
-                            "max": {
-                              "type": "integer"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    "assembly_days": {
-                      "type": "integer",
-                      "nullable": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Ошибка валидации",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "object"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/shipping/carriers": {
-      "get": {
-        "operationId": "getCarriers",
-        "summary": "Службы доставки",
-        "tags": [
-          "Shipping"
-        ],
-        "responses": {
-          "200": {
-            "description": "Перевозчики",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Carrier"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/shipping/additional-services": {
-      "get": {
-        "operationId": "getAdditionalServices",
-        "summary": "Дополнительные услуги",
-        "tags": [
-          "Shipping"
-        ],
-        "responses": {
-          "200": {
-            "description": "Доп. услуги",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/AdditionalService"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "location_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "exists:shipping_locations — обязателен"
-          }
-        ]
-      }
-    },
-    "/api/v1/shipping/delivery-handling-types": {
-      "get": {
-        "operationId": "getDeliveryHandlingTypes",
-        "summary": "Типы обработки доставки",
-        "tags": [
-          "Shipping"
-        ],
-        "responses": {
-          "200": {
-            "description": "Типы обработки доставки",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DeliveryHandlingType"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "location_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "exists:shipping_locations (nullable)"
-          }
-        ]
-      }
-    },
     "/api/v1/payment-methods": {
       "get": {
         "operationId": "getPaymentMethods",
@@ -5797,7 +4925,7 @@
       "post": {
         "operationId": "createOrder",
         "summary": "Создать заказ",
-        "description": "Доступен БЕЗ аутентификации (только сессия). Позиции и subtotal берутся из серверной корзины, не из тела запроса. Проверяет остатки. Возможна авторегистрация нового пользователя или login существующего по contact_email (без пароля). Статус: AWAITING_PAYMENT для онлайн-оплаты, иначе ACCEPTED.\nДля нового самовывоза передайте delivery_type=pickup, warehouse_id и store_id (если точка магазина) из shipping/quote.pickup. Сервер повторно проверяет точку/остатки и резервирует выбранный склад. При складской доставке передайте directory_external_id здания, warehouse_id при явном выборе и услуги; цены пересчитывает сервер.\nДля продаваемого комплекта: items содержит реальные физические SKU, bundle_id/primary_sku_id/bundle_quantity идентифицируют виртуальное предложение. Состав проверяется повторно. При разных складах резерв/списание выполняется для каждого SKU из собственного источника, а fulfillment_snapshot сохраняет warehouse_allocations. Мультискладская доставка доступна без сборки/подъёма/прочих услуг; самовывоз требует единую точку.",
+        "description": "Доступен БЕЗ аутентификации (только сессия). Позиции и subtotal берутся из серверной корзины, не из тела запроса. Проверяет остатки. Возможна авторегистрация нового пользователя или login существующего по contact_email (без пароля). Статус: AWAITING_PAYMENT для онлайн-оплаты, иначе ACCEPTED.\nДля нового самовывоза передайте delivery_type=pickup, warehouse_id и store_id (если точка магазина) из shipping/quote.pickup. Сервер повторно проверяет точку/остатки и резервирует выбранный склад. При складской доставке передайте directory_external_id здания, warehouse_id при явном выборе и услуги; цены пересчитывает сервер.\nДля продаваемого комплекта: items содержит реальные физические SKU, bundle_id/primary_sku_id/bundle_quantity идентифицируют виртуальное предложение. Состав проверяется повторно. При разных складах резерв/списание выполняется для каждого SKU из собственного источника, а fulfillment_snapshot сохраняет warehouse_allocations. Мультискладская доставка доступна без сборки/подъёма/прочих услуг; самовывоз требует единую точку. Срок и конкретное время доставки не бронируются: поля delivery_date и delivery_time запрещены. Клиентские цены доставки и сборки запрещены. При изменении expected_subtotal ответ 409.",
         "tags": [
           "Orders"
         ],
@@ -5874,19 +5002,14 @@
                       "pickup"
                     ]
                   },
-                  "shipping_location_id": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "Локация прежнего расчёта. Для нового расчёта передайте directory_external_id здания."
-                  },
                   "directory_external_id": {
                     "type": "string",
                     "maxLength": 128,
-                    "description": "ID здания из адресного справочника для складского расчёта. Не ID бизнес-локации."
+                    "description": "ID КОНКРЕТНОГО здания ГАР/КЛАДР при delivery; нужен для проверки склада и тарифа"
                   },
                   "warehouse_id": {
                     "type": "integer",
-                    "description": "Выбранный склад из selected/options либо pickup ответа shipping/quote. При новом самовывозе обязателен."
+                    "description": "Выбранный сервером склад; обязателен для pickup"
                   },
                   "store_id": {
                     "type": "integer",
@@ -5896,11 +5019,7 @@
                   "region_id": {
                     "type": "integer",
                     "nullable": true,
-                    "description": "Legacy fallback"
-                  },
-                  "shipping_method_id": {
-                    "type": "integer",
-                    "nullable": true
+                    "description": "Бизнес-локация для PricingEngine, не ID объекта ГАР"
                   },
                   "delivery_handling_type_id": {
                     "type": "integer",
@@ -5924,58 +5043,13 @@
                       "properties": {
                         "id": {
                           "type": "integer"
-                        },
-                        "price": {
-                          "type": "number"
                         }
                       }
                     }
                   },
-                  "delivery_date": {
-                    "type": "string",
-                    "format": "date",
-                    "nullable": true
-                  },
-                  "delivery_time": {
-                    "type": "string",
-                    "nullable": true
-                  },
                   "address_id": {
                     "type": "integer",
                     "nullable": true
-                  },
-                  "address": {
-                    "type": "object",
-                    "nullable": true,
-                    "properties": {
-                      "city": {
-                        "type": "string"
-                      },
-                      "street": {
-                        "type": "string"
-                      },
-                      "house": {
-                        "type": "string"
-                      },
-                      "apartment": {
-                        "type": "string"
-                      },
-                      "entrance": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "delivery_cost": {
-                    "type": "number",
-                    "minimum": 0,
-                    "nullable": true,
-                    "description": "В новом складском расчёте игнорируется: стоимость повторно рассчитывает сервер. Для прежнего расчёта сохранена совместимость. Самовывоз — 0."
-                  },
-                  "assembly_cost": {
-                    "type": "number",
-                    "minimum": 0,
-                    "nullable": true,
-                    "description": "В новом складском расчёте игнорируется: тариф сборки определяет сервер. Для прежнего расчёта сохранена совместимость."
                   },
                   "comment": {
                     "type": "string",
@@ -5995,6 +5069,43 @@
                     "minimum": 1,
                     "maximum": 1000,
                     "description": "Количество комплектов, обязательно при bundle_id"
+                  },
+                  "expected_subtotal": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Подтверждённая клиентом сумма товаров. При изменении стоимости сервер отвечает 409; повторное подтверждение обязательно."
+                  },
+                  "delivery_details": {
+                    "type": "object",
+                    "nullable": true,
+                    "description": "Детали проверенного здания (только при delivery)",
+                    "properties": {
+                      "apartment": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "nullable": true
+                      },
+                      "room": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "nullable": true
+                      },
+                      "entrance": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "nullable": true
+                      },
+                      "floor": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "nullable": true
+                      },
+                      "intercom": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "nullable": true
+                      }
+                    }
                   }
                 }
               }
@@ -6016,6 +5127,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Стоимость товаров изменилась; требуется повторное подтверждение"
           },
           "422": {
             "description": "Ошибка валидации, пустая корзина или нехватка остатков",
@@ -6046,6 +5160,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -6200,6 +5317,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -6277,6 +5397,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -6373,6 +5496,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -6427,6 +5553,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "responses": {
@@ -6477,6 +5606,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "requestBody": {
@@ -6593,6 +5725,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -6686,6 +5821,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -6823,6 +5961,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -6913,6 +6054,9 @@
         "security": [
           {
             "sanctum": []
+          },
+          {
+            "sessionCookie": []
           }
         ],
         "parameters": [
@@ -8261,29 +7405,12 @@
           {
             "name": "colors",
             "in": "query",
-            "description": "Фильтр «Цвет»: slug базовых цветов основного цвета (массив или строка через запятую)",
+            "description": "Фильтр по цветам (массив или строка через запятую)",
             "required": false,
             "schema": {
               "type": "array",
               "items": {
                 "type": "string"
-              }
-            }
-          },
-          {
-            "name": "element_colors",
-            "in": "query",
-            "required": false,
-            "style": "deepObject",
-            "explode": true,
-            "description": "Фильтр по цвету элемента: element_colors[<slug элемента>][]=<slug базового цвета>",
-            "schema": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
               }
             }
           },
@@ -8590,7 +7717,7 @@
                     "type": "integer",
                     "description": "Этаж",
                     "minimum": 0,
-                    "maximum": 200
+                    "maximum": 20
                   },
                   "additional_services": {
                     "type": "array",
@@ -8713,7 +7840,7 @@
         },
         "responses": {
           "200": {
-            "description": "Оформление подготовлено",
+            "description": "Подготовка оформления. В ответ включены colors выбранного SKU; для комплектов priced_components[].colors. items[] остаётся массивом физических SKU и количеств.",
             "content": {
               "application/json": {
                 "example": {
@@ -8736,6 +7863,772 @@
           },
           "429": {
             "description": "Слишком много запросов"
+          }
+        }
+      }
+    },
+    "/api/v1/address-directory/status": {
+      "get": {
+        "tags": [
+          "AddressDirectory"
+        ],
+        "operationId": "directoryStatus",
+        "summary": "Готовность внешнего адресного справочника",
+        "responses": {
+          "200": {
+            "description": "Готовность уровней адресного каталога",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Внешний адресный сервис недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/address-directory/detect": {
+      "post": {
+        "tags": [
+          "AddressDirectory"
+        ],
+        "operationId": "directoryDetect",
+        "summary": "Кандидаты населённых пунктов рядом с координатами; покупатель подтверждает выбор",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "latitude",
+                  "longitude"
+                ],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Кандидаты, без автоматического выбора"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Справочник недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/address-directory/hierarchy/{externalId}": {
+      "get": {
+        "tags": [
+          "AddressDirectory"
+        ],
+        "operationId": "directoryHierarchy",
+        "summary": "Проверенная иерархия здания по ID ГАР/КЛАДР",
+        "parameters": [
+          {
+            "name": "externalId",
+            "in": "path",
+            "required": true,
+            "description": "Канонический ID объекта справочника, не ID бизнес-локации",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Иерархия target, path, label",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Внешний справочник недоступен; не подставлять адрес из свободного текста"
+          }
+        }
+      }
+    },
+    "/api/v1/address-directory/{level}": {
+      "get": {
+        "tags": [
+          "AddressDirectory"
+        ],
+        "operationId": "directoryOptions",
+        "summary": "Уровень справочника; неполное покрытие домов не означает отсутствие здания",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "path",
+            "required": true,
+            "description": "Уровень",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "regions",
+                "localities",
+                "streets",
+                "buildings"
+              ]
+            }
+          },
+          {
+            "name": "parentExternalId",
+            "in": "query",
+            "required": false,
+            "description": "ID родителя для streets/buildings",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Текст поиска",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 200",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список узлов уровня",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Сервис недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/settings": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "publicAuthSettings",
+        "summary": "Публичные настройки доступности входа и регистрации",
+        "responses": {
+          "200": {
+            "description": "Флаги регистрации и входа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "registration_enabled": {
+                          "type": "boolean"
+                        },
+                        "login_enabled": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/rooms": {
+      "get": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "roomsIndex",
+        "summary": "Каталог комнат",
+        "responses": {
+          "200": {
+            "description": "Список комнат"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/rooms/tree": {
+      "get": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "roomsTree",
+        "summary": "Дерево комнат",
+        "responses": {
+          "200": {
+            "description": "Дерево комнат"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/rooms/{slug}": {
+      "get": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "roomsShow",
+        "summary": "Страница комнаты",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "description": "Slug комнаты",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Данные комнаты"
+          },
+          "404": {
+            "description": "Комната не найдена"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/sliders/home": {
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "operationId": "slidersHome",
+        "summary": "Слайдеры главной страницы",
+        "responses": {
+          "200": {
+            "description": "Слайдеры главной"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/stores/current": {
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "operationId": "storeCurrent",
+        "summary": "Магазин для выбранного населённого пункта/здания",
+        "parameters": [
+          {
+            "name": "directory_external_id",
+            "in": "query",
+            "required": false,
+            "description": "ID населённого пункта/здания",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Доступный магазин или null"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/localities/regions": {
+      "get": {
+        "tags": [
+          "Localities"
+        ],
+        "operationId": "localityRegions",
+        "summary": "Регионы справочника населённых пунктов",
+        "responses": {
+          "200": {
+            "description": "Регионы"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Адресный справочник недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/localities/detect": {
+      "post": {
+        "tags": [
+          "Localities"
+        ],
+        "operationId": "localityDetect",
+        "summary": "Кандидаты ближайших населённых пунктов",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "latitude",
+                  "longitude"
+                ],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Кандидаты"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Справочник недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/localities": {
+      "get": {
+        "tags": [
+          "Localities"
+        ],
+        "operationId": "localitiesIndex",
+        "summary": "Поиск населённых пунктов",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Название",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "description": "Регион",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список населённых пунктов"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Справочник недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/localities/{id}": {
+      "get": {
+        "tags": [
+          "Localities"
+        ],
+        "operationId": "localityShow",
+        "summary": "Населённый пункт и его бизнес-локация",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID населённого пункта",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Данные населённого пункта"
+          },
+          "404": {
+            "description": "Не найден"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          },
+          "503": {
+            "description": "Справочник недоступен"
+          }
+        }
+      }
+    },
+    "/api/v1/shipping/pickup-options": {
+      "post": {
+        "tags": [
+          "Shipping"
+        ],
+        "operationId": "warehousePickupOptions",
+        "summary": "Варианты самовывоза по текущей корзине либо заданным SKU",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "product_id",
+                        "quantity"
+                      ],
+                      "properties": {
+                        "product_id": {
+                          "type": "integer"
+                        },
+                        "variant_id": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Доступные точки самовывоза",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pickup": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PickupOption"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Корзина пуста или неверные SKU"
+          }
+        }
+      }
+    },
+    "/api/v1/private-offers/activate": {
+      "post": {
+        "tags": [
+          "PrivateOffers"
+        ],
+        "operationId": "privateOfferActivate",
+        "summary": "Активация персональной ссылки с токеном; не кэшировать и не логировать токен",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Данные активированной цены"
+          },
+          "422": {
+            "description": "Токен некорректен или истёк"
+          }
+        }
+      }
+    },
+    "/api/v1/private-offers/current": {
+      "get": {
+        "tags": [
+          "PrivateOffers"
+        ],
+        "operationId": "privateOffersCurrent",
+        "summary": "Персональные предложения текущей сессии; Cache-Control: no-store",
+        "responses": {
+          "200": {
+            "description": "Массив offers"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/order-access/{id}": {
+      "get": {
+        "tags": [
+          "OrderAccess"
+        ],
+        "operationId": "guestOrderShow",
+        "summary": "Доступ к своему заказу для владельца или гостя с X-Order-Token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID заказа",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Order-Token",
+            "in": "header",
+            "required": false,
+            "description": "Гостевой токен доступа, если не авторизован владелец",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Снимок заказа"
+          },
+          "403": {
+            "description": "Нет доступа"
+          },
+          "404": {
+            "description": "Заказ не найден"
+          },
+          "422": {
+            "description": "Ошибка валидации"
+          }
+        }
+      }
+    },
+    "/api/v1/order-access/{id}/cancel": {
+      "post": {
+        "tags": [
+          "OrderAccess"
+        ],
+        "operationId": "guestOrderCancel",
+        "summary": "Прямая отмена до истечения 60-минутного окна охлаждения",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID заказа",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Order-Token",
+            "in": "header",
+            "required": false,
+            "description": "Гостевой токен",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Отменённый заказ"
+          },
+          "403": {
+            "description": "Нет доступа"
+          },
+          "422": {
+            "description": "Срок прямой отмены истёк"
+          }
+        }
+      }
+    },
+    "/api/v1/order-access/{id}/cancellation-request": {
+      "post": {
+        "tags": [
+          "OrderAccess"
+        ],
+        "operationId": "guestOrderCancellationRequest",
+        "summary": "Обращение об отмене после окна охлаждения; не отменяет заказ автоматически",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID заказа",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Order-Token",
+            "in": "header",
+            "required": false,
+            "description": "Гостевой токен",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Обращение создано"
+          },
+          "403": {
+            "description": "Нет доступа"
+          },
+          "422": {
+            "description": "Срок или состояние заказа не допускают обращение"
           }
         }
       }

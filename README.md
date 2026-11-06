@@ -1,41 +1,54 @@
-Ветка подбора стека
+# Светофор мебели — интернет-магазин
 
-## Адреса и геолокация
+Монорепозиторий витрины, Laravel API/админки, интеграций с 1С и вспомогательных инструментов. Это **действующий проект**, а не «ветка подбора стека».
 
-Актуальный контракт для фронтенда: [География и адреса](market-docs/address-geolocation-contract.md).
-Выбор населённого пункта и адреса склада использует ГАР через адресный API, не раздел «Локации».
+> **Документация:** [единый каталог документов](market-docs/README.md) · [система и границы ответственности](market-docs/system-overview.md) · [операционная готовность и аварийное восстановление](market-docs/disaster-recovery.md) · [правила актуализации](market-docs/DOCS_POLICY.md).
+>
+> Первичная ревизия документов выполнена по `develop` от 03.11.2026 (SHA `3ad09fc7046a65e8102e57f36707102a5aa41831`); схемы цветов/адресов дополнительно актуализированы 06.11.2026 после PR #140/#143/#144. **Слияние ветки и развёртывание production — разные события.** Статусы незакрытых PR приведены отдельно в каталоге; их контракты не считать применёнными к `develop` или рабочему сайту.
 
-## Быстрый старт
+## Состав
 
-1. **Поднять окружение**
-   ```bash
-   docker compose up -d
-   ```
+| Компонент | Где находится | Источник контракта |
+| --- | --- | --- |
+| API, админка, заказы, цены и склады | `services/backend/` | `routes/api.php`, контроллеры, сервисы, тесты |
+| Витрина React + Vite + SSR | `apps/frontend/` | `package.json`, `server/`, клиентские API-типы |
+| Доставка по складам и адресам ГАР | `services/backend/app/Services/Shipping/` и `Address/` | [складской checkout](market-docs/warehouse-only-fulfillment.md) |
+| Справочник адресов | **отдельный** upstream `api.svetofor-mebel.ru` | [адресный контракт](market-docs/address-directory-frontend-launch.md) |
+| Сквозные процессы | `market-docs/` | [карта системы](market-docs/system-overview.md) |
 
-2. **Миграции** (из корня проекта)
-   ```bash
-   docker compose exec app php artisan migrate
-   ```
+Backend: PHP 8.2+, Laravel 12, Filament 4, Vanilo 5.1. Frontend: React 19, Vite 7, Express SSR. Версии и команды определяются соответствующими `composer.json` и `package.json`, а не старыми инструкциями.
 
-3. **Базовые сидеры** (регионы, доставка, оплата, каталог, роли)
-   ```bash
-   docker compose exec app bash -c "cd /var/www && ./seed-basic.sh"
-   ```
+## Локальная разработка
 
-4. **Создать суперадмина**
-   ```bash
-   # Существующий пользователь — только назначить роль:
-   docker compose exec app php /var/www/assign_super_admin.php admin@example.com
+Требуются Docker Compose и Node.js, совместимый с текущим `apps/frontend/package.json`.
 
-   # Новый пользователь — создать и назначить роль:
-   docker compose exec app php /var/www/assign_super_admin.php admin@example.com "Super Admin" your_password
-   ```
+```bash
+# Из корня репозитория:
+docker compose up -d --build
+docker compose exec app php artisan migrate
+docker compose exec app php artisan test
 
-5. **Админка:** http://localhost:8000/admin_sv/login
+# В отдельном терминале:
+cd apps/frontend
+npm ci
+npm run dev
+# Для проверки сборки: npm run build; npm test; npm run lint
+```
 
-## Региональность и кэш (актуальные правила)
+Настройки API берите из `services/backend/.env.example`, фронтенда — из `apps/frontend/.env.example`. **Не копируйте в production** локальные пароли MySQL/Redis и открытые порты из `docker-compose.yml`: этот файл рассчитан на разработку.
 
-- Для API каталога и корзины приоритетный параметр локации: `shipping_location_id`, `region_id` используется как legacy fallback.
-- Региональная видимость товаров применяется server-side в `GET /api/v1/products` и `GET /api/v1/products/search`, чтобы `total` и пагинация совпадали с фактическим списком.
-- При изменении `ProductRegionRule` выполняется инвалидация каталожных cache-tags (`product_index_cache`, `product_search_cache`).
-- На фронтенде SWR-ключи для регионозависимых блоков (`featured/new/sale`, list/search/cart) должны всегда включать регион.
+Не запускайте базовые сидеры, миграции сброса, операции платежей и приёмочные заказы на production без предварительной проверки и резервной копии. Первоначальное создание администратора и роли сверяйте с действующими консольными командами бэкенда, а не старыми SQL-примерами.
+
+API приложения: `/api/v1`, Filament: `/admin_sv`. OpenAPI: `services/backend/public/api-docs/openapi.json`; полноту и соответствие спецификации исходникам нужно проверять при релизе.
+
+## Ключевые правила, которые нельзя нарушать
+
+- Продажная цена SKU: `products.price` → `PricingEngine` → персональные предложения; комплекты распределяются сервером. **Старые `product_region_rules` не определяют цену**.
+- `GET /api/v1/cart`: `subtotal` уже включает скидки; `discount_total` — **только отображение экономии**, второй раз не вычитать.
+- `POST /api/v1/shipping/quote`: серверный расчёт склада, покрытия, доставки и услуг; **выбор подтверждённых дат/слотов доставки отсутствует**.
+- `POST /api/v1/orders`: повторный расчёт, резервы, проверка суммы и адреса; клиент не назначает собственную стоимость доставки и не отправляет `delivery_date`/`delivery_time`.
+- `region_id` — контекст ценовой политики; `directory_external_id` — внешний ID объекта адресного справочника; это **не взаимозаменяемые значения**.
+- Для получения складской доставки требуется проверенный адрес конкретного здания. Недоступный внешний справочник не разрешает обходить проверку произвольным текстом.
+- Перед повторной оплатой, возвратом или восстановлением после сбоя — сверить состояние с банком и 1С; не выполнять опасные операции повторно вслепую.
+
+Подробные контракты — в [каталоге документации](market-docs/README.md). Исторические документы сохранены для расследований, но не являются инструкцией внедрения.
