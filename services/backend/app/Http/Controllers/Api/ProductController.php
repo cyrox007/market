@@ -6,24 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductDetailResource;
 use App\Http\Resources\ProductResource;
 use App\Models\Product\Category;
-use App\Models\Product\Room;
-use App\Models\Product\RoomFilters;
 use App\Models\Product\Product;
 use App\Models\Product\ProductCollection;
-use App\Models\Product\Attribute;
-use App\Models\Product\AttributeValue;
-use App\Models\Product\Manufacturer;
+use App\Models\Product\Room;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Product\ProductRegionRuleService;
-use App\Services\Product\ProductCanonicalAttributeQueryService;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use App\Services\Product\ProductVariantSelector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * @OA\Tag(
@@ -34,7 +29,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class ProductController extends Controller
 {
     public function __construct(
-        protected ProductRegionRuleService $regionRuleService
+        protected ProductRegionRuleService $regionRuleService,
+        protected ProductVariantSelector $variantSelector,
     ) {
     }
 
@@ -116,7 +112,7 @@ class ProductController extends Controller
         }
         $colors = $request->input('colors', []);
         $sizes = $request->input('sizes', []);
-        if (!empty($colors) || !empty($sizes)) {
+        if (!empty($colors) || !empty($sizes) || !empty($request->input('element_colors'))) {
             return false;
         }
         if ($request->filled('manufacturer_id') || $request->filled('manufacturer_slug')) {
@@ -314,8 +310,10 @@ class ProductController extends Controller
         $colors = array_values(array_filter(array_map('trim', $colors)));
         $sizes = array_values(array_filter(array_map('trim', $sizes)));
 
+        $elementColors = $request->input('element_colors', []);
         $catalogInput = ['price_min' => $priceMin, 'price_max' => $priceMax,
-            'colors' => $colors, 'sizes' => $sizes, 'attributes' => $attributes,
+            'colors' => $colors, 'element_colors' => is_array($elementColors) ? $elementColors : [],
+            'sizes' => $sizes, 'attributes' => $attributes,
             'on_sale' => $request->boolean('on_sale')];
         foreach (\App\Services\Product\CatalogFilterService::DIMENSIONS as $dimension => $slug) {
             foreach (['min', 'max'] as $bound) {
@@ -572,7 +570,7 @@ class ProductController extends Controller
      *     operationId="getProductDetails",
      *     summary="Получить детальную информацию о товаре",
      *     description="Возвращает товар с вариациями, характеристиками, блоками фич и доставки.
-     *         При передаче color и size для вариативного товара пытается вернуть конкретную вариацию.",
+     *         При передаче color_options[<группа>] и size для вариативного товара пытается вернуть конкретную вариацию.",
      *     tags={"Products"},
      *     @OA\Parameter(
      *         name="slug",
@@ -582,11 +580,12 @@ class ProductController extends Controller
      *         @OA\Schema(type="string", example="divan-uglovoi-modul-s-iashhikom")
      *     ),
      *     @OA\Parameter(
-     *         name="color",
+     *         name="color_options",
      *         in="query",
-     *         description="Цвет вариации (название или slug, например Синий или sinii)",
+     *         description="Выбор вариации по цвету: color_options[<key группы из color_options>]=<key варианта>, например color_options[main]=belyi&color_options[fasad]=dub-votan-belyi",
      *         required=false,
-     *         @OA\Schema(type="string")
+     *         style="deepObject",
+     *         @OA\Schema(type="object", additionalProperties=@OA\Schema(type="string"))
      *     ),
      *     @OA\Parameter(
      *         name="size",
@@ -635,9 +634,10 @@ class ProductController extends Controller
         }
 
         // Параметры вариации:
-        // - attributes[color]=slug1&attributes[size]=slug2
-        // - attr_color=...&attr_size=...
-        // - color=...&size=... (legacy / simple)
+        // - attributes[size]=slug
+        // - attr_size=...
+        // - size=... (legacy / simple)
+        // Цвет — отдельно: color_options[<группа>]=<вариант>.
         $attributesParam = $request->get('attributes', []);
         if (!is_array($attributesParam)) {
             $attributesParam = [];
@@ -648,20 +648,19 @@ class ProductController extends Controller
         if ($attributesParam === []) {
             $attributesParam = $this->parseAttributesFromRequest($request);
 
-            $color = trim((string) $request->query('color', ''));
-            if ($color !== '') {
-                $attributesParam['color'] = [$color];
-            }
             $size = trim((string) $request->query('size', ''));
             if ($size !== '') {
                 $attributesParam['size'] = [$size];
             }
         }
 
-        $cacheKey = "show_sku_v2_{$slug}" . (empty($attributesParam) ? '' : '_' . json_encode($attributesParam)) . ($region ? "_region_{$region->id}" : '');
+        $colorOptions = ProductVariantSelector::colorSelection($request->get('color_options'));
+
+        $cacheKey = "show_sku_v2_{$slug}" . (empty($attributesParam) ? '' : '_' . json_encode($attributesParam))
+            . ($colorOptions === [] ? '' : '_colors_' . json_encode($colorOptions)) . ($region ? "_region_{$region->id}" : '');
         $productId = $this->resolveProductShowCacheId($slug);
-        $loadProductCallback = function () use ($slug, $attributesParam) {
-            return $this->loadProductForShow($slug, $attributesParam);
+        $loadProductCallback = function () use ($slug, $attributesParam, $colorOptions) {
+            return $this->loadProductForShow($slug, $attributesParam, $colorOptions);
         };
         $supportsTags = in_array(config('cache.default'), ['redis', 'memcached'], true);
         if ($productId !== null && $supportsTags) {
@@ -736,7 +735,7 @@ class ProductController extends Controller
     /**
      * Загрузить карточку: родитель по slug, вариация по attributes или прямой URL вариации (/product/{variant-slug}).
      */
-    protected function loadProductForShow(string $slug, array $attributesParam): Product
+    protected function loadProductForShow(string $slug, array $attributesParam, array $colorOptions = []): Product
     {
         $parentEagerLoad = [
             'taxons',
@@ -757,7 +756,7 @@ class ProductController extends Controller
             ->first();
 
         if ($product !== null) {
-            if ($product->isVariable() && $attributesParam !== []) {
+            if ($product->isVariable() && ($attributesParam !== [] || $colorOptions !== [])) {
                 $variationSelection = [];
                 foreach ($attributesParam as $attributeSlug => $rawValue) {
                     $candidates = is_array($rawValue) ? $rawValue : [$rawValue];
@@ -770,7 +769,7 @@ class ProductController extends Controller
                     }
                 }
 
-                $variant = $product->getVariantByVariationAttributes($variationSelection);
+                $variant = $this->variantSelector->variant($product, $variationSelection, $colorOptions);
                 if ($variant) {
                     return $this->loadVariantForShow($variant);
                 }

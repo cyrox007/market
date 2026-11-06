@@ -10,10 +10,13 @@ use App\Models\Product\Room;
 use App\Services\Product\ProductAttributeSyncService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\ProductColorFixtures;
 use Tests\TestCase;
 
 class CatalogDimensionsFacetsTest extends TestCase
 {
+    use ProductColorFixtures;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -87,16 +90,15 @@ class CatalogDimensionsFacetsTest extends TestCase
     public function test_color_size_price_sale_and_dimensions_cannot_match_different_siblings(): void
     {
         $cat = Category::factory()->create();
-        $color = $this->attr('color', true);
         $size = $this->attr('size', true);
         $width = $this->attr('sirina-mm');
         $p = $this->root($cat, ['is_variable' => true]);
         $red = Product::factory()->create(['parent_product_id' => $p->id, 'price' => 100, 'original_price' => 100]);
         $blue = Product::factory()->create(['parent_product_id' => $p->id, 'price' => 200, 'original_price' => 300]);
-        $this->value($red, $color, 'red', true);
+        $this->colorRow($red, 'red');
         $this->value($red, $size, 'small', true);
         $this->value($red, $width, '1000');
-        $this->value($blue, $color, 'blue', true);
+        $this->colorRow($blue, 'blue');
         $this->value($blue, $size, 'large', true);
         $this->value($blue, $width, '2000');
         foreach (['colors=red&sizes=large', 'colors=red&price_min=150', 'colors=red&on_sale=1', 'colors=red&width_min=1500'] as $query) {
@@ -111,12 +113,11 @@ class CatalogDimensionsFacetsTest extends TestCase
     public function test_facets_exclude_own_selection_but_respect_other_filters_on_same_sku(): void
     {
         $cat = Category::factory()->create();
-        $color = $this->attr('color', true);
         $size = $this->attr('size', true);
         $p = $this->root($cat, ['is_variable' => true]);
         foreach ([['red', 'small'], ['blue', 'large'], ['red', 'small']] as [$c, $s]) {
             $v = Product::factory()->create(['parent_product_id' => $p->id]);
-            $this->value($v, $color, $c, true);
+            $this->colorRow($v, $c);
             $this->value($v, $size, $s, true);
         }
         $response = $this->getJson('/api/v1/products?category_slug='.$cat->slug.'&colors=blue&sizes=small')->assertOk();
@@ -168,38 +169,60 @@ class CatalogDimensionsFacetsTest extends TestCase
         $cat = Category::factory()->create();
         $room = Room::create(['name' => 'Room', 'slug' => 'restricted-room', 'filters' => ['colors' => ['red']]]);
         $room->productCategories()->attach($cat);
-        $color = $this->attr('color', true);
         foreach (['red', 'blue'] as $c) {
-            $this->value($this->root($cat), $color, $c);
+            $this->colorRow($this->root($cat), $c);
         }
         $response = $this->getJson('/api/v1/products?room_slug='.$room->slug.'&colors=blue')->assertOk();
         $response->assertJsonCount(0, 'data');
         $this->assertSame(['red'], array_column($response->json('meta.filters.colors'), 'slug'));
     }
 
-    public function test_room_attribute_color_cannot_be_bypassed_by_colors_alias(): void
+    public function test_element_colors_filter_and_facet_by_base_colors(): void
     {
         $cat = Category::factory()->create();
-        $room = Room::create(['name' => 'Room alias', 'slug' => 'room-alias',
-            'filters' => ['attributes' => ['color' => ['red']]]]);
-        $room->productCategories()->attach($cat);
-        $color = $this->attr('color', true);
-        foreach (['red', 'blue'] as $c) {
-            $this->value($this->root($cat), $color, $c);
+        $whiteFacade = $this->root($cat);
+        $this->colorRow($whiteFacade, 'oak');
+        $this->colorRow($whiteFacade, 'white-oak', 'fasad', ['white', 'oak']);
+        $blackFacade = $this->root($cat);
+        $this->colorRow($blackFacade, 'oak');
+        $this->colorRow($blackFacade, 'black', 'fasad');
+        $this->colorRow($this->root($cat), 'white');
+        $this->colorRow($this->root($cat), 'white', 'fasad');
+
+        $this->getJson('/api/v1/products/count?category_slug='.$cat->slug.'&element_colors[fasad][]=white')->assertExactJson(['total' => 2]);
+        $this->getJson('/api/v1/products/count?category_slug='.$cat->slug.'&colors=white&element_colors[fasad][]=white')->assertExactJson(['total' => 0]);
+        $this->getJson('/api/v1/products/count?category_slug='.$cat->slug.'&element_colors[nope][]=white')->assertExactJson(['total' => 0]);
+
+        $response = $this->getJson('/api/v1/products?category_slug='.$cat->slug.'&element_colors[fasad][]=white')->assertOk();
+        $this->assertSame(['oak'], array_column($response->json('meta.filters.colors'), 'slug'));
+        $facade = $response->json('meta.filters.color_elements.0');
+        $this->assertSame('fasad', $facade['slug']);
+        // Собственный выбор исключён из подсчёта фильтра; популярные — первыми.
+        $this->assertSame(['white', 'oak', 'black'], array_column($facade['values'], 'slug'));
+        $this->assertSame(2, $facade['values'][0]['count']);
+    }
+
+    public function test_color_facet_lists_only_used_base_colors_by_popularity(): void
+    {
+        $cat = Category::factory()->create();
+        foreach (['white', 'black', 'black'] as $c) {
+            $this->colorRow($this->root($cat), $c);
         }
-        $this->getJson('/api/v1/products/count?room_slug='.$room->slug.'&colors=blue')->assertExactJson(['total' => 0]);
-        $this->getJson('/api/v1/products/count?room_slug='.$room->slug.'&colors=red')->assertExactJson(['total' => 1]);
+        $this->colorSolution('red');
+        $colors = $this->getJson('/api/v1/products?category_slug='.$cat->slug)->assertOk()->json('meta.filters.colors');
+        $this->assertSame(['black', 'white'], array_column($colors, 'slug'));
+        $this->assertSame([2, 1], array_column($colors, 'count'));
+        $this->assertSame([], $this->getJson('/api/v1/products?category_slug='.$cat->slug)->json('meta.filters.color_elements'));
     }
 
     public function test_dimension_and_price_ranges_exclude_own_bounds_and_sale_uses_same_sku(): void
     {
         $cat = Category::factory()->create();
         $width = $this->attr('sirina-mm');
-        $color = $this->attr('color', true);
         foreach ([[1000, 100, 'red', 100], [2000, 200, 'red', 300], [3000, 300, 'blue', 400]] as [$w, $price, $c, $old]) {
             $p = $this->root($cat, ['price' => $price, 'original_price' => $old]);
             $this->value($p, $width, (string) $w);
-            $this->value($p, $color, $c);
+            $this->colorRow($p, $c);
         }
         $r = $this->getJson('/api/v1/products?category_slug='.$cat->slug.'&colors=red&width_max=1500&price_max=150')->assertOk();
         $this->assertEquals(1000, $r->json('meta.filters.dimensions.width.max')); // Price still applies.
@@ -213,13 +236,12 @@ class CatalogDimensionsFacetsTest extends TestCase
     {
         $cat = Category::factory()->create();
         $maker = $this->attr('proizvoditel');
-        $color = $this->attr('color', true);
         $p = $this->root($cat, ['is_variable' => true]);
         $this->value($p, $maker, 'factory-a');
         $red = Product::factory()->create(['parent_product_id' => $p->id]);
         $blue = Product::factory()->create(['parent_product_id' => $p->id]);
-        $this->value($red, $color, 'red', true);
-        $this->value($blue, $color, 'blue', true);
+        $this->colorRow($red, 'red');
+        $this->colorRow($blue, 'blue');
         $this->value($blue, $maker, 'factory-b');
         $this->getJson('/api/v1/products/count?colors=red&attr_proizvoditel=factory-b')->assertExactJson(['total' => 0]);
         $this->getJson('/api/v1/products/count?colors=blue&attr_proizvoditel=factory-a')->assertExactJson(['total' => 0]);

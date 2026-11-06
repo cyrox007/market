@@ -24,7 +24,7 @@ class LegacyColorBackfillMigrationTest extends TestCase
         $migration->up();
         $migration->up();
 
-        $colorAttribute = DB::table('product_attributes')->where('slug', Attribute::SLUG_COLOR)->first();
+        $colorAttribute = DB::table('product_attributes')->where('slug', 'color')->first();
         $this->assertNotNull($colorAttribute);
         $this->assertTrue((bool) $colorAttribute->is_use_in_variations);
 
@@ -63,7 +63,7 @@ class LegacyColorBackfillMigrationTest extends TestCase
         $migration = require database_path('migrations/2026_09_14_120000_backfill_legacy_product_colors_into_attributes.php');
         $migration->up();
 
-        $colorAttributeId = DB::table('product_attributes')->where('slug', Attribute::SLUG_COLOR)->value('id');
+        $colorAttributeId = DB::table('product_attributes')->where('slug', 'color')->value('id');
         $valueId = DB::table('product_attribute_values')
             ->where('attribute_id', $colorAttributeId)
             ->where('value', 'Графит')

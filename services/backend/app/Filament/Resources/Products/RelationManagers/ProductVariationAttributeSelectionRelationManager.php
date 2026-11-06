@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Products\RelationManagers;
 
 use App\Models\Product\Attribute;
-use App\Models\Product\Product;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -70,6 +69,6 @@ class ProductVariationAttributeSelectionRelationManager extends RelationManager
                 \Filament\Actions\DetachAction::make(),
             ])
             ->emptyStateHeading('Не выбрано атрибутов вариаций')
-            ->emptyStateDescription('Добавьте атрибуты (Цвет, Размер, Комплект и т.д.), которые будут использоваться в торговых предложениях этого товара. При добавлении будут автоматически предвыбраны атрибуты из категории товара (если они заданы). Если не добавить ни одного — будут использоваться все глобальные атрибуты с флагом «Участвует в торговых предложениях».');
+            ->emptyStateDescription('Добавьте атрибуты (Размер, Комплект и т.д.), которые будут использоваться в торговых предложениях этого товара. При добавлении будут автоматически предвыбраны атрибуты из категории товара (если они заданы). Если не добавить ни одного — будут использоваться все глобальные атрибуты с флагом «Участвует в торговых предложениях».');
     }
 }

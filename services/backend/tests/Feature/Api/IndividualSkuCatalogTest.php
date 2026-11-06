@@ -2,16 +2,18 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\Product\Attribute;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehouseStockResolver;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\ProductColorFixtures;
 use Tests\TestCase;
 
 class IndividualSkuCatalogTest extends TestCase
 {
+    use ProductColorFixtures;
+
     private function items(): array
     {
         WarehouseStockResolver::clearCache();
@@ -22,10 +24,8 @@ class IndividualSkuCatalogTest extends TestCase
         $blue = Product::factory()->create(['name' => 'Синий', 'sku' => 'AUDIT-BLUE-002', 'parent_product_id' => $parent->id, 'state' => 'active', 'price' => 300]);
         $simple = Product::factory()->create(['state' => 'active', 'price' => 200]);
         $simple->taxons()->attach($category);
-        $color = Attribute::create(['name' => 'Цвет', 'slug' => 'color', 'type' => 'color', 'is_use_in_variations' => true, 'is_filterable' => true]);
         foreach ([[$red, 'red'], [$blue, 'blue']] as [$product, $name]) {
-            $value = $color->values()->create(['value' => $name, 'slug' => $name]);
-            DB::table('product_product_attributes')->insert(['product_id' => $product->id, 'attribute_id' => $color->id, 'attribute_value_id' => $value->id]);
+            $this->colorRow($product, $name);
         }
 
         return [$category, $parent, $red, $blue, $simple];
@@ -70,9 +70,7 @@ class IndividualSkuCatalogTest extends TestCase
     public function test_facets_count_sibling_offers_individually(): void
     {
         [$category, $parent, $red, $blue] = $this->items();
-        $color = Attribute::where('slug', 'color')->firstOrFail();
-        $redValue = $color->values()->where('slug', 'red')->firstOrFail();
-        DB::table('product_product_attributes')->where('product_id', $blue->id)->update(['attribute_value_id' => $redValue->id]);
+        $blue->colorRows()->update(['color_solution_id' => $this->colorSolution('red')->id]);
         $response = $this->getJson('/api/v1/products?category_slug='.$category->slug.'&colors=red')->assertOk()->assertJsonCount(2, 'data');
         $this->assertSame(2, $response->json('meta.filters.colors.0.count'));
         $response->assertJsonPath('meta.total', 2);

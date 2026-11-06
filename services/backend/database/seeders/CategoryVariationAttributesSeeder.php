@@ -15,15 +15,9 @@ class CategoryVariationAttributesSeeder extends Seeder
     public function run(): void
     {
         // Получаем атрибуты вариаций
-        $colorAttr = Attribute::where('slug', 'color')->first();
         $sizeAttr = Attribute::where('slug', 'size')->first();
         $materialAttr = Attribute::where('slug', 'material')->first();
         $komplektAttr = Attribute::where('slug', 'komplekt')->first();
-
-        if (!$colorAttr) {
-            $this->command->warn('Атрибут "color" не найден. Запустите ProductAttributesSeeder сначала.');
-            return;
-        }
 
         // Получаем все категории
         $categories = Category::all();
@@ -34,14 +28,6 @@ class CategoryVariationAttributesSeeder extends Seeder
         }
 
         $this->command->info("Найдено категорий: {$categories->count()}");
-
-        // Всем категориям добавляем цвет
-        foreach ($categories as $category) {
-            if (!$category->variationAttributes()->where('product_attributes.id', $colorAttr->id)->exists()) {
-                $category->variationAttributes()->attach($colorAttr->id);
-            }
-        }
-        $this->command->info("✓ Цвет добавлен всем категориям");
 
         // Категориям с "диван" в названии добавляем размер
         if ($sizeAttr) {

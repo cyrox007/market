@@ -4,15 +4,27 @@ namespace App\Http\Resources;
 
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehouseStockResolver;
+use App\Services\Product\ProductColors;
 use App\Services\Product\ProductRegionRuleService;
 use App\Services\Product\ProductVariationAttributeService;
 use App\Services\Seo\SeoApiTransformer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Pagination\AbstractPaginator;
 use Illuminate\Support\Str;
 
 class ProductResource extends JsonResource
 {
+    public static function collection($resource)
+    {
+        $products = $resource instanceof AbstractPaginator ? $resource->getCollection() : $resource;
+        $colors = app(ProductColors::class);
+        $colors->preload($products);
+        $colors->preloadCatalogPalettes($products);
+
+        return parent::collection($resource);
+    }
+
     /**
      * Transform the resource into an array.
      *
@@ -46,7 +58,7 @@ class ProductResource extends JsonResource
         $kitAvailableSets = 0;
         $bundleConfigured = null;
         $deliveryDays = null;
-        $defaultColor = null;
+        $defaultColorOptions = null;
         $defaultSize = null;
 
         if ($this->isVariable()) {
@@ -90,7 +102,7 @@ class ProductResource extends JsonResource
                     $oldPrice = $isVariableKit ? null
                         : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($cheapestEntry['variant'], $region, (float) $minPrice);
                     $selected = $variationAttributeService->selectedForVariant($cheapestEntry['variant']);
-                    $defaultColor = $selected['color'];
+                    $defaultColorOptions = (object) app(ProductColors::class)->selected($cheapestEntry['variant']);
                     $defaultSize = $selected['size'];
                 }
 
@@ -119,19 +131,12 @@ class ProductResource extends JsonResource
 
         $isListView = (bool) $request->get('_list_view', false);
 
-        // Для списка карточек не рассчитываем палитру цветов — эти данные не используются в ProductCard.
-        $colors = [];
-        if (!$isListView) {
-            $colorValues = $variationAttributeService->colors($this->resource);
-            $colors = $colorValues->take(10)->map(function ($value) {
-                return [
-                    'id' => $value->id ?? null,
-                    'name' => $value->value ?? $value->name ?? null,
-                    'slug' => $value->slug ?? Str::slug($value->value ?? $value->name ?? ''),
-                    'code' => $value->color_code ?? null,
-                ];
-            })->values()->toArray();
-        }
+        // The list returns real SKU colors and a batch-loaded palette of all
+        // active siblings (including siblings outside the current page).
+        $colors = app(ProductColors::class)->rows($this->resource);
+        $palette = $this->resource->relationLoaded('catalogColorPalette')
+            ? $this->resource->getRelation('catalogColorPalette')
+            : app(ProductColors::class)->palette($this->resource);
 
         // В режиме списка не грузим и не сериализуем полные характеристики — снижает размер ответа и нагрузку
         $specifications = [];
@@ -245,9 +250,10 @@ class ProductResource extends JsonResource
             'is_bundle_configured' => $bundleConfigured,
             'units_sold' => (int) ($this->units_sold ?? 0),
             'first_available_variant_id' => $firstAvailableVariantId,
-            'default_color' => $isListView ? null : $defaultColor,
+            'default_color_options' => $isListView ? null : $defaultColorOptions,
             'default_size' => $isListView ? null : $defaultSize,
             'colors' => $colors,
+            'palette' => $palette,
             'specifications' => $specifications,
             'specification_names' => $specificationNames,
             'backorder' => (bool) $this->backorder,

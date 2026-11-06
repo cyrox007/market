@@ -2,34 +2,29 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
-use Filament\Forms\Components\ColorPicker;
+use App\Filament\Forms\ProductDescriptionEditor;
+use App\Filament\Forms\WarehouseStocksFormComponents;
+use App\Models\Product\Attribute;
+use App\Models\Product\AttributeValue;
+use App\Models\Product\Product;
+use App\Models\Settings\ProductStockSettings;
+use App\Services\Catalog\OneCProductSyncService;
+use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\Textarea;
-use App\Filament\Forms\ProductDescriptionEditor;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Group;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 use RalphJSmit\Filament\SEO\SEO;
 use Vanilo\Product\Models\ProductState;
 use Vanilo\Shipment\Models\ShippingCategory as ModelsShippingCategory;
 use Vanilo\Taxes\Models\TaxCategory;
-use App\Models\Product\Attribute;
-use App\Models\Product\AttributeValue;
-use App\Models\Product\Category;
-use App\Models\Product\Product;
-use App\Models\Product\Manufacturer;
-use App\Filament\Forms\WarehouseStocksFormComponents;
-use App\Models\Settings\ProductStockSettings;
-use Illuminate\Support\Str;
-use App\Services\Catalog\OneCProductSyncService;
-use Filament\Notifications\Notification;
-use Filament\Actions\Action;
-use Filament\Facades\Filament;
 
 class ProductForm
 {
@@ -412,24 +407,6 @@ class ProductForm
             ->columns(2);
     }
 
-    protected static function colorSection(): Section
-    {
-        return Section::make('Цвет товара')
-            ->description('Цвет для обычного (не вариативного) товара')
-            ->visible(fn($record) => !$record || !$record->is_variable)
-            ->schema([
-                TextInput::make('color')
-                    ->label('Название цвета')
-                    ->maxLength(100)
-                    ->helperText('Например: Серый, Белый, Дуб сонома'),
-
-                ColorPicker::make('color_code')
-                    ->label('Код цвета')
-                    ->helperText('HEX-код цвета для визуального отображения (опционально)'),
-            ])
-            ->columns(2);
-    }
-
     protected static function seoSection(): Section
     {
         return Section::make('SEO')
@@ -567,7 +544,6 @@ class ProductForm
                                     ->options([
                                         'text' => 'Текст',
                                         'select' => 'Список',
-                                        'color' => 'Цвет',
                                         'number' => 'Число',
                                     ])
                                     ->default('text')
@@ -625,12 +601,6 @@ class ProductForm
                             })
                             ->createOptionForm([
                                 TextInput::make('value')->label('Значение')->required()->maxLength(255),
-                                ColorPicker::make('color_code')
-                                    ->label('Цвет')
-                                    ->visible(function ($get) {
-                                        $attrId = $get('../../attribute_id');
-                                        return $attrId && Attribute::find($attrId)?->type === 'color';
-                                    }),
                             ])
                             ->createOptionUsing(fn (array $data, $get): int => \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create($data, $get('attribute_id'))),
 

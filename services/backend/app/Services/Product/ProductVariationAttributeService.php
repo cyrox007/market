@@ -10,20 +10,6 @@ use Illuminate\Support\Str;
 class ProductVariationAttributeService
 {
     /**
-     * Canonical palette values for API compatibility fields.
-     *
-     * @return Collection<int, object>
-     */
-    public function colors(Product $product): Collection
-    {
-        if ($product->isVariable()) {
-            return $product->getAvailableValuesForVariationAttribute(Attribute::SLUG_COLOR);
-        }
-
-        return $this->valuesForSimpleProduct($product, Attribute::SLUG_COLOR);
-    }
-
-    /**
      * Canonical commercial sizes. Physical dimensions are deliberately ignored.
      *
      * @return Collection<int, object>
@@ -49,29 +35,22 @@ class ProductVariationAttributeService
             return collect();
         }
 
-        return $this->simpleProductAttributeValues($product, $slug, $attribute->type === 'color');
+        return $this->simpleProductAttributeValues($product, $slug);
     }
 
     /**
-     * Return selected color/size for a concrete variant in a compatibility-friendly shape.
+     * Return selected size for a concrete variant in a compatibility-friendly shape.
      *
-     * @return array{color:?array,size:?array}
+     * @return array{size:?array}
      */
     public function selectedForVariant(Product $variant): array
     {
         $selected = collect($variant->getVariationAttributesForApi())
             ->keyBy('attribute_slug');
 
-        $color = $selected->get(Attribute::SLUG_COLOR);
         $size = $selected->get(Attribute::SLUG_SIZE);
 
         return [
-            'color' => $color ? [
-                'id' => null,
-                'name' => $color['value_name'],
-                'slug' => $color['value_slug'],
-                'code' => $color['code'] ?? null,
-            ] : null,
             'size' => $size ? [
                 'id' => null,
                 'name' => $size['value_name'],
@@ -84,12 +63,12 @@ class ProductVariationAttributeService
     /**
      * @return Collection<int, object>
      */
-    private function simpleProductAttributeValues(Product $product, string $slug, bool $withColorCode): Collection
+    private function simpleProductAttributeValues(Product $product, string $slug): Collection
     {
         $product->loadMissing('attributes.values');
         $rows = $product->getRelation('attributes')->where('slug', $slug);
 
-        return $rows->map(function ($attribute) use ($withColorCode) {
+        return $rows->map(function ($attribute) {
             $pivot = $attribute->pivot;
 
             if ($pivot?->custom_value !== null && $pivot->custom_value !== '') {
@@ -98,7 +77,6 @@ class ProductVariationAttributeService
                     'value' => $pivot->custom_value,
                     'name' => $pivot->custom_value,
                     'slug' => Str::slug($pivot->custom_value),
-                    'color_code' => null,
                 ];
             }
 
@@ -112,7 +90,6 @@ class ProductVariationAttributeService
                 'value' => $value->value,
                 'name' => $value->value,
                 'slug' => $value->slug,
-                'color_code' => $withColorCode ? $value->color_code : null,
             ];
         })->filter()->values();
     }

@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Product\Attribute;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -30,13 +29,13 @@ return new class extends Migration {
 
         $now = now();
         $colorAttributeId = DB::table('product_attributes')
-            ->where('slug', Attribute::SLUG_COLOR)
+            ->where('slug', 'color')
             ->value('id');
 
         if (! $colorAttributeId) {
             $colorAttributeId = DB::table('product_attributes')->insertGetId([
                 'name' => 'Цвет',
-                'slug' => Attribute::SLUG_COLOR,
+                'slug' => 'color',
                 'type' => 'color',
                 'is_filterable' => true,
                 'is_use_in_variations' => true,

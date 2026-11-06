@@ -11,29 +11,23 @@ use Tests\TestCase;
 
 class ProductVariationAttributeServiceTest extends TestCase
 {
-    public function test_variable_product_uses_generic_color_and_size_attributes(): void
+    public function test_variable_product_uses_generic_size_attribute(): void
     {
-        [$color, $white] = $this->attributeWithValue(Attribute::SLUG_COLOR, 'Цвет', 'color', 'Белый', 'belyi', '#ffffff');
         [$size, $large] = $this->attributeWithValue(Attribute::SLUG_SIZE, 'Размер', 'select', 'L', 'l');
 
         $parent = Product::factory()->create(['is_variable' => true]);
         $variant = Product::factory()->create([
             'parent_product_id' => $parent->id,
-            'color' => 'Устаревший цвет',
-            'color_code' => '#000000',
             'length' => 210,
             'width' => 160,
             'height' => 90,
         ]);
 
-        $this->attachVariantValue($variant, $color, $white);
         $this->attachVariantValue($variant, $size, $large);
 
         $service = app(ProductVariationAttributeService::class);
 
-        $this->assertSame(['Белый'], $service->colors($parent)->pluck('value')->all());
         $this->assertSame(['L'], $service->sizes($parent)->pluck('value')->all());
-        $this->assertSame('#ffffff', $service->colors($parent)->first()->color_code);
     }
 
     public function test_physical_dimensions_are_never_exposed_as_commercial_size(): void
@@ -53,24 +47,18 @@ class ProductVariationAttributeServiceTest extends TestCase
 
     public function test_selected_variant_values_come_from_generic_pivot_not_legacy_columns(): void
     {
-        [$color, $white] = $this->attributeWithValue(Attribute::SLUG_COLOR, 'Цвет', 'color', 'Белый', 'belyi', '#ffffff');
         [$size, $large] = $this->attributeWithValue(Attribute::SLUG_SIZE, 'Размер', 'select', 'L', 'l');
 
         $parent = Product::factory()->create(['is_variable' => true]);
         $variant = Product::factory()->create([
             'parent_product_id' => $parent->id,
-            'color' => 'Красный legacy',
-            'color_code' => '#ff0000',
             'length' => 210,
             'width' => 160,
         ]);
-        $this->attachVariantValue($variant, $color, $white);
         $this->attachVariantValue($variant, $size, $large);
 
         $selected = app(ProductVariationAttributeService::class)->selectedForVariant($variant);
 
-        $this->assertSame('Белый', $selected['color']['name']);
-        $this->assertSame('#ffffff', $selected['color']['code']);
         $this->assertSame('L', $selected['size']['name']);
         $this->assertNotSame('210x160', $selected['size']['value']);
     }
@@ -111,7 +99,6 @@ class ProductVariationAttributeServiceTest extends TestCase
         string $type,
         string $value,
         string $valueSlug,
-        ?string $colorCode = null,
     ): array {
         $attribute = Attribute::create([
             'name' => $name,
@@ -127,7 +114,6 @@ class ProductVariationAttributeServiceTest extends TestCase
             'attribute_id' => $attribute->id,
             'value' => $value,
             'slug' => $valueSlug,
-            'color_code' => $colorCode,
             'sort_order' => 0,
         ]);
 

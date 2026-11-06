@@ -4,10 +4,12 @@ namespace Tests\Feature\Api;
 
 use App\Models\Product\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ProductColorFixtures;
 use Tests\TestCase;
 
 class ProductControllerTest extends TestCase
 {
+    use ProductColorFixtures;
     use RefreshDatabase;
 
     public function test_can_list_products(): void
@@ -50,26 +52,14 @@ class ProductControllerTest extends TestCase
         ]);
 
         // Создаем вариации с разными цветами
-        Product::factory()->create([
-            'parent_product_id' => $parentProduct->id,
-            'color' => 'Серый',
-            'color_code' => '#808080',
-            'state' => 'active',
-        ]);
+        $gray = Product::factory()->create(['parent_product_id' => $parentProduct->id, 'state' => 'active']);
+        $this->colorRow($gray, 'seryi');
+        $blue = Product::factory()->create(['parent_product_id' => $parentProduct->id, 'state' => 'active']);
+        $this->colorRow($blue, 'sinii');
 
-        Product::factory()->create([
-            'parent_product_id' => $parentProduct->id,
-            'color' => 'Синий',
-            'color_code' => '#0000FF',
-            'state' => 'active',
-        ]);
+        $response = $this->getJson('/api/v1/products?colors=seryi');
 
-        $response = $this->getJson('/api/v1/products?colors=Серый');
-
-        $response->assertStatus(200)
-            ->assertJsonStructure([
-                'data',
-            ]);
+        $response->assertStatus(200)->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $gray->id);
     }
 
     public function test_can_filter_products_by_sizes(): void
@@ -110,14 +100,14 @@ class ProductControllerTest extends TestCase
         // Создаем вариацию
         $variant = Product::factory()->create([
             'parent_product_id' => $parentProduct->id,
-            'color' => 'Серый',
-            'color_code' => '#808080',
             'length' => 280,
             'width' => 180,
             'state' => 'active',
         ]);
 
-        $response = $this->getJson("/api/v1/products/{$parentProduct->slug}?color=Серый&size=280x180");
+        $this->colorRow($variant, 'seryi');
+
+        $response = $this->getJson("/api/v1/products/{$parentProduct->slug}?color_options[main]=seryi&size=280x180");
 
         $response->assertStatus(200)
             ->assertJsonStructure([

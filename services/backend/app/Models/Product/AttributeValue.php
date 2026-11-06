@@ -34,7 +34,6 @@ class AttributeValue extends Model
         'attribute_id',
         'value',
         'slug',
-        'color_code',
         'sort_order',
     ];
 
