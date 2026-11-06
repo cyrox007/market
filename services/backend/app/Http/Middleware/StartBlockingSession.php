@@ -107,24 +107,31 @@ class StartBlockingSession extends StartSession
             return;
         }
 
-        $this->touchSession($this->manager->driver()->getId());
+        // Сессии ещё нет в хранилище: запись сохраняет CSRF-токен выданной страницы.
+        if (! $this->touchSession($this->manager->driver()->getId())) {
+            parent::saveSession($request);
+        }
     }
 
-    /** Продлевает срок жизни сессии. */
-    protected function touchSession(string $id): void
+    /** Продлевает срок жизни сессии; false — сессии в хранилище нет. */
+    protected function touchSession(string $id): bool
     {
         $handler = $this->manager->driver()->getHandler();
 
         if ($handler instanceof CacheBasedSessionHandler && $handler->getCache()->getStore() instanceof RedisStore) {
             $store = $handler->getCache()->getStore();
-            $store->connection()->expire($store->getPrefix().$id, $this->getSessionLifetimeInSeconds());
-        } elseif ($handler instanceof DatabaseSessionHandler) {
-            DB::connection(config('session.connection'))
-                ->table(config('session.table'))
-                ->where('id', $id)
-                ->update(['last_activity' => time()]);
-        } else {
-            $this->manager->driver()->save();
+
+            return (bool) $store->connection()->expire($store->getPrefix().$id, $this->getSessionLifetimeInSeconds());
         }
+
+        if ($handler instanceof DatabaseSessionHandler) {
+            $sessions = DB::connection(config('session.connection'))->table(config('session.table'))->where('id', $id);
+
+            return $sessions->clone()->update(['last_activity' => time()]) > 0 || $sessions->exists();
+        }
+
+        $this->manager->driver()->save();
+
+        return true;
     }
 }

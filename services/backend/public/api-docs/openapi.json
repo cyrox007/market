@@ -255,30 +255,6 @@
           }
         }
       },
-      "ColorOption": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "nullable": true
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          },
-          "slug": {
-            "type": "string",
-            "nullable": true
-          },
-          "code": {
-            "type": "string",
-            "nullable": true
-          },
-          "count": {
-            "type": "integer"
-          }
-        }
-      },
       "SizeOption": {
         "type": "object",
         "properties": {
@@ -414,16 +390,9 @@
           "colors": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ColorOption"
-            }
-          },
-          "default_color": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ColorOption"
-              }
-            ],
-            "nullable": true
+              "$ref": "#/components/schemas/ProductColorRow"
+            },
+            "description": "Цвета товара или вариации. В режиме списка (_list_view) пусто."
           },
           "default_size": {
             "oneOf": [
@@ -508,6 +477,25 @@
             "type": "string",
             "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
             "example": "/api/v1/shipping/quote"
+          },
+          "default_color_options": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Цвета самой дешёвой вариации (вне режима списка)",
+            "example": {
+              "main": "belyi",
+              "fasad": "dub-votan-belyi"
+            }
+          },
+          "palette": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorPalette"
+            },
+            "description": "Палитра вариативного товара; иначе пусто. В режиме списка (_list_view) пусто."
           }
         },
         "description": "Карточка товара. Поля сверены с кодом ProductResource (ветка main) и локальным API. ВНИМАНИЕ: код main опережает демо-стенд demo1.site.zone — на стенде ещё есть excerpt (удалён в main) и нет backorder/stocks. category/categories появляются только в detail (when taxons загружены). В списках sku/image_hd/image_fullhd = null (isListView)."
@@ -579,6 +567,12 @@
             "type": "string",
             "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
             "example": "/api/v1/shipping/quote"
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorRow"
+            }
           }
         }
       },
@@ -734,8 +728,9 @@
           "colors": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ColorOption"
-            }
+              "$ref": "#/components/schemas/ProductColorRow"
+            },
+            "description": "Цвета простого товара или выбранной вариации; у вариативного товара пусто"
           },
           "feature_blocks": {
             "type": "array",
@@ -822,6 +817,31 @@
             "type": "string",
             "description": "Для текущего SKU, количества, услуг и адреса используйте этот запрос",
             "example": "/api/v1/shipping/quote"
+          },
+          "color_options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColorOptionGroup"
+            }
+          },
+          "selected_color_options": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Для выбранной вариации: ключ группы → ключ варианта",
+            "example": {
+              "main": "belyi",
+              "fasad": "dub-votan-belyi"
+            }
+          },
+          "palette": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorPalette"
+            },
+            "description": "Палитра вариативного товара; иначе пусто"
           }
         },
         "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, feature_blocks, delivery_blocks, nearest_stock."
@@ -2478,6 +2498,192 @@
             "nullable": true
           }
         }
+      },
+      "BaseColor": {
+        "type": "object",
+        "description": "Базовый цвет — справочник для поиска.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "hex": {
+            "type": "string",
+            "nullable": true,
+            "example": "#FFFFFF"
+          }
+        }
+      },
+      "ColorSolution": {
+        "type": "object",
+        "description": "Цветовое решение — то, что видит покупатель.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "example": "Дуб Вотан/Белый"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "icon_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Пиктограмма"
+          },
+          "base_colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BaseColor"
+            }
+          }
+        }
+      },
+      "ColorElement": {
+        "type": "object",
+        "description": "Элемент товара (фасад, столешница…).",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductColorRow": {
+        "type": "object",
+        "description": "Цвет элемента товара или вариации; element = null — основной цвет. У элемента один цвет.",
+        "properties": {
+          "element": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ColorElement"
+              }
+            ],
+            "nullable": true
+          },
+          "solution": {
+            "$ref": "#/components/schemas/ColorSolution"
+          }
+        }
+      },
+      "ColorOptionGroup": {
+        "type": "object",
+        "description": "Выбор вариации по цвету одного элемента. Есть только для элементов, по которым вариации различаются.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Ключ группы: main — основной цвет, иначе slug элемента",
+            "example": "main"
+          },
+          "element": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ColorElement"
+              }
+            ],
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "ЧПУ решения, значение для color_options[<key группы>]",
+                  "example": "dub-votan-belyi"
+                },
+                "variant_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "solution": {
+                  "$ref": "#/components/schemas/ColorSolution"
+                }
+              }
+            }
+          }
+        }
+      },
+      "BaseColorFacet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "hex": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "description": "Число SKU в выборке"
+          }
+        }
+      },
+      "ColorElementFacet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "filter_name": {
+            "type": "string",
+            "example": "Цвет фасада"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BaseColorFacet"
+            }
+          }
+        }
+      },
+      "ProductColorPalette": {
+        "type": "object",
+        "description": "Палитра вариативного товара: решения элемента по всем активным вариациям.",
+        "properties": {
+          "element": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ColorElement"
+              }
+            ],
+            "nullable": true
+          },
+          "solutions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColorSolution"
+            }
+          }
+        }
       }
     }
   },
@@ -3251,12 +3457,29 @@
           {
             "name": "colors",
             "in": "query",
-            "description": "Фильтр по цветам (массив или строка через запятую)",
+            "description": "Фильтр «Цвет»: slug базовых цветов основного цвета (массив или строка через запятую)",
             "required": false,
             "schema": {
               "type": "array",
               "items": {
                 "type": "string"
+              }
+            }
+          },
+          {
+            "name": "element_colors",
+            "in": "query",
+            "required": false,
+            "style": "deepObject",
+            "explode": true,
+            "description": "Фильтр по цвету элемента: element_colors[<slug элемента>][]=<slug базового цвета>",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -3501,8 +3724,9 @@
                             "colors": {
                               "type": "array",
                               "items": {
-                                "type": "object"
-                              }
+                                "$ref": "#/components/schemas/BaseColorFacet"
+                              },
+                              "description": "Базовые цвета основного цвета, только встречающиеся в выборке; по убыванию count"
                             },
                             "sizes": {
                               "type": "array",
@@ -3600,6 +3824,13 @@
                                 "type": "object"
                               },
                               "description": "Производители из характеристики proizvoditel: id, name, slug, count. Те же значения, что в attributes[slug=proizvoditel]. Счётчики учитывают остальные фильтры, исключая собственный выбор производителя."
+                            },
+                            "color_elements": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/ColorElementFacet"
+                              },
+                              "description": "Фильтры по элементам; есть, только если в выборке есть такие цвета"
                             }
                           },
                           "nullable": true
@@ -3621,7 +3852,7 @@
       "get": {
         "operationId": "getProduct",
         "summary": "Получить детальную информацию о товаре",
-        "description": "Возвращает детальную информацию о товаре по slug. Поддерживает получение конкретной вариации по параметрам color и size.",
+        "description": "Возвращает детальную информацию о товаре по slug. Поддерживает получение конкретной вариации по параметрам color_options и size.",
         "tags": [
           "Products"
         ],
@@ -3646,12 +3877,17 @@
             "example": 558
           },
           {
-            "name": "color",
+            "name": "color_options",
             "in": "query",
-            "description": "Цвет для получения конкретной вариации",
             "required": false,
+            "style": "deepObject",
+            "explode": true,
+            "description": "Выбор вариации по цвету: color_options[<key группы>]=<key варианта> из ProductDetail.color_options",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
             }
           },
           {
@@ -4163,6 +4399,16 @@
                         "value_slug"
                       ]
                     }
+                  },
+                  "color_options": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Выбор вариации по цвету: ключ группы → ключ варианта из ProductDetail.color_options. Сочетается с variation_attributes.",
+                    "example": {
+                      "main": "belyi"
+                    }
                   }
                 },
                 "required": [
@@ -4356,6 +4602,16 @@
                         "attribute_slug",
                         "value_slug"
                       ]
+                    }
+                  },
+                  "color_options": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Выбор вариации по цвету: ключ группы → ключ варианта из ProductDetail.color_options. Сочетается с variation_attributes.",
+                    "example": {
+                      "main": "belyi"
                     }
                   }
                 },
@@ -8005,12 +8261,29 @@
           {
             "name": "colors",
             "in": "query",
-            "description": "Фильтр по цветам (массив или строка через запятую)",
+            "description": "Фильтр «Цвет»: slug базовых цветов основного цвета (массив или строка через запятую)",
             "required": false,
             "schema": {
               "type": "array",
               "items": {
                 "type": "string"
+              }
+            }
+          },
+          {
+            "name": "element_colors",
+            "in": "query",
+            "required": false,
+            "style": "deepObject",
+            "explode": true,
+            "description": "Фильтр по цвету элемента: element_colors[<slug элемента>][]=<slug базового цвета>",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           },

@@ -85,7 +85,7 @@ class ProductGalleryPhotosSeeder extends Seeder
             if (!empty($this->availableImages)) {
                 $path = $this->availableImages[array_rand($this->availableImages)];
                 if (file_exists($path)) {
-                    $product->addMedia($path)->toMediaCollection('gallery');
+                    $product->addMedia($path)->preservingOriginal()->toMediaCollection('gallery');
                     return true;
                 }
             }

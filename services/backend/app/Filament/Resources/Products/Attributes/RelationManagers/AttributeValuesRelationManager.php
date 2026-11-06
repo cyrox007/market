@@ -2,11 +2,9 @@
 
 namespace App\Filament\Resources\Products\Attributes\RelationManagers;
 
-use App\Models\Product\AttributeValue;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -25,19 +23,15 @@ class AttributeValuesRelationManager extends RelationManager
     {
         $attribute = $this->getOwnerRecord();
         $type = $attribute->type ?? 'select';
-        $isColor = $type === 'color';
-        $isString = $type === 'string';
 
-        $valueLabel = $isColor ? 'Название цвета' : 'Значение';
         $valueHelper = match ($type) {
-            'color' => 'Название для отображения (например: Серый, Белый). Ниже укажите HEX для чипа на сайте.',
             'string' => 'Вариант выбора в вариациях (например: «Комплект 120», «С подлокотником»). На сайте пользователь выбирает из этого списка.',
             default => 'Название значения (например: Большой, ЛДСП)',
         };
 
         $components = [
             TextInput::make('value')
-                ->label($valueLabel)
+                ->label('Значение')
                 ->required()
                 ->maxLength(255)
                 ->live(onBlur: true)
@@ -63,20 +57,11 @@ class AttributeValuesRelationManager extends RelationManager
                 ->helperText('Чем меньше число, тем выше в списке'),
         ];
 
-        if ($isColor) {
-            $components[] = ColorPicker::make('color_code')
-                ->label('HEX цвета')
-                ->helperText('Цвет чипа на карточке товара');
-        }
-
         return $schema->components($components);
     }
 
     public function table(Table $table): Table
     {
-        $attribute = $this->getOwnerRecord();
-        $isColor = $attribute->type === 'color';
-
         return $table
             ->columns([
                 TextColumn::make('value')
@@ -89,13 +74,6 @@ class AttributeValuesRelationManager extends RelationManager
                     ->label('Slug')
                     ->searchable()
                     ->sortable(),
-
-                TextColumn::make('color_code')
-                    ->label('Цвет')
-                    ->visible($isColor)
-                    ->badge()
-                    ->color(fn ($state) => $state ?: 'gray')
-                    ->formatStateUsing(fn ($state) => $state ?: '—'),
 
                 TextColumn::make('sort_order')
                     ->label('Порядок')

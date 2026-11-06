@@ -11,6 +11,7 @@ use App\Models\Product\Category;
 use App\Models\Product\Manufacturer;
 use App\Models\Product\Product;
 use App\Services\Catalog\AbstractCatalogImport;
+use App\Services\Product\ProductColorImport;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -47,6 +48,14 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
     protected array $manufacturerIdToExternalId = [];
 
     protected int $taxonomyId;
+
+    private ?ProductColorImport $colorImport = null;
+
+    /** Один на прогон импорта: кэш решений и базовых цветов живёт между строками. */
+    protected function colorImport(): ProductColorImport
+    {
+        return $this->colorImport ??= new ProductColorImport;
+    }
 
     public function __construct()
     {
@@ -874,6 +883,12 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                 continue;
             }
 
+            if (ProductColorImport::isColorField($name)) {
+                $this->colorImport()->setMainColor((int) $product->id, $value);
+
+                continue;
+            }
+
             $attributeSlug = Attribute::canonicalSlugForName($name);
             $tableAuthority = app(\App\Services\Catalog\Transfer\TransferTableAuthority::class);
             foreach (['manufacturer' => 'Производитель', 'model' => 'Модель', 'width' => 'Ширина (мм)', 'height' => 'Высота (мм)', 'length' => 'Глубина (мм)'] as $field => $label) {
@@ -881,27 +896,26 @@ class Svetofor1CCatalogImport extends AbstractCatalogImport
                     continue 2;
                 }
             }
-            $isCanonicalColor = $attributeSlug === Attribute::SLUG_COLOR;
             $isCanonicalSize = $attributeSlug === Attribute::SLUG_SIZE;
 
             $attribute = Attribute::firstOrCreate(
                 ['slug' => $attributeSlug],
                 [
                     'name' => $name,
-                    'type' => $isCanonicalColor ? 'color' : ($isCanonicalSize ? 'select' : 'text'),
+                    'type' => $isCanonicalSize ? 'select' : 'text',
                     'is_filterable' => true,
-                    'is_use_in_variations' => $isCanonicalColor || $isCanonicalSize,
-                    'allow_custom_value' => $isCanonicalSize || (! $isCanonicalColor),
+                    'is_use_in_variations' => $isCanonicalSize,
+                    'allow_custom_value' => true,
                     'sort_order' => 0,
                 ]
             );
 
-            if ($isCanonicalColor || $isCanonicalSize) {
+            if ($isCanonicalSize) {
                 $attribute->forceFill([
-                    'type' => $isCanonicalColor ? 'color' : 'select',
+                    'type' => 'select',
                     'is_filterable' => true,
                     'is_use_in_variations' => true,
-                    'allow_custom_value' => $isCanonicalSize,
+                    'allow_custom_value' => true,
                 ])->saveQuietly();
             }
 

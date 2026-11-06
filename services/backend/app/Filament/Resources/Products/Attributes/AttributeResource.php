@@ -2,23 +2,23 @@
 
 namespace App\Filament\Resources\Products\Attributes;
 
-use App\Filament\Resources\Products\Attributes\Pages\ListAttributes;
 use App\Filament\Resources\Products\Attributes\Pages\CreateAttribute;
 use App\Filament\Resources\Products\Attributes\Pages\EditAttribute;
+use App\Filament\Resources\Products\Attributes\Pages\ListAttributes;
 use App\Models\Product\Attribute;
+use BackedEnum;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Section;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Support\Icons\Heroicon;
-use BackedEnum;
 use UnitEnum;
 
 class AttributeResource extends Resource
@@ -57,15 +57,15 @@ class AttributeResource extends Resource
                                 }
                                 $set('slug', \Str::slug($state));
                             })
-                            ->placeholder('Цвет, Размер, Материал, Комплектация…'),
+                            ->placeholder('Размер, Материал, Комплектация…'),
 
                         TextInput::make('slug')
                             ->label(__('filament/admin_sv/attribute_resource.slug'))
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(255)
-                            ->placeholder('color, size, material')
-                            ->helperText('Системные коды: color — цвет, size — торговый размер, proizvoditel — производитель. Габариты в мм: sirina-mm, glubina-mm, vysota-mm. Эти коды не переименовывайте.'),
+                            ->placeholder('size, material')
+                            ->helperText('Системные коды: size — торговый размер, proizvoditel — производитель. Габариты в мм: sirina-mm, glubina-mm, vysota-mm. Эти коды не переименовывайте.'),
                     ])
                     ->columns(2),
 
@@ -76,7 +76,6 @@ class AttributeResource extends Resource
                             ->label(__('filament/admin_sv/attribute_resource.type'))
                             ->options([
                                 'select' => 'Список',
-                                'color' => 'Цвет',
                                 'string' => 'Строка',
                                 'text' => 'Текст',
                                 'number' => 'Число (список)',
@@ -101,7 +100,7 @@ class AttributeResource extends Resource
                         Toggle::make('is_use_in_variations')
                             ->label('Участвует в торговых предложениях')
                             ->default(false)
-                            ->helperText('Параметр вариации: цвет, размер, комплект. Для него API проверяет значение именно у конкретного активного предложения. Общие характеристики наследуются от товара, если у предложения нет своего значения.')
+                            ->helperText('Параметр вариации: размер, комплект. Для него API проверяет значение именно у конкретного активного предложения. Общие характеристики наследуются от товара, если у предложения нет своего значения.')
                             ->live(),
 
                         Toggle::make('is_filterable')
@@ -117,8 +116,8 @@ class AttributeResource extends Resource
                         Toggle::make('is_multiple') 
                             ->label('Множественный выбор')
                             ->default(false)
-                            ->helperText('Разрешить выбор нескольких значений (например, для цвета)')
-                            ->visible(fn ($get) => $get('type') === 'color' || in_array($get('type'), ['select', 'string'], true)),
+                            ->helperText('Разрешить выбор нескольких значений (например, для материала)')
+                            ->visible(fn ($get) => in_array($get('type'), ['select', 'string'], true)),
                             
                         Toggle::make('allow_custom_value')
                             ->label('Разрешить свой текст в вариациях')
@@ -149,7 +148,6 @@ class AttributeResource extends Resource
                     ->label('Тип')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'color' => 'info',
                         'string' => 'warning',
                         'select' => 'success',
                         'number' => 'gray',
@@ -159,7 +157,6 @@ class AttributeResource extends Resource
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'text' => 'Текст',
                         'string' => 'Строка',
-                        'color' => 'Цвет',
                         'select' => 'Выбор',
                         'number' => 'Число',
                         default => $state,

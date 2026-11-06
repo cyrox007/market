@@ -8,10 +8,12 @@ use App\Actions\Product\Data\MergeProductsIntoVariableProductData;
 use App\Actions\Product\MergeProductsIntoVariableProductAction;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Attribute;
+use App\Models\Product\Color\ColorElement;
+use App\Models\Product\Color\ColorSolution;
 use App\Models\Product\Product;
-use App\Services\Product\BulkRelatedProducts;
 use App\Models\Settings\ProductStockSettings;
 use App\Services\Inventory\WarehouseStockResolver;
+use App\Services\Product\BulkRelatedProducts;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -26,14 +28,14 @@ use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Vanilo\Product\Models\ProductState;
 
 class ProductsTable
@@ -316,6 +318,25 @@ class ProductsTable
                     ->query(fn ($query, array $data) => filled($data['value'] ?? null) ? app(\App\Services\Product\ProductManufacturer::class)->filter($query, $data['value']) : $query)
                     ->searchable()
                     ->preload(),
+
+                SelectFilter::make('color_solution')
+                    ->label('Цветовое решение')
+                    ->options(fn () => ColorSolution::orderBy('name')->pluck('name', 'id')->all())
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->where(fn ($cards) => $cards
+                            ->whereHas('colorRows', fn ($rows) => $rows->where('color_solution_id', $data['value']))
+                            ->orWhereHas('variants.colorRows', fn ($rows) => $rows->where('color_solution_id', $data['value'])))
+                        : $query)
+                    ->searchable(),
+
+                SelectFilter::make('color_element')
+                    ->label('Цвет элемента')
+                    ->options(fn () => ColorElement::orderBy('sort_order')->orderBy('name')->pluck('name', 'id')->all())
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->where(fn ($cards) => $cards
+                            ->whereHas('colorRows', fn ($rows) => $rows->where('color_element_id', $data['value']))
+                            ->orWhereHas('variants.colorRows', fn ($rows) => $rows->where('color_element_id', $data['value'])))
+                        : $query),
 
                 ...self::attributeFilters(),
             ])

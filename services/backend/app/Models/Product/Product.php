@@ -5,9 +5,21 @@ namespace App\Models\Product;
 use App\Contracts\Models\PageableContract;
 use App\Models\Inventory\ProductWarehouseStock;
 use App\Models\Page\InteriorIdeaHotspot;
+use App\Models\Product\Attribute;
+use App\Models\Product\AttributeValue;
+use App\Models\Product\Category;
+use App\Models\Product\Color\ProductColorRow;
+use App\Models\Product\Manufacturer;
+use App\Models\Product\ProductCollection;
+use App\Models\Product\ProductDeliveryBlock;
+use App\Models\Product\ProductDocument;
+use App\Models\Product\ProductFeatureBlock;
+use App\Models\Product\ProductRegionRule;
+use App\Models\Product\Review;
 use App\Models\Traits\Cacheable;
 use App\Models\Traits\Pageable;
 use App\Models\Traits\SEO\MetaUniversalSEO;
+use App\Services\Product\ProductVariationAttributeService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,25 +29,13 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
-use Spatie\Image\Enums\Fit;
 use Vanilo\Category\Models\TaxonProxy;
 use Vanilo\Contracts\Buyable;
 use Vanilo\Product\Models\Product as VaniloProduct;
-use App\Models\Product\Attribute;
-use App\Models\Product\AttributeValue;
-use App\Models\Product\Category;
-use App\Models\Product\Manufacturer;
-use App\Models\Product\ProductCollection;
-use App\Models\Product\ProductDeliveryBlock;
-use App\Models\Product\ProductDocument;
-use App\Models\Product\ProductFeatureBlock;
-use App\Models\Product\ProductRegionRule;
-use App\Models\Product\Review;
-use App\Services\Product\ProductCanonicalAttributeQueryService;
-use App\Services\Product\ProductVariationAttributeService;
 
 class Product extends VaniloProduct implements HasMedia, PageableContract, Buyable
 {
@@ -378,7 +378,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         $this->loadMissing('attributes', 'parentProduct.attributes');
         $ownBySlug = collect($own)->groupBy('slug');
         // Being available as a variation attribute does not make a shared value disappear.
-        $variantSlugs = collect([Attribute::SLUG_COLOR, Attribute::SLUG_SIZE, 'variant']);
+        $variantSlugs = collect([Attribute::SLUG_SIZE, 'variant']);
         $shared = collect($this->parentProduct->buildSpecificationsForApi())
             ->reject(fn (array $spec) => $variantSlugs->contains($spec['slug']))->groupBy('slug');
         $result = collect();
@@ -467,20 +467,6 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     }
 
     /**
-     * Получить массив цветов для товара
-     */
-    public function getColorsArray(): array
-    {
-        return app(ProductVariationAttributeService::class)->valuesForSimpleProduct($this, Attribute::SLUG_COLOR)
-            ->map(fn ($value) => [
-                'id' => $value->id,
-                'value' => $value->value,
-                'slug' => $value->slug,
-                'color_code' => $value->color_code,
-            ])->values()->all();
-    }
-
-    /**
      * Привязать сопутствующий товар с автоматическим добавлением обратной связи.
      */
     public function attachRelatedProduct(Product $related): void
@@ -538,6 +524,15 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         return $this->belongsToMany(Product::class, 'sellable_bundle_components', 'product_id', 'component_product_id')
             ->withPivot('quantity', 'sort_order')->withTimestamps()
             ->orderBy('sellable_bundle_components.sort_order')->orderBy('sellable_bundle_components.id');
+    }
+
+    /**
+     * Блок «Цвета товара»: строки элемент + цветовые решения.
+     */
+    public function colorRows(): HasMany
+    {
+        return $this->hasMany(ProductColorRow::class, 'product_id')
+            ->orderBy('sort_order');
     }
 
     /**
@@ -795,7 +790,6 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                     'value' => $av->value,
                     'name' => $av->value,
                     'slug' => $av->slug,
-                    'color_code' => $attribute->type === 'color' ? ($av->color_code ?? null) : null,
                 ]);
             }
         }
@@ -805,7 +799,6 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                 'value' => $custom,
                 'name' => $custom,
                 'slug' => \Str::slug($custom),
-                'color_code' => null,
             ]);
         }
         return $result;
@@ -815,7 +808,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      * Найти вариацию по набору атрибутов. $attributes = ['attribute_slug' => 'value_slug_or_value', ...].
      * Поддерживает и справочные значения (attribute_value_id), и ручной ввод (custom_value).
      */
-    public function getVariantByVariationAttributes(array $attributes): ?Product
+    public function getVariantByVariationAttributes(array $attributes, ?array $onlyIds = null): ?Product
     {
         if (!$this->isVariable() || empty($attributes)) {
             return $this->isVariable() ? null : $this;
@@ -827,7 +820,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             return null;
         }
 
-        $query = $this->variants()->active();
+        $query = $this->variants()->active()->when($onlyIds !== null, fn ($q) => $q->whereIn('id', $onlyIds));
         $variantIds = $this->variants()->active()->pluck('id');
 
         foreach ($attrs as $attr) {
@@ -910,7 +903,6 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                     'attribute_slug' => $attr->slug,
                     'value_slug' => \Str::slug($row->custom_value),
                     'value_name' => $row->custom_value,
-                    'code' => null,
                 ];
                 continue;
             }
@@ -925,18 +917,9 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                 'attribute_slug' => $attr->slug,
                 'value_slug' => $av->slug,
                 'value_name' => $av->value,
-                'code' => $attr->type === 'color' ? ($av->color_code ?? null) : null,
             ];
         }
         return $out;
-    }
-
-    /**
-     * Совместимый API: доступные цвета читаются только из канонической характеристики color.
-     */
-    public function getAvailableColors(): Collection
-    {
-        return app(ProductVariationAttributeService::class)->colors($this);
     }
 
     /**
@@ -946,52 +929,6 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     public function getAvailableSizes(): Collection
     {
         return app(ProductVariationAttributeService::class)->sizes($this);
-    }
-
-    /**
-     * Совместимый API выбора вариации по каноническим color/size.
-     */
-    public function getVariantByAttributes(?string $color = null, ?string $size = null): ?Product
-    {
-        $attributes = [];
-        if ($color !== null && trim($color) !== '') {
-            $attributes[Attribute::SLUG_COLOR] = trim($color);
-        }
-        if ($size !== null && trim($size) !== '') {
-            $attributes[Attribute::SLUG_SIZE] = trim($size);
-        }
-
-        if ($attributes === []) {
-            return $this->isVariable() ? null : $this;
-        }
-
-        return $this->getVariantByVariationAttributes($attributes);
-    }
-
-    /**
-     * Доступные коммерческие размеры для выбранного канонического цвета.
-     */
-    public function getAvailableSizesForColor(?string $color = null): Collection
-    {
-        $constraints = $color !== null && trim($color) !== ''
-            ? [Attribute::SLUG_COLOR => trim($color)]
-            : [];
-
-        return app(ProductCanonicalAttributeQueryService::class)
-            ->availableVariationValues($this, Attribute::SLUG_SIZE, $constraints);
-    }
-
-    /**
-     * Доступные канонические цвета для выбранного коммерческого размера.
-     */
-    public function getAvailableColorsForSize(?string $size = null): Collection
-    {
-        $constraints = $size !== null && trim($size) !== ''
-            ? [Attribute::SLUG_SIZE => trim($size)]
-            : [];
-
-        return app(ProductCanonicalAttributeQueryService::class)
-            ->availableVariationValues($this, Attribute::SLUG_COLOR, $constraints);
     }
 
     /**

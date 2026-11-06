@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Product\ProductColors;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Str;
 
 class InteriorIdeaResource extends JsonResource
 {
@@ -23,15 +23,16 @@ class InteriorIdeaResource extends JsonResource
             'image_main' => $this->getFirstMediaUrl('image', 'main'),
             'hotspots' => $this->when(
                 $this->relationLoaded('hotspots'),
-                fn() => $this->hotspots->map(function ($hotspot) {
+                fn() => tap($this->hotspots, fn ($hotspots) => app(ProductColors::class)->preload($hotspots->pluck('product')->filter()))->map(function ($hotspot) {
                     $product = $hotspot->relationLoaded('product') && $hotspot->product ? $hotspot->product : null;
                     $parent = $product && $product->isVariant() ? ($product->parentProduct ?? null) : null;
                     $linkProduct = $parent ?? $product;
 
                     $variantLinkParams = [];
                     if ($product && $product->isVariant()) {
-                        if (!empty($product->color)) {
-                            $variantLinkParams['color'] = Str::slug((string) $product->color);
+                        $colorOptions = app(ProductColors::class)->selected($product);
+                        if ($colorOptions !== []) {
+                            $variantLinkParams['color_options'] = $colorOptions;
                         }
                         if (!empty($product->length) && !empty($product->width)) {
                             $variantLinkParams['size'] = (int) $product->length . 'x' . (int) $product->width;
