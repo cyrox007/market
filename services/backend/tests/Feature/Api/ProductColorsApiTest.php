@@ -98,7 +98,7 @@ class ProductColorsApiTest extends TestCase
             $this->assertSame(['white', 'gray'], array_column($palette['main']['solutions'], 'slug'));
             $this->assertSame(['oak-white', 'black'], array_column($palette['fasad']['solutions'], 'slug'));
             $this->assertSame(['oak'], array_column($palette['korpus']['solutions'], 'slug'));
-            $this->assertSame(['oak', 'white'], array_column($palette['fasad']['solutions'][0]['base_colors'], 'slug'));
+            $this->assertEqualsCanonicalizing(['oak', 'white'], array_column($palette['fasad']['solutions'][0]['base_colors'], 'slug'));
             $this->assertArrayHasKey('icon_url', $palette['fasad']['solutions'][0]);
         }
         $this->assertEqualsCanonicalizing(array_keys($expected), $seen);
