@@ -86,9 +86,10 @@ class AutomaticOrderRefunds
 
         $client = app(SberbankAcquiringClient::class);
         $bank = $client->getOrderStatusExtended($remoteId);
-        $status = (int) ($bank['orderStatus'] ?? -1);
-        $bankOk = is_array($bank) && $bank !== []
-            && (string) ($bank['errorCode'] ?? '') === '0';
+        $status = filter_var($bank['orderStatus'] ?? null, FILTER_VALIDATE_INT);
+        $status = $status !== false && $status !== null ? $status : -1;
+        $errorCode = filter_var($bank['errorCode'] ?? null, FILTER_VALIDATE_INT);
+        $bankOk = is_array($bank) && $bank !== [] && $errorCode === 0;
         if (! $bankOk) { return; }
         // orderStatus=4 also occurs after PARTIAL refunds. Verify the actual
         // minor-unit refunded amount before marking the payment as refunded.
