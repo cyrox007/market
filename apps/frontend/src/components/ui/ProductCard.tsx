@@ -43,9 +43,22 @@ const IN_CART_BUTTON = cn(
 );
 
 function toSwatches(product: Product): ColorSwatch[] {
-  return (product.colors ?? [])
-    .filter((color) => Boolean(color.code))
-    .map((color) => ({ value: color.code as string, title: color.name ?? undefined }));
+  return (product.colors ?? []).flatMap((color) => {
+    const solution = color.solution;
+    const value = solution?.icon_url
+      ? `url(${JSON.stringify(solution.icon_url)}) center / cover`
+      : (solution?.base_colors[0]?.hex ?? color.code);
+    return value
+      ? [
+          {
+            value,
+            title: solution
+              ? [color.element?.name, solution.name].filter(Boolean).join(': ')
+              : (color.name ?? undefined),
+          },
+        ]
+      : [];
+  });
 }
 
 function ProductCard({

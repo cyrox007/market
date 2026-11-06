@@ -757,7 +757,7 @@ export interface ProductVariant extends WarehouseStockInfo {
   stock_known?: boolean;
   available_to_order?: boolean;
   color?: { name: string; slug: string; code?: string | null } | null;
-  colors?: { id: number; value: string; slug: string; color_code: string | null }[];
+  colors?: ColorOption[];
   size?: { name: string; slug: string; value: string } | null;
   images: string[];
   variation_attributes?: SelectedVariationItem[];
@@ -819,6 +819,8 @@ export interface ProductDocument {
 }
 
 export interface ProductDetail extends Product {
+  color_options?: { key: string; element: { name: string; slug: string } | null; options: { key: string; solution: ColorSolution; variant_ids: number[] }[] }[];
+  palette?: { element: { name: string; slug: string } | null; solutions: ColorSolution[] }[];
   images: string[];
   /** false — остаток бэку неизвестен, число не показываем */
   stock_known?: boolean;
@@ -864,12 +866,22 @@ export interface ProductPagePayload {
 }
 
 export interface ColorOption {
+  element?: { id: number; name: string; slug: string } | null;
+  solution?: ColorSolution;
   id?: number | null;
   name?: string | null;
   slug?: string | null;
   code?: string | null;
   /** Количество товаров с этим цветом в категории; 0 — опция недоступна (показать серой) */
   count?: number;
+}
+
+export interface ColorSolution {
+  id: number;
+  name: string;
+  slug: string;
+  icon_url: string | null;
+  base_colors: { id: number; name: string; slug: string; hex: string | null }[];
 }
 
 export interface SizeOption {

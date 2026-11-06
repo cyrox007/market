@@ -13,6 +13,7 @@ export interface VariantAttributeView {
     slug: string;
     name: string;
     code: string | null;
+    image?: string | null;
     selected: boolean;
     available: boolean;
   }[];
@@ -24,7 +25,32 @@ export function useVariantSelection(product: ProductDetail) {
   const navigate = useNavigate();
   // Страницу открывают и на родителе, и на самом предложении: каталог отдаёт
   // отдельные позиции и ведёт прямо на них (market-docs/61)
-  const variants = product.is_variable || product.is_variant ? (product.variants ?? []) : [];
+  const groups = product.color_options ?? [];
+  const variants = (product.is_variable || product.is_variant ? (product.variants ?? []) : []).map(
+    (variant) =>
+      groups.length
+        ? {
+            ...variant,
+            variation_attributes: [
+              ...(variant.variation_attributes ?? []),
+              ...groups.flatMap((group) => {
+                const option = group.options.find((value) =>
+                  value.variant_ids.includes(variant.id),
+                );
+                return option
+                  ? [
+                      {
+                        attribute_slug: `solution:${group.key}`,
+                        value_slug: option.key,
+                        value_name: option.solution.name,
+                      },
+                    ]
+                  : [];
+              }),
+            ],
+          }
+        : variant,
+  );
   const isKit = Boolean(product.is_sellable_bundle);
 
   const selectedVariant: ProductVariant | null =
@@ -33,7 +59,20 @@ export function useVariantSelection(product: ProductDetail) {
     defaultVariant(variants, isKit);
 
   const attributes: VariantAttributeView[] = selectedVariant
-    ? (product.variation_attributes ?? [])
+    ? [
+        ...groups.map((group) => ({
+          attribute_slug: `solution:${group.key}`,
+          attribute_name: group.element?.name ?? 'Цвет',
+          type: 'color',
+          values: group.options.map((option) => ({
+            slug: option.key,
+            name: option.solution.name,
+            code: option.solution.base_colors[0]?.hex ?? null,
+            image: option.solution.icon_url,
+          })),
+        })),
+        ...(product.variation_attributes ?? []),
+      ]
         .filter((a) => a.values?.length)
         .map((a) => {
           const current = selectedVariant.variation_attributes?.find(
@@ -45,6 +84,7 @@ export function useVariantSelection(product: ProductDetail) {
               slug: v.slug!,
               name: v.name ?? v.slug!,
               code: v.code ?? null,
+              image: 'image' in v ? (v.image as string | null) : null,
               selected: v.slug === current?.value_slug,
               available: isValueAvailable(
                 variants,
@@ -90,10 +130,12 @@ export function useVariantSelection(product: ProductDetail) {
   const cartAttributes = (): { attribute_slug: string; value_slug: string }[] | undefined => {
     if (!product.is_variable || product.is_variant) return undefined;
     if (!selectedVariant?.variation_attributes?.length) return undefined;
-    return selectedVariant.variation_attributes.map((a) => ({
-      attribute_slug: a.attribute_slug,
-      value_slug: a.value_slug,
-    }));
+    return selectedVariant.variation_attributes
+      .filter((a) => !a.attribute_slug.startsWith('solution:'))
+      .map((a) => ({
+        attribute_slug: a.attribute_slug,
+        value_slug: a.value_slug,
+      }));
   };
 
   return {

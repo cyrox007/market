@@ -49,8 +49,13 @@ export default function VariantPicker({ attributes, onSelect, disabled = false }
                   )}
                 >
                   <span
-                    className="size-9 rounded-swatch border border-surface-stroke/[0.08]"
-                    style={{ backgroundColor: value.code ?? undefined }}
+                    className="size-9 rounded-swatch border border-surface-stroke/[0.08] bg-cover bg-center"
+                    style={{
+                      backgroundColor: value.code ?? undefined,
+                      backgroundImage: value.image
+                        ? `url(${JSON.stringify(value.image)})`
+                        : undefined,
+                    }}
                   />
                 </button>
               ))}
