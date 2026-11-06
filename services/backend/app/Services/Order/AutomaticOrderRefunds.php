@@ -93,7 +93,9 @@ class AutomaticOrderRefunds
         // orderStatus=4 also occurs after PARTIAL refunds. Verify the actual
         // minor-unit refunded amount before marking the payment as refunded.
         $rawRefunded = data_get($bank, 'paymentAmountInfo.refundedAmount');
-        $refundedMinor = is_numeric($rawRefunded) ? (int) $rawRefunded : null;
+        $refundedMinor = filter_var($rawRefunded, FILTER_VALIDATE_INT);
+        $refundedMinor = $refundedMinor !== false && $refundedMinor !== null && $refundedMinor >= 0
+            ? $refundedMinor : null;
         $expectedMinor = (int) round($paid * 100);
 
         if ($record) {
@@ -108,8 +110,9 @@ class AutomaticOrderRefunds
 
         // Only a completely paid (captured) transaction is eligible for
         // an automatic full refund. Partial/manual cases stay on review.
-        $bankAmount = (int) ($bank['amount'] ?? 0);
-        if ($status !== 2 || $bankAmount !== $expectedMinor || $refundedMinor !== 0) { return; }
+        $bankAmount = filter_var($bank['amount'] ?? null, FILTER_VALIDATE_INT);
+        if ($status !== 2 || $bankAmount === false || $bankAmount === null
+            || $bankAmount !== $expectedMinor || $refundedMinor !== 0) { return; }
 
         $record = PaymentRefund::create([
             'payment_id' => $payment->id,
