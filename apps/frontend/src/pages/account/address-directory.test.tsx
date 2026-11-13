@@ -9,6 +9,7 @@ const { user } = vi.hoisted(() => ({ user: { id: 1, name: 'Покупатель'
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user, logout: vi.fn(), updateProfile: vi.fn() }) }));
 vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlistCount: vi.fn() }) }));
 vi.mock('../../hooks/usePageSeo', () => ({ usePageSeo: vi.fn() }));
+vi.mock('../../hooks/useRegion', () => ({ useRegion: () => ({ locality: null, locationReady: true }) }));
 vi.mock('../../components/CheckoutAddress', () => ({ default: ({ onChange }: { onChange: (id: string) => void }) => <button type="button" onClick={() => onChange('house-guid')}>Выбрать дом из справочника</button> }));
 vi.mock('../../lib/api', () => ({ api: {
   addresses: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), setDefault: vi.fn() },

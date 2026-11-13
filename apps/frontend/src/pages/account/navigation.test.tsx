@@ -14,6 +14,7 @@ vi.mock('../../hooks/useAuth', () => ({
 }));
 vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlistCount: vi.fn() }) }));
 vi.mock('../../hooks/usePageSeo', () => ({ usePageSeo: vi.fn() }));
+vi.mock('../../hooks/useRegion', () => ({ useRegion: () => ({ locality: null, locationReady: true }) }));
 vi.mock('../../lib/api', () => ({ api: {
   addresses: { list: vi.fn().mockResolvedValue({ data: [] }) },
   orders: { list: vi.fn().mockResolvedValue({ data: [] }) },
@@ -94,7 +95,7 @@ it('waits for account reads before signing out so session responses cannot race 
     return new Promise((resolve) => { finishOrders = resolve; });
   });
   openAccount('/account');
-  await screen.findByText('Личные данные');
+  await screen.findByRole('region', { name: 'Профиль покупателя' });
   await waitFor(() => expect(requestStarted).toHaveBeenCalled());
   fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
   const calledWhileReading = logout.mock.calls.length;

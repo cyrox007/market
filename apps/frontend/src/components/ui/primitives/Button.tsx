@@ -3,8 +3,8 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'reac
 import { cn } from '../../../lib/cn';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'muted' | 'ghost';
-export type ButtonSize = 'sm' | 'md' | 'lg';
-export type ButtonShape = 'pill' | 'rounded';
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
+export type ButtonShape = 'pill' | 'rounded' | 'small';
 
 /** `none` — принятый вариант. Остальное — заготовка заливки, market-docs/09. */
 export type ButtonFill = 'none' | 'up' | 'left' | 'center';
@@ -36,6 +36,7 @@ type ButtonProps = ButtonOwnProps &
  * Замеры и обоснование размеров — market-docs/09-ui-primitives-stage-1.md.
  */
 const SIZE: Record<ButtonSize, string> = {
+  xs: 'min-h-[27px] px-2.5 py-1.5 text-12',
   sm: 'h-11 px-6 text-14',
   md: 'h-11 px-6 text-16',
   lg: 'h-[52px] px-6 text-16',
@@ -43,12 +44,14 @@ const SIZE: Record<ButtonSize, string> = {
 
 /** Промежуток привязан к размеру, потому что так легли замеры (market-docs/09). */
 const GAP: Record<ButtonSize, string> = {
+  xs: 'gap-1',
   sm: 'gap-2',
   md: 'gap-1',
   lg: 'gap-1',
 };
 
 const SHAPE: Record<ButtonShape, string> = {
+  small: 'rounded-badge',
   pill: 'rounded-pill',
   rounded: 'rounded-btn',
 };
@@ -114,7 +117,8 @@ export default function Button({
 
   const root = cn(
     'group relative inline-flex items-center justify-center overflow-hidden',
-    'font-medium whitespace-nowrap select-none',
+    size === 'xs' ? 'font-normal' : 'font-medium',
+    'whitespace-nowrap select-none',
     'outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
     'transition-[color,background-color,border-color,transform] motion-reduce:transition-none',
     SIZE[size],
