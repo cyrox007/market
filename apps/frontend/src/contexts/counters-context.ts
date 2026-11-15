@@ -5,6 +5,8 @@ export interface CountersContextType {
   wishlistCount: number;
   compareCount: number;
   isLoading: boolean;
+  error?: unknown;
+  hasLoaded?: boolean;
   setCartCount: (count: number) => void;
   bumpCartCount: (delta: number) => void;
   bumpWishlistCount: (delta: number) => void;

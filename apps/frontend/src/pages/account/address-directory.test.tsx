@@ -25,7 +25,7 @@ it('creates a saved address using the building ID, not legacy text or shipping l
   });
   const cache = new Map();
   render(<SWRConfig value={{ provider: () => cache }}><MemoryRouter><Account /></MemoryRouter></SWRConfig>);
-  fireEvent.click(screen.getByRole('button', { name: 'Адреса доставки' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Адреса доставки' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Добавить адрес' }));
   fireEvent.click(screen.getByText('Выбрать дом из справочника'));
   const buttons = screen.getAllByRole('button', { name: 'Добавить адрес' });

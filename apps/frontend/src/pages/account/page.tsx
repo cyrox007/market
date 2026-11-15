@@ -21,6 +21,7 @@ import { useAccountSection, type AccountSection } from './useAccountSection';
 import { useAccountData } from './useAccountData';
 import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
+import AccountNavigation from './AccountNavigation';
 import Button from '../../components/ui/primitives/Button';
 import {
   Bell,
@@ -80,11 +81,11 @@ export default function Account() {
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
   const { locality, locationReady } = useRegion();
-  const { refreshWishlistCount } = useCounters();
+  const { refreshWishlistCount, wishlistCount, compareCount, isLoading: isLoadingCounters, error: countersError, hasLoaded: hasCounters, refreshAllCounts } = useCounters();
   const { section: activeSection, selectSection: setActiveSection } = useAccountSection();
   const {
-    orders, isLoadingOrders, ordersError, reloadOrders,
-    addresses, isLoadingAddresses, addressesError, reloadAddresses: loadAddresses,
+    orders, hasOrders, isLoadingOrders, ordersError, reloadOrders,
+    addresses, hasAddresses, isLoadingAddresses, addressesError, reloadAddresses: loadAddresses,
     notificationSettings, isLoadingNotifications, notificationsError, reloadNotifications,
     saveNotifications,
   } = useAccountData(user?.id, activeSection);
@@ -511,6 +512,9 @@ export default function Account() {
         {activeSection === 'settings' && notificationsError && (
           <AccountDataError label="Не удалось загрузить настройки уведомлений" onRetry={reloadNotifications} />
         )}
+        {activeSection === 'profile' && countersError && (
+          <AccountDataError label="Не удалось загрузить счетчики избранного и сравнения" onRetry={refreshAllCounts} />
+        )}
 
         {activeSection === 'profile' && (
           <div className="mb-6">
@@ -520,18 +524,30 @@ export default function Account() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {activeSection === 'profile' && <>
+          <AccountNavigation
+            orders={{ items: orders, hasData: hasOrders, isLoading: isLoadingOrders, error: ordersError }}
+            addresses={{ count: addresses.length, hasData: hasAddresses, isLoading: isLoadingAddresses, error: addressesError }}
+            counters={{ wishlistCount, compareCount, hasData: hasCounters, isLoading: isLoadingCounters, error: countersError }}
+            onLogout={handleLogout} isLoggingOut={isLoggingOut} />
+          {orders.length > 0 && <div className="mb-6 text-14">
+            <span className="mr-2 text-ink-secondary">Последний заказ</span>
+            <Link to={`/orders/${orders[0].id}`} className="text-brand-green underline underline-offset-4">Заказ {orders[0].number || `#${orders[0].id}`} →</Link>
+          </div>}
+        </>}
+
+        <div className={activeSection === 'profile' ? 'space-y-6' : 'grid grid-cols-1 lg:grid-cols-4 gap-8'}>
           {/* Sidebar */}
-          <div className="lg:col-span-1">
+          {activeSection !== 'profile' && <div className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 sticky top-4">
               {/* User Info */}
-              {activeSection !== 'profile' && <div className="text-center mb-6 pb-6 border-b border-gray-200">
+              <div className="text-center mb-6 pb-6 border-b border-gray-200">
                 <div className="w-20 h-20 bg-gradient-to-r from-red-600 to-yellow-500 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-3xl font-bold text-white">{userInitial}</span>
                 </div>
                 <h3 className="font-bold text-lg">{user.name.toUpperCase()}</h3>
                 <p className="text-sm text-gray-600">{user.email}</p>
-              </div>}
+              </div>
                 {orders.length > 0 && (
                   <div className="mb-4 pt-4 border-t border-gray-200">
                     <div className="text-xs text-gray-500 mb-1">Последний заказ</div>
@@ -579,10 +595,10 @@ export default function Account() {
                 </button>
               </nav>
             </div>
-          </div>
+          </div>}
 
           {/* Content */}
-          <div className="lg:col-span-3">
+          <div className={activeSection === 'profile' ? 'min-w-0' : 'lg:col-span-3'}>
             {/* Profile */}
             {activeSection === 'profile' && isEditingProfile && (
               <div ref={profileFormRef} tabIndex={-1} aria-label="Редактирование профиля" className="bg-white border border-gray-200 rounded-2xl p-8">

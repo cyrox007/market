@@ -12,7 +12,7 @@ const { user, region } = vi.hoisted(() => ({
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user, logout: vi.fn(), updateProfile: vi.fn() }) }));
 vi.mock('../../hooks/useRegion', () => ({ useRegion: () => region }));
-vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlistCount: vi.fn() }) }));
+vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlistCount: vi.fn(), wishlistCount: 4, compareCount: 2, isLoading: false }) }));
 vi.mock('../../hooks/usePageSeo', () => ({ usePageSeo: vi.fn() }));
 vi.mock('../../lib/api', () => ({ api: {
   orders: { list: vi.fn() }, addresses: { list: vi.fn() },
@@ -101,4 +101,15 @@ it('renders the profile card during SSR without claiming a fallback city before 
   expect(markup).toContain('Анна Смирнова');
   expect(markup).toContain('Загрузка города');
   expect(markup).not.toContain('Воронеж');
+});
+
+it('connects overview tiles to shared counters and opens settings through the new navigation', async () => {
+  openProfile();
+  const nav = screen.getByRole('navigation', { name: 'Разделы кабинета' });
+  expect(within(nav).getByText('4 товара')).toBeInTheDocument();
+  expect(within(nav).getByText('2 товара')).toBeInTheDocument();
+  expect(await within(nav).findByText('0 адресов')).toBeInTheDocument();
+  fireEvent.click(within(nav).getByRole('link', { name: 'Настройки профиля' }));
+  expect(await screen.findByRole('heading', { name: 'Настройки уведомлений' })).toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Разделы кабинета' })).not.toBeInTheDocument();
 });

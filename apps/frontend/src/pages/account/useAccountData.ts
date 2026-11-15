@@ -44,10 +44,12 @@ export function useAccountData(userId: number | undefined, section: AccountSecti
 
   return {
     orders: orders.data ?? [],
+    hasOrders: orders.data !== undefined,
     isLoadingOrders: orders.isLoading,
     ordersError: orders.error,
     reloadOrders: orders.mutate,
     addresses: addresses.data ?? [],
+    hasAddresses: addresses.data !== undefined,
     isLoadingAddresses: addresses.isLoading,
     addressesError: addresses.error,
     reloadAddresses: addresses.mutate,

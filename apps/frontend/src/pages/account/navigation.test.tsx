@@ -59,7 +59,7 @@ it.each([
 
 it('replaces an unknown section with the profile without losing other query parameters', async () => {
   openAccount('/account?section=missing&from=header');
-  expect(screen.getByRole('button', { name: 'Профиль' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Профиль покупателя' })).toBeInTheDocument();
   expect(await screen.findByText('/account?from=header')).toBeInTheDocument();
 });
 
