@@ -7,6 +7,7 @@ use App\Models\Address\Address;
 use App\Models\Bonus\BonusTransaction;
 use App\Models\Chat\Chat;
 use App\Models\Order\Order;
+use App\Support\UserName;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -28,6 +29,9 @@ class User extends Authenticatable implements FilamentUser
      */
     protected $fillable = [
         'name',
+        'first_name',
+        'last_name',
+        'patronymic',
         'email',
         'password',
         'phone',
@@ -63,6 +67,35 @@ class User extends Authenticatable implements FilamentUser
             'push_notifications' => 'boolean',
             'new_product_notifications' => 'boolean',
         ];
+    }
+
+    /**
+     * A single synchronization point for legacy writes, admin edits and profile API.
+     * A legacy name change invalidates structured parts; structured edits rebuild name.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            foreach (['first_name', 'last_name', 'patronymic'] as $field) {
+                if ($user->isDirty($field)) {
+                    $user->{$field} = UserName::normalize($user->{$field});
+                }
+            }
+
+            if ($user->isDirty(['first_name', 'last_name', 'patronymic'])
+                && $user->first_name !== null && $user->last_name !== null) {
+                $user->name = UserName::format($user->first_name, $user->last_name, $user->patronymic);
+
+                return;
+            }
+
+            if ($user->isDirty('name') && $user->exists) {
+                // Old clients (and admin full-name edits) cannot be trusted to supply name parts.
+                $user->first_name = null;
+                $user->last_name = null;
+                $user->patronymic = null;
+            }
+        });
     }
 
     /**
