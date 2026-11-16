@@ -400,4 +400,133 @@ class AuthControllerTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['phone']);
     }
+
+    public function test_registration_accepts_structured_name_with_compound_parts(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register', [
+            'first_name' => 'Анна Мария',
+            'last_name' => 'де ла Крус',
+            'patronymic' => null,
+            'email' => 'anna@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'phone' => '+79991234567',
+        ]);
+        $response->assertCreated()
+            ->assertJsonPath('user.name', 'де ла Крус Анна Мария')
+            ->assertJsonPath('user.first_name', 'Анна Мария')
+            ->assertJsonPath('user.last_name', 'де ла Крус')
+            ->assertJsonPath('user.patronymic', null);
+        $this->assertDatabaseHas('users', [
+            'email' => 'anna@example.com', 'name' => 'де ла Крус Анна Мария',
+            'first_name' => 'Анна Мария', 'last_name' => 'де ла Крус',
+        ]);
+    }
+
+    public function test_legacy_registration_does_not_guess_parts(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Анна Мария де ла Крус',
+            'email' => 'legacy@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'phone' => '+79991234567',
+        ])->assertCreated()
+            ->assertJsonPath('user.name', 'Анна Мария де ла Крус')
+            ->assertJsonPath('user.first_name', null)
+            ->assertJsonPath('user.last_name', null)
+            ->assertJsonPath('user.patronymic', null);
+    }
+
+    public function test_registration_rejects_partial_or_conflicting_names(): void
+    {
+        $data = [
+            'first_name' => 'Иван',
+            'email' => 'incomplete@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'phone' => '+79991234567',
+        ];
+        $this->postJson('/api/v1/auth/register', $data)
+            ->assertUnprocessable()->assertJsonValidationErrors('last_name');
+
+        $this->postJson('/api/v1/auth/register', $data + [
+            'last_name' => 'Петров', 'name' => 'Иван Петров',
+        ])->assertUnprocessable()->assertJsonValidationErrors('name');
+    }
+
+    public function test_legacy_full_name_is_preserved_until_customer_converts_it(): void
+    {
+        $user = User::factory()->create(['name' => 'Иван Петров Сидоров']);
+        $this->actingAs($user, 'web')->getJson('/api/v1/auth/me')
+            ->assertOk()->assertJsonPath('user.name', 'Иван Петров Сидоров')
+            ->assertJsonPath('user.first_name', null);
+
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'first_name' => 'Иван Петров',
+            'last_name' => 'Сидоров',
+            'patronymic' => null,
+        ])->assertOk()
+            ->assertJsonPath('user.name', 'Сидоров Иван Петров')
+            ->assertJsonPath('user.first_name', 'Иван Петров')
+            ->assertJsonPath('user.last_name', 'Сидоров');
+    }
+
+    public function test_existing_structured_profile_supports_partial_edit_and_clearing_patronymic(): void
+    {
+        $user = User::factory()->create([
+            'first_name' => 'Иван', 'last_name' => 'Петров', 'patronymic' => 'Иванович',
+        ]);
+        $this->assertSame('Петров Иван Иванович', $user->name);
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'last_name' => 'Сидоров', 'patronymic' => null,
+        ])->assertOk()
+            ->assertJsonPath('user.name', 'Сидоров Иван')
+            ->assertJsonPath('user.first_name', 'Иван')
+            ->assertJsonPath('user.last_name', 'Сидоров')
+            ->assertJsonPath('user.patronymic', null);
+    }
+
+    public function test_legacy_full_name_change_invalidates_structured_fields(): void
+    {
+        $user = User::factory()->create([
+            'first_name' => 'Иван', 'last_name' => 'Петров', 'patronymic' => 'Иванович',
+        ]);
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'name' => 'Анна Мария де ла Крус',
+        ])->assertOk()
+            ->assertJsonPath('user.name', 'Анна Мария де ла Крус')
+            ->assertJsonPath('user.first_name', null)
+            ->assertJsonPath('user.last_name', null)
+            ->assertJsonPath('user.patronymic', null);
+    }
+
+    public function test_profile_rejects_conflicting_incomplete_and_overlong_structured_names(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'name' => 'Иван Петров', 'first_name' => 'Иван', 'last_name' => 'Петров',
+        ])->assertUnprocessable()->assertJsonValidationErrors('name');
+
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'first_name' => 'Иван',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['first_name', 'last_name']);
+
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'first_name' => str_repeat('И', 130), 'last_name' => str_repeat('П', 130),
+        ])->assertUnprocessable()->assertJsonValidationErrors('last_name');
+    }
+
+    public function test_phone_only_update_does_not_touch_structured_name(): void
+    {
+        $user = User::factory()->create([
+            'first_name' => 'Иван', 'last_name' => 'Петров', 'phone' => '+79991112233',
+        ]);
+        $this->actingAs($user, 'web')->putJson('/api/v1/auth/profile', [
+            'phone' => '+79994445566',
+        ])->assertOk()
+            ->assertJsonPath('user.name', 'Петров Иван')
+            ->assertJsonPath('user.first_name', 'Иван')
+            ->assertJsonPath('user.last_name', 'Петров');
+    }
 }
