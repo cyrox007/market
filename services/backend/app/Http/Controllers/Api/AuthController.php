@@ -343,8 +343,8 @@ class AuthController extends Controller
             }
 
             $parts = $this->normalizeNameParts([
-                'first_name' => $validated['first_name'] ?? $user->first_name,
-                'last_name' => $validated['last_name'] ?? $user->last_name,
+                'first_name' => array_key_exists('first_name', $validated) ? $validated['first_name'] : $user->first_name,
+                'last_name' => array_key_exists('last_name', $validated) ? $validated['last_name'] : $user->last_name,
                 'patronymic' => array_key_exists('patronymic', $validated) ? $validated['patronymic'] : $user->patronymic,
             ]);
             $this->validatedFullName($parts);

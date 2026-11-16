@@ -13,7 +13,7 @@ final class UserName
             return null;
         }
 
-        $normalized = preg_replace('/\s+/u', ' ', trim($value));
+        $normalized = trim(preg_replace('/\s+/u', ' ', trim($value)));
 
         return $normalized === '' ? null : $normalized;
     }
