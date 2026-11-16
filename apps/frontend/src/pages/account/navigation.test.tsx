@@ -75,7 +75,7 @@ it('shows a retry instead of an empty address book when the request fails', asyn
 it('loads the last order on the profile without opening the orders section first', async () => {
   vi.mocked(api.orders.list).mockResolvedValueOnce({ data: [{ id: 42, number: 'TEST-42' }] } as never);
   openAccount('/account');
-  expect(await screen.findByRole('link', { name: 'Заказ TEST-42 →' })).toHaveAttribute('href', '/orders/42');
+  expect(await screen.findByRole('link', { name: 'Открыть заказ № TEST-42' })).toHaveAttribute('href', '/orders/42');
 });
 
 it('renders a direct address section on the server without browser storage', () => {
@@ -95,8 +95,9 @@ it('waits for account reads before signing out so session responses cannot race 
     return new Promise((resolve) => { finishOrders = resolve; });
   });
   openAccount('/account');
-  await screen.findByRole('region', { name: 'Профиль покупателя' });
+
   await waitFor(() => expect(requestStarted).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole('link', { name: 'Настройки профиля' }));
   fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
   const calledWhileReading = logout.mock.calls.length;
   await act(async () => { finishOrders({ data: [] }); });

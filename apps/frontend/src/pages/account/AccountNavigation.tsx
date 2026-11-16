@@ -7,7 +7,7 @@ import favoritesIcon from './assets/account-favorites.svg';
 import compareIcon from './assets/account-compare.svg';
 import addressesIcon from './assets/account-addresses.svg';
 import settingsIcon from './assets/account-settings.svg';
-import logoutIcon from './assets/account-logout.svg';
+
 import arrowIcon from './assets/account-arrow.svg';
 
 interface ResourceState { isLoading: boolean; error?: unknown; hasData?: boolean }
@@ -15,8 +15,8 @@ interface Props {
   orders: ResourceState & { items: Pick<Order, 'status'>[] };
   addresses: ResourceState & { count: number };
   counters: ResourceState & { wishlistCount?: number; compareCount?: number };
-  onLogout: () => void;
-  isLoggingOut: boolean;
+
+
 }
 
 const activeStatuses = new Set(['new', 'manager_processing', 'assembling', 'awaiting_payment', 'accepted', 'assembled', 'shipped', 'in_transit']);
@@ -27,7 +27,7 @@ function Count({ state, children }: { state: ResourceState; children: ReactNode 
   return <span>{state.error && !state.hasData ? 'Не удалось загрузить' : children}</span>;
 }
 
-export default function AccountNavigation({ orders, addresses, counters, onLogout, isLoggingOut }: Props) {
+export default function AccountNavigation({ orders, addresses, counters }: Props) {
   const [params] = useSearchParams();
   const sectionHref = (section: string) => {
     const next = new URLSearchParams(params);
@@ -68,15 +68,6 @@ export default function AccountNavigation({ orders, addresses, counters, onLogou
             <img src={arrowIcon} alt="" width={20} height={20} className="shrink-0 vsm:hidden" />
           </Link>
         ))}
-      </div>
-      <div className="mt-3 flex flex-col gap-3 vsm:mt-4 vsm:flex-row vsm:items-center vsm:justify-between">
-        <button type="button" aria-label="Выйти" disabled={isLoggingOut} onClick={onLogout}
-          className="flex w-full items-center gap-3.5 rounded-popover border border-surface-border bg-surface py-5 pl-5 pr-4 text-left text-ink outline-none hover:border-brand-yellow focus-visible:ring-2 focus-visible:ring-brand-green disabled:cursor-wait disabled:opacity-60 vsm:w-auto vsm:rounded-badge vsm:border-transparent vsm:p-1.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-grey vsm:hidden"><img src={logoutIcon} alt="" width={22} height={22} /></span>
-          <span className="min-w-0 flex-1"><span className="block text-16 font-semibold">{isLoggingOut ? 'Выход…' : 'Выйти'}</span><span className="mt-1 block text-14 text-ink-secondary vsm:hidden">Завершить сеанс</span></span>
-          <img src={arrowIcon} alt="" width={20} height={20} className="shrink-0 vsm:hidden" />
-        </button>
-        <Link to={sectionHref('bonuses')} className="text-14 text-ink-secondary underline underline-offset-4 focus-visible:outline-brand-green vsm:order-first">Бонусы</Link>
       </div>
     </nav>
   );

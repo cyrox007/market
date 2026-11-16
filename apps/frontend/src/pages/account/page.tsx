@@ -22,6 +22,7 @@ import { useAccountData } from './useAccountData';
 import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
 import AccountNavigation from './AccountNavigation';
+import AccountLastOrder from './AccountLastOrder';
 import Button from '../../components/ui/primitives/Button';
 import {
   Bell,
@@ -503,7 +504,7 @@ export default function Account() {
           {activeSection === 'profile' && <span className="md:hidden">Профиль</span>}
         </h1>
 
-        {(activeSection === 'profile' || activeSection === 'orders') && ordersError && (
+        {activeSection === 'orders' && ordersError && (
           <AccountDataError label="Не удалось загрузить заказы" onRetry={reloadOrders} />
         )}
         {(activeSection === 'profile' || activeSection === 'addresses') && addressesError && (
@@ -529,11 +530,8 @@ export default function Account() {
             orders={{ items: orders, hasData: hasOrders, isLoading: isLoadingOrders, error: ordersError }}
             addresses={{ count: addresses.length, hasData: hasAddresses, isLoading: isLoadingAddresses, error: addressesError }}
             counters={{ wishlistCount, compareCount, hasData: hasCounters, isLoading: isLoadingCounters, error: countersError }}
-            onLogout={handleLogout} isLoggingOut={isLoggingOut} />
-          {orders.length > 0 && <div className="mb-6 text-14">
-            <span className="mr-2 text-ink-secondary">Последний заказ</span>
-            <Link to={`/orders/${orders[0].id}`} className="text-brand-green underline underline-offset-4">Заказ {orders[0].number || `#${orders[0].id}`} →</Link>
-          </div>}
+            />
+          <AccountLastOrder orders={orders} isLoading={isLoadingOrders} error={ordersError} onRetry={reloadOrders} />
         </>}
 
         <div className={activeSection === 'profile' ? 'space-y-6' : 'grid grid-cols-1 lg:grid-cols-4 gap-8'}>
