@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { resolve } from 'node:path';
@@ -87,7 +88,6 @@ export default defineConfig({
   ssr: {
     resolve: {
       conditions: ['node', 'import'],
-      dedupe: ['react', 'react-dom'],
     },
     noExternal: ['swr', 'dequal'],
   },
@@ -98,6 +98,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': resolve(__dirname, './src'),
     },
