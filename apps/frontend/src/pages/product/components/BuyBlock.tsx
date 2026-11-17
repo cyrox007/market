@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, ChevronsRight, Copy, ShoppingCart, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import CartLink from '../../../components/cart/CartLink';
 import { QuantityStepper } from '../../../components/ui/composites';
 import { Badge, Button, Tooltip } from '../../../components/ui/primitives';
 import type { BadgeVariant } from '../../../components/ui/primitives/Badge';
@@ -17,6 +17,7 @@ import { formatPrice, formatRating } from '../lib/productText';
 import { isSellableOffer } from '../lib/variants';
 import BundleComposition from './BundleComposition';
 import VariantPicker from './VariantPicker';
+import SelectedColors from '../../../components/ui/composites/SelectedColors';
 
 export interface BuyBlockCart {
   quantity: number;
@@ -143,6 +144,14 @@ export default function BuyBlock({
       )}
 
       <VariantPicker attributes={attributes} onSelect={onSelectValue} disabled={disabled} />
+      <SelectedColors
+        colors={(item.colors ?? []).flatMap((row) =>
+          row.solution &&
+          !product.color_options?.some((group) => group.key === (row.element?.slug ?? 'main'))
+            ? [{ element: row.element ?? null, solution: row.solution }]
+            : [],
+        )}
+      />
 
       {parts.length > 0 && <BundleComposition key={selectedVariant?.id} parts={parts} />}
 
@@ -167,8 +176,7 @@ export default function BuyBlock({
               disabled={cart.isBusy}
               onChange={(next) => (next > cart.quantity ? cart.increment() : cart.decrement())}
             />
-            <Link
-              to="/cart"
+            <CartLink
               className={cn(
                 'inline-flex h-[52px] flex-1 items-center justify-center gap-1 rounded-btn bg-brand-yellow px-4',
                 'whitespace-nowrap text-16 font-medium text-ink shadow-card outline-none',
@@ -178,7 +186,7 @@ export default function BuyBlock({
             >
               Перейти в корзину
               <ChevronsRight aria-hidden="true" className="size-5" />
-            </Link>
+            </CartLink>
           </div>
         ) : (
           <Button

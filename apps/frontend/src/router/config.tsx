@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import { Navigate } from 'react-router-dom';
 import type { RouteObject } from 'react-router';
 import RootLayout from '../components/layout/RootLayout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -21,7 +22,6 @@ const Oferta = lazy(() => import('../pages/oferta/page'));
 const Cookies = lazy(() => import('../pages/cookies/page'));
 const About = lazy(() => import('../pages/about/page'));
 const Contacts = lazy(() => import('../pages/contacts/page'));
-const Cart = lazy(() => import('../pages/cart/page'));
 const Checkout = lazy(() => import('../pages/checkout/warehouse-page'));
 const Account = lazy(() => import('../pages/account/page'));
 const Login = lazy(() => import('../pages/login/page'));
@@ -50,6 +50,8 @@ const devRoutes: RouteObject[] = [];
 if (import.meta.env.DEV) {
   const UiSandbox = lazy(() => import('../pages/ui-sandbox/page'));
   devRoutes.push({ path: '__ui', element: <UiSandbox /> });
+  const CheckoutPreview = lazy(() => import('../pages/checkout-preview/page'));
+  devRoutes.push({ path: '__checkout-preview', element: <CheckoutPreview /> });
 }
 
 const routes: RouteObject[] = [
@@ -79,7 +81,7 @@ const routes: RouteObject[] = [
       { path: 'cookies', element: <Cookies /> },
       { path: 'about', element: <About /> },
       { path: 'contacts', element: <Contacts /> },
-      { path: 'cart', element: <Cart /> },
+      { path: 'cart', element: <Navigate to="/checkout" replace /> },
       { path: 'checkout', element: <Checkout /> },
       { path: 'login', element: <Login /> },
       { path: 'register', element: <Register /> },

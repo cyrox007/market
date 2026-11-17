@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../../lib/cn';
+import ColorSample from '../../../components/ui/composites/ColorSample';
 import type { VariantAttributeView } from '../hooks/useVariantSelection';
 
 interface Props {
@@ -48,10 +49,19 @@ export default function VariantPicker({ attributes, onSelect, disabled = false }
                     disabled && 'cursor-wait',
                   )}
                 >
-                  <span
-                    className="size-9 rounded-swatch border border-surface-stroke/[0.08]"
-                    style={{ backgroundColor: value.code ?? undefined }}
-                  />
+                  {value.solution ? (
+                    <ColorSample solution={value.solution} className="!size-9" />
+                  ) : (
+                    <span
+                      className="size-9 rounded-swatch border border-surface-stroke/[0.08] bg-cover bg-center"
+                      style={{
+                        backgroundColor: value.code ?? undefined,
+                        backgroundImage: value.image
+                          ? `url(${JSON.stringify(value.image)})`
+                          : undefined,
+                      }}
+                    />
+                  )}
                 </button>
               ))}
             </div>

@@ -1,9 +1,12 @@
 import { cn } from '../../../lib/cn';
+import type { ColorSolution } from '../../../lib/api';
+import ColorSample from './ColorSample';
 
 export interface ColorSwatch {
   /** CSS-цвет: hex, rgb, а для текстур — градиент или url() */
   value: string;
   title?: string;
+  solution?: ColorSolution;
 }
 
 interface ColorSwatchesProps {
@@ -55,8 +58,12 @@ export default function ColorSwatches({
               index >= desktopVisible && 'hidden max-sm:block',
               index >= mobileVisible && 'max-sm:hidden',
             )}
-            style={{ background: color.value }}
-          />
+            style={color.solution ? undefined : { background: color.value }}
+          >
+            {color.solution && (
+              <ColorSample solution={color.solution} className="!size-full !border-0" />
+            )}
+          </span>
         );
       })}
 

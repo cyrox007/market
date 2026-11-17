@@ -48,7 +48,12 @@ export function useProductCartActions({
     try {
       setIsBusy(true);
       setError(null);
-      const result = await addToCart(product.id, 1, cartAttributes());
+      const hasColorSolutions = Boolean(product.color_options?.length && selectedVariant);
+      const result = await addToCart(
+        hasColorSolutions ? cartProductId : product.id,
+        1,
+        hasColorSolutions ? undefined : cartAttributes(),
+      );
       if (result.was_adjusted) showError(result.message);
     } catch (err: any) {
       console.error('Failed to add to cart:', err);

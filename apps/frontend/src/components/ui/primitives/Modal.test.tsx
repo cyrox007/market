@@ -66,6 +66,11 @@ const openIt = () => {
 };
 
 describe('Modal', () => {
+  it('позволяет задать границу мобильной шторки отдельно от стандартных 768', () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: query === '(max-width: 979px)', addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    render(<Modal open onClose={vi.fn()} title="Адрес" mobileQuery="(max-width: 979px)"><input /></Modal>);
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-variant', 'bottom');
+  });
   it('ничего не показывает, пока не открыто', () => {
     render(<Harness />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

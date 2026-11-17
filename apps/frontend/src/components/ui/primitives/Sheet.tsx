@@ -1,12 +1,12 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
-import type { PointerEvent, ReactNode } from 'react';
+import type { CSSProperties, PointerEvent, ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 import PresencePortal from './PresencePortal';
 import { transitionMs, useCloseUnlessLeaving } from './usePresence';
 import { useDialog } from './useDialog';
 
 /** center — окно посередине; его выбирает Modal по ширине экрана */
-export type SheetSide = 'left' | 'bottom' | 'center';
+export type SheetSide = 'left' | 'right' | 'bottom' | 'center';
 
 interface SheetProps {
   open: boolean;
@@ -21,6 +21,8 @@ interface SheetProps {
   /** Прилипает к низу, тело прокручивается над ним */
   footer?: ReactNode;
   className?: string;
+  /** Корзина: компактная шапка, отступы 24/16 и шторка не выше 85dvh. */
+  appearance?: 'default' | 'cart';
   children: ReactNode;
 }
 
@@ -53,6 +55,7 @@ function SheetPanel({
   headerDivider = false,
   footer,
   className,
+  appearance = 'default',
   children,
 }: SheetPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -67,6 +70,8 @@ function SheetPanel({
   }, []);
   const isBottom = side === 'bottom';
   const isCenter = side === 'center';
+  const isRight = side === 'right';
+  const isCart = appearance === 'cart';
   const padX = isBottom ? 16 : isCenter ? 24 : 32;
   const onCloseRef = useCloseUnlessLeaving(onClose, leaving);
 
@@ -139,12 +144,14 @@ function SheetPanel({
               )
             : isBottom
               ? cn(
-                  'inset-x-0 bottom-0 max-h-[90vh] rounded-t-card',
+                  'inset-x-0 bottom-0 rounded-t-card',
+                  isCart ? 'max-h-[85dvh]' : 'max-h-[90vh]',
                   shown ? 'translate-y-0' : 'translate-y-full',
                 )
               : cn(
-                  'inset-y-0 left-0 w-[400px] max-w-full shadow-drawer',
-                  shown ? 'translate-x-0' : '-translate-x-full',
+                  'inset-y-0 max-w-full shadow-drawer',
+                  isRight ? 'right-0 w-[570px]' : 'left-0 w-[400px]',
+                  shown ? 'translate-x-0' : isRight ? 'translate-x-full' : '-translate-x-full',
                 ),
           className,
         )}
@@ -158,7 +165,10 @@ function SheetPanel({
             onPointerMove={movePull}
             onPointerUp={endPull}
             onPointerCancel={endPull}
-            className="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center"
+            className={cn(
+              'flex h-6 shrink-0 cursor-grab touch-none items-center justify-center',
+              isCart && 'bg-surface-grey/50 rounded-t-card',
+            )}
           >
             <span className="h-1 w-10 rounded-pill bg-surface-border" />
           </div>
@@ -166,15 +176,25 @@ function SheetPanel({
         <div
           className={cn(
             'flex shrink-0 items-center justify-between gap-4',
-            isBottom ? 'px-4 pb-4' : isCenter ? 'px-6 pb-4 pt-6' : 'pb-4 pl-8 pr-6 pt-6',
+            isCart
+              ? 'bg-surface-grey/50 px-6 py-6 max-vsm:px-4 max-vsm:py-4'
+              : isBottom
+                ? 'px-4 pb-4'
+                : isCenter
+                  ? 'px-6 pb-4 pt-6'
+                  : 'pb-4 pl-8 pr-6 pt-6',
           )}
         >
           <h2
             id={titleId}
             className={cn(
               'min-w-0 text-ink',
-              isCenter ? 'text-20 font-semibold leading-none' : 'font-bold',
-              isBottom ? 'text-20' : !isCenter && 'text-24',
+              isCart
+                ? 'text-20 font-semibold max-vsm:text-16'
+                : isCenter
+                  ? 'text-20 font-semibold leading-none'
+                  : 'font-bold',
+              !isCart && (isBottom ? 'text-20' : !isCenter && 'text-24'),
             )}
           >
             {title}
@@ -189,18 +209,31 @@ function SheetPanel({
           className={cn(
             // overflow-x-hidden: бегунок ползунка в крайнем положении выходит на полкружка за край
             'scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain',
-            headerDivider ? 'pt-6' : 'pt-2',
+            isCart
+              ? 'flex flex-col pl-6 pr-[max(0px,calc(24px-var(--sheet-gutter)))] pt-6 max-vsm:pl-4 max-vsm:pr-[max(0px,calc(16px-var(--sheet-gutter)))]'
+              : headerDivider
+                ? 'pt-6'
+                : 'pt-2',
             'pb-6',
           )}
-          style={{ paddingLeft: padX, paddingRight: Math.max(0, padX - gutter) }}
+          style={
+            isCart
+              ? ({ '--sheet-gutter': `${gutter}px` } as CSSProperties)
+              : { paddingLeft: padX, paddingRight: Math.max(0, padX - gutter) }
+          }
         >
           {children}
         </div>
         {footer && (
           <div
             className={cn(
-              'shrink-0 border-t border-surface-border',
-              isBottom ? 'px-4 pb-4 pt-4' : isCenter ? 'px-6 pb-6 pt-4' : 'px-8 pb-6 pt-4',
+              'shrink-0',
+              isCart
+                ? 'px-6 pb-[max(24px,env(safe-area-inset-bottom))] max-vsm:px-4 max-vsm:pb-[max(16px,env(safe-area-inset-bottom))]'
+                : cn(
+                    'border-t border-surface-border',
+                    isBottom ? 'px-4 pb-4 pt-4' : isCenter ? 'px-6 pb-6 pt-4' : 'px-8 pb-6 pt-4',
+                  ),
             )}
           >
             {footer}

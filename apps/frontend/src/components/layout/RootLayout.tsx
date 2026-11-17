@@ -3,6 +3,7 @@ import Header from './Header/HeaderConnected';
 import Footer from './Footer';
 import BottomBar from './BottomBar/BottomBarConnected';
 import CookieConsentBanner from '../CookieConsentBanner';
+import CartPanel from '../cart/CartPanel';
 
 /**
  * Общий layout: Header и Footer не размонтируются при навигации,
@@ -19,6 +20,7 @@ export default function RootLayout() {
       <Footer />
       <BottomBar />
       <CookieConsentBanner />
+      <CartPanel />
     </div>
   );
 }

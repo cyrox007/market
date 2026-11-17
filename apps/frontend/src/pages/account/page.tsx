@@ -17,6 +17,7 @@ import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import Icon from '../../components/ui/icons/Icon';
 import { canOrder } from '../../lib/availability';
+import { useCartPanel } from '../../contexts/cart-panel-context';
 import {
   Bell,
   Calendar,
@@ -72,6 +73,7 @@ function getStatusColor(status: string): string {
 }
 
 export default function Account() {
+  const { openCart } = useCartPanel();
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
   const { refreshWishlistCount } = useCounters();
@@ -497,7 +499,7 @@ export default function Account() {
         alert(message);
       }
 
-      navigate('/cart');
+      openCart();
     } catch (error: any) {
       console.error('Failed to repeat order:', error);
       const errorMessage = error?.data?.message || error?.message || 'Ошибка повторения заказа';
