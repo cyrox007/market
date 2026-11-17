@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useRegion } from '../../hooks/useRegion';
 import { useCounters } from '../../hooks/useCounters';
 import {
   api,
-  type Order,
   type Address,
   type BonusTransaction,
   type WishlistItem,
@@ -19,6 +19,11 @@ import { buildProfileUpdate, initialProfileForm, type ProfileFormValues } from '
 import Icon from '../../components/ui/icons/Icon';
 import { canOrder } from '../../lib/availability';
 import { useCartPanel } from '../../contexts/cart-panel-context';
+import { useAccountSection, type AccountSection } from './useAccountSection';
+import { useAccountData } from './useAccountData';
+import { AccountDataError } from './AccountDataError';
+import AccountProfileCard from './AccountProfileCard';
+import Button from '../../components/ui/primitives/Button';
 import {
   Bell,
   Calendar,
@@ -77,19 +82,22 @@ export default function Account() {
   const { openCart } = useCartPanel();
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
+  const { locality, locationReady } = useRegion();
   const { refreshWishlistCount } = useCounters();
-  const [activeSection, setActiveSection] = useState('profile');
+  const { section: activeSection, selectSection: setActiveSection } = useAccountSection();
+  const {
+    orders, isLoadingOrders, ordersError, reloadOrders,
+    addresses, isLoadingAddresses, addressesError, reloadAddresses: loadAddresses,
+    notificationSettings, isLoadingNotifications, notificationsError, reloadNotifications,
+    saveNotifications,
+  } = useAccountData(user?.id, activeSection);
 
   // Состояния для данных
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [addresses, setAddresses] = useState<Address[]>([]);
   const [favorites, setFavorites] = useState<WishlistItem[]>([]);
   const [bonusBalance, setBonusBalance] = useState(0);
   const [bonusHistory, setBonusHistory] = useState<BonusTransaction[]>([]);
 
   // Состояния для загрузки
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [isLoadingBonuses, setIsLoadingBonuses] = useState(false);
 
@@ -101,6 +109,12 @@ export default function Account() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const profileFormRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeSection === 'profile' && isEditingProfile) profileFormRef.current?.focus();
+  }, [activeSection, isEditingProfile]);
 
   // Состояния для адресов
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -120,13 +134,6 @@ export default function Account() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Состояния для настроек уведомлений
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
-    email_promotions: true,
-    sms_order_notifications: true,
-    push_notifications: false,
-    new_product_notifications: true,
-  });
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [notificationSuccess, setNotificationSuccess] = useState(false);
@@ -152,18 +159,10 @@ export default function Account() {
 
   // Загрузка данных при смене секции
   useEffect(() => {
-    if (activeSection === 'orders' && orders.length === 0) {
-      loadOrders();
-    } else if (activeSection === 'addresses') {
-      if (addresses.length === 0) {
-        loadAddresses();
-      }
-    } else if (activeSection === 'favorites' && favorites.length === 0) {
+    if (activeSection === 'favorites' && favorites.length === 0) {
       loadFavorites();
     } else if (activeSection === 'bonuses') {
       loadBonuses();
-    } else if (activeSection === 'settings') {
-      loadNotificationSettings();
     }
   }, [activeSection]);
 
@@ -173,37 +172,6 @@ export default function Account() {
       setProfileForm(initialProfileForm(user));
     }
   }, [user]);
-
-  const loadOrders = async () => {
-    setIsLoadingOrders(true);
-    try {
-      const response = await api.orders.list();
-      setOrders(response.data || []);
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setIsLoadingOrders(false);
-    }
-  };
-
-  const loadAddresses = async () => {
-    setIsLoadingAddresses(true);
-    try {
-      const response = await api.addresses.list();
-      const addressesList = response.data || [];
-      // Сортируем адреса: основной по умолчанию идет первым
-      const sortedAddresses = [...addressesList].sort((a, b) => {
-        if (a.is_default && !b.is_default) return -1;
-        if (!a.is_default && b.is_default) return 1;
-        return 0;
-      });
-      setAddresses(sortedAddresses);
-    } catch (error) {
-      console.error('Failed to load addresses:', error);
-    } finally {
-      setIsLoadingAddresses(false);
-    }
-  };
 
 
   const loadFavorites = async () => {
@@ -234,34 +202,19 @@ export default function Account() {
     }
   };
 
-  const loadNotificationSettings = async () => {
-    setIsLoadingNotifications(true);
-    try {
-      const response = await api.auth.getNotificationSettings();
-      setNotificationSettings(response.settings);
-    } catch (error) {
-      console.error('Failed to load notification settings:', error);
-    } finally {
-      setIsLoadingNotifications(false);
-    }
-  };
-
   const handleNotificationChange = async (key: keyof NotificationSettings, value: boolean) => {
-    const updatedSettings = { ...notificationSettings, [key]: value };
-    setNotificationSettings(updatedSettings);
+    if (!notificationSettings || isSavingNotifications) return;
     setNotificationError(null);
     setNotificationSuccess(false);
 
     setIsSavingNotifications(true);
     try {
-      await api.auth.updateNotificationSettings(updatedSettings);
+      await saveNotifications({ [key]: value });
       setNotificationSuccess(true);
       setTimeout(() => setNotificationSuccess(false), 3000);
     } catch (error: any) {
       const errorMessage = error?.data?.message || error?.message || 'Ошибка обновления настроек';
       setNotificationError(errorMessage);
-      // Откатываем изменение при ошибке
-      setNotificationSettings(notificationSettings);
     } finally {
       setIsSavingNotifications(false);
     }
@@ -296,11 +249,11 @@ export default function Account() {
     setIsChangingPassword(true);
 
     try {
-      await api.auth.changePassword({
+      await runSessionTask(() => api.auth.changePassword({
         current_password: passwordForm.current_password,
         password: passwordForm.password,
         password_confirmation: passwordForm.password_confirmation,
-      });
+      }));
       setPasswordSuccess(true);
       setPasswordForm({
         current_password: '',
@@ -321,7 +274,7 @@ export default function Account() {
     setIsLoggingOut(true);
     let didNavigate = false;
     try {
-      await logout();
+      await runSessionTask(() => logout());
       navigate('/login');
       didNavigate = true;
     } catch (error) {
@@ -349,7 +302,7 @@ export default function Account() {
     setIsSavingProfile(true);
 
     try {
-      await updateProfile(payload);
+      await runSessionTask(() => updateProfile(payload));
       setProfileSuccess(true);
       setLastUpdated(new Date());
       setTimeout(() => setProfileSuccess(false), 3000);
@@ -365,8 +318,8 @@ export default function Account() {
     if (!addressToDelete) return;
 
     try {
-      await api.addresses.delete(addressToDelete.id);
-      setAddresses(addresses.filter((addr) => addr.id !== addressToDelete.id));
+      await runSessionTask(() => api.addresses.delete(addressToDelete.id));
+      await loadAddresses();
       setAddressToDelete(null);
     } catch (error: any) {
       console.error('Failed to delete address:', error);
@@ -376,7 +329,7 @@ export default function Account() {
 
   const handleSetDefaultAddress = async (id: number) => {
     try {
-      await api.addresses.setDefault(id);
+      await runSessionTask(() => api.addresses.setDefault(id));
       await loadAddresses();
     } catch (error: any) {
       console.error('Failed to set default address:', error);
@@ -446,9 +399,9 @@ export default function Account() {
       };
 
       if (editingAddress) {
-        await api.addresses.update(editingAddress.id, addressData);
+        await runSessionTask(() => api.addresses.update(editingAddress.id, addressData));
       } else {
-        await api.addresses.create(addressData);
+        await runSessionTask(() => api.addresses.create(addressData));
       }
 
       await loadAddresses();
@@ -517,34 +470,65 @@ export default function Account() {
   }
 
   const userInitial = user.name.charAt(0).toUpperCase();
+  const savedCity = addresses.find((address) => address.is_default)?.city?.trim();
+  const cityLoading = isLoadingAddresses || (!savedCity && !locationReady);
+  const profileCity = cityLoading ? undefined : savedCity || locality?.name?.trim();
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className={activeSection === 'profile'
+        ? 'mx-auto w-full max-w-[1440px] px-[100px] pb-16 pt-6 max-md:px-6 max-vsm:px-4'
+        : 'max-w-7xl mx-auto px-4 py-6'}>
         {/* Breadcrumbs */}
-        <div className="flex items-center gap-2 text-sm mb-2">
-          <Link to="/" className="text-gray-600 hover:text-red-600">
+        <nav aria-label="Хлебные крошки" className={activeSection === 'profile' ? 'mb-6 flex items-center gap-2 text-14 text-ink' : 'flex items-center gap-2 text-sm mb-2'}>
+          <Link to="/" className={activeSection === 'profile' ? 'hover:text-brand-green' : 'text-gray-600 hover:text-red-600'}>
             Главная
           </Link>
           <ChevronRight className="size-[1em] text-gray-400" />
-          <span className="text-gray-900">Личный кабинет</span>
-        </div>
+          {activeSection === 'profile' ? <>
+            <Link to="/account" className="hover:text-brand-green max-md:hidden">Личный кабинет</Link>
+            <ChevronRight className="size-4 max-md:hidden" aria-hidden="true" />
+            <span className="text-ink/50" aria-current="page">Профиль</span>
+          </> : <span className="text-gray-900">Личный кабинет</span>}
+        </nav>
 
-        <h1 className="text-4xl font-bold mb-8">Личный кабинет</h1>
+        <h1 className={activeSection === 'profile' ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
+          <span className={activeSection === 'profile' ? 'max-md:hidden' : undefined}>Личный кабинет</span>
+          {activeSection === 'profile' && <span className="md:hidden">Профиль</span>}
+        </h1>
+
+        {(activeSection === 'profile' || activeSection === 'orders') && ordersError && (
+          <AccountDataError label="Не удалось загрузить заказы" onRetry={reloadOrders} />
+        )}
+        {(activeSection === 'profile' || activeSection === 'addresses') && addressesError && (
+          <AccountDataError label="Не удалось загрузить адреса" onRetry={loadAddresses} />
+        )}
+        {activeSection === 'settings' && notificationsError && (
+          <AccountDataError label="Не удалось загрузить настройки уведомлений" onRetry={reloadNotifications} />
+        )}
+
+        {activeSection === 'profile' && (
+          <div className="mb-6">
+            <AccountProfileCard user={user} city={{ name: profileCity, isLoading: cityLoading }}
+              newsletter={{ enabled: notificationSettings?.email_promotions, isLoading: isLoadingNotifications, error: notificationsError, onRetry: reloadNotifications }}
+              onEdit={() => setIsEditingProfile(true)} />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 sticky top-4">
               {/* User Info */}
-              <div className="text-center mb-6 pb-6 border-b border-gray-200">
+              {activeSection !== 'profile' && <div className="text-center mb-6 pb-6 border-b border-gray-200">
                 <div className="w-20 h-20 bg-gradient-to-r from-red-600 to-yellow-500 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-3xl font-bold text-white">{userInitial}</span>
                 </div>
                 <h3 className="font-bold text-lg">{user.name.toUpperCase()}</h3>
                 <p className="text-sm text-gray-600">{user.email}</p>
+              </div>}
                 {orders.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="mb-4 pt-4 border-t border-gray-200">
                     <div className="text-xs text-gray-500 mb-1">Последний заказ</div>
                     <Link
                       to={`/orders/${orders[0].id}`}
@@ -554,14 +538,12 @@ export default function Account() {
                     </Link>
                   </div>
                 )}
-              </div>
-
               {/* Menu */}
               <nav className="space-y-2">
                 {menuItems.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => setActiveSection(item.id as AccountSection)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap ${
                       activeSection === item.id
                         ? 'bg-red-50 text-red-600'
@@ -597,8 +579,12 @@ export default function Account() {
           {/* Content */}
           <div className="lg:col-span-3">
             {/* Profile */}
-            {activeSection === 'profile' && (
-              <div className="bg-white border border-gray-200 rounded-2xl p-8">
+            {activeSection === 'profile' && isEditingProfile && (
+              <div ref={profileFormRef} tabIndex={-1} aria-label="Редактирование профиля" className="bg-white border border-gray-200 rounded-2xl p-8">
+                <Button variant="ghost" size="xs" onClick={() => {
+                  setIsEditingProfile(false);
+                  document.getElementById('account-profile-edit')?.focus();
+                }}>Закрыть редактирование</Button>
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -779,7 +765,7 @@ export default function Account() {
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
                     <p className="mt-4 text-gray-600">Загрузка заказов...</p>
                   </div>
-                ) : orders.length === 0 ? (
+                ) : ordersError && orders.length === 0 ? null : orders.length === 0 ? (
                   <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
                     <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <ShoppingBag className="size-[1em] text-4xl text-gray-400" />
@@ -972,7 +958,7 @@ export default function Account() {
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
                     <p className="mt-4 text-gray-600">Загрузка адресов...</p>
                   </div>
-                ) : addresses.length === 0 ? (
+                ) : addressesError && addresses.length === 0 ? null : addresses.length === 0 ? (
                   <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
                     <p className="text-gray-600">У вас пока нет адресов доставки</p>
                   </div>
@@ -1173,7 +1159,7 @@ export default function Account() {
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
                       <p className="mt-4 text-gray-600 text-sm">Загрузка настроек...</p>
                     </div>
-                  ) : (
+                  ) : !notificationSettings ? null : (
                     <>
                       {notificationError && (
                         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
