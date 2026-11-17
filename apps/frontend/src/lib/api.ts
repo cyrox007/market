@@ -1305,6 +1305,11 @@ export interface PaymentMethod {
 }
 
 export interface Address {
+  address_snapshot?: { label?: string | null } | null;
+  floor?: string | null;
+  room?: string | null;
+  intercom?: string | null;
+  comment?: string | null;
   directory_external_id?: string | null;
   id: number;
   title?: string | null;
@@ -1325,6 +1330,7 @@ export interface Address {
 }
 
 export interface AddressData {
+  floor?: string;
   directory_external_id?: string;
   title?: string;
   address?: string;

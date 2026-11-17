@@ -31,6 +31,7 @@ function HistoryControls() {
 }
 
 afterEach(cleanup);
+vi.mock('../../hooks/useMediaQuery', () => ({ useMediaMatch: () => false }));
 
 function openAccount(url: string) {
   const cache = new Map();
@@ -41,11 +42,11 @@ function openAccount(url: string) {
 
 it('opens saved addresses directly and keeps section changes in browser history', async () => {
   openAccount('/account?section=addresses&from=header');
-  expect(await screen.findByRole('button', { name: 'Добавить адрес' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Добавить новый адрес' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }));
   expect(screen.getByLabelText('Текущий адрес')).toHaveTextContent('/account?from=header');
   fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
-  expect(await screen.findByRole('button', { name: 'Добавить адрес' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Добавить новый адрес' })).toBeInTheDocument();
   expect(screen.getByLabelText('Текущий адрес')).toHaveTextContent('section=addresses');
 });
 
@@ -82,7 +83,7 @@ it('renders a direct address section on the server without browser storage', () 
   const markup = renderToString(<SWRConfig value={{ provider: () => new Map() }}>
     <MemoryRouter initialEntries={['/account?section=addresses']}><Account /></MemoryRouter>
   </SWRConfig>);
-  expect(markup).toContain('Добавить адрес');
+  expect(markup).toContain('Добавить новый адрес');
   expect(markup).toContain('Загрузка адресов');
 });
 

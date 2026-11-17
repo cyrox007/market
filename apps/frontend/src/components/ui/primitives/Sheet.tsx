@@ -21,6 +21,8 @@ interface SheetProps {
   /** Прилипает к низу, тело прокручивается над ним */
   footer?: ReactNode;
   className?: string;
+  /** Override content gutters when a screen has its own tablet/modal spacing. */
+  contentPadding?: number;
   children: ReactNode;
 }
 
@@ -53,6 +55,7 @@ function SheetPanel({
   headerDivider = false,
   footer,
   className,
+  contentPadding,
   children,
 }: SheetPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -67,7 +70,7 @@ function SheetPanel({
   }, []);
   const isBottom = side === 'bottom';
   const isCenter = side === 'center';
-  const padX = isBottom ? 16 : isCenter ? 24 : 32;
+  const padX = contentPadding ?? (isBottom ? 16 : isCenter ? 24 : 32);
   const onCloseRef = useCloseUnlessLeaving(onClose, leaving);
 
   const trapTab = useDialog(panelRef, onCloseRef);
@@ -164,6 +167,7 @@ function SheetPanel({
           </div>
         )}
         <div
+          style={contentPadding === undefined ? undefined : { paddingLeft: padX, paddingRight: padX }}
           className={cn(
             'flex shrink-0 items-center justify-between gap-4',
             isBottom ? 'px-4 pb-4' : isCenter ? 'px-6 pb-4 pt-6' : 'pb-4 pl-8 pr-6 pt-6',
@@ -198,6 +202,7 @@ function SheetPanel({
         </div>
         {footer && (
           <div
+            style={contentPadding === undefined ? undefined : { paddingLeft: padX, paddingRight: padX }}
             className={cn(
               'shrink-0 border-t border-surface-border',
               isBottom ? 'px-4 pb-4 pt-4' : isCenter ? 'px-6 pb-6 pt-4' : 'px-8 pb-6 pt-4',

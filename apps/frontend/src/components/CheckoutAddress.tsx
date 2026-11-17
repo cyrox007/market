@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import type { Address } from '../lib/api';
+import AddressDirectoryFields from './AddressDirectoryFields';
 
 type Node = { externalId: string; label: string; name: string };
 function SearchLevel({ level, parent, label, onSelect }: {
@@ -27,10 +29,11 @@ function SearchLevel({ level, parent, label, onSelect }: {
   </label>;
 }
 
-export default function CheckoutAddress({ onChange }: { onChange: (id: string | null) => void }) {
+export default function CheckoutAddress({ onChange, appearance, initialAddress }: { onChange: (id: string | null) => void; appearance?: 'account'; initialAddress?: Address | null }) {
   const [city, setCity] = useState<Node | null>(null);
   const [street, setStreet] = useState<Node | null>(null);
   const [house, setHouse] = useState<Node | null>(null);
+  if (appearance === 'account') return <AddressDirectoryFields initialAddress={initialAddress} onChange={onChange} />;
   return <div>
     <SearchLevel level="localities" parent={null} label="Населённый пункт" onSelect={(n) => { setCity(n); setStreet(null); setHouse(null); onChange(null); }} />
     {city && <p>{city.label}</p>}
