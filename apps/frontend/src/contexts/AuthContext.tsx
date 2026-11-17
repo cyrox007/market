@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import { api, type User } from '../lib/api';
+import { api, type User, type RegistrationData, type ProfileUpdateData } from '../lib/api';
 import { AuthContext, type AuthContextType } from './auth-context';
 
 interface AuthProviderProps {
@@ -72,13 +72,7 @@ export function AuthProvider({
   }, []);
 
   const register = useCallback(
-    async (data: {
-      name: string;
-      email: string;
-      password: string;
-      password_confirmation: string;
-      phone?: string;
-    }) => {
+    async (data: RegistrationData) => {
       const response = await api.auth.register(data);
       setUser(response.authenticated === false ? null : response.user);
     },
@@ -95,7 +89,7 @@ export function AuthProvider({
     }
   }, []);
 
-  const updateProfile = useCallback(async (data: { name?: string; phone?: string }) => {
+  const updateProfile = useCallback(async (data: ProfileUpdateData) => {
     const response = await api.auth.updateProfile(data);
     setUser(response.user);
   }, []);

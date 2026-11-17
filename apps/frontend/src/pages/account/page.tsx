@@ -15,6 +15,7 @@ import PhoneInput from '../../components/ui/PhoneInput';
 import CheckoutAddress from '../../components/CheckoutAddress';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
+import { buildProfileUpdate, initialProfileForm, type ProfileFormValues } from '../../lib/profile-name';
 import Icon from '../../components/ui/icons/Icon';
 import { canOrder } from '../../lib/availability';
 import { useCartPanel } from '../../contexts/cart-panel-context';
@@ -93,7 +94,9 @@ export default function Account() {
   const [isLoadingBonuses, setIsLoadingBonuses] = useState(false);
 
   // Состояния для форм
-  const [profileForm, setProfileForm] = useState({ name: '', phone: '' });
+  const [profileForm, setProfileForm] = useState<ProfileFormValues>({
+    name: '', first_name: '', last_name: '', patronymic: '', phone: '',
+  });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
@@ -167,10 +170,7 @@ export default function Account() {
   // Инициализация формы профиля
   useEffect(() => {
     if (user) {
-      setProfileForm({
-        name: user.name || '',
-        phone: user.phone || '',
-      });
+      setProfileForm(initialProfileForm(user));
     }
   }, [user]);
 
@@ -338,25 +338,18 @@ export default function Account() {
     setProfileError(null);
     setProfileSuccess(false);
 
-    // Валидация
-    if (!profileForm.name.trim()) {
-      setProfileError('Имя обязательно для заполнения');
-      return;
-    }
-
-    // Телефон необязателен: пустое поле оставляет текущий номер. Но если введён — должен быть полным (11 цифр).
-    if (profileForm.phone.trim() && profileForm.phone.replace(/\D/g, '').length !== 11) {
-      setProfileError('Укажите корректный номер телефона');
+    let payload;
+    try {
+      payload = buildProfileUpdate(profileForm, Boolean(user?.first_name || user?.last_name));
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Проверьте ФИО');
       return;
     }
 
     setIsSavingProfile(true);
 
     try {
-      await updateProfile({
-        name: profileForm.name.trim(),
-        phone: profileForm.phone?.trim() || undefined,
-      });
+      await updateProfile(payload);
       setProfileSuccess(true);
       setLastUpdated(new Date());
       setTimeout(() => setProfileSuccess(false), 3000);
@@ -635,17 +628,70 @@ export default function Account() {
                 )}
 
                 <form onSubmit={handleProfileSubmit} className="space-y-6">
+                  {!user.first_name && !user.last_name && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+                      <p className="text-sm text-gray-700">
+                        Ранее ваше ФИО сохранялось одной строкой. Мы не разбиваем его автоматически,
+                        чтобы не перепутать составные имена и фамилии. Вы можете оставить его как есть
+                        или заполнить отдельные поля ниже.
+                      </p>
+                      <div>
+                        <label htmlFor="legacy_name" className="block text-sm font-medium mb-2">
+                          Сохранённое полное имя
+                        </label>
+                        <input
+                          id="legacy_name"
+                          type="text"
+                          value={profileForm.name}
+                          onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                          maxLength={255}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        Когда заполните имя и фамилию отдельно, старое значение заменится после сохранения.
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="profile_first_name" className="block text-sm font-medium mb-2">Имя *</label>
+                      <input
+                        id="profile_first_name"
+                        type="text"
+                        autoComplete="given-name"
+                        value={profileForm.first_name}
+                        onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
+                        maxLength={255}
+                        placeholder="Иван"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="profile_last_name" className="block text-sm font-medium mb-2">Фамилия *</label>
+                      <input
+                        id="profile_last_name"
+                        type="text"
+                        autoComplete="family-name"
+                        value={profileForm.last_name}
+                        onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
+                        maxLength={255}
+                        placeholder="Петров"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Имя *
-                      <span className="text-gray-500 font-normal ml-2">Как к вам обращаться</span>
+                    <label htmlFor="profile_patronymic" className="block text-sm font-medium mb-2">
+                      Отчество (необязательно)
                     </label>
                     <input
+                      id="profile_patronymic"
                       type="text"
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                      required
-                      placeholder="Введите ваше имя"
+                      value={profileForm.patronymic}
+                      onChange={(e) => setProfileForm({ ...profileForm, patronymic: e.target.value })}
+                      maxLength={255}
+                      placeholder="Иванович"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
                     />
                   </div>
@@ -698,6 +744,9 @@ export default function Account() {
                       )}
                     </button>
                     {profileForm.name !== (user.name || '') ||
+                    profileForm.first_name !== (user.first_name || '') ||
+                    profileForm.last_name !== (user.last_name || '') ||
+                    profileForm.patronymic !== (user.patronymic || '') ||
                     profileForm.phone !== (user.phone || '') ? (
                       <span className="text-sm text-gray-500">Есть несохраненные изменения</span>
                     ) : null}

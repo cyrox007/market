@@ -1,20 +1,14 @@
 import { createContext } from 'react';
-import type { User } from '../lib/api';
+import type { User, RegistrationData, ProfileUpdateData } from '../lib/api';
 
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: {
-    name: string;
-    email: string;
-    password: string;
-    password_confirmation: string;
-    phone?: string;
-  }) => Promise<void>;
+  register: (data: RegistrationData) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (data: { name?: string; phone?: string }) => Promise<void>;
+  updateProfile: (data: ProfileUpdateData) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 

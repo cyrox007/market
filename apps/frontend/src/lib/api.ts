@@ -545,13 +545,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
-    register: (data: {
-      name: string;
-      email: string;
-      password: string;
-      password_confirmation: string;
-      phone?: string;
-    }) =>
+    register: (data: RegistrationData) =>
       fetchAPI<{ user: User; authenticated?: boolean }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -561,7 +555,7 @@ export const api = {
         method: 'POST',
       }),
     me: () => fetchAPI<{ user: User }>('/auth/me'),
-    updateProfile: (data: { name?: string; phone?: string }) =>
+    updateProfile: (data: ProfileUpdateData) =>
       fetchAPI<{ user: User }>('/auth/profile', {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -1177,8 +1171,29 @@ export interface InteriorIdea {
 export interface User {
   id: number;
   name: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  patronymic?: string | null;
   email: string;
   phone?: string | null;
+}
+
+export type RegistrationData = {
+  email: string;
+  password: string;
+  password_confirmation: string;
+  phone?: string;
+} & (
+  | { name: string; first_name?: never; last_name?: never; patronymic?: never }
+  | { name?: never; first_name: string; last_name: string; patronymic?: string | null }
+);
+
+export interface ProfileUpdateData {
+  name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  patronymic?: string | null;
+  phone?: string;
 }
 
 export interface NotificationSettings {

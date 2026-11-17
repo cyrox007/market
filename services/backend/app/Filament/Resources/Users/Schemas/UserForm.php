@@ -21,6 +21,16 @@ class UserForm
                             ->label(__('filament/admin_sv/user_resource.name'))
                             ->required()
                             ->maxLength(255),
+                        TextInput::make('first_name')
+                            ->label('Имя (отдельное поле)')
+                            ->maxLength(255)
+                            ->helperText('Заполняйте вместе с фамилией; старое ФИО не разбивается автоматически.'),
+                        TextInput::make('last_name')
+                            ->label('Фамилия (отдельное поле)')
+                            ->maxLength(255),
+                        TextInput::make('patronymic')
+                            ->label('Отчество (необязательно)')
+                            ->maxLength(255),
                         TextInput::make('email')
                             ->label(__('filament/admin_sv/user_resource.email'))
                             ->email()

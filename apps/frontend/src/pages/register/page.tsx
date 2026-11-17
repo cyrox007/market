@@ -17,7 +17,9 @@ export default function Register() {
   const access = usePublicAuthSettings();
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    first_name: '',
+    last_name: '',
+    patronymic: '',
     email: '',
     password: '',
     password_confirmation: '',
@@ -74,8 +76,10 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      const registerData: any = {
-        name: formData.name,
+      const registerData = {
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        patronymic: formData.patronymic.trim() || null,
         email: formData.email,
         password: formData.password,
         password_confirmation: formData.password_confirmation,
@@ -125,22 +129,29 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-2">
-                Имя *
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"
-                placeholder="Ваше имя"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="first_name" className="block text-sm font-medium mb-2">Имя *</label>
+                <input id="first_name" name="first_name" type="text" autoComplete="given-name"
+                  value={formData.first_name} onChange={handleChange} required maxLength={255}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"
+                  placeholder="Иван" />
+              </div>
+              <div>
+                <label htmlFor="last_name" className="block text-sm font-medium mb-2">Фамилия *</label>
+                <input id="last_name" name="last_name" type="text" autoComplete="family-name"
+                  value={formData.last_name} onChange={handleChange} required maxLength={255}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"
+                  placeholder="Петров" />
+              </div>
             </div>
-
+            <div>
+              <label htmlFor="patronymic" className="block text-sm font-medium mb-2">Отчество (необязательно)</label>
+              <input id="patronymic" name="patronymic" type="text"
+                value={formData.patronymic} onChange={handleChange} maxLength={255}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"
+                placeholder="Иванович" />
+            </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-2">
                 Email *
