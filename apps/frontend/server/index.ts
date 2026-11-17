@@ -15,6 +15,7 @@ import {
   type CatalogScope,
 } from '../src/lib/catalog-query';
 import { applySeoToHead } from '../src/lib/seo-head';
+import { hasAuthSession as requestHasAuthSession } from '../src/lib/ssr-session-cookies';
 import { SEARCH_SEO } from '../src/pages/search/seo';
 
 const isNotFound = (reason: unknown) => (reason as { status?: number } | null)?.status === 404;
@@ -86,6 +87,7 @@ async function createServer() {
 
   // Обработка всех маршрутов
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
+    if (requestHasAuthSession(req.cookies)) res.setHeader('Cache-Control', 'private, no-store');
     // Never put session-specific private-offer prices into the shared SSR cache.
     const privateOffer = /^\d+$/.test(new URL(req.originalUrl, 'http://ssr.local').searchParams.get('offer') || '');
     if (privateOffer || /\/offer\//.test(req.path)) {
@@ -138,35 +140,17 @@ async function createServer() {
           ssrApi = apiModule.createSSRApi(req);
         }
 
-        // Загружаем данные пользователя и счетчиков на сервере
-        // Используем кеш для ускорения повторных запросов
+        // Персональные данные читаем только для текущего запроса.
+        // Общий кеш ниже используется для публичных деревьев каталога.
 
-        const hasAuthSession = Boolean(
-          req.cookies?.['svetofor-session'] || req.cookies?.['laravel_session'],
-        );
-        const userId = hasAuthSession ? 'authenticated' : 'anonymous';
+        const hasAuthSession = requestHasAuthSession(req.cookies);
 
-        // Параллельно: auth (только с сессией), счётчики, регион — без лишней последовательной задержки
+        // Параллельно: auth (только с сессией), счётчики и публичные деревья.
         const parallelTasks: Promise<unknown>[] = [
-          withCache(
-            createCacheKey('/cart/count', undefined, userId === 'authenticated' ? 1 : undefined),
-            () => ssrApi.cart.count(),
-            { ttl: 30 },
-          ),
-          withCache(
-            createCacheKey(
-              '/wishlist/count',
-              undefined,
-              userId === 'authenticated' ? 1 : undefined,
-            ),
-            () => ssrApi.wishlist.count(),
-            { ttl: 30 },
-          ),
-          withCache(
-            createCacheKey('/compare/count', undefined, userId === 'authenticated' ? 1 : undefined),
-            () => ssrApi.compare.count(),
-            { ttl: 30 },
-          ),
+          // Counts also belong to guest sessions; never share them between requests.
+          ssrApi.cart.count(),
+          ssrApi.wishlist.count(),
+          ssrApi.compare.count(),
           // Дерево категорий нужно шапке на каждом маршруте. Кэш общий для всех
           // посетителей, поэтому бэкенд получает один запрос в 5 минут.
           withCacheSWR(
@@ -184,9 +168,7 @@ async function createServer() {
 
         if (hasAuthSession) {
           parallelTasks.unshift(
-            withCache(createCacheKey('/auth/me', undefined, 1), () => ssrApi.auth.me(), {
-              ttl: 60,
-            }),
+            ssrApi.auth.me(),
           );
         }
 

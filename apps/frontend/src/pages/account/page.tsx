@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useRegion } from '../../hooks/useRegion';
 import { useCounters } from '../../hooks/useCounters';
 import {
   api,
@@ -11,7 +10,7 @@ import {
   type NotificationSettings,
 } from '../../lib/api';
 import { runSessionRead, runSessionTask } from '../../lib/session-queue';
-import PhoneInput from '../../components/ui/PhoneInput';
+
 import CheckoutAddress from '../../components/CheckoutAddress';
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
@@ -23,7 +22,7 @@ import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
 import AccountNavigation from './AccountNavigation';
 import AccountLastOrder from './AccountLastOrder';
-import Button from '../../components/ui/primitives/Button';
+import AccountProfileForm from './AccountProfileForm';
 import {
   Bell,
   Calendar,
@@ -81,9 +80,13 @@ function getStatusColor(status: string): string {
 export default function Account() {
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
-  const { locality, locationReady } = useRegion();
   const { refreshWishlistCount, wishlistCount, compareCount, isLoading: isLoadingCounters, error: countersError, hasLoaded: hasCounters, refreshAllCounts } = useCounters();
   const { section: activeSection, selectSection: setActiveSection } = useAccountSection();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const authenticatedUserId = user?.id;
+  useEffect(() => {
+    if (activeSection === 'settings' && authenticatedUserId) headingRef.current?.focus();
+  }, [activeSection, authenticatedUserId]);
   const {
     orders, hasOrders, isLoadingOrders, ordersError, reloadOrders,
     addresses, hasAddresses, isLoadingAddresses, addressesError, reloadAddresses: loadAddresses,
@@ -99,19 +102,6 @@ export default function Account() {
   // Состояния для загрузки
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [isLoadingBonuses, setIsLoadingBonuses] = useState(false);
-
-  // Состояния для форм
-  const [profileForm, setProfileForm] = useState({ name: '', phone: '' });
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSuccess, setProfileSuccess] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const profileFormRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (activeSection === 'profile' && isEditingProfile) profileFormRef.current?.focus();
-  }, [activeSection, isEditingProfile]);
 
   // Состояния для адресов
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -162,17 +152,6 @@ export default function Account() {
       loadBonuses();
     }
   }, [activeSection]);
-
-  // Инициализация формы профиля
-  useEffect(() => {
-    if (user) {
-      setProfileForm({
-        name: user.name || '',
-        phone: user.phone || '',
-      });
-    }
-  }, [user]);
-
 
   const loadFavorites = async () => {
     setIsLoadingFavorites(true);
@@ -283,41 +262,6 @@ export default function Account() {
       didNavigate = true;
     } finally {
       if (!didNavigate) setIsLoggingOut(false);
-    }
-  };
-
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProfileError(null);
-    setProfileSuccess(false);
-
-    // Валидация
-    if (!profileForm.name.trim()) {
-      setProfileError('Имя обязательно для заполнения');
-      return;
-    }
-
-    // Телефон необязателен: пустое поле оставляет текущий номер. Но если введён — должен быть полным (11 цифр).
-    if (profileForm.phone.trim() && profileForm.phone.replace(/\D/g, '').length !== 11) {
-      setProfileError('Укажите корректный номер телефона');
-      return;
-    }
-
-    setIsSavingProfile(true);
-
-    try {
-      await runSessionTask(() => updateProfile({
-        name: profileForm.name.trim(),
-        phone: profileForm.phone?.trim() || undefined,
-      }));
-      setProfileSuccess(true);
-      setLastUpdated(new Date());
-      setTimeout(() => setProfileSuccess(false), 3000);
-    } catch (error: any) {
-      const errorMessage = error?.data?.message || error?.message || 'Ошибка обновления профиля';
-      setProfileError(errorMessage);
-    } finally {
-      setIsSavingProfile(false);
     }
   };
 
@@ -477,9 +421,6 @@ export default function Account() {
   }
 
   const userInitial = user.name.charAt(0).toUpperCase();
-  const savedCity = addresses.find((address) => address.is_default)?.city?.trim();
-  const cityLoading = isLoadingAddresses || (!savedCity && !locationReady);
-  const profileCity = cityLoading ? undefined : savedCity || locality?.name?.trim();
 
   return (
     <div className="min-h-screen bg-white">
@@ -499,8 +440,8 @@ export default function Account() {
           </> : <span className="text-gray-900">Личный кабинет</span>}
         </nav>
 
-        <h1 className={activeSection === 'profile' ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
-          <span className={activeSection === 'profile' ? 'max-md:hidden' : undefined}>Личный кабинет</span>
+        <h1 ref={headingRef} tabIndex={-1} className={activeSection === 'profile' ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
+          <span className={activeSection === 'profile' ? 'max-md:hidden' : undefined}>{activeSection === 'settings' ? 'Настройки профиля' : 'Личный кабинет'}</span>
           {activeSection === 'profile' && <span className="md:hidden">Профиль</span>}
         </h1>
 
@@ -519,9 +460,9 @@ export default function Account() {
 
         {activeSection === 'profile' && (
           <div className="mb-6">
-            <AccountProfileCard user={user} city={{ name: profileCity, isLoading: cityLoading }}
+            <AccountProfileCard user={user}
               newsletter={{ enabled: notificationSettings?.email_promotions, isLoading: isLoadingNotifications, error: notificationsError, onRetry: reloadNotifications }}
-              onEdit={() => setIsEditingProfile(true)} />
+              onEdit={() => setActiveSection('settings')} />
           </div>
         )}
 
@@ -597,113 +538,6 @@ export default function Account() {
 
           {/* Content */}
           <div className={activeSection === 'profile' ? 'min-w-0' : 'lg:col-span-3'}>
-            {/* Profile */}
-            {activeSection === 'profile' && isEditingProfile && (
-              <div ref={profileFormRef} tabIndex={-1} aria-label="Редактирование профиля" className="bg-white border border-gray-200 rounded-2xl p-8">
-                <Button variant="ghost" size="xs" onClick={() => {
-                  setIsEditingProfile(false);
-                  document.getElementById('account-profile-edit')?.focus();
-                }}>Закрыть редактирование</Button>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <User className="size-[1em] text-2xl text-red-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold">Личные данные</h2>
-                  </div>
-                  {lastUpdated && (
-                    <span className="text-sm text-gray-500">
-                      Обновлено: {lastUpdated.toLocaleString('ru-RU')}
-                    </span>
-                  )}
-                </div>
-
-                {profileError && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                    <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
-                    <p className="text-red-600 text-sm flex-1">{profileError}</p>
-                  </div>
-                )}
-
-                {profileSuccess && (
-                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                    <CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
-                    <p className="text-green-600 text-sm flex-1">Профиль успешно обновлен</p>
-                  </div>
-                )}
-
-                <form onSubmit={handleProfileSubmit} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Имя *
-                      <span className="text-gray-500 font-normal ml-2">Как к вам обращаться</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                      required
-                      placeholder="Введите ваше имя"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Email *
-                      <span className="text-gray-500 font-normal ml-2">Используется для входа</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={user.email}
-                      disabled
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Email нельзя изменить</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Телефон
-                      <span className="text-gray-500 font-normal ml-2">Для связи по заказам</span>
-                    </label>
-                    <PhoneInput
-                      type="tel"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      placeholder="+7 (999) 123-45-67"
-                      pattern="[\d\s\-\+\(\)]+"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Укажите номер телефона для связи по заказам
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSavingProfile}
-                      className="bg-red-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {isSavingProfile ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Сохранение...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="size-[1em]" />
-                          <span>Сохранить изменения</span>
-                        </>
-                      )}
-                    </button>
-                    {profileForm.name !== (user.name || '') ||
-                    profileForm.phone !== (user.phone || '') ? (
-                      <span className="text-sm text-gray-500">Есть несохраненные изменения</span>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            )}
-
             {/* Orders */}
             {activeSection === 'orders' && (
               <div>
@@ -1109,6 +943,7 @@ export default function Account() {
             {/* Settings */}
             {activeSection === 'settings' && (
               <div className="space-y-6">
+                <AccountProfileForm key={user.id} user={user} onSave={(data) => runSessionTask(() => updateProfile(data))} />
                 <div className="bg-white border border-gray-200 rounded-2xl p-8">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
