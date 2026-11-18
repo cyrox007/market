@@ -229,7 +229,7 @@ export default function CheckoutAddress({
             }}
             onSelect={(node) => {
               setStreet(node);
-              setStreetText(node.label || node.name);
+              setStreetText(node.name || node.label);
               setHouseText('');
               invalidate();
             }}
@@ -255,7 +255,7 @@ export default function CheckoutAddress({
             }}
             onSelect={(node) => {
               setHouse(node);
-              setHouseText(node.label || node.name);
+              setHouseText(node.name || node.label);
               onChange(node.externalId);
               onSelection?.({ city, street, house: node });
             }}
