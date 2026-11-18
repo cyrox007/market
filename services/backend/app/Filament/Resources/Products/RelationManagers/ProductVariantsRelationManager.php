@@ -332,7 +332,7 @@ class ProductVariantsRelationManager extends RelationManager
                 SpatieMediaLibraryFileUpload::make('gallery')
                     ->collection('gallery')
                     ->label('Галерея изображений')
-                    ->helperText('Меняйте порядок уже загруженных фото перетаскиванием. Главное изображение показывается первым, затем галерея. До 10 изображений.')
+                    ->helperText('Меняйте порядок уже загруженных фото перетаскиванием. Главное изображение показывается первым, затем галерея. До 20 изображений в галерее.')
                     ->multiple()
                     ->reorderable()
                     ->appendFiles()
@@ -341,7 +341,7 @@ class ProductVariantsRelationManager extends RelationManager
                     ->image()
                     ->imageEditor()
                     ->conversion('thumb')
-                    ->maxFiles(10)
+                    ->maxFiles(20)
                     ->maxSize(10240)
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                     ->columnSpanFull(),

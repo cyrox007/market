@@ -742,6 +742,7 @@ export interface SelectedVariationItem {
 export interface ProductVariant extends WarehouseStockInfo {
   id: number;
   sku: string;
+  external_id?: string | null;
   /** У предложения своя страница: каталог ведёт на неё (market-docs/catalog-individual-sku-api.md) */
   slug?: string | null;
   price: number;
@@ -815,6 +816,7 @@ export interface ProductDocument {
 }
 
 export interface ProductDetail extends Product {
+  external_id?: string | null;
   color_options?: { key: string; element: { name: string; slug: string } | null; options: { key: string; solution: ColorSolution; variant_ids: number[] }[] }[];
   palette?: { element: { name: string; slug: string } | null; solutions: ColorSolution[] }[];
   images: string[];
