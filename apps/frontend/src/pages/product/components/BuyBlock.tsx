@@ -70,7 +70,7 @@ export default function BuyBlock({
 }: Props) {
   const item = selectedVariant ?? product;
   const availability = availabilityOf(item);
-  const sku = selectedVariant?.sku || product.sku;
+  const article = item.external_id?.trim();
   const price = item.price ?? 0;
   const oldPrice = item.old_price && item.old_price > price ? item.old_price : null;
   const discount = oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
@@ -88,7 +88,7 @@ export default function BuyBlock({
           {titleActions}
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {sku && <ArticleCopy sku={sku} />}
+          {article && <ArticleCopy key={article} article={article} />}
           <button
             type="button"
             onClick={onGoToReviews}
@@ -217,14 +217,14 @@ export default function BuyBlock({
   );
 }
 
-function ArticleCopy({ sku }: { sku: string }) {
+function ArticleCopy({ article }: { article: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(sku);
+      await navigator.clipboard.writeText(article);
       setCopied(true);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), COPIED_MS);
@@ -235,7 +235,7 @@ function ArticleCopy({ sku }: { sku: string }) {
 
   return (
     <span className="flex items-center gap-1.5 text-14 font-semibold text-ink-secondary">
-      <span>Арт.: {sku}</span>
+      <span>Арт.: {article}</span>
       <Tooltip text={copied ? 'Скопировано' : 'Скопировать'} open={copied}>
         <button
           type="button"

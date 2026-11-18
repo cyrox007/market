@@ -12,6 +12,34 @@ class ProductControllerTest extends TestCase
     use ProductColorFixtures;
     use RefreshDatabase;
 
+    public function test_product_detail_exposes_external_ids_without_changing_skus(): void
+    {
+        $parent = Product::factory()->create([
+            'state' => 'active',
+            'is_variable' => true,
+            'parent_product_id' => null,
+            'external_id' => '000001',
+            'sku' => 'PARENT-SKU',
+        ]);
+        $variant = Product::factory()->create([
+            'state' => 'active',
+            'parent_product_id' => $parent->id,
+            'external_id' => '000002',
+            'sku' => 'VARIANT-SKU',
+        ]);
+
+        $this->getJson('/api/v1/products/'.$parent->slug)
+            ->assertOk()
+            ->assertJsonPath('data.external_id', '000001')
+            ->assertJsonPath('data.variants.0.external_id', '000002')
+            ->assertJsonPath('data.variants.0.sku', 'VARIANT-SKU');
+
+        $this->getJson('/api/v1/products/'.$variant->slug)
+            ->assertOk()
+            ->assertJsonPath('data.external_id', '000002')
+            ->assertJsonPath('data.sku', 'VARIANT-SKU');
+    }
+
     public function test_can_list_products(): void
     {
         // Создаем только основные товары (не вариации)

@@ -10,6 +10,7 @@ const product = {
   slug: 'kuhnya',
   name: 'Кухонный гарнитур «Акапелла»',
   sku: '08-169420',
+  external_id: '00169420',
   price: 184150,
   old_price: 194150,
   rating: 4.6,
@@ -63,15 +64,36 @@ describe('блок покупки', () => {
     expect(
       screen.getByRole('heading', { name: 'Кухонный гарнитур «Акапелла»' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Арт.: 08-169420')).toBeInTheDocument();
+    expect(screen.getByText('Арт.: 00169420')).toBeInTheDocument();
     // Подсказка у кнопки, а не текст в строке — строка не сдвигается
     expect(screen.getByText('Скопировать')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Скопировать артикул' }));
-    expect(writeText).toHaveBeenCalledWith('08-169420');
+    expect(writeText).toHaveBeenCalledWith('00169420');
     expect(await screen.findByText('Скопировано')).toBeInTheDocument();
     expect(screen.queryByText('Скопировать')).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Артикул скопирован');
+  });
+
+  it('показывает и копирует внешний ID выбранного предложения', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderBlock({ selectedVariant: { ...product, id: 2, sku: 'VARIANT-SKU', external_id: '000002' } as unknown as ProductVariant });
+    expect(screen.getByText('Арт.: 000002')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать артикул' }));
+    expect(writeText).toHaveBeenCalledWith('000002');
+    expect(await screen.findByText('Скопировано')).toBeInTheDocument();
+  });
+
+  it('скрывает артикул, если у выбранного предложения нет внешнего ID', () => {
+    renderBlock({ selectedVariant: { ...product, id: 2, sku: 'VARIANT-SKU', external_id: null } as unknown as ProductVariant });
+    expect(screen.queryByRole('button', { name: 'Скопировать артикул' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Арт\.:/)).not.toBeInTheDocument();
+  });
+
+  it('скрывает артикул товара без внешнего ID', () => {
+    renderBlock({ product: { ...product, external_id: '   ' } });
+    expect(screen.queryByRole('button', { name: 'Скопировать артикул' })).not.toBeInTheDocument();
   });
 
   it('рейтинг и число отзывов ведут к отзывам', () => {
@@ -150,6 +172,7 @@ describe('блок покупки', () => {
     const variant = {
       id: 7,
       sku: 'VAR-7',
+      external_id: '000007',
       price: 1000,
       old_price: null,
       in_stock: false,
@@ -157,7 +180,7 @@ describe('блок покупки', () => {
       available_to_order: false,
     } as unknown as ProductVariant;
     renderBlock({ product: { ...product, is_variable: true }, selectedVariant: variant });
-    expect(screen.getByText('Арт.: VAR-7')).toBeInTheDocument();
+    expect(screen.getByText('Арт.: 000007')).toBeInTheDocument();
     expect(screen.getByText(/^1\s000 ₽$/)).toBeInTheDocument();
     expect(screen.getByText('Нет в наличии')).toBeInTheDocument();
   });
