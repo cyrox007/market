@@ -70,7 +70,7 @@ export default function BuyBlock({
 }: Props) {
   const item = selectedVariant ?? product;
   const availability = availabilityOf(item);
-  const sku = item.external_id?.trim();
+  const sku = (selectedVariant ? selectedVariant.external_id : product.external_id)?.trim();
   const price = item.price ?? 0;
   const oldPrice = item.old_price && item.old_price > price ? item.old_price : null;
   const discount = oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
