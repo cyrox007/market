@@ -30,14 +30,14 @@ class ProductControllerTest extends TestCase
 
         $this->getJson('/api/v1/products/'.$parent->slug)
             ->assertOk()
-            ->assertJsonPath('data.external_id', '000001')
-            ->assertJsonPath('data.variants.0.external_id', '000002')
-            ->assertJsonPath('data.variants.0.sku', 'VARIANT-SKU');
+            ->assertJsonPath('product.external_id', '000001')
+            ->assertJsonPath('product.variants.0.external_id', '000002')
+            ->assertJsonPath('product.variants.0.sku', 'VARIANT-SKU');
 
         $this->getJson('/api/v1/products/'.$variant->slug)
             ->assertOk()
-            ->assertJsonPath('data.external_id', '000002')
-            ->assertJsonPath('data.sku', 'VARIANT-SKU');
+            ->assertJsonPath('product.external_id', '000002')
+            ->assertJsonPath('product.sku', 'VARIANT-SKU');
     }
 
     public function test_can_list_products(): void
