@@ -422,6 +422,11 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
         return !is_null($this->attributes['parent_product_id'] ?? $this->parent_product_id ?? null);
     }
 
+    public function siteUrl(): string
+    {
+        return url('/product/'.$this->slug);
+    }
+
     /**
      * Получить родительский продукт (для вариаций)
      */

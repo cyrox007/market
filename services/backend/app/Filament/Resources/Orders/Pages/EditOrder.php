@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Orders\Pages;
 
 use App\Contracts\Gateway\GatewayLoggerInterface;
+use App\Filament\Resources\CancellationRequests\CancellationRequestResource;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Orders\Schemas\OrderInfolist;
 use App\Filament\Resources\Pages\EditRecord;
@@ -37,11 +38,6 @@ class EditOrder extends EditRecord
         $canRefund = $latestPayment && $refundService->canRefund($latestPayment);
 
         return [
-            Action::make('refresh_order')->label('Обновить состояние')->icon('heroicon-o-arrow-path')
-                ->action(fn () => $this->record->refresh()),
-            Action::make('review_cancellation')->label('Рассмотреть просьбу об отмене')
-                ->visible(fn () => $order->cancellationRequest && $order->cancellationRequest->status !== 'resolved')
-                ->url(fn () => \App\Filament\Resources\CancellationRequests\CancellationRequestResource::getUrl('index')),
             Action::make('next_step')->label(fn () => app(\App\Services\Order\OperatorOrder::class)->next($order)['label'] ?? 'Следующее действие')
                 ->visible(fn () => app(\App\Services\Order\OperatorOrder::class)->next($order) !== null)
                 ->disabled(fn () => app(\App\Services\Order\OperatorOrder::class)->blockedReason($order) !== null)
@@ -54,48 +50,17 @@ class EditOrder extends EditRecord
                     $this->record->refresh();
                     Notification::make()->title('Состояние заказа обновлено')->success()->send();
                 }),
-            Action::make('retry_integration')->label('Повторить передачу заказа')
-                ->visible(fn () => $order->cooling_until && now()->gte($order->cooling_until)
-                    && $order->status !== 'manager_processing' && $order->integration_state !== 'sent'
-                    && ($order->status !== 'cancelled' || $order->integration_sent_at))
-                ->requiresConfirmation()->action(function () use ($order): void {
-                    OrderOneCSyncDispatcher::dispatch($order->id);
-                    $this->record->refresh();
-                    Notification::make()->title('Состояние передачи обновлено')->success()->send();
-                }),
-            Action::make('cancel_order')
-                ->label('Отменить заказ')
-                ->icon('heroicon-o-x-circle')
-                ->color('danger')
-                ->visible(fn () => $order->canBeCancelled())
-                ->requiresConfirmation()
-                ->modalHeading('Отменить заказ')
-                ->modalDescription('Заказ будет отменён, резерв товаров освободится. Если оплата получена, возврат денег проверяется отдельно и выполняется только через исходный платёж.')
-                ->action(function () use ($order): void {
-                    app(\App\Services\Order\OperatorOrder::class)->cancel($order->id, 'Заказ отменён оператором');
-                    Notification::make()->title('Заказ отменён')->success()->send();
-                    $this->redirect(OrderResource::getUrl('edit', ['record' => $order]));
-                }),
-            Action::make('force_cancel_order')
-                ->label('Отмена по решению поддержки')
-                ->icon('heroicon-o-x-circle')
-                ->color('danger')
-                ->visible(fn () => ! $order->canBeCancelled() && ! in_array($order->status, ['cancelled', 'delivered'], true) && auth()->user()?->hasRole('super_admin'))
-                ->requiresConfirmation()
-                ->modalHeading('Решение об отмене заказа')
-                ->modalDescription('Заказ в статусе «'.($order->getStatusLabel() ?? $order->status).'» будет отменён. Используйте только при необходимости.')
-                ->schema([\Filament\Forms\Components\Textarea::make('reason')->label('Причина отмены')->required()->minLength(3)->maxLength(1000)])
+            Action::make('review_cancellation')->label('Рассмотреть просьбу об отмене')->icon('heroicon-o-exclamation-triangle')->color('warning')
+                ->visible(fn () => $order->cancellationRequest && $order->cancellationRequest->status !== 'resolved')
+                ->modalHeading('Обращение об отмене')
+                ->modalDescription(fn () => 'Причина покупателя: '.$order->cancellationRequest?->reason)
+                ->fillForm(fn () => $order->cancellationRequest->only(['status', 'resolution']))
+                ->schema(CancellationRequestResource::reviewFields())
                 ->action(function (array $data) use ($order): void {
-                    app(\App\Services\Order\OperatorOrder::class)->cancel($order->id, $data['reason'], true);
-                    Notification::make()->title('Заказ отменён')->success()->send();
-                    $this->redirect(OrderResource::getUrl('edit', ['record' => $order]));
+                    app(\App\Services\Order\OperatorOrder::class)->reviewCancellation($order->id, $data);
+                    $this->record->refresh();
+                    Notification::make()->title('Решение по обращению сохранено')->success()->send();
                 }),
-            Action::make('print')
-                ->label('Печать')
-                ->icon('heroicon-o-printer')
-                ->color('gray')
-                ->url(fn () => route('admin.orders.print', $order->id))
-                ->openUrlInNewTab(),
             ActionGroup::make([
                 Action::make('mark_paid')
                     ->label('Подтвердить оплату при получении')
@@ -165,6 +130,58 @@ class EditOrder extends EditRecord
                 ->icon('heroicon-o-banknotes')
                 ->color('success')
                 ->visible($hasPaymentActions || $canRefund)
+                ->button()
+                ->dropdownPlacement('bottom-end'),
+            ActionGroup::make([
+                Action::make('print')
+                    ->label('Печать')
+                    ->icon('heroicon-o-printer')
+                    ->color('gray')
+                    ->url(fn () => route('admin.orders.print', $order->id))
+                    ->openUrlInNewTab(),
+                Action::make('retry_integration')->label('Повторить передачу заказа')->icon('heroicon-o-arrow-up-tray')
+                    ->visible(fn () => $order->cooling_until && now()->gte($order->cooling_until)
+                        && $order->status !== 'manager_processing' && $order->integration_state !== 'sent'
+                        && ($order->status !== 'cancelled' || $order->integration_sent_at))
+                    ->requiresConfirmation()->action(function () use ($order): void {
+                        OrderOneCSyncDispatcher::dispatch($order->id);
+                        $this->record->refresh();
+                        Notification::make()->title('Состояние передачи обновлено')->success()->send();
+                    }),
+                Action::make('refresh_order')->label('Обновить состояние')->icon('heroicon-o-arrow-path')
+                    ->action(fn () => $this->record->refresh()),
+                Action::make('cancel_order')
+                    ->label('Отменить заказ')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn () => $order->canBeCancelled())
+                    ->requiresConfirmation()
+                    ->modalHeading('Отменить заказ')
+                    ->modalDescription('Заказ будет отменён, резерв товаров освободится. Если оплата получена, возврат денег проверяется отдельно и выполняется только через исходный платёж.')
+                    ->action(function () use ($order): void {
+                        app(\App\Services\Order\OperatorOrder::class)->cancel($order->id, 'Заказ отменён оператором');
+                        Notification::make()->title('Заказ отменён')->success()->send();
+                        $this->redirect(OrderResource::getUrl('edit', ['record' => $order]));
+                    }),
+                Action::make('force_cancel_order')
+                    ->label('Отмена по решению поддержки')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn () => ! $order->canBeCancelled() && ! in_array($order->status, ['cancelled', 'delivered'], true) && auth()->user()?->hasRole('super_admin'))
+                    ->requiresConfirmation()
+                    ->modalHeading('Решение об отмене заказа')
+                    ->modalDescription('Заказ в статусе «'.($order->getStatusLabel() ?? $order->status).'» будет отменён. Используйте только при необходимости.')
+                    ->schema([\Filament\Forms\Components\Textarea::make('reason')->label('Причина отмены')->required()->minLength(3)->maxLength(1000)])
+                    ->action(function (array $data) use ($order): void {
+                        app(\App\Services\Order\OperatorOrder::class)->cancel($order->id, $data['reason'], true);
+                        Notification::make()->title('Заказ отменён')->success()->send();
+                        $this->redirect(OrderResource::getUrl('edit', ['record' => $order]));
+                    }),
+            ])
+                ->label('Ещё')
+                ->icon('heroicon-o-ellipsis-horizontal')
+                ->color('gray')
+                ->button()
                 ->dropdownPlacement('bottom-end'),
         ];
     }
@@ -256,26 +273,20 @@ class EditOrder extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $this->record->load(['items.product', 'payments', 'checkoutPaymentMethod', 'statusHistory.user', 'cancellationRequest', 'refundTask']);
+        $this->record->load(['items.product', 'payments', 'checkoutPaymentMethod', 'cancellationRequest', 'refundTask']);
         return $data;
-    }
-
-    protected function handleRecordUpdate($record, array $data): \Illuminate\Database\Eloquent\Model
-    {
-        $record->update(\Illuminate\Support\Arr::only($data, ['contact_name', 'contact_phone', 'contact_email', 'comment']));
-        return $record;
     }
 
     protected function getFormActions(): array
     {
-        return [$this->getSaveFormAction()->label('Сохранить контакты и заметку'), $this->getCancelFormAction()->label('К списку заказов')];
+        return [];
     }
 
     protected function getRedirectUrl(): ?string { return null; }
 
     public function getTitle(): string
     {
-        return 'Заказ '.$this->record->number;
+        return 'Заказ № '.$this->record->number.' от '.$this->record->created_at?->format('d.m.Y');
     }
     public static function getNavigationLabel(): string
     {
