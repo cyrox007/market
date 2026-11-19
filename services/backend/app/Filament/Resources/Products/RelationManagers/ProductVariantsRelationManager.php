@@ -623,7 +623,7 @@ class ProductVariantsRelationManager extends RelationManager
                 Action::make('viewOnSite')
                     ->label('Просмотр на сайте')
                     ->icon('heroicon-o-eye')
-                    ->url(fn (Product $record): string => url('/product/'.$record->slug))
+                    ->url(fn (Product $record): string => $record->siteUrl())
                     ->openUrlInNewTab(),
                 Action::make('editKitComposition')
                     ->label('Состав комплекта')

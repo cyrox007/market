@@ -44,4 +44,12 @@ class PhoneNumberTest extends TestCase
         $this->assertFalse(PhoneNumber::isValidRu('+375291234567')); // РБ — пока не РФ
         $this->assertFalse(PhoneNumber::isValidRu(null));
     }
+
+    public function test_format_for_display(): void
+    {
+        $this->assertSame('+7 (909) 999-99-99', PhoneNumber::format('+79099999999'));
+        $this->assertSame('+7 (909) 999-99-99', PhoneNumber::format('8 909 999 99 99'));
+        $this->assertSame('+375291234567', PhoneNumber::format('+375291234567'));
+        $this->assertNull(PhoneNumber::format(null));
+    }
 }

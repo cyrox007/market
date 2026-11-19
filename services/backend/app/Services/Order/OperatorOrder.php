@@ -4,7 +4,11 @@ namespace App\Services\Order;
 
 use App\Models\Order\Order;
 use App\Models\Order\OrderStatus;
+use App\Support\Integration\OrderOneCSyncDispatcher;
+use App\Support\PhoneNumber;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 /** Operator vocabulary and guarded fulfillment actions, independent of legacy shipping. */
@@ -115,6 +119,32 @@ class OperatorOrder
                     'status' => 'resolved', 'resolution' => 'Заказ отменён: '.$reason,
                 ]);
             }
+        });
+    }
+
+    public function updateContacts(int $id, array $data): void
+    {
+        DB::transaction(function () use ($id, $data): void {
+            $order = Order::lockForUpdate()->findOrFail($id);
+            Gate::authorize('update', $order);
+            $order->fill(Arr::only($data, ['contact_name', 'contact_phone', 'contact_email', 'comment']));
+            $order->contact_phone = PhoneNumber::normalize($order->contact_phone);
+            if (! $order->isDirty()) {
+                return;
+            }
+            $order->save();
+            if ($order->integration_sent_at) {
+                OrderOneCSyncDispatcher::dispatch($order);
+            }
+        });
+    }
+
+    public function reviewCancellation(int $id, array $data): void
+    {
+        DB::transaction(function () use ($id, $data): void {
+            $order = Order::lockForUpdate()->findOrFail($id);
+            Gate::authorize('update', $order);
+            $order->cancellationRequest()->firstOrFail()->update(Arr::only($data, ['status', 'resolution']));
         });
     }
 }
