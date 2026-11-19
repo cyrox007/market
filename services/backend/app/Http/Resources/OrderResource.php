@@ -22,7 +22,10 @@ class OrderResource extends JsonResource
             $request->merge(['_region_id' => $this->region_id]);
         }
 
+        $presentation = app(\App\Services\Order\CustomerOrderPresentation::class)->present($this->resource);
         return [
+            'presentation' => $presentation,
+            'paid_at' => $presentation['payment']['paid_at'],
             'id' => $this->id,
             'number' => $this->number,
             'status' => $this->status,
