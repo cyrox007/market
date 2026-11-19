@@ -1073,6 +1073,7 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
                 ->orWhere('description', 'like', $searchTerm)
                 //->orWhere('excerpt', 'like', $searchTerm)
                 ->orWhere('sku', 'like', $searchTerm)
+                ->orWhere('external_id', 'like', $searchTerm)
                 ->orWhereHas('parentProduct', fn (Builder $parent) => $parent->where(fn (Builder $text) => $text
                     ->where('name', 'like', $searchTerm)->orWhere('description', 'like', $searchTerm)));
         });
