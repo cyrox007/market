@@ -117,11 +117,19 @@ class SberbankAcquiringGateway implements PaymentGateway
      */
     public function getClientConfig(AppPaymentMethod $method, Order $order, bool $refreshRegistration = false): ?array
     {
+        if (config('local_sber.enabled')) {
+            app(\App\Services\Payment\LocalSberSimulator::class)->assertEnabled();
+        }
         $paymentModelClass = \Vanilo\Payment\Models\PaymentProxy::modelClass();
         $payment = $paymentModelClass::where('payable_type', 'order')
             ->where('payable_id', $order->id)
             ->orderByDesc('id')
             ->first();
+
+        if (config('local_sber.enabled') && filled($payment?->remote_id)) {
+            abort_unless(\App\Services\Payment\LocalSberSimulator::isSimulatedId((string) $payment->remote_id),
+                409, 'Для имитатора создайте новый локальный заказ.');
+        }
 
         $cachedFormUrl = is_array($payment?->data)
             ? trim((string) ($payment->data['sberbank_form_url'] ?? ''))

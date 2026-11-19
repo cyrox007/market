@@ -28,6 +28,9 @@ class SberbankAcquiringClient
         string $failUrl,
         ?string $orderNumberOverride = null,
     ): array {
+        if (config('local_sber.enabled')) {
+            return app(LocalSberSimulator::class)->register($order, $amountRub, $orderNumberOverride ?? (string) $order->number);
+        }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
         $userName = (string) config('payment.sberbank_acquiring.username');
         $password = (string) config('payment.sberbank_acquiring.password');
@@ -240,6 +243,13 @@ class SberbankAcquiringClient
      */
     public function getOrderStatusExtended(string $orderId = '', string $orderNumber = ''): array
     {
+        if (config('local_sber.enabled')) {
+            return app(LocalSberSimulator::class)->status($orderId);
+        }
+        // Never send a local simulator transaction to a real bank after changing configuration.
+        if (LocalSberSimulator::isSimulatedId($orderId)) {
+            return [];
+        }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
         $path = (string) config('payment.sberbank_acquiring.status_path', '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
         $endpoint = $baseUrl . $path;
@@ -292,6 +302,12 @@ class SberbankAcquiringClient
      */
     public function refundOrder(Order $order, string $remoteId, float $amountRub, string $refundId): array
     {
+        if (config('local_sber.enabled')) {
+            return app(LocalSberSimulator::class)->refund($order, $remoteId, $amountRub, $refundId);
+        }
+        if (LocalSberSimulator::isSimulatedId($remoteId)) {
+            return ['ok' => false, 'error' => 'simulator_disabled'];
+        }
         $username = trim((string) config('payment.sberbank_acquiring.username'));
         $password = (string) config('payment.sberbank_acquiring.password');
         $base = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
