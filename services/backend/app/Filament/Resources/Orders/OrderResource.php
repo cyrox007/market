@@ -62,6 +62,7 @@ class OrderResource extends Resource
     public static function getRelations(): array
     {
         return [
+            \App\Filament\Resources\Orders\RelationManagers\OrderStatusHistoryRelationManager::class,
             \App\Filament\Resources\Orders\RelationManagers\OrderPaymentsRelationManager::class,
             \App\Filament\Resources\Orders\RelationManagers\OrderGatewayLogsRelationManager::class,
         ];

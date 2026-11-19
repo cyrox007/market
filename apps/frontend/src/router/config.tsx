@@ -28,6 +28,7 @@ const Login = lazy(() => import('../pages/login/page'));
 const Register = lazy(() => import('../pages/register/page'));
 const ForgotPassword = lazy(() => import('../pages/forgot-password/page'));
 const ResetPassword = lazy(() => import('../pages/reset-password/page'));
+const VerifyEmail = lazy(() => import('../pages/verify-email/page'));
 const Favorites = lazy(() => import('../pages/favorites/page'));
 const Compare = lazy(() => import('../pages/compare/page'));
 const Orders = lazy(() => import('../pages/orders/page'));
@@ -87,6 +88,7 @@ const routes: RouteObject[] = [
       { path: 'register', element: <Register /> },
       { path: 'forgot-password', element: <ForgotPassword /> },
       { path: 'reset-password', element: <ResetPassword /> },
+      { path: 'verify-email', element: <VerifyEmail /> },
       {
         path: 'account',
         element: (

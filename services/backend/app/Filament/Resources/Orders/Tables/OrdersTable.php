@@ -48,6 +48,7 @@ class OrdersTable
                 SelectFilter::make('status')->label('Состояние заказа')->options(array_intersect_key(OrderStatus::options(), array_flip([
                     'manager_processing', 'assembling', 'assembled', 'shipped', 'in_transit', 'delivered', 'cancelled',
                 ]))),
+                SelectFilter::make('user_id')->label('Аккаунт покупателя')->relationship('user', 'email')->searchable(),
                 SelectFilter::make('delivery_type')->label('Получение')->options(['delivery' => 'Доставка', 'pickup' => 'Самовывоз']),
                 SelectFilter::make('payment_method')->label('Способ оплаты')->options(fn () => \App\Models\Payment\PaymentMethod::pluck('name', 'code')->all()),
                 Filter::make('created_at')->label('Дата заказа')->schema([

@@ -493,7 +493,7 @@ class OrderController extends Controller
 
             $order->statusHistory()->create([
                 'status' => $initialStatus->value,
-                'comment' => 'Заказ создан. Период охлаждения 60 минут.',
+                'comment' => 'Заказ создан.',
                 'user_id' => $user?->id,
             ]);
 

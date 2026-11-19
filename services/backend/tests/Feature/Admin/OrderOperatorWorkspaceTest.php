@@ -3,12 +3,17 @@
 namespace Tests\Feature\Admin;
 
 use App\Filament\Resources\Orders\Pages\EditOrder;
+use App\Jobs\Integration\SyncOrderTo1CJob;
 use App\Filament\Resources\Orders\Pages\ListOrders;
 use App\Filament\Resources\Orders\Pages\ViewOrder;
+use App\Filament\Resources\Orders\RelationManagers\OrderStatusHistoryRelationManager;
 use App\Models\Order\Order;
+use App\Models\Order\OrderStatus;
 use App\Models\User;
 use App\Services\Order\OperatorOrder;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -72,13 +77,98 @@ class OrderOperatorWorkspaceTest extends TestCase
     public function test_contact_save_does_not_accept_forged_order_fields(): void
     {
         $this->operator();
-        $order = Order::factory()->create(['status' => 'assembling', 'address_snapshot' => 'Исходный адрес']);
+        $order = Order::factory()->create(['status' => 'assembling', 'address_snapshot' => 'Исходный адрес', 'comment' => 'Комментарий покупателя']);
         Livewire::test(EditOrder::class, ['record' => $order->id])
-            ->fillForm(['contact_name' => 'Уточнённое имя', 'contact_phone' => '+79001234567'])
-            ->set('data.status', 'delivered')->set('data.address_snapshot', 'Подмена')->call('save')->assertHasNoFormErrors();
+            ->callAction(TestAction::make('edit_contacts')->schemaComponent('customer', 'form'), [
+                'contact_name' => 'Уточнённое имя', 'contact_phone' => '+79001234567',
+                'comment' => 'Уточнённый комментарий', 'status' => 'delivered', 'address_snapshot' => 'Подмена',
+            ])->assertHasNoFormErrors();
         $this->assertSame('assembling', $order->fresh()->status);
         $this->assertSame('Исходный адрес', $order->fresh()->address_snapshot);
+        $this->assertSame('Уточнённый комментарий', $order->fresh()->comment);
         $this->assertSame('Уточнённое имя', $order->fresh()->contact_name);
+    }
+
+    public function test_contact_phone_is_stored_canonical_and_validated(): void
+    {
+        $this->operator();
+        $order = Order::factory()->create(['status' => 'assembling']);
+        $action = TestAction::make('edit_contacts')->schemaComponent('customer', 'form');
+        Livewire::test(EditOrder::class, ['record' => $order->id])
+            ->callAction($action, ['contact_phone' => '8 (900) 123-45-67'])->assertHasNoFormErrors()
+            ->assertSee('+7 (900) 123-45-67')
+            ->callAction($action, ['contact_phone' => '12345'])->assertHasFormErrors(['contact_phone']);
+        $this->assertSame('+79001234567', $order->fresh()->contact_phone);
+    }
+
+    public function test_contact_change_resends_only_orders_already_sent_to_1c(): void
+    {
+        $this->operator();
+        config(['services.integration_1c.enabled' => true]);
+        Queue::fake();
+        $sent = Order::factory()->create(['status' => 'assembling', 'contact_phone' => '+79001234567', 'integration_state' => 'sent', 'integration_sent_at' => now()]);
+        $pending = Order::factory()->create(['status' => 'assembling', 'contact_phone' => '+79001234567']);
+        foreach ([$sent, $pending] as $order) {
+            Livewire::test(EditOrder::class, ['record' => $order->id])
+                ->callAction(TestAction::make('edit_contacts')->schemaComponent('customer', 'form'), ['contact_name' => 'Новое имя'])
+                ->assertHasNoFormErrors();
+        }
+        Queue::assertPushed(SyncOrderTo1CJob::class, 1);
+        Queue::assertPushed(SyncOrderTo1CJob::class, fn (SyncOrderTo1CJob $job) => $job->uniqueId() === 'order:'.$sent->id);
+    }
+
+    public function test_cancellation_request_is_reviewed_on_the_order_card(): void
+    {
+        $this->operator();
+        $order = Order::factory()->create(['status' => 'assembling']);
+        $order->cancellationRequest()->create(['reason' => 'Передумал покупать', 'status' => 'new']);
+        Livewire::test(EditOrder::class, ['record' => $order->id])->assertSee('Передумал покупать')
+            ->callAction('review_cancellation', ['status' => 'resolved', 'resolution' => 'Отказано, заказ уже собран'])
+            ->assertHasNoFormErrors()->assertActionHidden('review_cancellation');
+        $this->assertSame('resolved', $order->cancellationRequest()->first()->status);
+        $this->assertSame('assembling', $order->fresh()->status);
+    }
+
+    public function test_card_shows_term_promised_at_checkout(): void
+    {
+        $this->operator();
+        $delivery = Order::factory()->create(['delivery_type' => 'delivery', 'fulfillment_snapshot' => [
+            'delivery' => ['date_min' => '2026-11-20', 'date_max' => '2026-11-23', 'days_min' => 3, 'days_max' => 6]]]);
+        $pickup = Order::factory()->create(['delivery_type' => 'pickup', 'fulfillment_snapshot' => [
+            'ready' => ['date_min' => '2026-11-19', 'date_max' => '2026-11-19', 'days_min' => 1, 'days_max' => 1]]]);
+        Livewire::test(EditOrder::class, ['record' => $delivery->id])->assertSee('Срок доставки')->assertSee('20.11.2026 – 23.11.2026 (3–6 дн.)');
+        Livewire::test(EditOrder::class, ['record' => $pickup->id])->assertSee('Срок готовности')->assertSee('19.11.2026 (1 дн.)');
+    }
+
+    public function test_customer_block_links_account_and_other_orders(): void
+    {
+        $this->operator();
+        $customer = User::factory()->create(['email' => 'buyer@example.test']);
+        $order = Order::factory()->create(['user_id' => $customer->id, 'guest_checkout' => true]);
+        $other = Order::factory()->create(['user_id' => $customer->id]);
+        $stranger = Order::factory()->create();
+        Livewire::test(EditOrder::class, ['record' => $order->id])->assertSee('buyer@example.test')->assertSee('Без авторизации')
+            ->assertSee(\App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $customer]));
+        Livewire::test(ListOrders::class)->filterTable('user_id', $customer->id)
+            ->assertCanSeeTableRecords([$order, $other])->assertCanNotSeeTableRecords([$stranger]);
+    }
+
+    public function test_item_name_links_to_site_product_page(): void
+    {
+        $this->operator();
+        $order = Order::factory()->create();
+        $product = \App\Models\Product\Product::factory()->create(['slug' => 'divan-test']);
+        $order->items()->create(['product_type' => 'product', 'product_id' => $product->id, 'name' => 'Диван тестовый', 'quantity' => 1, 'price' => 100]);
+        Livewire::test(EditOrder::class, ['record' => $order->id])->assertSeeHtml('href="'.url('/product/divan-test').'"');
+    }
+
+    public function test_status_history_is_shown_in_its_own_tab(): void
+    {
+        $user = $this->operator();
+        $order = Order::factory()->create(['status' => 'assembling']);
+        $order->changeStatus(OrderStatus::ASSEMBLED, 'Собран на складе', $user->id);
+        Livewire::test(OrderStatusHistoryRelationManager::class, ['ownerRecord' => $order, 'pageClass' => EditOrder::class])
+            ->assertSuccessful()->assertCanSeeTableRecords($order->statusHistory)->assertSee('Собран на складе');
     }
 
     public function test_print_uses_frozen_address_warehouse_and_service_costs(): void
@@ -111,7 +201,9 @@ class OrderOperatorWorkspaceTest extends TestCase
         }
         $this->actingAs($user);
         $order = Order::factory()->create();
-        Livewire::test(ViewOrder::class, ['record' => $order->id])->assertSuccessful()->assertSee('Товары заказа');
+        Livewire::test(ViewOrder::class, ['record' => $order->id])->assertSuccessful()->assertSee('Товары заказа')
+            ->assertDontSee('Изменить');
+        $this->assertTrue(OrderStatusHistoryRelationManager::canViewForRecord($order, ViewOrder::class));
         Livewire::test(EditOrder::class, ['record' => $order->id])->assertForbidden();
     }
 }

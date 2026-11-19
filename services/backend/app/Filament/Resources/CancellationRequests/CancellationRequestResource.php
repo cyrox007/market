@@ -19,10 +19,18 @@ class CancellationRequestResource extends \Filament\Resources\Resource
         return $schema->components([
             \Filament\Forms\Components\TextInput::make('order_id')->label('Заказ')->disabled(),
             \Filament\Forms\Components\Textarea::make('reason')->label('Причина покупателя')->disabled(),
+            ...self::reviewFields(),
+        ]);
+    }
+
+    /** Поля решения по обращению: форма раздела и окно в карточке заказа. */
+    public static function reviewFields(): array
+    {
+        return [
             \Filament\Forms\Components\Select::make('status')->label('Обработка')->options(['new' => 'Новая', 'review' => 'На рассмотрении', 'resolved' => 'Рассмотрена'])->required(),
             \Filament\Forms\Components\Textarea::make('resolution')->label('Решение менеджера')->maxLength(4000)
                 ->helperText('Запись решения не отменяет заказ и не возвращает деньги. Отмена выполняется в карточке заказа уполномоченным сотрудником.'),
-        ]);
+        ];
     }
     public static function table(\Filament\Tables\Table $table): \Filament\Tables\Table
     {

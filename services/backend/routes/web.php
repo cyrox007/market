@@ -25,6 +25,12 @@ Route::get('api-docs/metrics', ApiMetricsController::class)
     return view('welcome');
 }); */
 
+// Always register routes so route caching cannot bypass the runtime simulator guard.
+Route::get('/__local/sber/{id}', [\App\Http\Controllers\LocalSberController::class, 'show'])
+    ->middleware(['signed', 'throttle:60,1'])->name('local-sber.show');
+Route::post('/__local/sber/{id}', [\App\Http\Controllers\LocalSberController::class, 'decide'])
+    ->middleware(['signed', 'throttle:30,1'])->name('local-sber.decide');
+
 Route::get('/{any}', function () {
     return File::get(public_path('index.html'));
 })->where('any', '^(?!api|admin_sv|filament|livewire|storage).*$');

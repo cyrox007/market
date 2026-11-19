@@ -43,7 +43,7 @@ export default function OrderDetail() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const openedPaymentRef = useRef(false);
-  const loadedAtRef = useRef(Date.now());
+  const serverTimeOffsetRef = useRef(0);
 
   useEffect(() => {
     if (id) {
@@ -60,9 +60,8 @@ export default function OrderDetail() {
     }
 
     const computeSecondsLeft = (): number => {
-      const deadline = new Date((order.cooling_until || order.payment_deadline_at) as string);
-      const now = new Date(Date.now() + (order.server_time ? new Date(order.server_time).getTime() - loadedAtRef.current : 0));
-      const diffMs = deadline.getTime() - now.getTime();
+      const deadlineMs = Date.parse((order.cooling_until || order.payment_deadline_at) as string);
+      const diffMs = deadlineMs - Date.now() - serverTimeOffsetRef.current;
       return Math.max(0, Math.floor(diffMs / 1000));
     };
 
@@ -92,7 +91,7 @@ export default function OrderDetail() {
     // Точечное обновление в момент дедлайна (с небольшим буфером),
     // чтобы быстро увидеть переход в "Отменён" без частого polling.
     const deadlineMs = new Date((order.cooling_until || order.payment_deadline_at) as string).getTime();
-    const nowMs = Date.now();
+    const nowMs = Date.now() + serverTimeOffsetRef.current;
     const delayMs = Math.max(0, deadlineMs - nowMs + 2000);
 
     const timeoutId = window.setTimeout(() => {
@@ -130,7 +129,8 @@ export default function OrderDetail() {
     setError(null);
     try {
       const response = await api.orders.get(orderId);
-      loadedAtRef.current = Date.now();
+      const serverTimeMs = Date.parse(response.order.server_time ?? '');
+      serverTimeOffsetRef.current = Number.isFinite(serverTimeMs) ? serverTimeMs - Date.now() : 0;
       setOrder(response.order);
     } catch (err: any) {
       console.error('Failed to load order:', err);

@@ -161,7 +161,10 @@ export function useWarehouseCheckout() {
       .then((response) => {
         if (active) {
           const checkoutMethods = response.data.filter(
-            (method) => method.code === 'cash' || isOnlineCardPaymentMethod(method.code),
+            (method) =>
+              method.code === 'cash' ||
+              isOnlineCardPaymentMethod(method.code) ||
+              method.is_coming_soon,
           );
           setMethods(checkoutMethods);
           setPayment(checkoutMethods.find(selectable)?.code || '');

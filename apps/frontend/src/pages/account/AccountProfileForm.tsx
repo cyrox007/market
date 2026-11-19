@@ -32,6 +32,7 @@ interface Props {
   onSave: (data: ProfileUpdateData) => Promise<unknown>;
 }
 
+
 export default function AccountProfileForm({ user, onSave }: Props) {
   const [form, setForm] = useState(() => initialProfileForm(user));
   const hasStructuredName = Boolean(user.first_name || user.last_name);
@@ -112,7 +113,7 @@ export default function AccountProfileForm({ user, onSave }: Props) {
         <div className="min-w-0">
           <label htmlFor="profile-email" className="mb-2 block text-14 text-ink-secondary">Email</label>
           <Input id="profile-email" type="email" inputSize="field" shape="rounded" tone="outline" value={user.email} readOnly aria-describedby="profile-email-hint" />
-          <p id="profile-email-hint" className="mt-2 text-12 text-ink-secondary">Email нельзя изменить</p>
+          <p id="profile-email-hint" className="mt-2 text-12 text-ink-secondary">Изменить почту можно в разделе «Электронная почта» ниже.</p>
         </div>
         <div className="min-w-0">
           <label htmlFor="profile-phone" className="mb-2 block text-14 text-ink-secondary">Телефон</label>
