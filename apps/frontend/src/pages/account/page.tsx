@@ -23,6 +23,7 @@ import { useAccountSection, type AccountSection } from './useAccountSection';
 import { useAccountData } from './useAccountData';
 import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
+import AccountEmailSettings from './AccountEmailSettings';
 import Button from '../../components/ui/primitives/Button';
 import {
   Bell,
@@ -578,6 +579,7 @@ export default function Account() {
 
           {/* Content */}
           <div className="lg:col-span-3">
+            {activeSection === 'profile' && <AccountEmailSettings userId={user.id} email={user.email} />}
             {/* Profile */}
             {activeSection === 'profile' && isEditingProfile && (
               <div ref={profileFormRef} tabIndex={-1} aria-label="Редактирование профиля" className="bg-white border border-gray-200 rounded-2xl p-8">
@@ -680,19 +682,6 @@ export default function Account() {
                       placeholder="Иванович"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Email *
-                      <span className="text-gray-500 font-normal ml-2">Используется для входа</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={user.email}
-                      disabled
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Email нельзя изменить</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">

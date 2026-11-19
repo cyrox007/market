@@ -79,6 +79,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Login::class, function ($event): void {
+            if (request()->hasSession()) {
+                request()->session()->put('auth_email_version', (int) $event->user->auth_email_version);
+            }
+        });
         \Illuminate\Support\Facades\Session::extend('database', fn ($app) => new \App\Session\OperatorDatabaseSessionHandler(
             $app['db']->connection(config('session.connection')),
             config('session.table'),

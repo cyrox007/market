@@ -15,6 +15,7 @@ vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user, logout: vi.fn(),
 vi.mock('../../hooks/useRegion', () => ({ useRegion: () => region }));
 vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlistCount: vi.fn() }) }));
 vi.mock('../../hooks/usePageSeo', () => ({ usePageSeo: vi.fn() }));
+vi.mock('./AccountEmailSettings', () => ({ default: () => null }));
 vi.mock('../../lib/api', () => ({ api: {
   orders: { list: vi.fn() }, addresses: { list: vi.fn() },
   auth: { getNotificationSettings: vi.fn() },

@@ -76,6 +76,11 @@ class User extends Authenticatable implements FilamentUser
     protected static function booted(): void
     {
         static::saving(function (self $user): void {
+            if ($user->exists && $user->isDirty('email')
+                && strtolower(trim((string) $user->getRawOriginal('email'))) !== strtolower(trim($user->email))) {
+                $user->auth_email_version = (int) $user->getRawOriginal('auth_email_version') + 1;
+                $user->email_verified_at = null;
+            }
             foreach (['first_name', 'last_name', 'patronymic'] as $field) {
                 if ($user->isDirty($field)) {
                     $user->{$field} = UserName::normalize($user->{$field});
