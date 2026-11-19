@@ -77,7 +77,7 @@ export default function AccountProfileForm({ user, onSave }: Props) {
       <h2 className="text-20 font-semibold">Личные данные</h2>
       {message && <div role="alert" className="flex items-center gap-3 rounded-btn bg-brand-red/10 p-4 text-14"><img src={errorIcon} alt="" width={20} height={20} className="shrink-0" /><p>{message}</p></div>}
       {success && <p role="status" className="text-14 text-brand-green">Изменения сохранены</p>}
-      <fieldset disabled={pending} className="grid min-w-0 grid-cols-2 gap-5 max-vsm:grid-cols-1">
+      <fieldset disabled={pending} className="grid min-w-0 grid-cols-1 gap-5 max-md:grid-cols-2 max-vsm:grid-cols-1">
         <div className="col-span-full min-w-0">
           <label htmlFor="profile-name" className="mb-2 block text-14 text-ink-secondary">Имя</label>
           <Input id="profile-name" name="name" autoComplete="name" inputSize="field" shape="rounded" tone="outline" invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'profile-name-error' : undefined} value={form.name} onChange={e => { setSuccess(false); setForm({ ...form, name: e.target.value }); }} />
@@ -95,7 +95,7 @@ export default function AccountProfileForm({ user, onSave }: Props) {
         </div>
       </fieldset>
       <div className="flex flex-wrap gap-3 max-vsm:flex-col">
-        <Button type="submit" shape="rounded" disabled={pending} className="w-[302px] max-w-full shadow-[0_2px_10px_rgba(20,20,20,0.18)] max-vsm:w-full">{pending ? 'Сохранение…' : 'Сохранить изменения'}</Button>
+        <Button type="submit" size="lg" shape="rounded" disabled={pending} className="w-[302px] max-w-full shadow-[0_2px_10px_rgba(20,20,20,0.18)] max-vsm:w-full max-vsm:h-11 max-vsm:text-14">{pending ? 'Сохранение…' : 'Сохранить изменения'}</Button>
         <Button type="button" variant="ghost" disabled={pending} onClick={() => { setForm({ name: user.name, phone: user.phone || '' }); setSuccess(false); setErrors({}); setMessage(''); }}>Отменить изменения</Button>
       </div>
     </form>

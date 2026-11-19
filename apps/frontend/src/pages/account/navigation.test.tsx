@@ -27,7 +27,7 @@ vi.mock('../../lib/api', () => ({ api: {
 function HistoryControls() {
   const location = useLocation();
   const navigate = useNavigate();
-  return <><output aria-label="Текущий адрес">{location.pathname}{location.search}</output><button onClick={() => navigate(-1)}>Назад</button></>;
+  return <><output aria-label="Текущий адрес">{location.pathname}{location.search}</output><button onClick={() => navigate(-1)}>Назад</button><button onClick={() => navigate('/account?section=bonuses')}>Тестовый раздел бонусов</button></>;
 }
 
 afterEach(cleanup);
@@ -51,7 +51,7 @@ it('opens saved addresses directly and keeps section changes in browser history'
 });
 
 it.each([
-  ['settings', 'Настройки уведомлений'],
+  ['settings', 'Уведомления'],
   ['bonuses', 'История начислений'],
 ])('opens %s directly', async (section, title) => {
   openAccount('/account?section=' + section);
@@ -99,6 +99,8 @@ it('waits for account reads before signing out so session responses cannot race 
 
   await waitFor(() => expect(requestStarted).toHaveBeenCalled());
   fireEvent.click(screen.getByRole('link', { name: 'Настройки профиля' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Профиль' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Тестовый раздел бонусов' }));
   fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
   const calledWhileReading = logout.mock.calls.length;
   await act(async () => { finishOrders({ data: [] }); });

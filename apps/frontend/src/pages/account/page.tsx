@@ -6,7 +6,6 @@ import {
   api,
   type BonusTransaction,
   type WishlistItem,
-  type NotificationSettings,
 } from '../../lib/api';
 import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 
@@ -20,26 +19,21 @@ import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
 import AccountNavigation from './AccountNavigation';
 import AccountLastOrder from './AccountLastOrder';
-import AccountProfileForm from './AccountProfileForm';
+import AccountSettings from './AccountSettings';
 import AccountAddresses from './AccountAddresses';
 import addressChevron from './assets/address-chevron.svg';
 import {
-  Bell,
   Calendar,
   ChevronRight,
-  CircleCheck,
   ClipboardList,
   Gift,
   Heart,
   ImageIcon,
-  Lock,
   LogOut,
   MapPin,
-  Save,
   Settings,
   ShoppingBag,
   Star,
-  TriangleAlert,
   User,
   UserPlus,
 } from 'lucide-react';
@@ -100,21 +94,6 @@ export default function Account() {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Состояния для настроек уведомлений
-  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
-  const [notificationError, setNotificationError] = useState<string | null>(null);
-  const [notificationSuccess, setNotificationSuccess] = useState(false);
-
-  // Состояния для смены пароля
-  const [passwordForm, setPasswordForm] = useState({
-    current_password: '',
-    password: '',
-    password_confirmation: '',
-  });
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-
   usePageSeo({
     title: buildTitle('Личный кабинет'),
     description: 'Личный кабинет покупателя в интернет-магазине Светофор-Мебель.',
@@ -158,73 +137,6 @@ export default function Account() {
       console.error('Failed to load bonuses:', error);
     } finally {
       setIsLoadingBonuses(false);
-    }
-  };
-
-  const handleNotificationChange = async (key: keyof NotificationSettings, value: boolean) => {
-    if (!notificationSettings || isSavingNotifications) return;
-    setNotificationError(null);
-    setNotificationSuccess(false);
-
-    setIsSavingNotifications(true);
-    try {
-      await saveNotifications({ [key]: value });
-      setNotificationSuccess(true);
-      setTimeout(() => setNotificationSuccess(false), 3000);
-    } catch (error: any) {
-      const errorMessage = error?.data?.message || error?.message || 'Ошибка обновления настроек';
-      setNotificationError(errorMessage);
-    } finally {
-      setIsSavingNotifications(false);
-    }
-  };
-
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError(null);
-    setPasswordSuccess(false);
-
-    // Валидация
-    if (!passwordForm.current_password.trim()) {
-      setPasswordError('Введите текущий пароль');
-      return;
-    }
-
-    if (!passwordForm.password.trim()) {
-      setPasswordError('Введите новый пароль');
-      return;
-    }
-
-    if (passwordForm.password.length < 8) {
-      setPasswordError('Пароль должен содержать минимум 8 символов');
-      return;
-    }
-
-    if (passwordForm.password !== passwordForm.password_confirmation) {
-      setPasswordError('Пароли не совпадают');
-      return;
-    }
-
-    setIsChangingPassword(true);
-
-    try {
-      await runSessionTask(() => api.auth.changePassword({
-        current_password: passwordForm.current_password,
-        password: passwordForm.password,
-        password_confirmation: passwordForm.password_confirmation,
-      }));
-      setPasswordSuccess(true);
-      setPasswordForm({
-        current_password: '',
-        password: '',
-        password_confirmation: '',
-      });
-      setTimeout(() => setPasswordSuccess(false), 3000);
-    } catch (error: any) {
-      const errorMessage = error?.data?.message || error?.message || 'Ошибка смены пароля';
-      setPasswordError(errorMessage);
-    } finally {
-      setIsChangingPassword(false);
     }
   };
 
@@ -301,7 +213,7 @@ export default function Account() {
   }
 
   const userInitial = user.name.charAt(0).toUpperCase();
-  const fullWidth = activeSection === 'profile' || activeSection === 'addresses';
+  const fullWidth = activeSection === 'profile' || activeSection === 'addresses' || activeSection === 'settings';
 
   return (
     <div className="min-h-screen bg-white">
@@ -313,15 +225,15 @@ export default function Account() {
           <Link to="/" className={fullWidth ? 'hover:text-brand-green' : 'text-gray-600 hover:text-red-600'}>
             Главная
           </Link>
-          {activeSection === 'addresses' ? <img src={addressChevron} alt="" width={16} height={16} /> : <ChevronRight className="size-[1em] text-gray-400" />}
-          {activeSection === 'addresses' ? <><button type="button" onClick={()=>setActiveSection('profile')} className="hover:text-brand-green">Профиль</button><img src={addressChevron} alt="" width={16} height={16} /><span className="text-ink/50" aria-current="page">Адреса доставки</span></> : activeSection === 'profile' ? <>
+          {activeSection === 'addresses' || activeSection === 'settings' ? <img src={addressChevron} alt="" width={16} height={16} /> : <ChevronRight className="size-[1em] text-gray-400" />}
+          {activeSection === 'addresses' || activeSection === 'settings' ? <><button type="button" onClick={()=>setActiveSection('profile')} className="hover:text-brand-green">Профиль</button><img src={addressChevron} alt="" width={16} height={16} /><span className="text-ink/50" aria-current="page">{activeSection === 'addresses' ? 'Адреса доставки' : 'Настройки профиля'}</span></> : activeSection === 'profile' ? <>
             <Link to="/account" className="hover:text-brand-green max-md:hidden">Личный кабинет</Link>
             <ChevronRight className="size-4 max-md:hidden" aria-hidden="true" />
             <span className="text-ink/50" aria-current="page">Профиль</span>
           </> : <span className="text-gray-900">Личный кабинет</span>}
         </nav>
 
-        {activeSection !== 'addresses' && <h1 ref={headingRef} tabIndex={-1} className={activeSection === 'profile' ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
+        {activeSection !== 'addresses' && <h1 ref={headingRef} tabIndex={-1} className={fullWidth ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
           <span className={activeSection === 'profile' ? 'max-md:hidden' : undefined}>{activeSection === 'settings' ? 'Настройки профиля' : 'Личный кабинет'}</span>
           {activeSection === 'profile' && <span className="md:hidden">Профиль</span>}
         </h1>}
@@ -331,9 +243,6 @@ export default function Account() {
         )}
         {activeSection === 'profile' && addressesError && (
           <AccountDataError label="Не удалось загрузить адреса" onRetry={loadAddresses} />
-        )}
-        {activeSection === 'settings' && notificationsError && (
-          <AccountDataError label="Не удалось загрузить настройки уведомлений" onRetry={reloadNotifications} />
         )}
         {activeSection === 'profile' && countersError && (
           <AccountDataError label="Не удалось загрузить счетчики избранного и сравнения" onRetry={refreshAllCounts} />
@@ -710,176 +619,7 @@ export default function Account() {
               </div>
             )}
 
-            {/* Settings */}
-            {activeSection === 'settings' && (
-              <div className="space-y-6">
-                <AccountProfileForm key={user.id} user={user} onSave={(data) => runSessionTask(() => updateProfile(data))} />
-                <div className="bg-white border border-gray-200 rounded-2xl p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <Bell className="size-[1em] text-2xl text-red-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold">Настройки уведомлений</h2>
-                  </div>
-
-                  {isLoadingNotifications ? (
-                    <div className="text-center py-8">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                      <p className="mt-4 text-gray-600 text-sm">Загрузка настроек...</p>
-                    </div>
-                  ) : !notificationSettings ? null : (
-                    <>
-                      {notificationError && (
-                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                          <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
-                          <p className="text-red-600 text-sm flex-1">{notificationError}</p>
-                        </div>
-                      )}
-
-                      {notificationSuccess && (
-                        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                          <CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
-                          <p className="text-green-600 text-sm flex-1">
-                            Настройки уведомлений обновлены
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="space-y-4">
-                        {[
-                          {
-                            key: 'email_promotions' as keyof NotificationSettings,
-                            label: 'Email-рассылка с акциями',
-                          },
-                          {
-                            key: 'sms_order_notifications' as keyof NotificationSettings,
-                            label: 'SMS-уведомления о заказах',
-                          },
-                          {
-                            key: 'push_notifications' as keyof NotificationSettings,
-                            label: 'Push-уведомления',
-                          },
-                          {
-                            key: 'new_product_notifications' as keyof NotificationSettings,
-                            label: 'Уведомления о новинках',
-                          },
-                        ].map((item) => (
-                          <label
-                            key={item.key}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                          >
-                            <span className="font-medium">{item.label}</span>
-                            <div className="relative">
-                              <input
-                                type="checkbox"
-                                checked={notificationSettings[item.key]}
-                                onChange={(e) =>
-                                  handleNotificationChange(item.key, e.target.checked)
-                                }
-                                disabled={isSavingNotifications}
-                                className="w-5 h-5 text-red-600 rounded focus:ring-red-500 focus:ring-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              />
-                              {isSavingNotifications && (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                                </div>
-                              )}
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="bg-white border border-gray-200 rounded-2xl p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <Lock className="size-[1em] text-2xl text-red-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold">Изменить пароль</h2>
-                  </div>
-
-                  {passwordError && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                      <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
-                      <p className="text-red-600 text-sm flex-1">{passwordError}</p>
-                    </div>
-                  )}
-
-                  {passwordSuccess && (
-                    <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                      <CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
-                      <p className="text-green-600 text-sm flex-1">Пароль успешно изменен</p>
-                    </div>
-                  )}
-
-                  <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Текущий пароль</label>
-                      <input
-                        type="password"
-                        value={passwordForm.current_password}
-                        onChange={(e) =>
-                          setPasswordForm({ ...passwordForm, current_password: e.target.value })
-                        }
-                        required
-                        disabled={isChangingPassword}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Новый пароль</label>
-                      <input
-                        type="password"
-                        value={passwordForm.password}
-                        onChange={(e) =>
-                          setPasswordForm({ ...passwordForm, password: e.target.value })
-                        }
-                        required
-                        minLength={8}
-                        disabled={isChangingPassword}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Минимум 8 символов</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Подтвердите пароль</label>
-                      <input
-                        type="password"
-                        value={passwordForm.password_confirmation}
-                        onChange={(e) =>
-                          setPasswordForm({
-                            ...passwordForm,
-                            password_confirmation: e.target.value,
-                          })
-                        }
-                        required
-                        disabled={isChangingPassword}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={isChangingPassword}
-                      className="bg-red-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {isChangingPassword ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Изменение...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="size-[1em]" />
-                          <span>Изменить пароль</span>
-                        </>
-                      )}
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )}
+            {activeSection === 'settings' && <AccountSettings key={user.id} user={user} onSaveProfile={data=>runSessionTask(()=>updateProfile(data))} notifications={notificationSettings} isLoadingNotifications={isLoadingNotifications} notificationsError={notificationsError} onRetryNotifications={reloadNotifications} onSaveNotifications={saveNotifications} />}
           </div>
         </div>
       </div>

@@ -111,6 +111,6 @@ it('connects overview tiles to shared counters and opens settings through the ne
   expect(within(nav).getByText('2 товара')).toBeInTheDocument();
   expect(await within(nav).findByText('0 адресов')).toBeInTheDocument();
   fireEvent.click(within(nav).getByRole('link', { name: 'Настройки профиля' }));
-  expect(await screen.findByRole('heading', { name: 'Настройки уведомлений' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Уведомления' })).toBeInTheDocument();
   expect(screen.queryByRole('navigation', { name: 'Разделы кабинета' })).not.toBeInTheDocument();
 });
