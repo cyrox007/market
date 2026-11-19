@@ -395,6 +395,18 @@ html {
     overflow: visible;
 }
 
+/* Container containment can clip menus extending above the color rows. */
+.fi-fo-table-repeater.product-color-rows-table {
+    container-type: normal;
+}
+
+.product-color-rows-table > table { display: table; }
+.product-color-rows-table > table > thead { display: table-header-group; }
+.product-color-rows-table > table > tbody { display: table-row-group; }
+.product-color-rows-table > table > tbody > tr { display: table-row; }
+.product-color-rows-table > table > tbody > tr > td { display: table-cell; }
+
+.fi-fo-table-repeater.product-color-rows-table,
 .fi-fo-table-repeater.product-color-rows-table > table {
     overflow: visible;
 }
