@@ -148,13 +148,13 @@ it('disables an upcoming gateway and chooses an available online payment method'
   );
 });
 
-it('cannot submit when only coming soon methods exist, including a forged selection', async () => {
+it('shows the upcoming digital ruble but cannot select it or submit an order', async () => {
   vi.mocked(api.paymentMethods.list).mockResolvedValue({
     data: [
       {
         id: 2,
-        code: 'card_ecom',
-        name: 'Онлайн-оплата',
+        code: 'digital_ruble',
+        name: 'Цифровой рубль',
         is_active: false,
         is_coming_soon: true,
         selectable: false,
@@ -169,8 +169,9 @@ it('cannot submit when only coming soon methods exist, including a forged select
   );
   await screen.findByText('Нет доступных способов оплаты');
   fireEvent.click(screen.getByRole('combobox', { name: 'Способ оплаты' }));
-  await screen.findByRole('option', { name: 'Онлайн-оплата — Скоро' });
-  fireEvent.click(screen.getByRole('option', { name: 'Онлайн-оплата — Скоро' }));
+  const option = await screen.findByRole('option', { name: 'Цифровой рубль — Скоро' });
+  expect(option).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(option);
   expect(
     (screen.getByRole('button', { name: 'Оформить заказ' }) as HTMLButtonElement).disabled,
   ).toBe(true);

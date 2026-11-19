@@ -9,7 +9,7 @@ export default function CheckoutPayment({
 }: {
   checkout: Pick<CheckoutState, 'methods' | 'payment' | 'setPayment'>;
 }) {
-  const online = c.methods.filter((method) => isOnlineCardPaymentMethod(method.code));
+  const online = c.methods.filter((method) => isOnlineCardPaymentMethod(method.code) || method.is_coming_soon);
   const current = c.methods.find((method) => method.code === c.payment);
   const group = c.payment === 'cash' ? 'cash' : 'online';
   return (
