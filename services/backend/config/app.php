@@ -76,6 +76,7 @@ return [
     */
 
     'timezone' => 'UTC',
+    'admin_timezone' => env('ADMIN_TIMEZONE', 'Europe/Moscow'),
 
     /*
     |--------------------------------------------------------------------------

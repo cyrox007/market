@@ -114,6 +114,8 @@ class AuthController extends Controller
             Auth::guard('web')->login($user);
         }
 
+        app(\App\Services\Account\AccountEmail::class)->issue($user);
+
         return response()->json([
             'authenticated' => $access->login_enabled,
             'user' => $this->userPayload($user),
@@ -329,6 +331,7 @@ class AuthController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['prohibited'],
             'first_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'last_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'patronymic' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -683,6 +686,8 @@ class AuthController extends Controller
             'patronymic' => $user->patronymic,
             'email' => $user->email,
             'phone' => $user->phone,
+            'email_verified_at' => $user->email_verified_at?->toISOString(),
+            'is_email_verified' => $user->email_verified_at !== null,
         ];
     }
 }

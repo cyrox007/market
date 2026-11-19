@@ -37,6 +37,17 @@ class PhoneNumber
         return $trimmed;
     }
 
+    /** Вид для показа: +7 (XXX) XXX-XX-XX; нераспознанный номер возвращается как есть. */
+    public static function format(?string $raw): ?string
+    {
+        $phone = self::normalize($raw);
+        if (! self::isValidRu($phone)) {
+            return $phone;
+        }
+
+        return sprintf('+7 (%s) %s-%s-%s', substr($phone, 2, 3), substr($phone, 5, 3), substr($phone, 8, 2), substr($phone, 10, 2));
+    }
+
     /**
      * Валидный российский номер в каноничном виде: +7 и 10 цифр
      * (покрывает и мобильные +79XX…, и городские).

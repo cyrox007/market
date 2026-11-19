@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
 import Input from './ui/primitives/Input';
+import type { Address } from '../lib/api';
+import AddressDirectoryFields from './AddressDirectoryFields';
 
 export type DirectoryNode = { externalId: string; name: string; label: string };
 export type DirectorySelection = {
@@ -160,7 +162,7 @@ function SearchLevel({
   );
 }
 
-export default function CheckoutAddress({
+function CheckoutAddressFields({
   onChange,
   initialCity,
   onSelection,
@@ -269,4 +271,14 @@ export default function CheckoutAddress({
       )}
     </div>
   );
+}
+
+export default function CheckoutAddress(props: Parameters<typeof CheckoutAddressFields>[0] & {
+  appearance?: 'account';
+  initialAddress?: Address | null;
+}) {
+  if (props.appearance === 'account') {
+    return <AddressDirectoryFields initialAddress={props.initialAddress} onChange={props.onChange} />;
+  }
+  return <CheckoutAddressFields {...props} />;
 }

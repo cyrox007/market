@@ -18,5 +18,5 @@ class ViewOrder extends ViewRecord
     }
 
     protected function getHeaderActions(): array { return []; }
-    public function getTitle(): string { return 'Заказ '.$this->record->number; }
+    public function getTitle(): string { return 'Заказ № '.$this->record->number.' от '.$this->record->created_at?->format('d.m.Y'); }
 }

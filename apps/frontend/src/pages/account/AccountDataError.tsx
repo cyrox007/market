@@ -4,7 +4,7 @@ export function AccountDataError({ label, onRetry }: { label: string; onRetry: (
   return (
     <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm text-brand-red">
       <span>{label}</span>
-      <Button variant="outline" onClick={() => { void onRetry(); }}>Повторить</Button>
+      <Button variant="outline" onClick={async () => { try { await onRetry(); } catch { /* The owning block keeps its error and retry visible. */ } }}>Повторить</Button>
     </div>
   );
 }

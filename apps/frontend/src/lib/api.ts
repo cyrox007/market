@@ -301,6 +301,17 @@ export const api = {
       return fetchAPI<{ data: PaymentMethod[] }>(`/payment-methods?${query.toString()}`);
     },
   },
+  accountEmail: {
+    status: () => fetchAPI<AccountEmailStatus>('/auth/email'),
+    verify: () => fetchAPI<{ status: string; message: string }>('/auth/email/verification', { method: 'POST' }),
+    change: (email: string, current_password: string) => fetchAPI<{ status: string; message: string }>('/auth/email/change', {
+      method: 'POST', body: JSON.stringify({ email, current_password }),
+    }),
+    cancel: () => fetchAPI<{ status: string; message: string }>('/auth/email/change', { method: 'DELETE' }),
+    confirm: (token: string) => fetchAPI<{ status: string; message: string; requires_login: boolean }>('/auth/email/confirm', {
+      method: 'POST', body: JSON.stringify({ token }),
+    }),
+  },
   addresses: {
     list: () => fetchAPI<{ data: Address[] }>('/addresses'),
     get: (id: number) => fetchAPI<{ address: Address }>(`/addresses/${id}`),
@@ -1170,8 +1181,18 @@ export interface InteriorIdea {
   hotspots?: InteriorIdeaHotspot[];
 }
 
+export interface AccountEmailStatus {
+  email: string;
+  is_verified: boolean;
+  email_verified_at: string | null;
+  pending_email: string | null;
+  pending_expires_at: string | null;
+}
+
 export interface User {
   id: number;
+  email_verified_at?: string | null;
+  is_email_verified?: boolean;
   name: string;
   first_name?: string | null;
   last_name?: string | null;
@@ -1371,8 +1392,11 @@ export interface PaymentMethod {
 }
 
 export interface Address {
+  address_snapshot?: { label?: string | null } | null;
   floor?: string | null;
+  room?: string | null;
   intercom?: string | null;
+  comment?: string | null;
   directory_external_id?: string | null;
   id: number;
   title?: string | null;

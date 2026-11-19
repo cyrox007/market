@@ -17,6 +17,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
   const [wishlistCount, setWishlistCount] = useState(initialCounters?.wishlistCount || 0);
   const [compareCount, setCompareCount] = useState(initialCounters?.compareCount || 0);
   const [isLoading, setIsLoading] = useState(!initialCounters);
+  const [error, setError] = useState<unknown>(null);
+  const [hasLoaded, setHasLoaded] = useState(Boolean(initialCounters));
   const inFlightRef = useRef(false);
   const lastRefreshAtRef = useRef(0);
 
@@ -75,19 +77,23 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
     try {
       inFlightRef.current = true;
       lastRefreshAtRef.current = now;
-      setIsLoading(true);
+      setIsLoading(!hasLoaded);
       // Один запрос вместо трёх: корзина + избранное + сравнение.
       const data = await runSessionRead(() => api.counters.all());
+      setError(null);
+      setHasLoaded(true);
       setCartCountValue(data.cart || 0);
       setWishlistCount(data.wishlist || 0);
       setCompareCount(data.compare || 0);
-    } catch {
-      // ignore
+    } catch (error) {
+      setError(error);
+      // A failed first request must not block the user's immediate retry.
+      lastRefreshAtRef.current = 0;
     } finally {
       inFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [setCartCountValue]);
+  }, [setCartCountValue, hasLoaded]);
 
   // Загружаем счетчики при монтировании только если нет initialCounters
   useEffect(() => {
@@ -127,6 +133,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       wishlistCount,
       compareCount,
       isLoading,
+      error,
+      hasLoaded,
       setCartCount: setCartCountValue,
       bumpCartCount,
       bumpWishlistCount,
@@ -141,6 +149,8 @@ export function CountersProvider({ children, initialCounters }: CountersProvider
       wishlistCount,
       compareCount,
       isLoading,
+      error,
+      hasLoaded,
       setCartCountValue,
       bumpCartCount,
       bumpWishlistCount,

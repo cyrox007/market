@@ -122,3 +122,11 @@ it('ignores a late address response from a previous account after the next buyer
   await act(async () => { finishFirstRequest({ data: [{ id: 10, title: 'Адрес первого покупателя', is_default: true }] }); });
   expect(result.current.addresses.map((address) => address.id)).toEqual([20]);
 });
+it('rejects an explicit address refresh failure so a successful mutation can retry reading without repeating the write', async () => {
+  vi.mocked(api.addresses.list).mockResolvedValueOnce({ data: [{ id: 1, title: 'Дом', is_default: true }] } as never);
+  const { result } = renderHook(() => useAccountData(1, 'addresses'), { wrapper: wrapper() });
+  await waitFor(() => expect(result.current.addresses[0]?.id).toBe(1));
+  vi.mocked(api.addresses.list).mockRejectedValueOnce(new Error('read failed'));
+  await act(async () => { await expect(result.current.reloadAddresses()).rejects.toThrow('read failed'); });
+  expect(result.current.addresses[0]?.id).toBe(1);
+});

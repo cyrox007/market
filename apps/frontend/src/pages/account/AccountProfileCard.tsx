@@ -5,7 +5,6 @@ import divider from './assets/profile-divider.svg';
 
 interface AccountProfileCardProps {
   user: Pick<User, 'name' | 'email' | 'phone'>;
-  city: { name?: string; isLoading: boolean };
   newsletter: { enabled?: boolean; isLoading: boolean; error?: unknown; onRetry: () => unknown };
   onEdit: () => void;
 }
@@ -19,7 +18,7 @@ function phoneLabel(phone: string | null | undefined) {
   return phone;
 }
 
-export default function AccountProfileCard({ user, city, newsletter, onEdit }: AccountProfileCardProps) {
+export default function AccountProfileCard({ user, newsletter, onEdit }: AccountProfileCardProps) {
   const initials = user.name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]).join('').toLocaleUpperCase('ru-RU');
 
   return (
@@ -31,12 +30,7 @@ export default function AccountProfileCard({ user, city, newsletter, onEdit }: A
         <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
           <div className="flex w-full min-w-0 flex-col gap-1.5">
             <h2 className="break-words font-display text-24 font-bold tracking-[-0.02em] max-vsm:text-20">{user.name.trim() || 'Покупатель'}</h2>
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-14 text-ink-secondary">
-              <span>Покупатель</span>
-              {city.isLoading ? (
-                <span role="status" aria-label="Загрузка города" className="h-3.5 w-20 animate-pulse rounded bg-surface-border motion-reduce:animate-none" />
-              ) : city.name && <span className="[overflow-wrap:anywhere]">{city.name}</span>}
-            </div>
+
           </div>
           <Button id="account-profile-edit" size="xs" shape="small" onClick={onEdit} className="shadow-[0_2px_5px_rgba(20,20,20,0.18)]">Изменить профиль</Button>
         </div>

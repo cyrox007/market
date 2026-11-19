@@ -1,33 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useRegion } from '../../hooks/useRegion';
 import { useCounters } from '../../hooks/useCounters';
 import {
   api,
-  type Address,
   type BonusTransaction,
   type WishlistItem,
   type NotificationSettings,
 } from '../../lib/api';
 import { runSessionRead, runSessionTask } from '../../lib/session-queue';
-import PhoneInput from '../../components/ui/PhoneInput';
-import CheckoutAddress from '../../components/CheckoutAddress';
+
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
-import { buildProfileUpdate, initialProfileForm, type ProfileFormValues } from '../../lib/profile-name';
 import Icon from '../../components/ui/icons/Icon';
 import { canOrder } from '../../lib/availability';
-import { useCartPanel } from '../../contexts/cart-panel-context';
 import { useAccountSection, type AccountSection } from './useAccountSection';
 import { useAccountData } from './useAccountData';
 import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
-import Button from '../../components/ui/primitives/Button';
+import AccountEmailSettings from './AccountEmailSettings';
+import AccountNavigation from './AccountNavigation';
+import AccountLastOrder from './AccountLastOrder';
+import AccountProfileForm from './AccountProfileForm';
+import AccountAddresses from './AccountAddresses';
+import addressChevron from './assets/address-chevron.svg';
 import {
   Bell,
   Calendar,
-  Check,
   ChevronRight,
   CircleCheck,
   ClipboardList,
@@ -37,17 +36,13 @@ import {
   Lock,
   LogOut,
   MapPin,
-  Pencil,
-  Plus,
   Save,
   Settings,
   ShoppingBag,
   Star,
-  Trash2,
   TriangleAlert,
   User,
   UserPlus,
-  X,
 } from 'lucide-react';
 
 const menuItems = [
@@ -79,15 +74,18 @@ function getStatusColor(status: string): string {
 }
 
 export default function Account() {
-  const { openCart } = useCartPanel();
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
-  const { locality, locationReady } = useRegion();
-  const { refreshWishlistCount } = useCounters();
+  const { refreshWishlistCount, wishlistCount, compareCount, isLoading: isLoadingCounters, error: countersError, hasLoaded: hasCounters, refreshAllCounts } = useCounters();
   const { section: activeSection, selectSection: setActiveSection } = useAccountSection();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const authenticatedUserId = user?.id;
+  useEffect(() => {
+    if (activeSection === 'settings' && authenticatedUserId) headingRef.current?.focus();
+  }, [activeSection, authenticatedUserId]);
   const {
-    orders, isLoadingOrders, ordersError, reloadOrders,
-    addresses, isLoadingAddresses, addressesError, reloadAddresses: loadAddresses,
+    orders, hasOrders, isLoadingOrders, ordersError, reloadOrders,
+    addresses, hasAddresses, isLoadingAddresses, addressesError, reloadAddresses: loadAddresses,
     notificationSettings, isLoadingNotifications, notificationsError, reloadNotifications,
     saveNotifications,
   } = useAccountData(user?.id, activeSection);
@@ -101,36 +99,6 @@ export default function Account() {
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [isLoadingBonuses, setIsLoadingBonuses] = useState(false);
 
-  // Состояния для форм
-  const [profileForm, setProfileForm] = useState<ProfileFormValues>({
-    name: '', first_name: '', last_name: '', patronymic: '', phone: '',
-  });
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSuccess, setProfileSuccess] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const profileFormRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (activeSection === 'profile' && isEditingProfile) profileFormRef.current?.focus();
-  }, [activeSection, isEditingProfile]);
-
-  // Состояния для адресов
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
-  const [addressForm, setAddressForm] = useState({
-    title: '',
-    city: '',
-    street: '',
-    house: '',
-    apartment: '',
-    entrance: '',
-    directory_external_id: null as string | null,
-  });
-  const [isSavingAddress, setIsSavingAddress] = useState(false);
-  const [addressError, setAddressError] = useState<string | null>(null);
-  const [addressToDelete, setAddressToDelete] = useState<Address | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Состояния для настроек уведомлений
@@ -165,14 +133,6 @@ export default function Account() {
       loadBonuses();
     }
   }, [activeSection]);
-
-  // Инициализация формы профиля
-  useEffect(() => {
-    if (user) {
-      setProfileForm(initialProfileForm(user));
-    }
-  }, [user]);
-
 
   const loadFavorites = async () => {
     setIsLoadingFavorites(true);
@@ -286,134 +246,6 @@ export default function Account() {
     }
   };
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProfileError(null);
-    setProfileSuccess(false);
-
-    let payload;
-    try {
-      payload = buildProfileUpdate(profileForm, Boolean(user?.first_name || user?.last_name));
-    } catch (error) {
-      setProfileError(error instanceof Error ? error.message : 'Проверьте ФИО');
-      return;
-    }
-
-    setIsSavingProfile(true);
-
-    try {
-      await runSessionTask(() => updateProfile(payload));
-      setProfileSuccess(true);
-      setLastUpdated(new Date());
-      setTimeout(() => setProfileSuccess(false), 3000);
-    } catch (error: any) {
-      const errorMessage = error?.data?.message || error?.message || 'Ошибка обновления профиля';
-      setProfileError(errorMessage);
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  const handleDeleteAddress = async () => {
-    if (!addressToDelete) return;
-
-    try {
-      await runSessionTask(() => api.addresses.delete(addressToDelete.id));
-      await loadAddresses();
-      setAddressToDelete(null);
-    } catch (error: any) {
-      console.error('Failed to delete address:', error);
-      alert(error?.data?.message || 'Ошибка удаления адреса');
-    }
-  };
-
-  const handleSetDefaultAddress = async (id: number) => {
-    try {
-      await runSessionTask(() => api.addresses.setDefault(id));
-      await loadAddresses();
-    } catch (error: any) {
-      console.error('Failed to set default address:', error);
-      alert(error?.data?.message || 'Ошибка установки адреса по умолчанию');
-    }
-  };
-
-  const handleOpenAddAddress = () => {
-    setEditingAddress(null);
-    setAddressForm({
-      title: '',
-      city: '',
-      street: '',
-      house: '',
-      apartment: '',
-      entrance: '',
-      directory_external_id: null,
-    });
-    setAddressError(null);
-    setShowAddressModal(true);
-  };
-
-  const handleOpenEditAddress = (address: Address) => {
-    setEditingAddress(address);
-    setAddressForm({
-      title: address.title || '',
-      city: address.city || '',
-      street: address.street || '',
-      house: address.house || '',
-      apartment: address.apartment || '',
-      entrance: address.entrance || '',
-      directory_external_id: address.directory_external_id || null,
-    });
-    setAddressError(null);
-    setShowAddressModal(true);
-  };
-
-  const handleCloseAddressModal = () => {
-    setShowAddressModal(false);
-    setEditingAddress(null);
-    setAddressForm({
-      title: '',
-      city: '',
-      street: '',
-      house: '',
-      apartment: '',
-      entrance: '',
-      directory_external_id: null,
-    });
-    setAddressError(null);
-  };
-
-  const handleAddressSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddressError(null);
-
-    // Валидация
-    if (!addressForm.directory_external_id) { setAddressError('Выберите дом из адресного справочника.'); return; }
-    setIsSavingAddress(true);
-
-    try {
-      const addressData: any = {
-        title: addressForm.title.trim() || undefined,
-        directory_external_id: addressForm.directory_external_id,
-        apartment: addressForm.apartment.trim() || undefined,
-        entrance: addressForm.entrance.trim() || undefined,
-      };
-
-      if (editingAddress) {
-        await runSessionTask(() => api.addresses.update(editingAddress.id, addressData));
-      } else {
-        await runSessionTask(() => api.addresses.create(addressData));
-      }
-
-      await loadAddresses();
-      handleCloseAddressModal();
-    } catch (error: any) {
-      const errorMessage = error?.data?.message || error?.message || 'Ошибка сохранения адреса';
-      setAddressError(errorMessage);
-    } finally {
-      setIsSavingAddress(false);
-    }
-  };
-
   const handleRepeatOrder = async (orderId: number) => {
     try {
       const response = (await api.orders.repeat(orderId)) as {
@@ -445,7 +277,7 @@ export default function Account() {
         alert(message);
       }
 
-      openCart();
+      navigate('/cart');
     } catch (error: any) {
       console.error('Failed to repeat order:', error);
       const errorMessage = error?.data?.message || error?.message || 'Ошибка повторения заказа';
@@ -470,63 +302,73 @@ export default function Account() {
   }
 
   const userInitial = user.name.charAt(0).toUpperCase();
-  const savedCity = addresses.find((address) => address.is_default)?.city?.trim();
-  const cityLoading = isLoadingAddresses || (!savedCity && !locationReady);
-  const profileCity = cityLoading ? undefined : savedCity || locality?.name?.trim();
+  const fullWidth = activeSection === 'profile' || activeSection === 'addresses';
 
   return (
     <div className="min-h-screen bg-white">
-      <div className={activeSection === 'profile'
+      <div className={fullWidth
         ? 'mx-auto w-full max-w-[1440px] px-[100px] pb-16 pt-6 max-md:px-6 max-vsm:px-4'
         : 'max-w-7xl mx-auto px-4 py-6'}>
         {/* Breadcrumbs */}
-        <nav aria-label="Хлебные крошки" className={activeSection === 'profile' ? 'mb-6 flex items-center gap-2 text-14 text-ink' : 'flex items-center gap-2 text-sm mb-2'}>
-          <Link to="/" className={activeSection === 'profile' ? 'hover:text-brand-green' : 'text-gray-600 hover:text-red-600'}>
+        <nav aria-label="Хлебные крошки" className={fullWidth ? 'mb-6 flex items-center gap-2 text-14 text-ink' : 'flex items-center gap-2 text-sm mb-2'}>
+          <Link to="/" className={fullWidth ? 'hover:text-brand-green' : 'text-gray-600 hover:text-red-600'}>
             Главная
           </Link>
-          <ChevronRight className="size-[1em] text-gray-400" />
-          {activeSection === 'profile' ? <>
+          {activeSection === 'addresses' ? <img src={addressChevron} alt="" width={16} height={16} /> : <ChevronRight className="size-[1em] text-gray-400" />}
+          {activeSection === 'addresses' ? <><button type="button" onClick={()=>setActiveSection('profile')} className="hover:text-brand-green">Профиль</button><img src={addressChevron} alt="" width={16} height={16} /><span className="text-ink/50" aria-current="page">Адреса доставки</span></> : activeSection === 'profile' ? <>
             <Link to="/account" className="hover:text-brand-green max-md:hidden">Личный кабинет</Link>
             <ChevronRight className="size-4 max-md:hidden" aria-hidden="true" />
             <span className="text-ink/50" aria-current="page">Профиль</span>
           </> : <span className="text-gray-900">Личный кабинет</span>}
         </nav>
 
-        <h1 className={activeSection === 'profile' ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
-          <span className={activeSection === 'profile' ? 'max-md:hidden' : undefined}>Личный кабинет</span>
+        {activeSection !== 'addresses' && <h1 ref={headingRef} tabIndex={-1} className={activeSection === 'profile' ? 'mb-6 font-display text-36 font-bold tracking-[-0.02em] text-ink max-vsm:text-28' : 'text-4xl font-bold mb-8'}>
+          <span className={activeSection === 'profile' ? 'max-md:hidden' : undefined}>{activeSection === 'settings' ? 'Настройки профиля' : 'Личный кабинет'}</span>
           {activeSection === 'profile' && <span className="md:hidden">Профиль</span>}
-        </h1>
+        </h1>}
 
-        {(activeSection === 'profile' || activeSection === 'orders') && ordersError && (
+        {activeSection === 'orders' && ordersError && (
           <AccountDataError label="Не удалось загрузить заказы" onRetry={reloadOrders} />
         )}
-        {(activeSection === 'profile' || activeSection === 'addresses') && addressesError && (
+        {activeSection === 'profile' && addressesError && (
           <AccountDataError label="Не удалось загрузить адреса" onRetry={loadAddresses} />
         )}
         {activeSection === 'settings' && notificationsError && (
           <AccountDataError label="Не удалось загрузить настройки уведомлений" onRetry={reloadNotifications} />
         )}
+        {activeSection === 'profile' && countersError && (
+          <AccountDataError label="Не удалось загрузить счетчики избранного и сравнения" onRetry={refreshAllCounts} />
+        )}
 
         {activeSection === 'profile' && (
           <div className="mb-6">
-            <AccountProfileCard user={user} city={{ name: profileCity, isLoading: cityLoading }}
+            <AccountProfileCard user={user}
               newsletter={{ enabled: notificationSettings?.email_promotions, isLoading: isLoadingNotifications, error: notificationsError, onRetry: reloadNotifications }}
-              onEdit={() => setIsEditingProfile(true)} />
+              onEdit={() => setActiveSection('settings')} />
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {activeSection === 'profile' && <>
+          <AccountNavigation
+            orders={{ items: orders, hasData: hasOrders, isLoading: isLoadingOrders, error: ordersError }}
+            addresses={{ count: addresses.length, hasData: hasAddresses, isLoading: isLoadingAddresses, error: addressesError }}
+            counters={{ wishlistCount, compareCount, hasData: hasCounters, isLoading: isLoadingCounters, error: countersError }}
+            />
+          <AccountLastOrder orders={orders} isLoading={isLoadingOrders} error={ordersError} onRetry={reloadOrders} />
+        </>}
+
+        <div className={fullWidth ? 'space-y-6' : 'grid grid-cols-1 lg:grid-cols-4 gap-8'}>
           {/* Sidebar */}
-          <div className="lg:col-span-1">
+          {!fullWidth && <div className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 sticky top-4">
               {/* User Info */}
-              {activeSection !== 'profile' && <div className="text-center mb-6 pb-6 border-b border-gray-200">
+              <div className="text-center mb-6 pb-6 border-b border-gray-200">
                 <div className="w-20 h-20 bg-gradient-to-r from-red-600 to-yellow-500 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-3xl font-bold text-white">{userInitial}</span>
                 </div>
                 <h3 className="font-bold text-lg">{user.name.toUpperCase()}</h3>
                 <p className="text-sm text-gray-600">{user.email}</p>
-              </div>}
+              </div>
                 {orders.length > 0 && (
                   <div className="mb-4 pt-4 border-t border-gray-200">
                     <div className="text-xs text-gray-500 mb-1">Последний заказ</div>
@@ -574,173 +416,10 @@ export default function Account() {
                 </button>
               </nav>
             </div>
-          </div>
+          </div>}
 
           {/* Content */}
-          <div className="lg:col-span-3">
-            {/* Profile */}
-            {activeSection === 'profile' && isEditingProfile && (
-              <div ref={profileFormRef} tabIndex={-1} aria-label="Редактирование профиля" className="bg-white border border-gray-200 rounded-2xl p-8">
-                <Button variant="ghost" size="xs" onClick={() => {
-                  setIsEditingProfile(false);
-                  document.getElementById('account-profile-edit')?.focus();
-                }}>Закрыть редактирование</Button>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <User className="size-[1em] text-2xl text-red-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold">Личные данные</h2>
-                  </div>
-                  {lastUpdated && (
-                    <span className="text-sm text-gray-500">
-                      Обновлено: {lastUpdated.toLocaleString('ru-RU')}
-                    </span>
-                  )}
-                </div>
-
-                {profileError && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                    <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
-                    <p className="text-red-600 text-sm flex-1">{profileError}</p>
-                  </div>
-                )}
-
-                {profileSuccess && (
-                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                    <CircleCheck className="size-[1em] text-xl text-green-600 mt-0.5" />
-                    <p className="text-green-600 text-sm flex-1">Профиль успешно обновлен</p>
-                  </div>
-                )}
-
-                <form onSubmit={handleProfileSubmit} className="space-y-6">
-                  {!user.first_name && !user.last_name && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
-                      <p className="text-sm text-gray-700">
-                        Ранее ваше ФИО сохранялось одной строкой. Мы не разбиваем его автоматически,
-                        чтобы не перепутать составные имена и фамилии. Вы можете оставить его как есть
-                        или заполнить отдельные поля ниже.
-                      </p>
-                      <div>
-                        <label htmlFor="legacy_name" className="block text-sm font-medium mb-2">
-                          Сохранённое полное имя
-                        </label>
-                        <input
-                          id="legacy_name"
-                          type="text"
-                          value={profileForm.name}
-                          onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                          maxLength={255}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none"
-                        />
-                      </div>
-                      <p className="text-xs text-gray-600">
-                        Когда заполните имя и фамилию отдельно, старое значение заменится после сохранения.
-                      </p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="profile_first_name" className="block text-sm font-medium mb-2">Имя *</label>
-                      <input
-                        id="profile_first_name"
-                        type="text"
-                        autoComplete="given-name"
-                        value={profileForm.first_name}
-                        onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
-                        maxLength={255}
-                        placeholder="Иван"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="profile_last_name" className="block text-sm font-medium mb-2">Фамилия *</label>
-                      <input
-                        id="profile_last_name"
-                        type="text"
-                        autoComplete="family-name"
-                        value={profileForm.last_name}
-                        onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
-                        maxLength={255}
-                        placeholder="Петров"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="profile_patronymic" className="block text-sm font-medium mb-2">
-                      Отчество (необязательно)
-                    </label>
-                    <input
-                      id="profile_patronymic"
-                      type="text"
-                      value={profileForm.patronymic}
-                      onChange={(e) => setProfileForm({ ...profileForm, patronymic: e.target.value })}
-                      maxLength={255}
-                      placeholder="Иванович"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Email *
-                      <span className="text-gray-500 font-normal ml-2">Используется для входа</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={user.email}
-                      disabled
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Email нельзя изменить</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Телефон
-                      <span className="text-gray-500 font-normal ml-2">Для связи по заказам</span>
-                    </label>
-                    <PhoneInput
-                      type="tel"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      placeholder="+7 (999) 123-45-67"
-                      pattern="[\d\s\-\+\(\)]+"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Укажите номер телефона для связи по заказам
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSavingProfile}
-                      className="bg-red-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {isSavingProfile ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Сохранение...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="size-[1em]" />
-                          <span>Сохранить изменения</span>
-                        </>
-                      )}
-                    </button>
-                    {profileForm.name !== (user.name || '') ||
-                    profileForm.first_name !== (user.first_name || '') ||
-                    profileForm.last_name !== (user.last_name || '') ||
-                    profileForm.patronymic !== (user.patronymic || '') ||
-                    profileForm.phone !== (user.phone || '') ? (
-                      <span className="text-sm text-gray-500">Есть несохраненные изменения</span>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            )}
-
+          <div className={fullWidth ? 'min-w-0' : 'lg:col-span-3'}>
             {/* Orders */}
             {activeSection === 'orders' && (
               <div>
@@ -935,118 +614,7 @@ export default function Account() {
               </div>
             )}
 
-            {/* Addresses */}
-            {activeSection === 'addresses' && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <MapPin className="size-[1em] text-2xl text-red-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold">Адреса доставки</h2>
-                  </div>
-                  <button
-                    onClick={handleOpenAddAddress}
-                    className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap flex items-center gap-2"
-                  >
-                    <Plus className="size-[1em]" />
-                    <span>Добавить адрес</span>
-                  </button>
-                </div>
-                {isLoadingAddresses ? (
-                  <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-                    <p className="mt-4 text-gray-600">Загрузка адресов...</p>
-                  </div>
-                ) : addressesError && addresses.length === 0 ? null : addresses.length === 0 ? (
-                  <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
-                    <p className="text-gray-600">У вас пока нет адресов доставки</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {addresses.map((addr) => (
-                      <div
-                        key={addr.id}
-                        className={`bg-white border-2 rounded-2xl p-6 hover:shadow-md transition-all ${
-                          addr.is_default ? 'border-green-300 bg-green-50/30' : 'border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div
-                                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                  addr.is_default ? 'bg-green-100' : 'bg-red-100'
-                                }`}
-                              >
-                                <MapPin
-                                  className={`size-[1em] text-xl ${
-                                    addr.is_default ? 'text-green-600' : 'text-red-600'
-                                  }`}
-                                />
-                              </div>
-                              <div className="flex-1">
-                                {addr.title && <h3 className="font-bold text-lg">{addr.title}</h3>}
-                                {!addr.title && addr.is_default && (
-                                  <h3 className="font-bold text-lg">Адрес по умолчанию</h3>
-                                )}
-                              </div>
-                            </div>
-                            <div className="space-y-1">
-                              {addr.shipping_location && (
-                                <p className="text-sm font-medium text-red-600 flex items-center gap-1">
-                                  <MapPin className="size-[1em]" />
-                                  {addr.shipping_location.name}
-                                </p>
-                              )}
-                              <p className="text-gray-700 text-sm">
-                                {addr.full_address || [addr.city, addr.street, addr.house].filter(Boolean).join(', ')}
-                              </p>
-                              <p className="text-xs text-gray-500 flex items-center gap-1">
-                                <Calendar className="size-[1em]" />
-                                Добавлен:{' '}
-                                {new Date(addr.created_at || '').toLocaleDateString('ru-RU')}
-                              </p>
-                            </div>
-                          </div>
-                          {addr.is_default && (
-                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-1 shadow-sm">
-                              <Check className="size-[1em]" />
-                              Основной
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex gap-3 pt-3 border-t border-gray-100">
-                          <button
-                            onClick={() => handleOpenEditAddress(addr)}
-                            className="text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 transition-colors"
-                          >
-                            <Pencil className="size-[1em]" />
-                            Редактировать
-                          </button>
-                          <button
-                            onClick={() => setAddressToDelete(addr)}
-                            className="text-gray-600 hover:text-red-600 hover:underline flex items-center gap-1 transition-colors"
-                          >
-                            <Trash2 className="size-[1em]" />
-                            Удалить
-                          </button>
-                          {!addr.is_default && (
-                            <button
-                              onClick={() => handleSetDefaultAddress(addr.id)}
-                              className="text-green-600 hover:text-green-700 hover:underline flex items-center gap-1 transition-colors"
-                            >
-                              <Star className="size-[1em]" />
-                              Сделать основным
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {activeSection === 'addresses' && <AccountAddresses addresses={addresses} isLoading={isLoadingAddresses} error={addressesError} onReload={loadAddresses} />}
 
             {/* Bonuses */}
             {activeSection === 'bonuses' && (
@@ -1146,6 +714,8 @@ export default function Account() {
             {/* Settings */}
             {activeSection === 'settings' && (
               <div className="space-y-6">
+                <AccountProfileForm key={user.id} user={user} onSave={(data) => runSessionTask(() => updateProfile(data))} />
+                <AccountEmailSettings userId={user.id} email={user.email} />
                 <div className="bg-white border border-gray-200 rounded-2xl p-8">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -1316,132 +886,6 @@ export default function Account() {
         </div>
       </div>
 
-      {/* Address Modal */}
-      {showAddressModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold">
-                {editingAddress ? 'Редактировать адрес' : 'Добавить адрес'}
-              </h3>
-              <button
-                onClick={handleCloseAddressModal}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="size-[1em] text-2xl" />
-              </button>
-            </div>
-
-            {addressError && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                <TriangleAlert className="size-[1em] text-xl text-red-600 mt-0.5" />
-                <p className="text-red-600 text-sm flex-1">{addressError}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleAddressSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Название адреса
-                  <span className="text-gray-500 font-normal ml-2">(необязательно)</span>
-                </label>
-                <input
-                  type="text"
-                  value={addressForm.title}
-                  onChange={(e) => setAddressForm({ ...addressForm, title: e.target.value })}
-                  placeholder="Дом, Офис, Квартира"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                />
-              </div>
-
-              {editingAddress?.full_address && <p>Сохранённый адрес: {editingAddress.full_address}. Выберите новый дом ниже, только если адрес изменился.</p>}
-              <CheckoutAddress onChange={(id) => setAddressForm((current) => ({ ...current, directory_external_id: id }))} />
-              <p className="text-sm text-gray-600">Изменения адресной книги действуют для новых заказов. Адрес уже оформленного заказа не изменяется.</p>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Квартира</label>
-                  <input
-                    type="text"
-                    value={addressForm.apartment}
-                    onChange={(e) => setAddressForm({ ...addressForm, apartment: e.target.value })}
-                    placeholder="10"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Подъезд</label>
-                  <input
-                    type="text"
-                    value={addressForm.entrance}
-                    onChange={(e) => setAddressForm({ ...addressForm, entrance: e.target.value })}
-                    placeholder="2"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={handleCloseAddressModal}
-                  disabled={isSavingAddress}
-                  className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-50"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingAddress}
-                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isSavingAddress ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Сохранение...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="size-[1em]" />
-                      <span>{editingAddress ? 'Сохранить изменения' : 'Добавить адрес'}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Address Confirmation Modal */}
-      {addressToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <TriangleAlert className="size-[1em] text-3xl text-red-600" />
-            </div>
-            <h3 className="text-2xl font-bold text-center mb-2">Удалить адрес?</h3>
-            <p className="text-gray-600 text-center mb-6">
-              Вы уверены, что хотите удалить адрес "
-              {addressToDelete.title || addressToDelete.full_address || 'без названия'}"? Это
-              действие нельзя будет отменить.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setAddressToDelete(null)}
-                className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors whitespace-nowrap"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleDeleteAddress}
-                className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap"
-              >
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

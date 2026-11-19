@@ -126,6 +126,27 @@
     padding-bottom: 0.625rem !important;
 }
 
+.fi-sc-actions.fi-sticky .fi-ac {
+    background: var(--theme-surface-deep) !important;
+    border: 1px solid var(--theme-border-heavy);
+    box-shadow: 0 -8px 24px -6px rgb(55 65 81 / 0.22), 0 2px 8px rgb(55 65 81 / 0.12) !important;
+}
+
+.order-summary .fi-section-content-ctn > .fi-section-content {
+    padding: 0 !important;
+}
+
+.order-framed .fi-in-entry {
+    height: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--theme-border-mid);
+    border-radius: var(--theme-radius-sm);
+}
+
+.dark .fi-sc-actions.fi-sticky .fi-ac {
+    box-shadow: 0 -8px 24px -6px rgb(0 0 0 / 0.6), 0 2px 8px rgb(0 0 0 / 0.4) !important;
+}
+
 /* Таблицы компактнее */
 .fi-ta-content-grid .fi-ta-record,
 .fi-table th,

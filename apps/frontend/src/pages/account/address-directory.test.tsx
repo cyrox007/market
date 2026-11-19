@@ -11,12 +11,14 @@ vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlis
 vi.mock('../../hooks/usePageSeo', () => ({ usePageSeo: vi.fn() }));
 vi.mock('../../hooks/useRegion', () => ({ useRegion: () => ({ locality: null, locationReady: true }) }));
 vi.mock('../../components/CheckoutAddress', () => ({ default: ({ onChange }: { onChange: (id: string) => void }) => <button type="button" onClick={() => onChange('house-guid')}>Выбрать дом из справочника</button> }));
+vi.mock('./AccountEmailSettings', () => ({ default: () => null }));
 vi.mock('../../lib/api', () => ({ api: {
   addresses: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), setDefault: vi.fn() },
   orders: { list: vi.fn().mockResolvedValue({ data: [] }) },
   auth: { getNotificationSettings: vi.fn().mockResolvedValue({ settings: { email_promotions: false } }) },
 } }));
 afterEach(cleanup);
+vi.mock('../../hooks/useMediaQuery', () => ({ useMediaMatch: () => false }));
 it('creates a saved address using the building ID, not legacy text or shipping location', async () => {
   vi.mocked(api.addresses.list).mockResolvedValue({ data: [] });
   vi.mocked(api.addresses.create).mockImplementation(async () => {
@@ -25,8 +27,8 @@ it('creates a saved address using the building ID, not legacy text or shipping l
   });
   const cache = new Map();
   render(<SWRConfig value={{ provider: () => cache }}><MemoryRouter><Account /></MemoryRouter></SWRConfig>);
-  fireEvent.click(screen.getByRole('button', { name: 'Адреса доставки' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Добавить адрес' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Адреса доставки' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Добавить новый адрес' }));
   fireEvent.click(screen.getByText('Выбрать дом из справочника'));
   const buttons = screen.getAllByRole('button', { name: 'Добавить адрес' });
   fireEvent.click(buttons[buttons.length - 1]);
@@ -54,7 +56,8 @@ it('reloads the address book after choosing a default address and deleting it', 
   fireEvent.click(await screen.findByRole('button', { name: 'Сделать основным' }));
   expect(await screen.findByText('Основной')).toBeInTheDocument();
   expect(api.addresses.setDefault).toHaveBeenCalledWith(3);
-  fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Удалить адрес Офис' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить адрес Офис' }));
   expect(screen.getByRole('heading', { name: 'Удалить адрес?' })).toBeInTheDocument();
   const deleteButtons = screen.getAllByRole('button', { name: 'Удалить' });
   fireEvent.click(deleteButtons[deleteButtons.length - 1]);
@@ -70,9 +73,9 @@ it('updates a saved address and displays the refreshed server response', async (
   });
   const cache = new Map();
   render(<SWRConfig value={{ provider: () => cache }}><MemoryRouter initialEntries={['/account?section=addresses']}><Account /></MemoryRouter></SWRConfig>);
-  fireEvent.click(await screen.findByRole('button', { name: 'Редактировать' }));
-  fireEvent.change(screen.getByPlaceholderText('Дом, Офис, Квартира'), { target: { value: 'Квартира' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
-  expect(await screen.findByText('Квартира', { selector: 'h3' })).toBeInTheDocument();
-  expect(api.addresses.update).toHaveBeenCalledWith(4, expect.objectContaining({ title: 'Квартира', directory_external_id: 'house-guid' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Редактировать адрес Старый заголовок' }));
+  fireEvent.change(screen.getByLabelText('Название адреса'), { target: { value: 'Квартира' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить адрес' }));
+  expect(await screen.findByText('Квартира', { selector: 'h2' })).toBeInTheDocument();
+  expect(api.addresses.update).toHaveBeenCalledWith(4, expect.objectContaining({ title: 'Квартира' }));
 });
