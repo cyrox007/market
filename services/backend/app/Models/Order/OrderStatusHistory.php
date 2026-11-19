@@ -41,15 +41,12 @@ class OrderStatusHistory extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        return match ($this->status) {
-            'new' => 'Новый',
-            'accepted' => 'Принят',
-            'assembled' => 'Собран',
-            'shipped' => 'Отправлен',
-            'in_transit' => 'В пути',
-            'delivered' => 'Доставлен',
-            'cancelled' => 'Отменен',
-            default => $this->status,
-        };
+        return OrderStatus::tryFrom($this->status)?->label() ?? $this->status;
+    }
+
+    public function getCommentAttribute(?string $value): ?string
+    {
+        // Present the old automatic creation note without rewriting historical audit data.
+        return $value === 'Заказ создан. Период охлаждения 60 минут.' ? 'Заказ создан.' : $value;
     }
 }

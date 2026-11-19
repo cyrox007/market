@@ -1,11 +1,19 @@
 <?php
 
-\Illuminate\Support\Facades\Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
-\Illuminate\Support\Facades\Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
-
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+
+// The local bank sandbox advances orders, but never schedules real integrations or bank refunds.
+if (config('local_sber.enabled')) {
+    app(\App\Services\Payment\LocalSberSimulator::class)->assertEnabled();
+    Schedule::command('orders:advance-cooling')->everyMinute()->withoutOverlapping(5);
+    Schedule::command('orders:cancel-expired-unpaid')->everyMinute()->withoutOverlapping(10);
+    return;
+}
+
+Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
+Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

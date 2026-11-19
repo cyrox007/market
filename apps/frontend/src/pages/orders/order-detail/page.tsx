@@ -60,9 +60,8 @@ export default function OrderDetail() {
     }
 
     const computeSecondsLeft = (): number => {
-      const deadline = new Date((order.cooling_until || order.payment_deadline_at) as string);
-      const now = new Date(Date.now() + serverTimeOffsetRef.current);
-      const diffMs = deadline.getTime() - now.getTime();
+      const deadlineMs = Date.parse((order.cooling_until || order.payment_deadline_at) as string);
+      const diffMs = deadlineMs - Date.now() - serverTimeOffsetRef.current;
       return Math.max(0, Math.floor(diffMs / 1000));
     };
 

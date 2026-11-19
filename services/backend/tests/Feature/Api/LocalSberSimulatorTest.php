@@ -143,4 +143,16 @@ class LocalSberSimulatorTest extends TestCase
         $this->assertSame([], app(SberbankAcquiringClient::class)->getOrderStatusExtended($payment->remote_id));
         Http::assertNothingSent();
     }
+
+    public function test_local_scheduler_only_advances_orders_without_scheduling_real_integrations(): void
+    {
+        $schedule = new \Illuminate\Console\Scheduling\Schedule('UTC');
+        $this->app->instance(\Illuminate\Console\Scheduling\Schedule::class, $schedule);
+        \Illuminate\Support\Facades\Schedule::clearResolvedInstance(\Illuminate\Console\Scheduling\Schedule::class);
+        require base_path('routes/console.php');
+        $events = $schedule->events();
+        $this->assertCount(2, $events);
+        $this->assertStringContainsString('orders:advance-cooling', $events[0]->command);
+        $this->assertStringContainsString('orders:cancel-expired-unpaid', $events[1]->command);
+    }
 }
