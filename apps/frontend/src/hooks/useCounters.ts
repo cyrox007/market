@@ -7,6 +7,8 @@ const defaultCountersValue = {
   wishlistCount: 0,
   compareCount: 0,
   isLoading: true,
+  error: null,
+  hasLoaded: false,
   setCartCount: () => {},
   bumpCartCount: () => {},
   bumpWishlistCount: () => {},

@@ -4,6 +4,10 @@ import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 import type { AccountSection } from './useAccountSection';
 
 const options = { keepPreviousData: false, shouldRetryOnError: false };
+const readAddresses = () => runSessionRead(async () => {
+  const { data } = await api.addresses.list();
+  return [...data].sort((a, b) => Number(b.is_default) - Number(a.is_default));
+});
 
 /** Shared account reads. Keys include the owner; data never carries over to another user. */
 export function useAccountData(userId: number | undefined, section: AccountSection) {
@@ -14,10 +18,7 @@ export function useAccountData(userId: number | undefined, section: AccountSecti
   );
   const addresses = useSWR(
     userId && (overview || section === 'addresses') ? ['account', userId, 'addresses'] : null,
-    () => runSessionRead(async () => {
-      const { data } = await api.addresses.list();
-      return [...data].sort((a, b) => Number(b.is_default) - Number(a.is_default));
-    }), options,
+    readAddresses, options,
   );
   const notifications = useSWR(
     userId && (overview || section === 'settings') ? ['account', userId, 'notifications'] : null,
@@ -44,13 +45,15 @@ export function useAccountData(userId: number | undefined, section: AccountSecti
 
   return {
     orders: orders.data ?? [],
+    hasOrders: orders.data !== undefined,
     isLoadingOrders: orders.isLoading,
     ordersError: orders.error,
     reloadOrders: orders.mutate,
     addresses: addresses.data ?? [],
+    hasAddresses: addresses.data !== undefined,
     isLoadingAddresses: addresses.isLoading,
     addressesError: addresses.error,
-    reloadAddresses: addresses.mutate,
+    reloadAddresses: () => addresses.mutate(readAddresses, { revalidate: false, throwOnError: true }),
     notificationSettings: notifications.data,
     isLoadingNotifications: notifications.isLoading,
     notificationsError: notifications.error,

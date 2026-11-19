@@ -31,6 +31,7 @@ function HistoryControls() {
 }
 
 afterEach(cleanup);
+vi.mock('../../hooks/useMediaQuery', () => ({ useMediaMatch: () => false }));
 
 function openAccount(url: string) {
   const cache = new Map();
@@ -41,11 +42,11 @@ function openAccount(url: string) {
 
 it('opens saved addresses directly and keeps section changes in browser history', async () => {
   openAccount('/account?section=addresses&from=header');
-  expect(await screen.findByRole('button', { name: 'Добавить адрес' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Добавить новый адрес' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }));
   expect(screen.getByLabelText('Текущий адрес')).toHaveTextContent('/account?from=header');
   fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
-  expect(await screen.findByRole('button', { name: 'Добавить адрес' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Добавить новый адрес' })).toBeInTheDocument();
   expect(screen.getByLabelText('Текущий адрес')).toHaveTextContent('section=addresses');
 });
 
@@ -59,7 +60,7 @@ it.each([
 
 it('replaces an unknown section with the profile without losing other query parameters', async () => {
   openAccount('/account?section=missing&from=header');
-  expect(screen.getByRole('button', { name: 'Профиль' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Профиль покупателя' })).toBeInTheDocument();
   expect(await screen.findByText('/account?from=header')).toBeInTheDocument();
 });
 
@@ -75,14 +76,14 @@ it('shows a retry instead of an empty address book when the request fails', asyn
 it('loads the last order on the profile without opening the orders section first', async () => {
   vi.mocked(api.orders.list).mockResolvedValueOnce({ data: [{ id: 42, number: 'TEST-42' }] } as never);
   openAccount('/account');
-  expect(await screen.findByRole('link', { name: 'Заказ TEST-42 →' })).toHaveAttribute('href', '/orders/42');
+  expect(await screen.findByRole('link', { name: 'Открыть заказ № TEST-42' })).toHaveAttribute('href', '/orders/42');
 });
 
 it('renders a direct address section on the server without browser storage', () => {
   const markup = renderToString(<SWRConfig value={{ provider: () => new Map() }}>
     <MemoryRouter initialEntries={['/account?section=addresses']}><Account /></MemoryRouter>
   </SWRConfig>);
-  expect(markup).toContain('Добавить адрес');
+  expect(markup).toContain('Добавить новый адрес');
   expect(markup).toContain('Загрузка адресов');
 });
 
@@ -95,8 +96,9 @@ it('waits for account reads before signing out so session responses cannot race 
     return new Promise((resolve) => { finishOrders = resolve; });
   });
   openAccount('/account');
-  await screen.findByRole('region', { name: 'Профиль покупателя' });
+
   await waitFor(() => expect(requestStarted).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole('link', { name: 'Настройки профиля' }));
   fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
   const calledWhileReading = logout.mock.calls.length;
   await act(async () => { finishOrders({ data: [] }); });

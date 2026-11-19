@@ -23,6 +23,8 @@ interface SheetProps {
   className?: string;
   /** Корзина: компактная шапка, отступы 24/16 и шторка не выше 85dvh. */
   appearance?: 'default' | 'cart';
+  /** Override content gutters when a screen has its own tablet/modal spacing. */
+  contentPadding?: number;
   children: ReactNode;
 }
 
@@ -56,6 +58,7 @@ function SheetPanel({
   footer,
   className,
   appearance = 'default',
+  contentPadding,
   children,
 }: SheetPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -72,7 +75,7 @@ function SheetPanel({
   const isCenter = side === 'center';
   const isRight = side === 'right';
   const isCart = appearance === 'cart';
-  const padX = isBottom ? 16 : isCenter ? 24 : 32;
+  const padX = contentPadding ?? (isBottom ? 16 : isCenter ? 24 : 32);
   const onCloseRef = useCloseUnlessLeaving(onClose, leaving);
 
   const trapTab = useDialog(panelRef, onCloseRef);
@@ -174,6 +177,7 @@ function SheetPanel({
           </div>
         )}
         <div
+          style={contentPadding === undefined ? undefined : { paddingLeft: padX, paddingRight: padX }}
           className={cn(
             'flex shrink-0 items-center justify-between gap-4',
             isCart
@@ -226,6 +230,7 @@ function SheetPanel({
         </div>
         {footer && (
           <div
+            style={contentPadding === undefined ? undefined : { paddingLeft: padX, paddingRight: padX }}
             className={cn(
               'shrink-0',
               isCart
