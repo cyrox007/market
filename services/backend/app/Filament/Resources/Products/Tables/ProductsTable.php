@@ -93,7 +93,12 @@ class ProductsTable
 
                 TextColumn::make('sku')
                     ->label(__('filament/admin_sv/product_resource.sku'))
-                    ->searchable()
+                    ->searchable(query: fn ($query, string $search) => $query->where(fn ($codes) => $codes
+                        ->where('sku', 'like', '%' . $search . '%')
+                        ->orWhere('external_id', 'like', '%' . $search . '%')
+                        ->orWhereHas('variants', fn ($variant) => $variant->where(fn ($codes) => $codes
+                            ->where('sku', 'like', '%' . $search . '%')
+                            ->orWhere('external_id', 'like', '%' . $search . '%')))))
                     ->sortable(),
 
                 TextColumn::make('taxons_list')
