@@ -52,13 +52,20 @@ export default function AccountAddresses({ addresses, isLoading, error, onReload
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [problem, setProblem] = useState('');
-  const [editor, setEditor] = useState<{ address: Address | null } | null>(null);
+  const [editor, setEditor] = useState<{ address: Address | null; instance: number } | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const editorInstance = useRef(0);
   const [deleting, setDeleting] = useState<Address | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const deletionSaved = useRef(false);
   const [deleted, setDeleted] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
   const narrow = useMediaMatch('(max-width: 979px)');
+  const tablet = useMediaMatch('(min-width: 550px)');
+  function openEditor(address: Address | null) {
+    setEditor({ address, instance: ++editorInstance.current });
+    setEditorOpen(true);
+  }
   useEffect(() => {
     if (deleted) heading.current?.focus();
   }, [deleted]);
@@ -120,7 +127,7 @@ export default function AccountAddresses({ addresses, isLoading, error, onReload
         </div>
         <button
           type="button"
-          onClick={() => setEditor({ address: null })}
+          onClick={() => openEditor(null)}
           className="inline-flex items-center gap-2 text-14 font-medium text-ink-secondary max-vsm:w-full"
         >
           <img src={plus} alt="" width={24} height={24} />
@@ -176,7 +183,7 @@ export default function AccountAddresses({ addresses, isLoading, error, onReload
                 <div className="flex shrink-0">
                   <button
                     type="button"
-                    onClick={() => setEditor({ address })}
+                    onClick={() => openEditor(address)}
                     aria-label={`Редактировать адрес ${address.title || address.id}`}
                     className="flex size-9 items-center justify-center rounded-full focus-visible:outline-brand-green"
                   >
@@ -226,8 +233,12 @@ export default function AccountAddresses({ addresses, isLoading, error, onReload
       </div>
       {editor && (
         <AccountAddressEditor
+          key={editor.instance}
+          open={editorOpen}
+          narrow={Boolean(narrow)}
+          contentPadding={!narrow || tablet ? 24 : 16}
           address={editor.address}
-          onClose={() => setEditor(null)}
+          onClose={() => setEditorOpen(false)}
           onSaved={onReload}
         />
       )}

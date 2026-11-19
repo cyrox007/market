@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, type Address, type AddressData } from '../../lib/api';
 import { runSessionTask } from '../../lib/session-queue';
-import { useMediaMatch } from '../../hooks/useMediaQuery';
 import CheckoutAddress from '../../components/CheckoutAddress';
 import Input from '../../components/ui/primitives/Input';
 import Button from '../../components/ui/primitives/Button';
@@ -12,13 +11,14 @@ import closeIcon from './assets/address-x.svg';
 
 type Field = 'title' | 'apartment' | 'entrance' | 'floor' | 'directory_external_id';
 interface Props {
+  open: boolean;
+  narrow: boolean;
+  contentPadding: number;
   address: Address | null;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
 }
-export default function AccountAddressEditor({ address, onClose, onSaved }: Props) {
-  const narrow = useMediaMatch('(max-width: 979px)');
-  const tablet = useMediaMatch('(min-width: 550px)');
+export default function AccountAddressEditor({ open, narrow, contentPadding, address, onClose, onSaved }: Props) {
   const [form, setForm] = useState({
     title: address?.title || '',
     apartment: address?.apartment || '',
@@ -116,10 +116,10 @@ export default function AccountAddressEditor({ address, onClose, onSaved }: Prop
   }
   return (
     <Sheet
-      open
+      open={open}
       onClose={close}
       side={narrow ? 'bottom' : 'center'}
-      contentPadding={!narrow || tablet ? 24 : 16}
+      contentPadding={contentPadding}
       title={address ? 'Изменить адрес' : 'Новый адрес'}
       className="md:w-[600px] md:rounded-popover max-md:rounded-t-popover"
       headerAction={

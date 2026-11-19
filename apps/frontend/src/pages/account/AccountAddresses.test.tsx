@@ -131,3 +131,14 @@ it('does not repeat the entrance already present in the server full address', ()
   expect(screen.getByText('Подъезд 2, этаж 5')).toBeInTheDocument();
   expect(screen.queryByText(/кв. 17, подъезд 2/)).not.toBeInTheDocument();
 });
+it('keeps the editor during its closing transition and starts the next opening with a fresh draft', async () => {
+  render(<AccountAddresses addresses={[]} isLoading={false} onReload={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить новый адрес' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Новый адрес' });
+  fireEvent.change(within(dialog).getByLabelText('Название адреса'), { target: { value: 'Не сохранять' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }));
+  expect(dialog).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить новый адрес' }));
+  expect(await screen.findByLabelText('Название адреса')).toHaveValue('');
+});
