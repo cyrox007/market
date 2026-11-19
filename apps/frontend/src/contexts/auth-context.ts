@@ -9,7 +9,7 @@ export interface AuthContextType {
   register: (data: RegistrationData) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: ProfileUpdateData) => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: (force?: boolean) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnsureAccountEmailSession::class,
+        );
         $middleware->prepend(\App\Http\Middleware\DiagnoseOperatorRequests::class);
         // Public cache hint only; grants themselves remain in the server session.
         $middleware->encryptCookies(except: ['has_private_offer']);
@@ -46,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\StartBlockingSession::class,
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \App\Http\Middleware\EnsureAccountEmailSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -46,6 +46,7 @@ Route::prefix('v1')->group(function () {
         ->where('level', 'regions|localities|streets|buildings')->middleware('throttle:address-read');
     // Public routes - auth endpoints require session middleware for cookie-based auth
     Route::middleware(['api-session'])->prefix('auth')->group(function () {
+        Route::post('/email/confirm', [\App\Http\Controllers\Api\AccountEmailController::class, 'confirm'])->middleware('throttle:10,1');
         Route::get('/settings', \App\Http\Controllers\Api\PublicAuthSettingsController::class)->middleware('throttle:auth-settings');
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-strict');
@@ -195,6 +196,10 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['api-session', 'auth:sanctum'])->group(function () {
         // Auth
         Route::prefix('auth')->group(function () {
+            Route::get('/email', [\App\Http\Controllers\Api\AccountEmailController::class, 'status']);
+            Route::post('/email/verification', [\App\Http\Controllers\Api\AccountEmailController::class, 'verify'])->middleware('throttle:6,1');
+            Route::post('/email/change', [\App\Http\Controllers\Api\AccountEmailController::class, 'change'])->middleware('throttle:6,1');
+            Route::delete('/email/change', [\App\Http\Controllers\Api\AccountEmailController::class, 'cancel'])->middleware('throttle:6,1');
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/me', [AuthController::class, 'me']);
             Route::put('/profile', [AuthController::class, 'updateProfile']);

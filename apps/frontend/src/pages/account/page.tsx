@@ -18,6 +18,7 @@ import { useAccountSection, type AccountSection } from './useAccountSection';
 import { useAccountData } from './useAccountData';
 import { AccountDataError } from './AccountDataError';
 import AccountProfileCard from './AccountProfileCard';
+import AccountEmailSettings from './AccountEmailSettings';
 import AccountNavigation from './AccountNavigation';
 import AccountLastOrder from './AccountLastOrder';
 import AccountProfileForm from './AccountProfileForm';
@@ -714,6 +715,7 @@ export default function Account() {
             {activeSection === 'settings' && (
               <div className="space-y-6">
                 <AccountProfileForm key={user.id} user={user} onSave={(data) => runSessionTask(() => updateProfile(data))} />
+                <AccountEmailSettings userId={user.id} email={user.email} />
                 <div className="bg-white border border-gray-200 rounded-2xl p-8">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
