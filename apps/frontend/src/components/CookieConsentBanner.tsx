@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Button } from './ui/primitives';
+import { PAGE_CONTAINER } from '../lib/layout';
 
 const COOKIE_CONSENT_KEY = 'cookie_consent_v1';
 
@@ -28,23 +30,22 @@ export default function CookieConsentBanner() {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 max-vsm:bottom-[calc(68px+env(safe-area-inset-bottom))] border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-      <div className="max-w-[1280px] mx-auto px-4 py-3">
+    <div className="fixed inset-x-0 bottom-0 z-50 max-vsm:bottom-[calc(68px+env(safe-area-inset-bottom))] border-t border-surface-border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+      <div className={`${PAGE_CONTAINER} py-4`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+          <p className="text-14 text-ink-secondary leading-relaxed">
             Мы используем cookie-файлы, чтобы сайт работал корректно и был удобнее. Подробнее — в{' '}
-            <Link to="/privacy" className="text-red-600 hover:underline">
+            <Link
+              to="/privacy"
+              className="text-ink underline underline-offset-4 hover:text-brand-green focus-visible:outline-brand-green"
+            >
               политике конфиденциальности
             </Link>
             .
           </p>
-          <button
-            type="button"
-            onClick={handleAccept}
-            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-full bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
-          >
+          <Button onClick={handleAccept} size="sm" className="shrink-0 max-sm:w-full">
             Принять
-          </button>
+          </Button>
         </div>
       </div>
     </div>

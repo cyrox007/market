@@ -6,11 +6,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { api } from '../../lib/api';
 import Account from './page';
 
-const { user, region } = vi.hoisted(() => ({
+const { user, region, updateProfile } = vi.hoisted(() => ({
   user: { id: 1, name: 'Анна Смирнова', email: 'anna@example.test', phone: '+79103561842' },
+  updateProfile: vi.fn(),
   region: { locality: { name: 'Воронеж' }, locationReady: true },
 }));
-vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user, logout: vi.fn(), updateProfile: vi.fn() }) }));
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user, logout: vi.fn(), updateProfile }) }));
 vi.mock('../../hooks/useRegion', () => ({ useRegion: () => region }));
 vi.mock('../../hooks/useCounters', () => ({ useCounters: () => ({ refreshWishlistCount: vi.fn(), wishlistCount: 4, compareCount: 2, isLoading: false }) }));
 vi.mock('../../hooks/usePageSeo', () => ({ usePageSeo: vi.fn() }));
@@ -113,4 +114,16 @@ it('connects overview tiles to shared counters and opens settings through the ne
   fireEvent.click(within(nav).getByRole('link', { name: 'Настройки профиля' }));
   expect(await screen.findByRole('heading', { name: 'Уведомления' })).toBeInTheDocument();
   expect(screen.queryByRole('navigation', { name: 'Разделы кабинета' })).not.toBeInTheDocument();
+});
+
+it('saves separate name fields through the new profile card editor', async () => {
+  openProfile();
+  fireEvent.click(screen.getByRole('button', { name: 'Изменить профиль' }));
+  fireEvent.change(screen.getByLabelText(/^Имя/), { target: { value: 'Анна' } });
+  fireEvent.change(screen.getByLabelText(/^Фамилия/), { target: { value: 'Смирнова' } });
+  fireEvent.change(screen.getByLabelText(/^Отчество/), { target: { value: 'Игоревна' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledExactlyOnceWith({
+    first_name: 'Анна', last_name: 'Смирнова', patronymic: 'Игоревна', phone: '+79103561842',
+  }));
 });

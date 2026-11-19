@@ -263,8 +263,15 @@ class SberbankAcquiringClient
                 ->withOptions($this->httpVerifyOptions($verifySsl))
                 ->post($endpoint, $payload);
 
-            $data = $response->json();
+            if (! $response->successful()) {
+                Log::warning('Sberbank getOrderStatusExtended returned HTTP failure', [
+                    'order_id' => $orderId,
+                    'http_status' => $response->status(),
+                ]);
+                return [];
+            }
 
+            $data = $response->json();
             return is_array($data) ? $data : [];
         } catch (\Throwable $e) {
             Log::warning('Sberbank getOrderStatusExtended failed: ' . $e->getMessage(), [
@@ -273,6 +280,58 @@ class SberbankAcquiringClient
             ]);
 
             return [];
+        }
+    }
+
+    /**
+     * Submit a single refund attempt. The caller MUST persist a unique refund
+     * intent BEFORE calling this method. Never retry a timed-out refund POST:
+     * Sber documents a 24-hour idempotency header whose enforcement may vary.
+     *
+     * @return array{ok: bool, error?: string, error_code?: string}
+     */
+    public function refundOrder(Order $order, string $remoteId, float $amountRub, string $refundId): array
+    {
+        $username = trim((string) config('payment.sberbank_acquiring.username'));
+        $password = (string) config('payment.sberbank_acquiring.password');
+        $base = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
+        if ($username === '' || $password === '' || $remoteId === ''
+            || ! preg_match('/^[0-9a-fA-F-]{36}$/', $remoteId)
+            || ! is_finite($amountRub) || $amountRub <= 0) {
+            return ['ok' => false, 'error' => 'invalid_configuration_or_payment'];
+        }
+
+        $minor = (int) round($amountRub * 100);
+        $path = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom')) === 'legacy'
+            ? '/payment/rest/refund.do'
+            : '/ecomm/gw/partner/api/v1/refund.do';
+        $payload = ['userName' => $username, 'password' => $password,
+            'orderId' => $remoteId, 'amount' => $minor];
+        $endpoint = $base . $path;
+
+        $this->gatewayLog->log('sberbank_acquiring', 'refund_requested',
+            'Запрос возврата Сбербанка', ['order_id' => $order->id,
+                'refund_id' => $refundId, 'amount_rub' => $amountRub], $order, 'payment', 'info');
+        try {
+            $request = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom')) === 'legacy'
+                ? Http::asForm() : Http::asJson();
+            $response = $request->timeout(30)
+                ->withOptions($this->httpVerifyOptions((bool) config('payment.sberbank_acquiring.verify_ssl', true)))
+                ->withHeaders(['x-idempotencyKey' => $refundId])
+                ->post($endpoint, $payload);
+            $json = $response->json();
+            if (! $response->successful() || ! is_array($json)) {
+                // A gateway timeout/HTTP failure is ambiguous: it may have
+                // processed the refund. No automatic resend.
+                return ['ok' => false, 'error' => 'bank_unconfirmed'];
+            }
+            $code = (string) ($json['errorCode'] ?? '');
+            return $code === '0'
+                ? ['ok' => true]
+                : ['ok' => false, 'error' => 'bank_rejected', 'error_code' => $code];
+        } catch (\Throwable $error) {
+            report($error);
+            return ['ok' => false, 'error' => 'bank_unconfirmed'];
         }
     }
 

@@ -1,10 +1,10 @@
-﻿import type { NotificationSettings, User } from '../../lib/api';
+import type { NotificationSettings, User, ProfileUpdateData } from '../../lib/api';
 import AccountProfileForm from './AccountProfileForm';
 import AccountPasswordForm from './AccountPasswordForm';
 import AccountNotifications from './AccountNotifications';
 interface Props {
-  user: Pick<User, 'name' | 'email' | 'phone'>;
-  onSaveProfile: (data: { name: string; phone?: string }) => Promise<unknown>;
+  user: Pick<User, 'name' | 'email' | 'phone' | 'first_name' | 'last_name' | 'patronymic'>;
+  onSaveProfile: (data: ProfileUpdateData) => Promise<unknown>;
   notifications?: NotificationSettings;
   isLoadingNotifications: boolean;
   notificationsError?: unknown;

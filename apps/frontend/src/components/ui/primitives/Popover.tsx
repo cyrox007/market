@@ -18,6 +18,8 @@ interface PopoverProps {
   /** Низ окна — например, кнопка «Показать N товаров» */
   footer?: ReactNode;
   className?: string;
+  /** При нехватке места снизу открыть над кнопкой. */
+  flip?: boolean;
   children: ReactNode;
 }
 
@@ -51,6 +53,7 @@ function PopoverPanel({
   footer,
   className,
   children,
+  flip = false,
 }: PopoverPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const close = useCloseUnlessLeaving(onClose, leaving);
@@ -63,7 +66,12 @@ function PopoverPanel({
       const a = anchor.getBoundingClientRect();
       const width = panel.getBoundingClientRect().width;
       const rightmost = window.innerWidth - EDGE - width;
-      panel.style.top = `${a.bottom + GAP}px`;
+      const height = panel.getBoundingClientRect().height;
+      const top =
+        flip && a.bottom + GAP + height > window.innerHeight - EDGE
+          ? Math.max(EDGE, a.top - GAP - height)
+          : a.bottom + GAP;
+      panel.style.top = `${top}px`;
       panel.style.left = `${Math.max(EDGE, Math.min(a.left, rightmost))}px`;
     };
     place();
@@ -74,7 +82,7 @@ function PopoverPanel({
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [anchorRef]);
+  }, [anchorRef, flip]);
 
   useEffect(() => {
     const panel = panelRef.current;

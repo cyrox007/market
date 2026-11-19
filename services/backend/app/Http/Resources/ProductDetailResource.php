@@ -240,6 +240,7 @@ class ProductDetailResource extends JsonResource
                     'parent_id' => $sourceProduct->id,
                     'url' => '/product/'.$variant->slug,
                     'sku' => $variant->sku,
+                    'external_id' => $variant->external_id,
                     'price' => $variantPrice,
                     'old_price' => $sourceProduct->is_sellable_bundle
                         ? null : app(\App\Services\Pricing\PricingEngine::class)->oldPrice($variant, $region, $variantPrice),
@@ -496,6 +497,7 @@ class ProductDetailResource extends JsonResource
             'slug' => $this->slug,
             'sku' => $sku, // ВАЖНО: Для вариаций это артикул вариации
             'article' => $sku,
+            'external_id' => $this->external_id,
             'price' => $productPrice, // ВАЖНО: Цена с применением правил корзины
             'old_price' => $effectiveOldPrice,
             'delivery_days' => $deliveryDays,

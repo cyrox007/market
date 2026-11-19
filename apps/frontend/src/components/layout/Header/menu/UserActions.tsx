@@ -3,6 +3,7 @@ import { ArrowLeftRight, Heart, ShoppingCart, User } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import CounterBadge from './CounterBadge';
 import { cn } from '../../../../lib/cn';
+import { useCartPanel } from '../../../../contexts/cart-panel-context';
 
 interface UserActionsProps {
   compareCount?: number;
@@ -28,6 +29,7 @@ export default function UserActions({
   isAuthenticated = false,
   className,
 }: UserActionsProps) {
+  const { openCart } = useCartPanel();
   const items: ActionItem[] = [
     { to: '/compare', label: 'Сравнить', icon: ArrowLeftRight, count: compareCount },
     { to: '/favorites', label: 'Избранное', icon: Heart, count: wishlistCount },
@@ -45,6 +47,10 @@ export default function UserActions({
         <Link
           key={to}
           to={to}
+          onClick={to === '/cart' ? (event) => {
+            if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); openCart();
+          } : undefined}
           // Ниже 980 подпись скрыта display:none, а иконка и счётчик aria-hidden —
           // без своего имени ссылка осталась бы для читалки безымянной
           aria-label={count && count > 0 ? `${label}, ${count}` : label}

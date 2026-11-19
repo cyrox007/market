@@ -74,7 +74,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   return (
     <div
       className={cn(
-        'relative inline-flex w-full items-center border',
+        'relative inline-flex w-full items-center overflow-hidden border',
         'transition-colors motion-reduce:transition-none',
         HEIGHT[inputSize],
         SHAPE[shape],
@@ -96,7 +96,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         disabled={disabled}
         aria-invalid={invalid || undefined}
         className={cn(
-          'min-w-0 h-full flex-1 bg-transparent text-ink outline-none',
+          'min-w-0 h-full flex-1 rounded-[inherit] bg-transparent text-ink outline-none',
+          // Браузерный autofill рисует фон самого input, а не скруглённой обёртки.
+          'autofill:[-webkit-text-fill-color:theme(colors.ink.DEFAULT)] autofill:caret-ink',
+          tone === 'grey'
+            ? 'autofill:shadow-[inset_0_0_0_1000px_theme(colors.surface.grey)]'
+            : 'autofill:shadow-[inset_0_0_0_1000px_theme(colors.surface.DEFAULT)]',
           PADDING[inputSize],
           'placeholder:text-ink-secondary',
           'disabled:cursor-not-allowed',

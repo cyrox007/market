@@ -80,7 +80,7 @@ export function createIntentSync<V>({ send, apply, onError }: IntentSyncOptions<
     },
     isPending(key: number) {
       const entry = entries.get(key);
-      return !!entry && !Object.is(entry.desired, entry.confirmed);
+      return !!entry && (entry.queued || entry.inFlight || !Object.is(entry.desired, entry.confirmed));
     },
   };
 }

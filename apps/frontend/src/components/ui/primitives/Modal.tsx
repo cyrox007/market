@@ -10,6 +10,7 @@ interface ModalProps {
   title: ReactNode;
   footer?: ReactNode;
   className?: string;
+  mobileQuery?: string;
   children: ReactNode;
 }
 
@@ -17,8 +18,8 @@ interface ModalProps {
 const NARROW = '(max-width: 768px)';
 
 /** Окно: шире 768 по центру, уже — шторка снизу; поведение общее со Sheet (market-docs/57) */
-export default function Modal({ onClose, ...rest }: ModalProps) {
-  const narrow = useMediaMatch(NARROW);
+export default function Modal({ onClose, mobileQuery = NARROW, ...rest }: ModalProps) {
+  const narrow = useMediaMatch(mobileQuery);
   return (
     <Sheet
       {...rest}

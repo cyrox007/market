@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\UserName;
 use App\Models\Settings\PublicAuthSettings;
 use App\Rules\PhoneNumberRule;
 use App\Support\PhoneNumber;
@@ -34,8 +35,11 @@ class AuthController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"name", "email", "password", "password_confirmation"},
-     *             @OA\Property(property="name", type="string", example="Иван Иванов", description="Имя пользователя"),
+     *             required={"email", "password", "password_confirmation"},
+     *             @OA\Property(property="name", type="string", example="Иван Иванов", description="Старый формат полного имени; альтернатива полям first_name и last_name"),
+     *             @OA\Property(property="first_name", type="string", example="Иван"),
+     *             @OA\Property(property="last_name", type="string", example="Петров"),
+     *             @OA\Property(property="patronymic", type="string", nullable=true, example="Иванович"),
      *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
      *             @OA\Property(property="password", type="string", format="password", example="password123", minLength=8),
      *             @OA\Property(property="password_confirmation", type="string", format="password", example="password123"),
@@ -49,6 +53,9 @@ class AuthController extends Controller
      *             @OA\Property(property="user", type="object",
      *                 @OA\Property(property="id", type="integer", example=1),
      *                 @OA\Property(property="name", type="string", example="Иван Иванов"),
+     *                 @OA\Property(property="first_name", type="string", nullable=true, example="Иван"),
+     *                 @OA\Property(property="last_name", type="string", nullable=true, example="Петров"),
+     *                 @OA\Property(property="patronymic", type="string", nullable=true, example="Иванович"),
      *                 @OA\Property(property="email", type="string", example="user@example.com"),
      *                 @OA\Property(property="phone", type="string", nullable=true, example="+7 (999) 123-45-67")
      *             )
@@ -73,15 +80,30 @@ class AuthController extends Controller
         // Нормализуем до валидации: уникальность и проверка формата — по каноничному виду.
         $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
 
+        $structured = $request->exists('first_name')
+            || $request->exists('last_name')
+            || $request->exists('patronymic');
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => [$structured ? 'prohibited' : 'required', 'string', 'max:255'],
+            'first_name' => [$structured ? 'required' : 'prohibited', 'string', 'max:255'],
+            'last_name' => [$structured ? 'required' : 'prohibited', 'string', 'max:255'],
+            'patronymic' => ['sometimes', 'nullable', 'string', 'max:255'],
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'phone' => ['required', new PhoneNumberRule, 'unique:users,phone'],
         ]);
 
+        $parts = $structured ? $this->normalizeNameParts($validated) : null;
+        $name = $parts
+            ? $this->validatedFullName($parts)
+            : (UserName::normalize($validated['name']) ?? '');
+
         $user = User::create([
-            'name' => $validated['name'],
+            'name' => $name,
+            'first_name' => $parts['first_name'] ?? null,
+            'last_name' => $parts['last_name'] ?? null,
+            'patronymic' => $parts['patronymic'] ?? null,
             'email' => $validated['email'],
             'password' => $validated['password'], // casts() => hashed
             'phone' => $validated['phone'] ?? null,
@@ -94,12 +116,7 @@ class AuthController extends Controller
 
         return response()->json([
             'authenticated' => $access->login_enabled,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-            ],
+            'user' => $this->userPayload($user),
         ], 201);
     }
 
@@ -125,6 +142,9 @@ class AuthController extends Controller
      *             @OA\Property(property="user", type="object",
      *                 @OA\Property(property="id", type="integer", example=1),
      *                 @OA\Property(property="name", type="string", example="Иван Иванов"),
+     *                 @OA\Property(property="first_name", type="string", nullable=true, example="Иван"),
+     *                 @OA\Property(property="last_name", type="string", nullable=true, example="Петров"),
+     *                 @OA\Property(property="patronymic", type="string", nullable=true, example="Иванович"),
      *                 @OA\Property(property="email", type="string", example="user@example.com"),
      *                 @OA\Property(property="phone", type="string", nullable=true, example="+7 (999) 123-45-67")
      *             )
@@ -165,12 +185,7 @@ class AuthController extends Controller
         Auth::guard('web')->login($user);
 
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-            ],
+            'user' => $this->userPayload($user),
         ]);
     }
 
@@ -221,6 +236,9 @@ class AuthController extends Controller
      *             @OA\Property(property="user", type="object",
      *                 @OA\Property(property="id", type="integer", example=1),
      *                 @OA\Property(property="name", type="string", example="Иван Иванов"),
+     *                 @OA\Property(property="first_name", type="string", nullable=true, example="Иван"),
+     *                 @OA\Property(property="last_name", type="string", nullable=true, example="Петров"),
+     *                 @OA\Property(property="patronymic", type="string", nullable=true, example="Иванович"),
      *                 @OA\Property(property="email", type="string", example="user@example.com"),
      *                 @OA\Property(property="phone", type="string", nullable=true, example="+7 (999) 123-45-67")
      *             )
@@ -247,12 +265,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-            ],
+            'user' => $this->userPayload($user),
         ]);
     }
 
@@ -260,13 +273,16 @@ class AuthController extends Controller
      * @OA\Put(
      *     path="/api/v1/auth/profile",
      *     summary="Обновить профиль пользователя",
-     *     description="Обновляет имя и телефон пользователя",
+     *     description="Обновляет структурированное ФИО либо старое поле name, а также телефон",
      *     tags={"Auth"},
      *     security={{"sanctum": {}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             @OA\Property(property="name", type="string", example="Иван Петров"),
+     *             @OA\Property(property="name", type="string", example="Иван Петров", description="Устаревший формат: несовместим с одновременной передачей частей ФИО"),
+     *             @OA\Property(property="first_name", type="string", example="Иван"),
+     *             @OA\Property(property="last_name", type="string", example="Петров"),
+     *             @OA\Property(property="patronymic", type="string", nullable=true, example="Иванович"),
      *             @OA\Property(property="phone", type="string", nullable=true, example="+7 (999) 123-45-67")
      *         )
      *     ),
@@ -277,6 +293,9 @@ class AuthController extends Controller
      *             @OA\Property(property="user", type="object",
      *                 @OA\Property(property="id", type="integer", example=1),
      *                 @OA\Property(property="name", type="string", example="Иван Петров"),
+     *                 @OA\Property(property="first_name", type="string", nullable=true, example="Иван"),
+     *                 @OA\Property(property="last_name", type="string", nullable=true, example="Петров"),
+     *                 @OA\Property(property="patronymic", type="string", nullable=true, example="Иванович"),
      *                 @OA\Property(property="email", type="string", example="user@example.com"),
      *                 @OA\Property(property="phone", type="string", nullable=true, example="+7 (999) 123-45-67")
      *             )
@@ -304,21 +323,39 @@ class AuthController extends Controller
             $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
         }
 
+        $structured = $request->exists('first_name')
+            || $request->exists('last_name')
+            || $request->exists('patronymic');
+
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name' => ['sometimes', 'string', 'max:255'],
+            'first_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'last_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'patronymic' => ['sometimes', 'nullable', 'string', 'max:255'],
             'phone' => ['sometimes', 'required', new PhoneNumberRule, Rule::unique('users', 'phone')->ignore($user->id)],
         ]);
+
+        if ($structured) {
+            if ($request->exists('name')) {
+                throw ValidationException::withMessages([
+                    'name' => ['Передайте либо полное имя, либо отдельные части ФИО.'],
+                ]);
+            }
+
+            $parts = $this->normalizeNameParts([
+                'first_name' => array_key_exists('first_name', $validated) ? $validated['first_name'] : $user->first_name,
+                'last_name' => array_key_exists('last_name', $validated) ? $validated['last_name'] : $user->last_name,
+                'patronymic' => array_key_exists('patronymic', $validated) ? $validated['patronymic'] : $user->patronymic,
+            ]);
+            $this->validatedFullName($parts);
+            $validated = array_merge($validated, $parts);
+        }
 
         $user->fill($validated);
         $user->save();
 
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-            ],
+            'user' => $this->userPayload($user),
         ]);
     }
 
@@ -604,5 +641,48 @@ class AuthController extends Controller
                 'new_product_notifications' => $user->new_product_notifications,
             ],
         ]);
+    }
+    /**
+     * @return array{first_name: ?string, last_name: ?string, patronymic: ?string}
+     */
+    private function normalizeNameParts(array $parts): array
+    {
+        return [
+            'first_name' => UserName::normalize($parts['first_name'] ?? null),
+            'last_name' => UserName::normalize($parts['last_name'] ?? null),
+            'patronymic' => UserName::normalize($parts['patronymic'] ?? null),
+        ];
+    }
+
+    private function validatedFullName(array $parts): string
+    {
+        if (! $parts['first_name'] || ! $parts['last_name']) {
+            throw ValidationException::withMessages([
+                'first_name' => ['Укажите имя и фамилию.'],
+                'last_name' => ['Укажите имя и фамилию.'],
+            ]);
+        }
+
+        $fullName = UserName::format($parts['first_name'], $parts['last_name'], $parts['patronymic']);
+        if (mb_strlen($fullName) > 255) {
+            throw ValidationException::withMessages([
+                'last_name' => ['Полное ФИО не должно превышать 255 символов.'],
+            ]);
+        }
+
+        return $fullName;
+    }
+
+    private function userPayload(User $user): array
+    {
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'patronymic' => $user->patronymic,
+            'email' => $user->email,
+            'phone' => $user->phone,
+        ];
     }
 }
