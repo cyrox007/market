@@ -80,9 +80,12 @@ class MailEventService
                 // Помечаем как неудачное
                 $log->markAsFailed($e->getMessage());
                 Log::error("Failed to send mail for event {$eventCode}: " . $e->getMessage());
-                return false;
+                throw new MailDeliveryException("Mail transport failed for {$eventCode}", 0, $e);
             }
         } catch (\Exception $e) {
+            if ($e instanceof MailDeliveryException) {
+                throw $e;
+            }
             Log::error("Error in MailEventService::send for event {$eventCode}: " . $e->getMessage(), [
                 'exception' => $e,
             ]);
@@ -165,9 +168,12 @@ class MailEventService
                 // Помечаем как неудачное
                 $log->markAsFailed($e->getMessage());
                 Log::error("Failed to send mailable for event {$eventCode}: " . $e->getMessage());
-                return false;
+                throw new MailDeliveryException("Mail transport failed for {$eventCode}", 0, $e);
             }
         } catch (\Exception $e) {
+            if ($e instanceof MailDeliveryException) {
+                throw $e;
+            }
             Log::error("Error in MailEventService::sendMailable for event {$eventCode}: " . $e->getMessage(), [
                 'exception' => $e,
             ]);

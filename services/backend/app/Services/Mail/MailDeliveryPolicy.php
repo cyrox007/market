@@ -18,7 +18,7 @@ class MailDeliveryPolicy
             return $send();
         }
         // Serialize all promotional events for one recipient, including retries and parallel workers.
-        return DB::transaction(function () use ($email, $send): bool {
+        $result = DB::transaction(function () use ($email, $send): bool|MailDeliveryException {
             NewsletterSubscriber::query()->insertOrIgnore([
                 'email' => $email, 'is_active' => false, 'created_at' => now(), 'updated_at' => now(),
             ]);
@@ -31,11 +31,20 @@ class MailDeliveryPolicy
             if (! $optedIn || ($limit->last_sent_at && \Illuminate\Support\Carbon::parse($limit->last_sent_at)->gt(now()->subDays(7)))) {
                 return false;
             }
-            if (! $send()) {
-                return false;
+            try {
+                if (! $send()) {
+                    return false;
+                }
+            } catch (MailDeliveryException $e) {
+                // Commit the failed-attempt log, then let the queue retry outside this transaction.
+                return $e;
             }
             DB::table('mail_promotion_limits')->where('recipient_hash', $recipientHash)->update(['last_sent_at' => now()]);
             return true;
         });
+        if ($result instanceof MailDeliveryException) {
+            throw $result;
+        }
+        return $result;
     }
 }

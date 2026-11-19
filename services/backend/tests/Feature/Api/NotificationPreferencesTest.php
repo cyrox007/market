@@ -172,4 +172,23 @@ class NotificationPreferencesTest extends TestCase
         $this->assertFalse($mail->send($event->code, 'guest@example.test'));
     }
 
+    public function test_transport_error_is_retryable_and_keeps_failed_log_without_consuming_limit(): void
+    {
+        $event = $this->event();
+        $subscriber = NewsletterSubscriber::create(['email' => 'guest@example.test', 'is_active' => true]);
+        $originalMailer = Mail::getFacadeRoot();
+        Mail::swap(\Mockery::mock(\Illuminate\Contracts\Mail\Mailer::class));
+        Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('Temporary mail failure'));
+        try {
+            (new SendPromotionalMail($event->id, $subscriber->id))->handle(app(MailEventService::class));
+            $this->fail('Transport errors must reach the queue worker.');
+        } catch (\App\Services\Mail\MailDeliveryException $e) {
+            $this->assertInstanceOf(\RuntimeException::class, $e->getPrevious());
+        }
+        $this->assertDatabaseHas('mail_event_logs', ['status' => 'failed', 'recipient_email' => $subscriber->email]);
+        $this->assertDatabaseHas('mail_promotion_limits', ['recipient_hash' => hash('sha256', $subscriber->email), 'last_sent_at' => null]);
+        Mail::swap($originalMailer);
+        $this->assertTrue(app(MailEventService::class)->send($event->code, $subscriber->email));
+    }
+
 }

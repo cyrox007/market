@@ -66,6 +66,9 @@ class SendOrderStatusChangedMail implements ShouldQueue
                 'email' => $order->contact_email,
             ]);
         } catch (\Exception $e) {
+            if ($e instanceof \App\Services\Mail\MailDeliveryException) {
+                throw $e;
+            }
             Log::error("SendOrderStatusChangedMail: Error sending mail", [
                 'order_id' => $event->getOrder()->id,
                 'error' => $e->getMessage(),
