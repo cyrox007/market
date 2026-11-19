@@ -36,6 +36,7 @@ class User extends Authenticatable implements FilamentUser
         'password',
         'phone',
         'avatar',
+        'email_order_notifications',
         'email_promotions',
         'sms_order_notifications',
         'push_notifications',
@@ -62,6 +63,7 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'email_order_notifications' => 'boolean',
             'email_promotions' => 'boolean',
             'sms_order_notifications' => 'boolean',
             'push_notifications' => 'boolean',
@@ -75,6 +77,16 @@ class User extends Authenticatable implements FilamentUser
      */
     protected static function booted(): void
     {
+        static::saved(function (self $user): void {
+            if ($user->wasChanged('email')) {
+                \App\Models\Newsletter\NewsletterSubscriber::where('email', $user->getRawOriginal('email'))->update(['is_active' => false]);
+            }
+            if ($user->wasRecentlyCreated || $user->wasChanged(['email', 'email_promotions'])) {
+                \App\Models\Newsletter\NewsletterSubscriber::updateOrCreate(
+                    ['email' => strtolower(trim($user->email))], ['is_active' => (bool) $user->email_promotions],
+                );
+            }
+        });
         static::saving(function (self $user): void {
             if ($user->exists && $user->isDirty('email')
                 && strtolower(trim((string) $user->getRawOriginal('email'))) !== strtolower(trim($user->email))) {

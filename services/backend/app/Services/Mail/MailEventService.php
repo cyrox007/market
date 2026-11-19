@@ -21,6 +21,12 @@ class MailEventService
      */
     public function send(string $eventCode, string $recipientEmail, array $variables = [], ?MailEventTemplate $template = null): bool
     {
+        return app(MailDeliveryPolicy::class)->deliver($eventCode, $recipientEmail,
+            fn () => $this->sendAllowed($eventCode, $recipientEmail, $variables, $template));
+    }
+
+    protected function sendAllowed(string $eventCode, string $recipientEmail, array $variables, ?MailEventTemplate $template): bool
+    {
         try {
             // Находим событие
             $event = MailEvent::findByCode($eventCode);
@@ -43,6 +49,10 @@ class MailEventService
             $replaced = $template->replaceVariables($variables, html: true);
             $subject = $replaced['subject'];
             $body = $replaced['body'];
+            if ($event->category === 'promotion') {
+                $url = \Illuminate\Support\Facades\URL::signedRoute('newsletter.unsubscribe', ['email' => strtolower(trim($recipientEmail))]);
+                $body .= '<p><a href="'.e($url).'">Отписаться от акций и скидок</a></p>';
+            }
 
             // Создаем лог перед отправкой
             $log = MailEventLog::create([
@@ -70,9 +80,12 @@ class MailEventService
                 // Помечаем как неудачное
                 $log->markAsFailed($e->getMessage());
                 Log::error("Failed to send mail for event {$eventCode}: " . $e->getMessage());
-                return false;
+                throw new MailDeliveryException("Mail transport failed for {$eventCode}", 0, $e);
             }
         } catch (\Exception $e) {
+            if ($e instanceof MailDeliveryException) {
+                throw $e;
+            }
             Log::error("Error in MailEventService::send for event {$eventCode}: " . $e->getMessage(), [
                 'exception' => $e,
             ]);
@@ -90,6 +103,12 @@ class MailEventService
      * @return bool Успешно ли отправлено письмо
      */
     public function sendMailable(string $eventCode, string $recipientEmail, $mailable, array $variables = []): bool
+    {
+        return app(MailDeliveryPolicy::class)->deliver($eventCode, $recipientEmail,
+            fn () => $this->sendMailableAllowed($eventCode, $recipientEmail, $mailable, $variables));
+    }
+
+    protected function sendMailableAllowed(string $eventCode, string $recipientEmail, $mailable, array $variables): bool
     {
         if (method_exists($mailable, 'requiresConfidentialTransport') && $mailable->requiresConfidentialTransport()
             && $this->usesLogTransport((string) ($mailable->mailer ?? config('mail.default')))) {
@@ -115,6 +134,10 @@ class MailEventService
             $replaced = $template->replaceVariables($variables, html: true);
             $subject = $replaced['subject'];
             $body = $replaced['body'];
+            if ($event->category === 'promotion') {
+                $url = \Illuminate\Support\Facades\URL::signedRoute('newsletter.unsubscribe', ['email' => strtolower(trim($recipientEmail))]);
+                $body .= '<p><a href="'.e($url).'">Отписаться от акций и скидок</a></p>';
+            }
 
             // Устанавливаем subject и body в mailable
             $mailable->subject($subject);
@@ -145,9 +168,12 @@ class MailEventService
                 // Помечаем как неудачное
                 $log->markAsFailed($e->getMessage());
                 Log::error("Failed to send mailable for event {$eventCode}: " . $e->getMessage());
-                return false;
+                throw new MailDeliveryException("Mail transport failed for {$eventCode}", 0, $e);
             }
         } catch (\Exception $e) {
+            if ($e instanceof MailDeliveryException) {
+                throw $e;
+            }
             Log::error("Error in MailEventService::sendMailable for event {$eventCode}: " . $e->getMessage(), [
                 'exception' => $e,
             ]);

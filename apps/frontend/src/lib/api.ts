@@ -1220,6 +1220,7 @@ export interface ProfileUpdateData {
 }
 
 export interface NotificationSettings {
+  email_order_notifications: boolean;
   email_promotions: boolean;
   sms_order_notifications: boolean;
   push_notifications: boolean;

@@ -30,6 +30,7 @@ class MailEventsTable
                     ->label('Описание')
                     ->limit(50)
                     ->tooltip(fn($record) => $record->description),
+                TextColumn::make('category')->label('Тип')->badge()->formatStateUsing(fn ($state) => $state === 'promotion' ? 'Акции и скидки' : 'Сервисное'),
                 IconColumn::make('is_active')
                     ->label('Активно')
                     ->boolean(),

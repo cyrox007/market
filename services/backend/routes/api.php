@@ -130,7 +130,9 @@ Route::prefix('v1')->group(function () {
 
     // Newsletter (public)
     Route::prefix('newsletter')->group(function () {
-        Route::post('/subscribe', [NewsletterController::class, 'subscribe'])->middleware('throttle:writes');
+        Route::post('/subscribe', [NewsletterController::class, 'subscribe'])->middleware(['api-session', 'throttle:writes']);
+        Route::get('/unsubscribe', [NewsletterController::class, 'unsubscribeForm'])->middleware('signed')->name('newsletter.unsubscribe');
+        Route::post('/unsubscribe', [NewsletterController::class, 'unsubscribe'])->middleware(['signed', 'throttle:writes']);
     });
 
     // Shipping (public)

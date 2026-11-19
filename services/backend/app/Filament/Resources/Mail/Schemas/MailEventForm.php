@@ -33,6 +33,11 @@ class MailEventForm
                             ->rows(3)
                             ->maxLength(1000)
                             ->helperText('Описание события и его назначения'),
+                        \Filament\Forms\Components\Select::make('category')
+                            ->label('Тип письма')
+                            ->options(['transactional' => 'Сервисное', 'promotion' => 'Акции и скидки'])
+                            ->default('transactional')->required()
+                            ->helperText('Для акций проверяются подписка и интервал 7 дней. Статусы заказа учитывают настройку email-уведомлений.'),
                         Toggle::make('is_active')
                             ->label('Активно')
                             ->default(true)

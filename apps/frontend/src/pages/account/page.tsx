@@ -751,30 +751,24 @@ export default function Account() {
                         {[
                           {
                             key: 'email_promotions' as keyof NotificationSettings,
-                            label: 'Email-рассылка с акциями',
+                            label: 'Акции и скидки на email',
                           },
                           {
-                            key: 'sms_order_notifications' as keyof NotificationSettings,
-                            label: 'SMS-уведомления о заказах',
-                          },
-                          {
-                            key: 'push_notifications' as keyof NotificationSettings,
-                            label: 'Push-уведомления',
-                          },
-                          {
-                            key: 'new_product_notifications' as keyof NotificationSettings,
-                            label: 'Уведомления о новинках',
+                            key: 'email_order_notifications' as keyof NotificationSettings,
+                            label: 'Статус заказа на email',
                           },
                         ].map((item) => (
                           <label
                             key={item.key}
                             className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                           >
-                            <span className="font-medium">{item.label}</span>
+                            <span className="font-medium">{item.label}
+                              {item.key === 'email_promotions' && <span className="block text-12 font-normal text-ink-secondary">Не чаще одного раза в неделю</span>}
+                            </span>
                             <div className="relative">
                               <input
                                 type="checkbox"
-                                checked={notificationSettings[item.key]}
+                                checked={notificationSettings[item.key] ?? false}
                                 onChange={(e) =>
                                   handleNotificationChange(item.key, e.target.checked)
                                 }

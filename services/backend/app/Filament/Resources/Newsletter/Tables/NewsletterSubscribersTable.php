@@ -43,6 +43,25 @@ class NewsletterSubscribersTable
                 DeleteAction::make(),
             ])
             ->toolbarActions([
+                \Filament\Actions\BulkAction::make('sendPromotion')
+                    ->label('Отправить акции и скидки')
+                    ->visible(fn (): bool => auth()->user()?->hasAnyRole(['super_admin', 'admin']) ?? false)
+                    ->requiresConfirmation()
+                    ->modalDescription('Письмо получат только подписанные получатели, которым не отправляли рекламу последние 7 дней. Отправка через очередь.')
+                    ->schema([
+                        \Filament\Forms\Components\Select::make('event_id')->label('Почтовое событие')
+                            ->options(fn () => \App\Models\Mail\MailEvent::where('category', 'promotion')->where('is_active', true)
+                                ->whereHas('templates', fn ($q) => $q->where('is_active', true))->pluck('name', 'id'))
+                            ->required(),
+                    ])
+                    ->action(function ($records, array $data): void {
+                        abort_unless(auth()->user()?->hasAnyRole(['super_admin', 'admin']), 403);
+                        $event = \App\Models\Mail\MailEvent::whereKey($data['event_id'])->where('category', 'promotion')->where('is_active', true)->firstOrFail();
+                        foreach ($records as $subscriber) {
+                            \App\Jobs\SendPromotionalMail::dispatch($event->id, $subscriber->id);
+                        }
+                        \Filament\Notifications\Notification::make()->title('Задания рассылки добавлены в очередь')->success()->send();
+                    })->deselectRecordsAfterCompletion(),
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),

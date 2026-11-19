@@ -14,21 +14,17 @@ class NewsletterSubscriber extends Model
         'is_active',
     ];
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $subscriber): void {
+            if ($subscriber->wasChanged('is_active') || $subscriber->wasRecentlyCreated) {
+                \App\Models\User::where('email', $subscriber->email)->update(['email_promotions' => $subscriber->is_active]);
+            }
+        });
+    }
+
     protected $casts = [
         'is_active' => 'boolean',
     ];
 
-    /**
-     * Boot the model.
-     */
-    protected static function boot(): void
-    {
-        parent::boot();
-
-        static::creating(function ($subscriber) {
-            if (empty($subscriber->is_active)) {
-                $subscriber->is_active = true;
-            }
-        });
-    }
 }

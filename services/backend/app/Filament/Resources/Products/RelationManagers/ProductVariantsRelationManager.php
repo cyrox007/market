@@ -410,7 +410,7 @@ class ProductVariantsRelationManager extends RelationManager
 
                 TextColumn::make('sku')
                     ->label('SKU')
-                    ->searchable()
+                    ->searchable(['sku', 'external_id'])
                     ->sortable(),
 
                 TextColumn::make('variation_params')
