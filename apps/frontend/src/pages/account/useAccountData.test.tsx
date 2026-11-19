@@ -10,7 +10,7 @@ vi.mock('../../lib/api', () => ({ api: {
   auth: { getNotificationSettings: vi.fn(), updateNotificationSettings: vi.fn() },
 } }));
 
-const settings = { email_promotions: false, sms_order_notifications: true, push_notifications: false, new_product_notifications: true };
+const settings = { email_promotions: false, email_order_notifications: true, sms_order_notifications: true, push_notifications: false, new_product_notifications: true };
 function wrapper() {
   const cache = new Map();
   return function Wrapper({ children }: { children: ReactNode }) {

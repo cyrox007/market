@@ -545,6 +545,7 @@ class AuthController extends Controller
      *         description="Настройки уведомлений",
      *         @OA\JsonContent(
      *             @OA\Property(property="settings", type="object",
+     *                 @OA\Property(property="email_order_notifications", type="boolean", example=true),
      *                 @OA\Property(property="email_promotions", type="boolean", example=true),
      *                 @OA\Property(property="sms_order_notifications", type="boolean", example=true),
      *                 @OA\Property(property="push_notifications", type="boolean", example=false),
@@ -571,7 +572,8 @@ class AuthController extends Controller
 
         return response()->json([
             'settings' => [
-                'email_promotions' => $user->email_promotions ?? true,
+                'email_order_notifications' => $user->email_order_notifications ?? true,
+                'email_promotions' => $user->email_promotions ?? false,
                 'sms_order_notifications' => $user->sms_order_notifications ?? true,
                 'push_notifications' => $user->push_notifications ?? false,
                 'new_product_notifications' => $user->new_product_notifications ?? true,
@@ -589,7 +591,8 @@ class AuthController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             @OA\Property(property="email_promotions", type="boolean", example=true),
+     *             @OA\Property(property="email_order_notifications", type="boolean", example=true),
+     *                 @OA\Property(property="email_promotions", type="boolean", example=true),
      *             @OA\Property(property="sms_order_notifications", type="boolean", example=true),
      *             @OA\Property(property="push_notifications", type="boolean", example=false),
      *             @OA\Property(property="new_product_notifications", type="boolean", example=true)
@@ -601,6 +604,7 @@ class AuthController extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="message", type="string", example="Настройки уведомлений обновлены"),
      *             @OA\Property(property="settings", type="object",
+     *                 @OA\Property(property="email_order_notifications", type="boolean", example=true),
      *                 @OA\Property(property="email_promotions", type="boolean", example=true),
      *                 @OA\Property(property="sms_order_notifications", type="boolean", example=true),
      *                 @OA\Property(property="push_notifications", type="boolean", example=false),
@@ -617,6 +621,7 @@ class AuthController extends Controller
     public function updateNotificationSettings(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'email_order_notifications' => 'sometimes|boolean',
             'email_promotions' => 'sometimes|boolean',
             'sms_order_notifications' => 'sometimes|boolean',
             'push_notifications' => 'sometimes|boolean',
@@ -638,6 +643,7 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Настройки уведомлений обновлены',
             'settings' => [
+                'email_order_notifications' => $user->email_order_notifications,
                 'email_promotions' => $user->email_promotions,
                 'sms_order_notifications' => $user->sms_order_notifications,
                 'push_notifications' => $user->push_notifications,
