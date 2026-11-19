@@ -10,7 +10,7 @@ const colors = (name: string): ProductColorRow[] => [
 it('uses the physical component colors for direct bundles instead of repeating the root color', () => {
   const checkout: CheckoutSummaryState = {
     direct: true,
-    cart: undefined,
+    cart: null,
     directProduct: null,
     items: [
       { product_id: 11, quantity: 1 },
