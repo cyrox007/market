@@ -245,7 +245,11 @@ export function useWarehouseCheckout() {
         }
       })
       .catch((problem) => {
-        if (active) setError(problem?.data?.message || 'Не удалось рассчитать доставку.');
+        if (!active) return;
+        if (problem?.status === 422 && problem?.data?.available === false && Number.isFinite(problem.data.subtotal) && Array.isArray(problem.data.options)) {
+          setCalculation({ key: quoteKey, data: problem.data });
+        }
+        setError(problem?.data?.reason || problem?.data?.message || 'Не удалось рассчитать доставку.');
       })
       .finally(() => {
         if (active) setCalculatingKey(null);

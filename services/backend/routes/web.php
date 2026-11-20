@@ -49,3 +49,6 @@ Route::middleware([
         ->where('orderId', '[0-9]+')
         ->name('admin.orders.print');
 });
+
+Route::post('/admin_sv/editing-presence', [\App\Http\Controllers\AdminEditingPresenceController::class, 'update'])->middleware(['auth:web', 'throttle:120,1']);
+Route::delete('/admin_sv/editing-presence', [\App\Http\Controllers\AdminEditingPresenceController::class, 'release'])->middleware(['auth:web', 'throttle:120,1']);

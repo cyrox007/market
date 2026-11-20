@@ -69,6 +69,28 @@ class OrderController extends Controller
             return response()->json(['message' => 'Необходима авторизация'], 401);
         }
 
+        if ($request->hasAny(['view', 'page', 'per_page', 'group'])) {
+            $validated = $request->validate([
+                'view' => 'sometimes|in:compact', 'page' => 'sometimes|integer|min:1',
+                'per_page' => 'sometimes|integer|min:1|max:50', 'group' => 'sometimes|in:active,completed,cancelled',
+                'status' => 'sometimes|string|max:100',
+            ]);
+            $query = Order::where('user_id', $user->id)->withCount('items');
+            if (isset($validated['status'])) { $query->where('status', $validated['status']); }
+            if (isset($validated['group'])) {
+                $completed = config('customer_orders.completed_statuses');
+                $cancelled = config('customer_orders.cancelled_statuses');
+                match ($validated['group']) {
+                    'completed' => $query->whereIn('status', $completed),
+                    'cancelled' => $query->whereIn('status', $cancelled),
+                    'active' => $query->where(fn ($q) => $q->whereNotIn('status', [...$completed, ...$cancelled])->orWhereNull('status')),
+                };
+            }
+            $orders = $query->orderByDesc('created_at')->orderByDesc('id')->paginate($validated['per_page'] ?? 10)->withQueryString();
+            app(\App\Services\Order\CustomerOrderPresentation::class)->preload($orders->getCollection());
+            return \App\Http\Resources\OrderListResource::collection($orders);
+        }
+
         $query = Order::with([
             'items.product',
             'address',
@@ -87,8 +109,28 @@ class OrderController extends Controller
         }
 
         $orders = $query->get();
+        app(\App\Services\Order\CustomerOrderPresentation::class)->preload($orders);
 
         return OrderResource::collection($orders);
+    }
+
+    public function summary(Request $request): JsonResponse
+    {
+        $user = Auth::user() ?? $request->user();
+        if (! $user) { return response()->json(['message' => 'Необходима авторизация'], 401); }
+        $counts = Order::where('user_id', $user->id)->select('status')->selectRaw('COUNT(*) AS count')->groupBy('status')->get();
+        $presentation = app(\App\Services\Order\CustomerOrderPresentation::class);
+        $result = ['total' => 0, 'active' => 0, 'completed' => 0, 'cancelled' => 0, 'last_order' => null];
+        foreach ($counts as $row) {
+            $result['total'] += (int) $row->count;
+            $result[$presentation->group($row->status)] += (int) $row->count;
+        }
+        $last = Order::where('user_id', $user->id)->withCount('items')->orderByDesc('created_at')->orderByDesc('id')->first();
+        if ($last) {
+            $presentation->preload([$last]);
+            $result['last_order'] = (new \App\Http\Resources\OrderListResource($last))->resolve($request);
+        }
+        return response()->json($result);
     }
 
     public function store(Request $request): JsonResponse

@@ -56,6 +56,7 @@ class AdminSvPanelProvider extends PanelProvider
                 fn (): string => view('filament.products.save-overlay')->render(),
                 scopes: [EditProduct::class, OperatorEditProduct::class],
             )
+            ->renderHook(PanelsRenderHook::BODY_END, fn (): string => view('filament.editing-presence')->render())
             ->colors([
                 'primary' => Color::Red,
             ])
