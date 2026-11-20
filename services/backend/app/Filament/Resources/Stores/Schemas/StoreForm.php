@@ -83,7 +83,16 @@ class StoreForm
                             ->maxLength(50)
                             ->helperText('Можно вводить с +7 или 8, со скобками, пробелами и дефисами.'),
                         Select::make('shipping_location_id')->label('Регион контактов')
-                            ->relationship('region', 'name', fn ($q) => $q->where('is_active', true))->searchable()->preload()
+                            ->searchable()
+                            ->getSearchResultsUsing(fn (string $search): array => \App\Models\Shipping\ShippingLocation::query()
+                                ->where('is_active', true)
+                                ->where('name', 'like', '%'.$search.'%')
+                                ->orderBy('name')
+                                ->limit(50)
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->getOptionLabelUsing(fn ($value): ?string => \App\Models\Shipping\ShippingLocation::query()
+                                ->find($value)?->name)
                             ->helperText('Город или регион, для которого используются контакты магазина.'),
                         TextInput::make('email')->label('Email магазина')->email()->maxLength(255)
                             ->helperText('Если не указан, для связи по заказу используется email из глобальных контактов.'),
