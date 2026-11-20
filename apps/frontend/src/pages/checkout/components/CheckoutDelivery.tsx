@@ -7,8 +7,6 @@ import CheckoutAddresses from './CheckoutAddresses';
 import type { CheckoutState } from '../hooks/useWarehouseCheckout';
 import CheckoutPickupNotice from './CheckoutPickupNotice';
 
-export const checkoutField =
-  'block min-h-12 w-full rounded-btn border border-surface-stroke/[0.08] bg-surface px-4 py-3 text-14 text-ink outline-none focus:border-ink-secondary disabled:opacity-50';
 const radioClass =
   '!flex-row-reverse !justify-end !gap-3 !rounded-none !bg-transparent !p-0 !text-14 !font-medium';
 export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutState }) {
@@ -48,12 +46,10 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
         {!c.user && (
           <div className="grid grid-cols-2 gap-3">
             {(['apartment', 'entrance', 'intercom'] as const).map((key) => (
-              <label key={key} className="space-y-2 text-14 text-ink-secondary">
-                {
-                  { apartment: 'Квартира / помещение', entrance: 'Подъезд', intercom: 'Домофон' }[
-                    key
-                  ]
-                }
+              <label key={key} className="flex min-w-0 flex-col gap-2 text-14 text-ink-secondary">
+                <span>
+                  {{ apartment: 'Квартира / помещение', entrance: 'Подъезд', intercom: 'Домофон' }[key]}
+                </span>
                 <Input
                   shape="rounded"
                   tone="outline"
@@ -67,8 +63,8 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
           </div>
         )}
         {!c.user && (
-          <label className="block space-y-2 text-14 text-ink-secondary">
-            Этаж
+          <label className="flex min-w-0 flex-col gap-2 text-14 text-ink-secondary">
+            <span>Этаж</span>
             <Input
               type="number"
               min={1}
@@ -86,27 +82,20 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
           </p>
         )}
         {!!c.quote?.options.length && (
-          <label className="block space-y-2 text-14 text-ink-secondary">
-            Вариант доставки
-            <select
-              className={checkoutField}
-              aria-label="Склад"
-              value={c.selected?.warehouse_id || ''}
-              onChange={(event) => {
-                c.setWarehouse(Number(event.target.value));
-                c.setHandling(null);
-                c.setAdditional([]);
-                c.setAssembly(false);
-              }}
-            >
-              {c.quote.options.map((option) => (
-                <option key={option.warehouse_id} value={option.warehouse_id}>
-                  {option.warehouse_name} — {option.total_fulfillment_cost.toLocaleString('ru-RU')}{' '}
-                  ₽
-                </option>
-              ))}
-            </select>
-          </label>
+          <CheckoutSelect
+            label="Вариант доставки"
+            value={c.selected ? String(c.selected.warehouse_id) : ''}
+            onChange={(value) => {
+              c.setWarehouse(Number(value));
+              c.setHandling(null);
+              c.setAdditional([]);
+              c.setAssembly(false);
+            }}
+            options={c.quote.options.map((option) => ({
+              value: String(option.warehouse_id),
+              label: `${option.warehouse_name} — ${option.total_fulfillment_cost.toLocaleString('ru-RU')} ₽`,
+            }))}
+          />
         )}
         {c.selected && <CheckoutDeliveryEstimate option={c.selected} />}
         {services && <CheckoutServices {...c} services={services} />}

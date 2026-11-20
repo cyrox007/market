@@ -188,7 +188,7 @@ export default function CheckoutAddressModal({ open, ...props }: CheckoutAddress
       onClose={props.onClose}
       title="Добавление адреса"
       mobileQuery="(max-width: 979px)"
-      className="md:w-[600px]"
+      className="md:w-[600px] max-md:h-[90dvh] max-md:!max-h-[90dvh]"
     >
       <AddressForm {...props} />
     </Modal>

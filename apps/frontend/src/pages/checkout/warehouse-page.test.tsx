@@ -108,6 +108,42 @@ it('selects the default saved address and sends address_id without legacy locati
 });
 afterEach(cleanup);
 
+it.each([
+  { status: 422, data: { available: false, subtotal: 1000, selected: null, options: [], reason: 'Нет подходящего склада' }, hint: 'Для выбранного адреса и товаров нет доступной доставки.' },
+  { status: 503, data: { message: 'Расчёт временно недоступен' }, hint: 'Не удалось рассчитать доставку по выбранному адресу. Обновите страницу или попробуйте позже.' },
+])('explains a selected address with a failed delivery quote ($status) without requesting another address', async ({ status, data, hint }) => {
+  auth.user = { id: 1, name: 'Иванов Иван', phone: '+79001234567', email: 'buyer@example.test' };
+  vi.mocked(api.addresses.list).mockResolvedValue({ data: [{ id: 8, title: 'Дом', is_default: true, full_address: 'Липецк, 1-й Лесной, 4' }] });
+  vi.mocked(api.shipping.quote).mockRejectedValue({ status, data });
+  render(<MemoryRouter><Checkout /></MemoryRouter>);
+  expect(await screen.findByText(hint)).toBeInTheDocument();
+  expect(screen.queryByText('Выберите адрес для расчёта полной стоимости.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Оформить заказ' })).toBeDisabled();
+  if (status === 422) expect(screen.getByText('Недоступна')).toBeInTheDocument();
+  expect(api.orders.create).not.toHaveBeenCalled();
+});
+
+it('selects a delivery warehouse with the shared menu and recalculates the quote', async () => {
+  const first = { warehouse_id: 4, warehouse_name: 'Центральный', delivery_cost: 500, assembly_cost: 0, total_fulfillment_cost: 500 };
+  const second = { ...first, warehouse_id: 8, warehouse_name: 'Другой', delivery_cost: 900, total_fulfillment_cost: 900 };
+  vi.mocked(api.shipping.quote).mockImplementation(async request => ({
+    available: true,
+    subtotal: 1000,
+    options: [first, second],
+    selected: (request as { warehouse_id?: number }).warehouse_id === 8 ? second : first,
+  }));
+  render(<MemoryRouter><Checkout /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Выбрать дом' }));
+  const field = await screen.findByRole('combobox', { name: 'Вариант доставки' });
+  fireEvent.click(field);
+  expect(screen.getByRole('listbox', { name: 'Вариант доставки' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('option', { name: /Другой.*900/ }));
+  await waitFor(() => expect(api.shipping.quote).toHaveBeenLastCalledWith(expect.objectContaining({ warehouse_id: 8 })));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Вариант доставки' })).toHaveTextContent(/Другой.*900/));
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(api.orders.create).not.toHaveBeenCalled();
+});
+
 it('disables an upcoming gateway and chooses an available online payment method', async () => {
   vi.mocked(api.paymentMethods.list).mockResolvedValue({
     data: [
