@@ -192,7 +192,12 @@ final class AdminAccessCatalog
         }
 
         $sections = [];
-        foreach ($groups as $domain => $resources) {
+        // Keep business sections in a stable order independent of database IDs.
+        foreach (array_merge(array_keys(self::DOMAINS), ['Другие разрешения']) as $domain) {
+            if (! isset($groups[$domain])) {
+                continue;
+            }
+            $resources = $groups[$domain];
             $fields = [];
             foreach ($resources as $resource => $group) {
                 $fields[] = Section::make($group['title'])
@@ -202,7 +207,7 @@ final class AdminAccessCatalog
                             ->label('Действия')
                             ->options($group['options'])
                             ->descriptions($group['descriptions'])
-                            ->columns(2)
+                            ->columns(1)
                             ->bulkToggleable(),
                     ]);
             }
