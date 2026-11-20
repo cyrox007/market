@@ -66,33 +66,10 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
             }
         });
         
-        // Очищаем кеш блоков при изменении связей
-        static::saved(function ($category) {
-            static::clearCategoryBlocksCache($category->id);
-            // Сбрасываем кэш товаров при изменении категории
-            // flushCache() уже вызывается автоматически через трейт Cacheable
-        });
-
         // Сбрасываем кэш при удалении категории
         // flushCache() уже вызывается автоматически через трейт Cacheable
     }
     
-    /**
-     * Очистить кеш блоков для категории
-     */
-    protected static function clearCategoryBlocksCache(int $categoryId): void
-    {
-        \Cache::forget("category_with_feature_blocks_{$categoryId}");
-        \Cache::forget("category_with_delivery_blocks_{$categoryId}");
-        
-        // Очищаем кеш всех товаров этой категории
-        $products = static::find($categoryId)?->products ?? collect();
-        foreach ($products as $product) {
-            \Cache::forget("feature_blocks_product_{$product->id}");
-            \Cache::forget("delivery_blocks_product_{$product->id}");
-        }
-    }
-
     /**
      * Get or create default taxonomy for product categories.
      */
@@ -191,32 +168,6 @@ class Category extends VaniloTaxon implements PageableContract, HasMedia
             'taxon_id',
             'model_id'
         )->where('model_taxons.model_type', Product::class);
-    }
-
-    /**
-     * Get feature blocks for this category.
-     */
-    public function featureBlocks(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            ProductFeatureBlock::class,
-            'category_feature_blocks',
-            'category_id',
-            'feature_block_id'
-        )->withPivot('sort_order')->withTimestamps();
-    }
-
-    /**
-     * Get delivery blocks for this category.
-     */
-    public function deliveryBlocks(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            ProductDeliveryBlock::class,
-            'category_delivery_blocks',
-            'category_id',
-            'delivery_block_id'
-        )->withPivot('sort_order')->withTimestamps();
     }
 
     /**

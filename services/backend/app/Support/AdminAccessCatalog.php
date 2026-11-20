@@ -20,8 +20,6 @@ final class AdminAccessCatalog
             'categories' => 'Категории',
             'attributes' => 'Характеристики и цвета',
             'product_collections' => 'Коллекции товаров',
-            'product_feature_blocks' => 'Блоки преимуществ товаров',
-            'product_delivery_blocks' => 'Блоки доставки товаров',
             'catalog_sync' => 'Синхронизация каталога',
         ],
         'Заказы и продажи' => [
