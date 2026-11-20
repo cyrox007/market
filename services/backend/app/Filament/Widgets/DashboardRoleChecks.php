@@ -42,7 +42,6 @@ class DashboardRoleChecks
             || $user->hasRole('editor')
             || $user->can('viewAny articles')
             || $user->can('viewAny sliders')
-            || $user->can('viewAny interior_ideas')
         );
     }
 
