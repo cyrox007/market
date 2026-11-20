@@ -4,7 +4,6 @@ namespace Tests\Feature\Admin;
 
 use App\Filament\Pages\AboutPageSettingsPage;
 use App\Filament\Resources\About\AboutPageResource;
-use App\Filament\Resources\InteriorIdeas\InteriorIdeaResource;
 use App\Filament\Resources\Newsletter\NewsletterSubscriberResource;
 use App\Filament\Resources\Sliders\SliderResource;
 use App\Filament\Resources\Stores\StoreResource;
@@ -23,7 +22,7 @@ class ContentNavigationAuditTest extends TestCase
     {
         $this->assertTrue(AboutPageResource::shouldRegisterNavigation());
         $this->assertFalse(AboutPageSettingsPage::shouldRegisterNavigation());
-        $this->assertFalse(InteriorIdeaResource::shouldRegisterNavigation());
+        $this->assertFalse(class_exists('App\\Filament\\Resources\\InteriorIdeas\\InteriorIdeaResource'));
     }
 
     public function test_existing_home_banners_and_subscriber_management_stay_visible(): void
