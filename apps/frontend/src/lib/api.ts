@@ -1021,7 +1021,8 @@ export interface Store {
   slug: string;
   address: string;
   city: string;
-  phone: string;
+  phone: string | null;
+  email?: string | null;
   hours: string | null;
   coordinates: string | null;
   latitude: number | null;
@@ -1227,7 +1228,26 @@ export interface NotificationSettings {
   new_product_notifications: boolean;
 }
 
+export interface OrderManagerContact {
+  store_id: number | null; store_name: string | null;
+  phone: { value: string; source: 'regional_store' | 'global' } | null;
+  email: { value: string; source: 'regional_store' | 'global' } | null;
+  hours: string | null; working_hours: unknown[] | Record<string, unknown>; timezone: string;
+  actions: Array<{ type: 'phone' | 'email'; label: string; url: string }>;
+  primary_action: { type: 'phone' | 'email'; label: string; url: string } | null;
+}
+export interface OrderItemDisplay {
+  source: 'snapshot' | 'legacy'; version: number | null; captured_at: string | null;
+  name: string; parent_name: string | null; article: string | null; sku: string | null;
+  colors: ProductColorRow[];
+  materials: Array<{ slug: string; name: string; value: string }>;
+  configuration: Array<{ slug: string; name: string; value: string }>;
+  specifications: Array<{ slug: string; name: string; value: string }>;
+  bundle: unknown;
+}
+
 export interface Order {
+  manager_contact?: OrderManagerContact;
   fulfillment?: { warehouse_id?: number; store_id?: number | null; name?: string; warehouse_name?: string; address?: string | null; address_directory?: { label?: string | null } | null } | null;
   id: number;
   number: string;
@@ -1299,6 +1319,8 @@ export interface WarehouseOption {
 export interface WarehouseQuote { available: boolean; subtotal: number; selected: WarehouseOption | null; options: WarehouseOption[] }
 
 export interface OrderItem {
+  name?: string;
+  display?: OrderItemDisplay;
   id: number;
   product_id: number;
   product?: Product | null;

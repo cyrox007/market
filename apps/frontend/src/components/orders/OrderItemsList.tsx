@@ -1,6 +1,7 @@
 import type { OrderItem } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { ImageIcon } from 'lucide-react';
+import SelectedColors from '../ui/composites/SelectedColors';
 
 interface OrderItemsListProps {
   items: OrderItem[];
@@ -15,7 +16,9 @@ export default function OrderItemsList({ items }: OrderItemsListProps) {
     <div className="space-y-4">
       {items.map((item) => {
         const productImage = item.product?.image || item.product?.thumbnail;
-        const productName = item.product?.name || `Товар #${item.product_id}`;
+        const productName = item.display
+          ? item.display.name || item.name || `Товар #${item.product_id}`
+          : item.name || item.product?.name || `Товар #${item.product_id}`;
         const productSlug = item.product?.slug;
 
         return (
@@ -41,6 +44,13 @@ export default function OrderItemsList({ items }: OrderItemsListProps) {
                 </Link>
               ) : (
                 <h4 className="font-semibold mb-1">{productName}</h4>
+              )}
+              {item.display?.source === 'snapshot' && (
+                <div className="my-2 space-y-1 text-sm text-gray-600">
+                  <SelectedColors colors={item.display.colors} />
+                  {item.display.materials.map((row) => <p key={row.slug}>{row.name}: {row.value}</p>)}
+                  {item.display.configuration.map((row) => <p key={row.slug}>{row.name}: {row.value}</p>)}
+                </div>
               )}
               <p className="text-sm text-gray-600">Количество: {item.quantity}</p>
             </div>

@@ -238,17 +238,16 @@ export default function Stores() {
                       </div>
                       <p className="text-gray-700">{store.address}</p>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                        <Phone className="size-[1em] text-red-600" />
+                    {store.phone && (
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                          <Phone className="size-[1em] text-red-600" />
+                        </div>
+                        <a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-gray-700 hover:text-red-600">
+                          {store.phone}
+                        </a>
                       </div>
-                      <a
-                        href={`tel:${store.phone.replace(/\s/g, '')}`}
-                        className="text-gray-700 hover:text-red-600"
-                      >
-                        {store.phone}
-                      </a>
-                    </div>
+                    )}
                     {store.hours && (
                       <div className="flex items-start gap-3">
                         <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">

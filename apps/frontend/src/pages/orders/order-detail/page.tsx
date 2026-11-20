@@ -1,3 +1,4 @@
+import OrderManagerContacts from '../../../components/orders/OrderManagerContacts';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { api, type Order } from '../../../lib/api';
@@ -382,6 +383,8 @@ export default function OrderDetail() {
               Заказ аннулирован автоматически из-за неоплаты. Остатки товаров возвращены на склад.
             </div>
           )}
+
+          <OrderManagerContacts contact={order.manager_contact} />
 
           {/* Tracking */}
           {order.status_history && order.status_history.length > 0 && (
