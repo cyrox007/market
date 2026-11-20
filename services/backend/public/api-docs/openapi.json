@@ -1306,6 +1306,26 @@
           "phone": {
             "type": "string",
             "nullable": true
+          },
+          "first_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "last_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "patronymic": {
+            "type": "string",
+            "nullable": true
+          },
+          "email_verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "is_email_verified": {
+            "type": "boolean"
           }
         }
       },
@@ -1924,6 +1944,14 @@
             "type": "object",
             "nullable": true,
             "description": "Снимок доставки с warehouse_allocations[] для мультискладского комплекта; warehouse_id при stock_mode=multi обозначает лишь ведущий склад"
+          },
+          "presentation": {
+            "$ref": "#/components/schemas/CustomerOrderPresentation"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "manager_contact": {
             "$ref": "#/components/schemas/OrderManagerContact"
@@ -2548,6 +2576,291 @@
             }
           }
         }
+      },
+      "CustomerOrderPayment": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unpaid",
+              "pay_on_receipt",
+              "partially_paid",
+              "paid",
+              "partially_refunded",
+              "refunded"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "amount_paid": {
+            "type": "number"
+          },
+          "amount_refunded": {
+            "type": "number"
+          },
+          "refund_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "manual_review",
+              "completed"
+            ]
+          },
+          "refund_label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "status",
+          "label",
+          "paid_at",
+          "amount_paid",
+          "amount_refunded",
+          "refund_status",
+          "refund_label"
+        ]
+      },
+      "CustomerOrderProgressStep": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Расширяемый серверный код этапа"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "current",
+              "pending",
+              "skipped",
+              "cancelled"
+            ]
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "state",
+          "occurred_at"
+        ]
+      },
+      "CustomerOrderPresentation": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "example": 1
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "active",
+              "completed",
+              "cancelled"
+            ]
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "label"
+            ]
+          },
+          "payment": {
+            "$ref": "#/components/schemas/CustomerOrderPayment"
+          },
+          "progress": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderProgressStep"
+            }
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "version",
+          "group",
+          "status",
+          "payment",
+          "progress",
+          "message"
+        ]
+      },
+      "CustomerOrderCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "number": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "status_label": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          },
+          "delivery_type": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "pickup"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items_count": {
+            "type": "integer"
+          },
+          "presentation": {
+            "$ref": "#/components/schemas/CustomerOrderPresentation"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "status_label",
+          "total",
+          "delivery_type",
+          "created_at",
+          "items_count",
+          "presentation"
+        ]
+      },
+      "CustomerOrderSummary": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "active": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancelled": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_order": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "number": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_label": {
+                "type": "string"
+              },
+              "total": {
+                "type": "number"
+              },
+              "delivery_type": {
+                "type": "string",
+                "enum": [
+                  "delivery",
+                  "pickup"
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "items_count": {
+                "type": "integer"
+              },
+              "presentation": {
+                "$ref": "#/components/schemas/CustomerOrderPresentation"
+              }
+            },
+            "required": [
+              "id",
+              "number",
+              "status",
+              "status_label",
+              "total",
+              "delivery_type",
+              "created_at",
+              "items_count",
+              "presentation"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "completed",
+          "cancelled",
+          "last_order"
+        ]
+      },
+      "CustomerOrderPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderCard"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ]
       },
       "AccountEmailStatus": {
         "type": "object",
@@ -3231,7 +3544,7 @@
       "put": {
         "operationId": "updateProfile",
         "summary": "Обновить профиль пользователя",
-        "description": "Обновляет имя и телефон пользователя",
+        "description": "Принимает name либо first_name/last_name/patronymic, не вместе. В раздельном режиме имя и фамилия обязательны. Историческое name автоматически не разбирается. Email меняется только отдельным процессом; поле email здесь запрещено.",
         "tags": [
           "Auth"
         ],
@@ -3258,6 +3571,21 @@
                     "type": "string",
                     "nullable": true,
                     "example": "+7 (999) 123-45-67"
+                  },
+                  "first_name": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255
+                  },
+                  "last_name": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255
+                  },
+                  "patronymic": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255
                   }
                 }
               }
@@ -3266,35 +3594,19 @@
         },
         "responses": {
           "200": {
-            "description": "Профиль обновлен",
+            "description": "Профиль сохранён",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "user": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "example": 1
-                        },
-                        "name": {
-                          "type": "string",
-                          "example": "Иван Иванов"
-                        },
-                        "email": {
-                          "type": "string",
-                          "example": "user@example.com"
-                        },
-                        "phone": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "+7 (999) 123-45-67"
-                        }
-                      }
+                      "$ref": "#/components/schemas/User"
                     }
-                  }
+                  },
+                  "required": [
+                    "user"
+                  ]
                 }
               }
             }
@@ -5426,19 +5738,29 @@
         ],
         "responses": {
           "200": {
-            "description": "История заказов",
+            "description": "Полный ответ совместимости либо компактная страница",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Order"
-                      }
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Order"
+                          }
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/CustomerOrderPage"
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -5460,6 +5782,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Неверные параметры страницы или группы",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -5469,19 +5801,56 @@
             "required": false,
             "schema": {
               "type": "string",
+              "description": "Внутренний код; допускает будущие логистические статусы"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
               "enum": [
-                "new",
-                "awaiting_payment",
-                "accepted",
-                "assembled",
-                "shipped",
-                "in_transit",
-                "delivered",
+                "compact"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "completed",
                 "cancelled"
               ]
             }
           }
-        ]
+        ],
+        "description": "Без новых параметров сохраняется прежний полный data. view=compact либо наличие page/per_page/group включает компактную пагинацию с links/meta. Нет контактов, адреса, полного состава и истории. Сортировка created_at DESC, id DESC."
       }
     },
     "/api/v1/orders/{id}/payment-config": {
@@ -8892,6 +9261,52 @@
         }
       }
     },
+    "/api/v1/orders/summary": {
+      "get": {
+        "operationId": "getOrderSummary",
+        "summary": "Счётчики и последняя компактная карточка заказа",
+        "tags": [
+          "Orders"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerOrderSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории."
+      }
+    },
     "/api/v1/auth/email": {
       "get": {
         "operationId": "getAccountEmailStatus",
@@ -8918,6 +9333,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -8930,9 +9348,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         }
       }
@@ -8963,6 +9378,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -8975,9 +9393,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
@@ -9009,6 +9424,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9021,9 +9439,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "requestBody": {
@@ -9078,6 +9493,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9090,9 +9508,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
@@ -9225,6 +9640,9 @@
               }
             }
           },
+          "403": {
+            "description": "Недействительная подпись"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9237,9 +9655,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "403": {
-            "description": "Недействительная подпись"
           }
         },
         "parameters": [
