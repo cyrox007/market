@@ -40,11 +40,11 @@ class RetiredContentDashboardTest extends TestCase
         $this->assertFalse(DashboardRoleChecks::canSeeContent());
     }
 
-    public function test_live_newsletter_permission_enables_content_dashboard(): void
+    public function test_active_slider_permission_enables_content_dashboard(): void
     {
-        Permission::findOrCreate('viewAny newsletter_subscribers', 'web');
+        Permission::findOrCreate('viewAny sliders', 'web');
         $user = User::factory()->create();
-        $user->givePermissionTo('viewAny newsletter_subscribers');
+        $user->givePermissionTo('viewAny sliders');
         $this->actingAs($user);
 
         $this->assertTrue(DashboardRoleChecks::canSeeContent());
