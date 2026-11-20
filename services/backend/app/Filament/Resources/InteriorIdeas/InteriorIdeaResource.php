@@ -34,6 +34,16 @@ class InteriorIdeaResource extends Resource
 
     protected static ?int $navigationSort = 60;
 
+    /**
+     * The React homepage no longer renders these hotspot collections.
+     * Retain the resource and API for historical content and compatibility,
+     * but do not expose the retired editor in the sidebar.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return InteriorIdeaForm::configure($schema);

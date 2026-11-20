@@ -237,7 +237,7 @@ async function createServer() {
           try {
             // Главная: stale-while-revalidate — следующий пользователь сразу получает кэш, в фоне кэш обновляется
             // Ключи без region_id: бэкенд отдаёт один и тот же список товаров (регион только для корзины), кэш общий для всех
-            const [categoriesResponse, featuredResponse, slidersResponse, interiorIdeasResponse] =
+            const [categoriesResponse, featuredResponse, slidersResponse] =
               await Promise.allSettled([
                 withCacheSWR(
                   createCacheKey('/categories', undefined, undefined),
@@ -250,14 +250,9 @@ async function createServer() {
                   { ttl: 120 }, // 2 минуты для товаров
                 ),
                 withCacheSWR(
-                  createCacheKey('/sliders', undefined, undefined),
-                  () => ssrApi.sliders.list(),
+                  createCacheKey('/sliders/home', undefined, undefined),
+                  () => ssrApi.sliders.home(),
                   { ttl: 120 },
-                ),
-                withCacheSWR(
-                  createCacheKey('/interior-ideas', { page: 1, per_page: 6 }),
-                  () => ssrApi.interiorIdeas.list({ page: 1, per_page: 6 }),
-                  { ttl: 300 }, // 5 минут для идей интерьера
                 ),
               ]);
 
@@ -270,9 +265,6 @@ async function createServer() {
             }
             if (slidersResponse.status === 'fulfilled') {
               ssrContext.home.sliders = slidersResponse.value.data;
-            }
-            if (interiorIdeasResponse.status === 'fulfilled') {
-              ssrContext.home.interiorIdeas = interiorIdeasResponse.value.data;
             }
           } catch (error) {
             console.error('SSR home data loading error:', error);

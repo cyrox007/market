@@ -1,5 +1,5 @@
 import type { CatalogSort } from '../lib/catalog-query';
-import type { Category, ProductListParams, ProductListResponse, Review } from '../lib/api';
+import type { Category, HomeSliders, ProductListParams, ProductListResponse, Review } from '../lib/api';
 
 /** SEO для текущей страницы (товар, категория и т.д.) — подставляется в <head> при SSR */
 export interface SeoMetaSSR {
@@ -44,8 +44,7 @@ export interface SSRContext {
     featuredProducts?: any[];
     newProducts?: any[];
     saleProducts?: any[];
-    sliders?: any[];
-    interiorIdeas?: any[];
+    sliders?: HomeSliders;
   };
   // Категория каталога
   category?: {

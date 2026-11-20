@@ -47,10 +47,8 @@ export function ssrToSwrFallback(ssrContext?: SSRContext): Record<string, any> {
       fallback['/api/products/sale'] = { data: ssrContext.home.saleProducts };
     }
     if (ssrContext.home.sliders) {
-      fallback['/api/sliders'] = { data: ssrContext.home.sliders };
-    }
-    if (ssrContext.home.interiorIdeas) {
-      fallback['/api/interior-ideas'] = { data: ssrContext.home.interiorIdeas };
+      // Match the live home promo widgets' SWR key and full placement shape.
+      fallback['/api/sliders/home'] = { data: ssrContext.home.sliders };
     }
   }
 

@@ -3,7 +3,7 @@
  * Передает cookies из Express request в Laravel API
  */
 
-import type { ProductListParams, ProductListResponse, Review } from './api';
+import type { HomeSliders, ProductListParams, ProductListResponse, Review } from './api';
 import { toProductListSearch } from './product-list-search';
 import type { IncomingMessage } from 'http';
 
@@ -202,6 +202,7 @@ export function createSSRApi(req: IncomingMessage) {
     sliders: {
       list: () => fetchAPI<{ data: any[] }>('/sliders'),
       get: (slug: string) => fetchAPI<{ slider: any }>(`/sliders/${slug}`),
+      home: () => fetchAPI<{ data: HomeSliders }>('/sliders/home'),
     },
     sets: {
       list: (params?: { page?: number; per_page?: number }) => {
