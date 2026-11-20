@@ -19,6 +19,8 @@ editing(до5). DELETE по тому же адресу принимает actor_
 
 Локальная установка на RDP (PHP OpenServer): artisan migrate --no-interaction,
 artisan view:clear, при включённых кэшах artisan route:clear и config:clear.
-На Beget не выкладывалось. Функциональные тесты endpoint:6/22 assertions; отдельно2 JS-теста на Livewire proxy, nested edit и восстановление после исключения, включая
+На Beget не выкладывалось. Функциональные тесты endpoint:6/22 assertions; отдельно 3 JS-теста на Livewire proxy, nested edit, восстановление после исключения и UUID fallback на HTTP, включая
 TTL, чужое окно, viewer, авторизацию, запрет классов и размер пакета. Визуальную
 проверку двух браузерных сессий выполнить отдельно перед публикацией.
+
+Клиентские проверки автоматически выполняет GitHub Actions `Admin editing presence JS tests`.
