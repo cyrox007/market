@@ -4,9 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Models\News\Article;
 use App\Models\Newsletter\NewsletterSubscriber;
-use App\Models\Page\InteriorIdea;
 use App\Models\Page\Slider;
-use App\Models\Page\Store;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Filament\Support\Icons\Heroicon;
@@ -18,7 +16,7 @@ class ContentStatsOverviewWidget extends BaseWidget
 
     protected ?string $heading = 'Контент';
 
-    protected ?string $description = 'Новости, слайдеры и идеи интерьера';
+    protected ?string $description = 'Новости, слайдеры и подписчики рассылки';
 
     public static function canView(): bool
     {
@@ -27,13 +25,11 @@ class ContentStatsOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $cacheKey = 'dashboard_content_stats_' . (auth()->id() ?? 'guest');
+        $cacheKey = 'dashboard_content_stats_v2_' . (auth()->id() ?? 'guest');
         $stats = Cache::remember($cacheKey, 120, function () {
             return [
                 'articles' => Article::count(),
                 'sliders' => Slider::count(),
-                'interior_ideas' => InteriorIdea::count(),
-                'stores' => Store::count(),
                 'newsletter' => NewsletterSubscriber::count(),
             ];
         });
@@ -49,16 +45,6 @@ class ContentStatsOverviewWidget extends BaseWidget
                 ->descriptionIcon(Heroicon::OutlinedPhoto)
                 ->color('info')
                 ->icon(Heroicon::OutlinedPhoto),
-            Stat::make('Идей интерьера', number_format($stats['interior_ideas'], 0, ',', ' '))
-                ->description('Интерьерные подборки')
-                ->descriptionIcon(Heroicon::OutlinedHomeModern)
-                ->color('success')
-                ->icon(Heroicon::OutlinedHomeModern),
-            Stat::make('Магазинов', number_format($stats['stores'], 0, ',', ' '))
-                ->description('Точки выдачи')
-                ->descriptionIcon(Heroicon::OutlinedBuildingStorefront)
-                ->color('warning')
-                ->icon(Heroicon::OutlinedBuildingStorefront),
             Stat::make('Подписчиков рассылки', number_format($stats['newsletter'], 0, ',', ' '))
                 ->description('Email-рассылка')
                 ->descriptionIcon(Heroicon::OutlinedEnvelope)
