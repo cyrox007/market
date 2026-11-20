@@ -12,6 +12,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Section;
+use Illuminate\Support\Facades\Gate;
 
 /** Блок «Цвета товара»: строка = элемент (пусто — основной цвет) + его цветовое решение. */
 class ProductColorRowsField
@@ -55,7 +56,7 @@ class ProductColorRowsField
                     ->searchable()
                     ->createOptionForm(ColorElementResource::formFields())
                     ->createOptionUsing(fn (array $data): int => ColorElement::create($data)->getKey())
-                    ->createOptionAction(fn (Action $action) => $action->authorize('create', ColorElement::class))
+                    ->createOptionAction(fn (Action $action) => $action->authorize(fn (): bool => Gate::allows('create', ColorElement::class)))
                     ->createOptionModalHeading('Новый элемент'),
 
                 Select::make('color_solution_id')
@@ -68,7 +69,7 @@ class ProductColorRowsField
                     ->allowHtml()
                     ->getOptionLabelFromRecordUsing(fn (ColorSolution $record): string => static::solutionLabel($record))
                     ->createOptionForm(ColorSolutionResource::formFields())
-                    ->createOptionAction(fn (Action $action) => $action->authorize('create', ColorSolution::class))
+                    ->createOptionAction(fn (Action $action) => $action->authorize(fn (): bool => Gate::allows('create', ColorSolution::class)))
                     ->createOptionModalHeading('Новое цветовое решение'),
             ])
             ->rule(fn (): Closure => function (string $attribute, $value, Closure $fail): void {
