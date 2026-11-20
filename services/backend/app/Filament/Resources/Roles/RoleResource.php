@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Roles;
 use App\Filament\Resources\Roles\Pages\CreateRole;
 use App\Filament\Resources\Roles\Pages\EditRole;
 use App\Filament\Resources\Roles\Pages\ListRoles;
+use App\Support\AdminAccessCatalog;
 use BackedEnum;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -37,29 +37,22 @@ class RoleResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                Section::make('Основная информация')
-                    ->schema([
-                        TextInput::make('name')
-                            ->label('Название роли')
-                            ->required()
-                            ->unique(ignoreRecord: true)
-                            ->maxLength(255)
-                            ->helperText('Уникальное название роли (например: admin, manager, editor)'),
-                    ]),
-                Section::make('Разрешения')
-                    ->schema([
-                        CheckboxList::make('permissions')
-                            ->label('Разрешения')
-                            ->relationship('permissions', 'name')
-                            ->searchable()
-                            ->bulkToggleable()
-                            ->gridDirection('row')
-                            ->columns(3)
-                            ->helperText('Выберите разрешения для этой роли'),
-                    ]),
-            ]);
+        return $schema->components([
+            Section::make('Роль и её назначение')
+                ->description('Название роли служит техническим идентификатором и используется в проверках доступа.')
+                ->schema([
+                    TextInput::make('name')
+                        ->label('Системный ключ роли')
+                        ->required()
+                        ->unique(ignoreRecord: true)
+                        ->maxLength(255)
+                        ->helperText('Например: manager. Не переименовывайте действующие системные роли без проверки политик доступа.'),
+                ]),
+            Section::make('Матрица разрешений')
+                ->description('Разделы сгруппированы по задачам. Раскройте нужный раздел, затем отметьте конкретные действия. Права суммируются.')
+                ->schema(AdminAccessCatalog::permissionSections())
+                ->columnSpanFull(),
+        ]);
     }
 
     public static function table(Table $table): Table
@@ -67,7 +60,9 @@ class RoleResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')
-                    ->label('Название')
+                    ->label('Роль')
+                    ->formatStateUsing(fn (string $state): string => AdminAccessCatalog::roleTitle($state))
+                    ->description(fn (Role $record): string => $record->name)
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
