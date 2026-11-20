@@ -10,8 +10,8 @@
 а при пропаже клиента отметка истекает через90 секунд. Каждый новый page load получает
 новый UUID. Данные других вкладок не удаляются. Не считать отметку блокировкой данных.
 
-POST `/admin_sv/editing-presence`: window_id(UUID), targets(до30 объектов resource/record),
-editing(до5). DELETE по тому же адресу принимает window_id. Нужны web-сессия, CSRF и
+POST `/admin_sv/editing-presence`: actor_id(пользователь, отрисовавший страницу), window_id(UUID), targets(до30 объектов resource/record),
+editing(до5). DELETE по тому же адресу принимает actor_id и window_id. При смене аккаунта в соседней вкладке старый actor_id отклоняется с409, без изменения отметок. Нужны web-сессия, CSRF и
 доступ к панели. Просмотр требует policy canView, установка отметки — canEdit.
 Принимаются только slug зарегистрированных Filament ресурсов, не произвольные классы.
 Ответы no-store; содержат имена, не почту/телефон или поля карточек. Просмотр без прав
@@ -19,6 +19,6 @@ editing(до5). DELETE по тому же адресу принимает window
 
 Локальная установка на RDP (PHP OpenServer): artisan migrate --no-interaction,
 artisan view:clear, при включённых кэшах artisan route:clear и config:clear.
-На Beget не выкладывалось. Функциональные тесты endpoint:5/17 assertions, включая
+На Beget не выкладывалось. Функциональные тесты endpoint:6/22 assertions; отдельно2 JS-теста на Livewire proxy, nested edit и восстановление после исключения, включая
 TTL, чужое окно, viewer, авторизацию, запрет классов и размер пакета. Визуальную
 проверку двух браузерных сессий выполнить отдельно перед публикацией.

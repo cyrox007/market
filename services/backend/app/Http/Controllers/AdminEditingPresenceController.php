@@ -11,7 +11,8 @@ class AdminEditingPresenceController extends Controller
  {
   $panel=Filament::getPanel('admin_sv'); $user=$request->user('web');
   abort_unless($user && $user->canAccessPanel($panel),403); Filament::setCurrentPanel($panel);
-  $data=$request->validate(['window_id'=>'required|uuid','targets'=>'present|array|max:30','targets.*.resource'=>'required|string|max:150','targets.*.record'=>'required|string|max:150','editing'=>'nullable|array|max:5','editing.*.resource'=>'required|string|max:150','editing.*.record'=>'required|string|max:150']);
+  $data=$request->validate(['actor_id'=>'required|string|max:100','window_id'=>'required|uuid','targets'=>'present|array|max:30','targets.*.resource'=>'required|string|max:150','targets.*.record'=>'required|string|max:150','editing'=>'nullable|array|max:5','editing.*.resource'=>'required|string|max:150','editing.*.record'=>'required|string|max:150']);
+  abort_unless((string)$user->id === $data['actor_id'],409);
   $resources=[]; foreach($panel->getResources() as $class){$resources[$class::getSlug()]=$class;}
   $visible=[]; $editing=[];
   foreach(['targets','editing'] as $kind){foreach($data[$kind]??[] as $target){
@@ -37,7 +38,8 @@ class AdminEditingPresenceController extends Controller
  public function release(Request $request): JsonResponse
  {
   abort_unless($request->user('web')?->canAccessPanel(Filament::getPanel('admin_sv')),403);
-  $request->validate(['window_id'=>'required|uuid']);
+  $data=$request->validate(['actor_id'=>'required|string|max:100','window_id'=>'required|uuid']);
+  abort_unless((string)$request->user('web')->id === $data['actor_id'],409);
   DB::table('admin_editing_presence')->where('user_id',$request->user('web')->id)->where('window_id',$request->input('window_id'))->delete();
   return response()->json(['released'=>true])->header('Cache-Control','no-store, private');
  }
