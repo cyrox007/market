@@ -221,6 +221,7 @@ Route::prefix('v1')->group(function () {
         // Orders
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
+            Route::get('/summary', [OrderController::class, 'summary']);
             Route::get('/{id}', [OrderController::class, 'show'])->where('id', '[0-9]+');
             Route::post('/{id}/cancel', [OrderController::class, 'cancel'])->where('id', '[0-9]+');
             Route::post('/{id}/repeat', [OrderController::class, 'repeat'])->where('id', '[0-9]+');
