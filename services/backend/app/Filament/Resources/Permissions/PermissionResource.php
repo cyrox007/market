@@ -13,6 +13,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Spatie\Permission\Models\Permission;
 use UnitEnum;
 
@@ -33,6 +34,11 @@ class PermissionResource extends Resource
     protected static ?string $pluralModelLabel = 'Разрешения';
 
     protected static ?string $policy = \App\Policies\PermissionPolicy::class;
+
+    public static function getEloquentQuery(): Builder
+    {
+        return AdminAccessCatalog::withoutRetiredPermissions(parent::getEloquentQuery());
+    }
 
     public static function form(Schema $schema): Schema
     {

@@ -175,11 +175,28 @@ final class AdminAccessCatalog
         return self::explain($permissionName)['domain'];
     }
 
+    /**
+     * Keep obsolete grants in the database for backup/rollback, but hide them
+     * from all administrative permission pickers and lists.
+     */
+    public static function withoutRetiredPermissions(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query
+            ->where('name', 'not like', '% product_feature_blocks')
+            ->where('name', 'not like', '% product_delivery_blocks');
+    }
+
+    private static function isRetiredPermission(string $name): bool
+    {
+        return str_ends_with($name, ' product_feature_blocks')
+            || str_ends_with($name, ' product_delivery_blocks');
+    }
+
     /** @return array<int, Section> */
     public static function permissionSections(): array
     {
         $groups = [];
-        foreach (Permission::query()->where('guard_name', 'web')->orderBy('name')->get(['id', 'name']) as $permission) {
+        foreach (self::withoutRetiredPermissions(Permission::query())->where('guard_name', 'web')->orderBy('name')->get(['id', 'name']) as $permission) {
             $meta = self::explain($permission->name);
             $domain = $meta['domain'];
             $resource = $meta['resource_key'];
@@ -227,6 +244,9 @@ final class AdminAccessCatalog
     {
         $groups = [];
         foreach ($role->permissions as $permission) {
+            if (self::isRetiredPermission($permission->name)) {
+                continue;
+            }
             $meta = self::explain($permission->name);
             $groups[$meta['resource_key']][] = (string) $permission->id;
         }

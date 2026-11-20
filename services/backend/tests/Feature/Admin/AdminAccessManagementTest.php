@@ -29,6 +29,27 @@ class AdminAccessManagementTest extends TestCase
         return $user;
     }
 
+    public function test_retired_product_blocks_permissions_are_hidden_but_persisted_for_audit(): void
+    {
+        $active = Permission::findOrCreate('view products', 'web');
+        $oldFeature = Permission::findOrCreate('view product_feature_blocks', 'web');
+        $oldDelivery = Permission::findOrCreate('create product_delivery_blocks', 'web');
+        $role = Role::findOrCreate('legacy_block_role', 'web');
+        $role->syncPermissions([$active, $oldFeature, $oldDelivery]);
+
+        $visible = AdminAccessCatalog::withoutRetiredPermissions(Permission::query())
+            ->pluck('name')
+            ->all();
+        $this->assertContains('view products', $visible);
+        $this->assertNotContains('view product_feature_blocks', $visible);
+        $this->assertNotContains('create product_delivery_blocks', $visible);
+        $this->assertEqualsCanonicalizing(
+            [(string) $active->id],
+            AdminAccessCatalog::selectedGroups($role->fresh()->load('permissions'))['products']
+        );
+        $this->assertCount(3, $role->fresh()->permissions);
+    }
+
     public function test_dictionary_has_russian_descriptions_and_keeps_unknown_keys(): void
     {
         $this->assertSame('Каталог и товары', AdminAccessCatalog::domainLabel('create attributes'));
