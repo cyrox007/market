@@ -6,7 +6,6 @@ use App\Filament\Resources\News\ArticleResource;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Users\UserResource;
-use App\Filament\Resources\InteriorIdeas\InteriorIdeaResource;
 use App\Filament\Resources\Sliders\SliderResource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\Widget;
@@ -104,23 +103,6 @@ class QuickActionsWidget extends Widget
                 $actions[] = [
                     'label' => 'Добавить слайдер',
                     'url' => SliderResource::getUrl('create'),
-                    'icon' => Heroicon::OutlinedPlusCircle,
-                    'color' => 'success',
-                ];
-            }
-        }
-
-        if ($user->can('viewAny interior_ideas')) {
-            $actions[] = [
-                'label' => 'Идеи интерьера',
-                'url' => InteriorIdeaResource::getUrl('index'),
-                'icon' => Heroicon::OutlinedHomeModern,
-                'color' => 'warning',
-            ];
-            if ($user->can('create interior_ideas')) {
-                $actions[] = [
-                    'label' => 'Добавить идею',
-                    'url' => InteriorIdeaResource::getUrl('create'),
                     'icon' => Heroicon::OutlinedPlusCircle,
                     'color' => 'success',
                 ];
