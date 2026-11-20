@@ -231,83 +231,10 @@ class ProductControllerTest extends TestCase
                     'price',
                     'description',
                     'images',
-                    'feature_blocks',
-                    'delivery_blocks',
                 ],
-            ]);
-    }
-
-    public function test_product_details_includes_feature_blocks_from_category(): void
-    {
-        $category = \App\Models\Product\Category::factory()->create();
-        $product = Product::factory()->create([
-            'state' => 'active',
-            'slug' => 'test-product',
-            'parent_product_id' => null,
-        ]);
-        $product->taxons()->attach($category->id);
-
-        $featureBlock = \App\Models\Product\ProductFeatureBlock::factory()->create([
-            'is_active' => true,
-        ]);
-        $category->featureBlocks()->attach($featureBlock->id);
-
-        $response = $this->getJson("/api/v1/products/{$product->slug}");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('product.feature_blocks.0.id', $featureBlock->id)
-            ->assertJsonPath('product.feature_blocks.0.title', $featureBlock->title);
-    }
-
-    public function test_product_details_includes_delivery_blocks_from_category(): void
-    {
-        $category = \App\Models\Product\Category::factory()->create();
-        $product = Product::factory()->create([
-            'state' => 'active',
-            'slug' => 'test-product',
-            'parent_product_id' => null,
-        ]);
-        $product->taxons()->attach($category->id);
-
-        $deliveryBlock = \App\Models\Product\ProductDeliveryBlock::factory()->create([
-            'is_active' => true,
-        ]);
-        $category->deliveryBlocks()->attach($deliveryBlock->id);
-
-        $response = $this->getJson("/api/v1/products/{$product->slug}");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('product.delivery_blocks.0.id', $deliveryBlock->id)
-            ->assertJsonPath('product.delivery_blocks.0.title', $deliveryBlock->title);
-    }
-
-    public function test_product_details_prioritizes_product_blocks_over_category_blocks(): void
-    {
-        $category = \App\Models\Product\Category::factory()->create();
-        $product = Product::factory()->create([
-            'state' => 'active',
-            'slug' => 'test-product',
-            'parent_product_id' => null,
-        ]);
-        $product->taxons()->attach($category->id);
-
-        $productBlock = \App\Models\Product\ProductFeatureBlock::factory()->create([
-            'title' => 'Product Block',
-            'is_active' => true,
-        ]);
-        $categoryBlock = \App\Models\Product\ProductFeatureBlock::factory()->create([
-            'title' => 'Category Block',
-            'is_active' => true,
-        ]);
-
-        $product->featureBlocks()->attach($productBlock->id);
-        $category->featureBlocks()->attach($categoryBlock->id);
-
-        $response = $this->getJson("/api/v1/products/{$product->slug}");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('product.feature_blocks.0.id', $productBlock->id)
-            ->assertJsonPath('product.feature_blocks.0.title', 'Product Block');
+            ])
+            ->assertJsonMissingPath('product.feature_blocks')
+            ->assertJsonMissingPath('product.delivery_blocks');
     }
 
     public function test_can_get_related_products(): void

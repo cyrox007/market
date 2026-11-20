@@ -60,9 +60,6 @@ php artisan db:seed --class=ProductCollectionSeeder
 # Сопутствующие товары (до 4 на каждый основной товар)
 php artisan db:seed --class=ProductRelatedSeeder
 
-# Блоки характеристик и доставки для товаров
-php artisan db:seed --class=ProductBlocksSeeder
-
 # Дополнительные услуги (сборка, подъем и т.д.)
 php artisan db:seed --class=AdditionalServicesSeeder
 
@@ -198,16 +195,6 @@ php artisan db:seed --class=RolesAndPermissionsSeeder
 - **Критичность**: Низкая - для блока «С этим товаром покупают» на странице товара
 - **Зависимости**: FurnitureCatalogSeeder
 
-### ProductBlocksSeeder
-
-- **Назначение**: Создает и наполняет два типа блоков для карточки товара:
-    - **Блоки фич товара** (иконки с короткими преимуществами: быстрая доставка, гарантия, сборка, возврат и т.п.)
-    - **Блоки доставки** (развернутые описания условий доставки по городу, в регионы, сборки и т.д.)
-  Привязывает эти блоки к случайному подмножеству активных категорий (через pivot‑таблицы `category_feature_blocks` и `category_delivery_blocks`) с сортировкой, чтобы на карточках товаров в этих категориях отображались секции «Фичи товара» и «Доставка».
-- **Критичность**: Низкая - для наполнения детальных страниц товара маркетинговыми блоками, не критично для базовой работы магазина
-- **Зависимости**: 
-    - `FurnitureCatalogSeeder` (нужны активные категории для привязки блоков)
-
 ### AdditionalServicesSeeder
 
 - **Назначение**: Дополнительные услуги (сборка, подъем)
@@ -287,7 +274,6 @@ php artisan db:seed --class=RolesAndPermissionsSeeder
 
     ```bash
     php artisan db:seed --class=ProductCollectionSeeder
-    php artisan db:seed --class=ProductBlocksSeeder
     php artisan db:seed --class=AdditionalServicesSeeder
     php artisan db:seed --class=StoresSeeder
     php artisan db:seed --class=InteriorIdeasSeeder

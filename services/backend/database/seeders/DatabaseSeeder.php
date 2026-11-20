@@ -77,9 +77,6 @@ class DatabaseSeeder extends Seeder
         // Заполняем подборки товаров
         $this->call(ProductCollectionSeeder::class);
 
-        // Заполняем блоки фич и доставки
-        $this->call(ProductBlocksSeeder::class);
-
         // Заполняем магазины демо данными
         $this->call(StoresSeeder::class);
 

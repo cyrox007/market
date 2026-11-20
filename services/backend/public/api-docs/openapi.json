@@ -764,18 +764,6 @@
             },
             "description": "Выбранные цветовые решения конкретного SKU; на родительской вариативной группе может быть пусто."
           },
-          "feature_blocks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "delivery_blocks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
           "documents": {
             "type": "array",
             "description": "Опубликованные инструкции и документы в порядке, заданном в админке; пустой массив, если их нет",
@@ -875,7 +863,7 @@
             }
           }
         },
-        "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, feature_blocks, delivery_blocks, nearest_stock."
+        "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, nearest_stock."
       },
       "Slider": {
         "type": "object",

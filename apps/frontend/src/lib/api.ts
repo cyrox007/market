@@ -797,26 +797,6 @@ export interface BundleComponent {
   total?: number;
 }
 
-export interface ProductFeatureBlock {
-  id: number;
-  title: string;
-  subtitle?: string | null;
-  icon?: string | null;
-  icon_image?: string | null;
-  icon_color: string;
-  bg_color: string;
-}
-
-export interface ProductDeliveryBlock {
-  id: number;
-  title: string;
-  description?: string | null;
-  icon?: string | null;
-  icon_image?: string | null;
-  icon_color: string;
-  bg_color: string;
-}
-
 export interface WarehouseStock {
   warehouse_id: number;
   warehouse_name: string;
@@ -866,8 +846,6 @@ export interface ProductDetail extends Product {
   variants?: ProductVariant[]; // ВАЖНО: Все вариации для сравнения на фронтенде
   selected_variation?: SelectedVariationItem[];
   delivery_days?: number | null;
-  feature_blocks?: ProductFeatureBlock[];
-  delivery_blocks?: ProductDeliveryBlock[];
 }
 
 export interface VariantInfo {

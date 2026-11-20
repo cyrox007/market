@@ -11,9 +11,7 @@ use App\Models\Product\Category;
 use App\Models\Product\Color\ProductColorRow;
 use App\Models\Product\Manufacturer;
 use App\Models\Product\ProductCollection;
-use App\Models\Product\ProductDeliveryBlock;
 use App\Models\Product\ProductDocument;
-use App\Models\Product\ProductFeatureBlock;
 use App\Models\Product\ProductRegionRule;
 use App\Models\Product\Review;
 use App\Models\Traits\Cacheable;
@@ -187,26 +185,6 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
             'model_id',
             'taxon_id'
         );
-    }
-
-    public function deliveryBlocks(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            ProductDeliveryBlock::class,
-            'product_delivery_blocks_pivot',
-            'product_id',
-            'delivery_block_id'
-        )->withPivot('sort_order')->withTimestamps();
-    }
-
-    public function featureBlocks(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            ProductFeatureBlock::class,
-            'product_feature_blocks_pivot',
-            'product_id',
-            'feature_block_id'
-        )->withPivot('sort_order')->withTimestamps();
     }
 
     /**
