@@ -9,7 +9,10 @@ foreach(\Filament\Facades\Filament::getPanel('admin_sv')->getResources() as $res
 <script>
 (()=>{
  if(window.__editingPresence)return;window.__editingPresence=true;
- const resources=@js($presenceResources), actorId=@js((string) auth('web')->id()), windowId=crypto.randomUUID();let busy=false;
+ const resources=@js($presenceResources), actorId=@js((string) auth('web')->id());
+ const windowId=typeof crypto.randomUUID==='function'?crypto.randomUUID():
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const v=crypto.getRandomValues(new Uint8Array(1))[0]&15;return (c==='x'?v:(v&3)|8).toString(16);});
+ let busy=false;
  const endpoint=@js(url('/admin_sv/editing-presence'));
  function target(url,editOnly=false){try{const path=new URL(url,location.href).pathname;for(const r of resources){const base=new URL(r.url).pathname;const tail=path.slice(base.length).match(/^\/([^/]+)(?:\/(edit|operator-edit))?$/);if(path.startsWith(base)&&tail&&(!editOnly||tail[2])&&!['create','import','sort'].includes(tail[1]))return {resource:r.slug,record:decodeURIComponent(tail[1])};}}catch{}return null;}
  async function tick(){if(busy||!window.Livewire)return;busy=true;
