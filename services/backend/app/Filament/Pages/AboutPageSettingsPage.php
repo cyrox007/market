@@ -34,6 +34,15 @@ class AboutPageSettingsPage extends Page implements HasForms
 
     protected static ?int $navigationSort = 40;
 
+    /**
+     * Legacy duplicate of AboutPageResource, which edits the same singleton.
+     * Keep the existing route for bookmarks, but show only one editor in the menu.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public ?array $data = [];
 
     public function mount(): void
