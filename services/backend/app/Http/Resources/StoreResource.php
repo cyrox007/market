@@ -36,6 +36,7 @@ class StoreResource extends JsonResource
             'gar_guid' => $site?->gar_guid,
             'kladr_code' => $site?->kladr_code,
             'phone' => $this->phone,
+            'email' => $this->email,
             'hours' => $this->hours,
             'opening_hours' => $this->opening_hours,
             'timezone' => $this->timezone ?? 'Europe/Moscow',

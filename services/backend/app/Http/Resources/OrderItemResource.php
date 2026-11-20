@@ -58,8 +58,10 @@ class OrderItemResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'name' => $this->name,
+            'display' => app(\App\Services\Order\OrderItemDisplay::class)->present($this->resource),
             'product_id' => $this->product_id,
-            'product' => new ProductResource($product),
+            'product' => $this->when($this->relationLoaded('product'), fn () => $this->product ? new ProductResource($this->product) : null),
             'quantity' => (int) $this->quantity,
             'bundle' => $this->pricing_snapshot['bundle'] ?? null,
             'price' => (float) $this->price, // Цена уже сохранена с учетом правил при создании заказа

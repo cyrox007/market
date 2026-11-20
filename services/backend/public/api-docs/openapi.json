@@ -1042,7 +1042,8 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "hours": {
             "type": "string",
@@ -1124,6 +1125,11 @@
           "pickup_enabled": {
             "type": "boolean",
             "description": "Выдача разрешена настройками магазина; фактическая доступность SKU — в shipping/quote.pickup"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true
           }
         }
       },
@@ -1740,6 +1746,12 @@
           "delivery_days": {
             "type": "integer",
             "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/OrderItemDisplay"
           }
         }
       },
@@ -1940,6 +1952,9 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "manager_contact": {
+            "$ref": "#/components/schemas/OrderManagerContact"
           }
         },
         "description": "OrderResource (main). Поля can_pay/payform_url/payment_seconds_left — для сценария онлайн-оплаты и таймера. Часть связей (shipping_method, region…) — условные (whenLoaded)."
@@ -2934,6 +2949,208 @@
           "new_product_notifications": {
             "type": "boolean",
             "description": "Сохранено для совместимости, канал не подключён"
+          }
+        }
+      },
+      "OrderItemDisplay": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "snapshot",
+              "legacy"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "article": {
+            "type": "string",
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "nullable": true
+          },
+          "parent_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorRow"
+            }
+          },
+          "bundle": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "configuration": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "OrderManagerContact": {
+        "type": "object",
+        "properties": {
+          "store_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "store_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "regional_store",
+                  "global"
+                ]
+              }
+            }
+          },
+          "email": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "regional_store",
+                  "global"
+                ]
+              }
+            }
+          },
+          "hours": {
+            "type": "string",
+            "nullable": true
+          },
+          "working_hours": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {}
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "phone",
+                    "email"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "primary_action": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "phone",
+                  "email"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "nullable": true
           }
         }
       }
@@ -9070,6 +9287,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9082,9 +9302,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории."
@@ -9116,6 +9333,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9128,9 +9348,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         }
       }
@@ -9161,6 +9378,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9173,9 +9393,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
@@ -9207,6 +9424,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9219,9 +9439,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "requestBody": {
@@ -9276,6 +9493,9 @@
               }
             }
           },
+          "401": {
+            "description": "Требуется авторизация"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9288,9 +9508,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "401": {
-            "description": "Требуется авторизация"
           }
         },
         "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
@@ -9423,6 +9640,9 @@
               }
             }
           },
+          "403": {
+            "description": "Недействительная подпись"
+          },
           "422": {
             "description": "Ошибка валидации",
             "content": {
@@ -9435,9 +9655,6 @@
           },
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
-          },
-          "403": {
-            "description": "Недействительная подпись"
           }
         },
         "parameters": [

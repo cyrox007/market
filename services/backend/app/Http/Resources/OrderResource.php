@@ -28,6 +28,8 @@ class OrderResource extends JsonResource
             'paid_at' => $presentation['payment']['paid_at'],
             'id' => $this->id,
             'number' => $this->number,
+            'manager_contact' => $this->when(! ($request->isMethod('GET') && $request->is('api/v1/orders')),
+                fn () => app(\App\Services\Order\OrderManagerContact::class)->resolve($this->resource)),
             'status' => $this->status,
             'status_label' => $this->getStatusLabel(),
             'subtotal' => (float) $this->subtotal,
