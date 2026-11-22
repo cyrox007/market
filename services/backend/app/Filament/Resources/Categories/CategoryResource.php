@@ -5,8 +5,6 @@ namespace App\Filament\Resources\Categories;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
 use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
-use App\Filament\Resources\Categories\RelationManagers\CategoryDeliveryBlocksRelationManager;
-use App\Filament\Resources\Categories\RelationManagers\CategoryFeatureBlocksRelationManager;
 use App\Filament\Resources\Categories\RelationManagers\CategoryProductsRelationManager;
 use App\Filament\Resources\Categories\RelationManagers\CategoryVariationAttributesRelationManager;
 use App\Filament\Resources\Categories\Schemas\CategoryForm;
@@ -51,8 +49,6 @@ class CategoryResource extends Resource
     {
         return [
             CategoryProductsRelationManager::class,
-            CategoryFeatureBlocksRelationManager::class,
-            CategoryDeliveryBlocksRelationManager::class,
             CategoryVariationAttributesRelationManager::class,
         ];
     }

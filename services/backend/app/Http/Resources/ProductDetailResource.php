@@ -4,9 +4,7 @@ namespace App\Http\Resources;
 
 use App\Helpers\StockCategoryHelper;
 use App\Models\Product\Product;
-use App\Models\Product\ProductDeliveryBlock;
 use App\Models\Product\ProductDocument;
-use App\Models\Product\ProductFeatureBlock;
 use App\Models\Shipping\ShippingLocation;
 use App\Services\Inventory\WarehousePriorityResolver;
 use App\Services\Inventory\WarehouseStockResolver;
@@ -355,38 +353,6 @@ class ProductDetailResource extends JsonResource
             }
         }
 
-        // Получаем блоки фич и доставки для товара (с учетом переопределения)
-        // Используем eager loaded данные если доступны для оптимизации
-        $featureBlocks = ProductFeatureBlock::getForProduct($sourceProduct)
-            ->map(function ($block) {
-                return [
-                    'id' => $block->id,
-                    'title' => $block->title,
-                    'subtitle' => $block->subtitle,
-                    'icon' => $block->icon && $block->icon !== '[]' ? $block->icon : null,
-                    'icon_image' => $block->icon_image_url,
-                    'icon_color' => $block->icon_color,
-                    'bg_color' => $block->bg_color,
-                ];
-            })
-            ->values()
-            ->toArray();
-
-        $deliveryBlocks = ProductDeliveryBlock::getForProduct($sourceProduct)
-            ->map(function ($block) {
-                return [
-                    'id' => $block->id,
-                    'title' => $block->title,
-                    'description' => $block->description,
-                    'icon' => $block->icon && $block->icon !== '[]' ? $block->icon : null,
-                    'icon_image' => $block->icon_image_url,
-                    'icon_color' => $block->icon_color,
-                    'bg_color' => $block->bg_color,
-                ];
-            })
-            ->values()
-            ->toArray();
-
         // УПРОЩЕННАЯ ЛОГИКА: Всегда возвращаем данные напрямую
         // Для вариаций: sku и price берутся из самой вариации (с применением правил для цены)
         // ВАЖНО: Для вариаций всегда используем sku самой вариации, а не родительского товара
@@ -561,8 +527,6 @@ class ProductDetailResource extends JsonResource
             'variation_attributes' => $variationAttributes,
             'selected_variation' => $selectedVariation,
             'seo' => SeoApiTransformer::forModel($this->resource),
-            'feature_blocks' => $featureBlocks,
-            'delivery_blocks' => $deliveryBlocks,
             'documents' => $this->documentsForApi($sourceProduct),
             'colors' => $productColors->rows($this->resource),
             'palette' => $sourceProduct->isVariable() ? $productColors->palette($sourceProduct, $colorVariants) : [],

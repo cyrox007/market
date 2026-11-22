@@ -764,18 +764,6 @@
             },
             "description": "Выбранные цветовые решения конкретного SKU; на родительской вариативной группе может быть пусто."
           },
-          "feature_blocks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "delivery_blocks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
           "documents": {
             "type": "array",
             "description": "Опубликованные инструкции и документы в порядке, заданном в админке; пустой массив, если их нет",
@@ -875,7 +863,7 @@
             }
           }
         },
-        "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, feature_blocks, delivery_blocks, nearest_stock."
+        "description": "Детальная карточка (GET /products/{slug}). Отличия от списка: main_image вместо image, заполнены sku/images, есть variants, nearest_stock."
       },
       "Slider": {
         "type": "object",
@@ -1042,7 +1030,8 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "hours": {
             "type": "string",
@@ -1124,6 +1113,11 @@
           "pickup_enabled": {
             "type": "boolean",
             "description": "Выдача разрешена настройками магазина; фактическая доступность SKU — в shipping/quote.pickup"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true
           }
         }
       },
@@ -1300,6 +1294,26 @@
           "phone": {
             "type": "string",
             "nullable": true
+          },
+          "first_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "last_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "patronymic": {
+            "type": "string",
+            "nullable": true
+          },
+          "email_verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "is_email_verified": {
+            "type": "boolean"
           }
         }
       },
@@ -1720,6 +1734,12 @@
           "delivery_days": {
             "type": "integer",
             "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/OrderItemDisplay"
           }
         }
       },
@@ -1912,6 +1932,17 @@
             "type": "object",
             "nullable": true,
             "description": "Снимок доставки с warehouse_allocations[] для мультискладского комплекта; warehouse_id при stock_mode=multi обозначает лишь ведущий склад"
+          },
+          "presentation": {
+            "$ref": "#/components/schemas/CustomerOrderPresentation"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "manager_contact": {
+            "$ref": "#/components/schemas/OrderManagerContact"
           }
         },
         "description": "OrderResource (main). Поля can_pay/payform_url/payment_seconds_left — для сценария онлайн-оплаты и таймера. Часть связей (shipping_method, region…) — условные (whenLoaded)."
@@ -2533,6 +2564,583 @@
             }
           }
         }
+      },
+      "CustomerOrderPayment": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unpaid",
+              "pay_on_receipt",
+              "partially_paid",
+              "paid",
+              "partially_refunded",
+              "refunded"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "amount_paid": {
+            "type": "number"
+          },
+          "amount_refunded": {
+            "type": "number"
+          },
+          "refund_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "manual_review",
+              "completed"
+            ]
+          },
+          "refund_label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "status",
+          "label",
+          "paid_at",
+          "amount_paid",
+          "amount_refunded",
+          "refund_status",
+          "refund_label"
+        ]
+      },
+      "CustomerOrderProgressStep": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Расширяемый серверный код этапа"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "current",
+              "pending",
+              "skipped",
+              "cancelled"
+            ]
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "state",
+          "occurred_at"
+        ]
+      },
+      "CustomerOrderPresentation": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "example": 1
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "active",
+              "completed",
+              "cancelled"
+            ]
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "label"
+            ]
+          },
+          "payment": {
+            "$ref": "#/components/schemas/CustomerOrderPayment"
+          },
+          "progress": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderProgressStep"
+            }
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "version",
+          "group",
+          "status",
+          "payment",
+          "progress",
+          "message"
+        ]
+      },
+      "CustomerOrderCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "number": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "status_label": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          },
+          "delivery_type": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "pickup"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items_count": {
+            "type": "integer"
+          },
+          "presentation": {
+            "$ref": "#/components/schemas/CustomerOrderPresentation"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "status_label",
+          "total",
+          "delivery_type",
+          "created_at",
+          "items_count",
+          "presentation"
+        ]
+      },
+      "CustomerOrderSummary": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "active": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancelled": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_order": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "number": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_label": {
+                "type": "string"
+              },
+              "total": {
+                "type": "number"
+              },
+              "delivery_type": {
+                "type": "string",
+                "enum": [
+                  "delivery",
+                  "pickup"
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "items_count": {
+                "type": "integer"
+              },
+              "presentation": {
+                "$ref": "#/components/schemas/CustomerOrderPresentation"
+              }
+            },
+            "required": [
+              "id",
+              "number",
+              "status",
+              "status_label",
+              "total",
+              "delivery_type",
+              "created_at",
+              "items_count",
+              "presentation"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "completed",
+          "cancelled",
+          "last_order"
+        ]
+      },
+      "CustomerOrderPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderCard"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ]
+      },
+      "AccountEmailStatus": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "is_verified": {
+            "type": "boolean"
+          },
+          "email_verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pending_email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true
+          },
+          "pending_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "email",
+          "is_verified",
+          "email_verified_at",
+          "pending_email",
+          "pending_expires_at"
+        ]
+      },
+      "AccountEmailAction": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmation_sent",
+              "already_verified",
+              "cancelled",
+              "email_verified",
+              "email_changed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "requires_login": {
+            "type": "boolean"
+          },
+          "expires_in": {
+            "type": "integer",
+            "example": 3600
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ]
+      },
+      "NotificationSettings": {
+        "type": "object",
+        "properties": {
+          "email_order_notifications": {
+            "type": "boolean",
+            "default": true,
+            "description": "Только уведомления об изменении статуса; сервисные подтверждения не отключает"
+          },
+          "email_promotions": {
+            "type": "boolean",
+            "default": false,
+            "description": "Акции и скидки; существующие значения сохранены, общий интервал рекламных отправок 7 суток"
+          },
+          "sms_order_notifications": {
+            "type": "boolean",
+            "description": "Сохранено для совместимости, канал не подключён"
+          },
+          "push_notifications": {
+            "type": "boolean",
+            "description": "Сохранено для совместимости, канал не подключён"
+          },
+          "new_product_notifications": {
+            "type": "boolean",
+            "description": "Сохранено для совместимости, канал не подключён"
+          }
+        }
+      },
+      "OrderItemDisplay": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "snapshot",
+              "legacy"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "article": {
+            "type": "string",
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "nullable": true
+          },
+          "parent_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorRow"
+            }
+          },
+          "bundle": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "configuration": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "OrderManagerContact": {
+        "type": "object",
+        "properties": {
+          "store_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "store_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "regional_store",
+                  "global"
+                ]
+              }
+            }
+          },
+          "email": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "regional_store",
+                  "global"
+                ]
+              }
+            }
+          },
+          "hours": {
+            "type": "string",
+            "nullable": true
+          },
+          "working_hours": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {}
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "phone",
+                    "email"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "primary_action": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "phone",
+                  "email"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          }
+        }
       }
     }
   },
@@ -2924,7 +3532,7 @@
       "put": {
         "operationId": "updateProfile",
         "summary": "Обновить профиль пользователя",
-        "description": "Обновляет имя и телефон пользователя",
+        "description": "Принимает name либо first_name/last_name/patronymic, не вместе. В раздельном режиме имя и фамилия обязательны. Историческое name автоматически не разбирается. Email меняется только отдельным процессом; поле email здесь запрещено.",
         "tags": [
           "Auth"
         ],
@@ -2951,6 +3559,21 @@
                     "type": "string",
                     "nullable": true,
                     "example": "+7 (999) 123-45-67"
+                  },
+                  "first_name": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255
+                  },
+                  "last_name": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255
+                  },
+                  "patronymic": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255
                   }
                 }
               }
@@ -2959,35 +3582,19 @@
         },
         "responses": {
           "200": {
-            "description": "Профиль обновлен",
+            "description": "Профиль сохранён",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "user": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "example": 1
-                        },
-                        "name": {
-                          "type": "string",
-                          "example": "Иван Иванов"
-                        },
-                        "email": {
-                          "type": "string",
-                          "example": "user@example.com"
-                        },
-                        "phone": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "+7 (999) 123-45-67"
-                        }
-                      }
+                      "$ref": "#/components/schemas/User"
                     }
-                  }
+                  },
+                  "required": [
+                    "user"
+                  ]
                 }
               }
             }
@@ -3091,34 +3698,19 @@
         ],
         "responses": {
           "200": {
-            "description": "Настройки уведомлений",
+            "description": "Текущие настройки",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "settings": {
-                      "type": "object",
-                      "properties": {
-                        "email_promotions": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "sms_order_notifications": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "push_notifications": {
-                          "type": "boolean",
-                          "example": false
-                        },
-                        "new_product_notifications": {
-                          "type": "boolean",
-                          "example": true
-                        }
-                      }
+                      "$ref": "#/components/schemas/NotificationSettings"
                     }
-                  }
+                  },
+                  "required": [
+                    "settings"
+                  ]
                 }
               }
             }
@@ -3131,7 +3723,7 @@
       "put": {
         "operationId": "updateNotificationSettings",
         "summary": "Обновить настройки уведомлений",
-        "description": "Обновляет настройки уведомлений пользователя",
+        "description": "Частичное обновление boolean-полей. email_promotions синхронизируется со списком подписчиков.",
         "tags": [
           "Auth"
         ],
@@ -3148,63 +3740,30 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "email_promotions": {
-                    "type": "boolean",
-                    "example": true
-                  },
-                  "sms_order_notifications": {
-                    "type": "boolean",
-                    "example": true
-                  },
-                  "push_notifications": {
-                    "type": "boolean",
-                    "example": false
-                  },
-                  "new_product_notifications": {
-                    "type": "boolean",
-                    "example": true
-                  }
-                }
+                "$ref": "#/components/schemas/NotificationSettings"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Настройки обновлены",
+            "description": "Настройки сохранены",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "message": {
-                      "type": "string",
-                      "example": "Настройки уведомлений обновлены"
+                      "type": "string"
                     },
                     "settings": {
-                      "type": "object",
-                      "properties": {
-                        "email_promotions": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "sms_order_notifications": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "push_notifications": {
-                          "type": "boolean",
-                          "example": false
-                        },
-                        "new_product_notifications": {
-                          "type": "boolean",
-                          "example": true
-                        }
-                      }
+                      "$ref": "#/components/schemas/NotificationSettings"
                     }
-                  }
+                  },
+                  "required": [
+                    "message",
+                    "settings"
+                  ]
                 }
               }
             }
@@ -5167,19 +5726,29 @@
         ],
         "responses": {
           "200": {
-            "description": "История заказов",
+            "description": "Полный ответ совместимости либо компактная страница",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Order"
-                      }
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Order"
+                          }
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/CustomerOrderPage"
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -5201,6 +5770,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Неверные параметры страницы или группы",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -5210,19 +5789,56 @@
             "required": false,
             "schema": {
               "type": "string",
+              "description": "Внутренний код; допускает будущие логистические статусы"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
               "enum": [
-                "new",
-                "awaiting_payment",
-                "accepted",
-                "assembled",
-                "shipped",
-                "in_transit",
-                "delivered",
+                "compact"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "completed",
                 "cancelled"
               ]
             }
           }
-        ]
+        ],
+        "description": "Без новых параметров сохраняется прежний полный data. view=compact либо наличие page/per_page/group включает компактную пагинацию с links/meta. Нет контактов, адреса, полного состава и истории. Сортировка created_at DESC, id DESC."
       }
     },
     "/api/v1/orders/{id}/payment-config": {
@@ -8631,6 +9247,424 @@
             "description": "Срок или состояние заказа не допускают обращение"
           }
         }
+      }
+    },
+    "/api/v1/orders/summary": {
+      "get": {
+        "operationId": "getOrderSummary",
+        "summary": "Счётчики и последняя компактная карточка заказа",
+        "tags": [
+          "Orders"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerOrderSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории."
+      }
+    },
+    "/api/v1/auth/email": {
+      "get": {
+        "operationId": "getAccountEmailStatus",
+        "summary": "Состояние подтверждения и заявки на смену почты",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEmailStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/verification": {
+      "post": {
+        "operationId": "requestEmailVerification",
+        "summary": "Отправить подтверждение текущей почты",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEmailAction"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
+      }
+    },
+    "/api/v1/auth/email/change": {
+      "post": {
+        "operationId": "requestEmailChange",
+        "summary": "Запросить смену почты с подтверждением нового адреса",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEmailAction"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 255
+                  },
+                  "current_password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                },
+                "required": [
+                  "email",
+                  "current_password"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
+      },
+      "delete": {
+        "operationId": "cancelEmailChange",
+        "summary": "Отменить незавершённую смену почты",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEmailAction"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
+      }
+    },
+    "/api/v1/auth/email/confirm": {
+      "post": {
+        "operationId": "confirmAccountEmail",
+        "summary": "Подтвердить почту или смену адреса по токену",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEmailAction"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 64,
+                    "pattern": "^[a-zA-Z0-9]+$"
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Ссылка действует 60 минут. Повторная отправка не чаще минуты. До подтверждения действует прежний email. После смены адреса прежние сессии и токены отзываются; требуется вход заново. Ошибки полей возвращаются с 422, лимит частоты — 429."
+      }
+    },
+    "/api/v1/newsletter/unsubscribe": {
+      "get": {
+        "operationId": "getNewsletterUnsubscribeConfirmation",
+        "summary": "Страница подтверждения отписки",
+        "tags": [
+          "Newsletter"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          {
+            "name": "signature",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Подпись сервера; передаётся целиком из ссылки письма"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Просмотр не меняет подписку",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недействительная подпись"
+          }
+        }
+      },
+      "post": {
+        "operationId": "unsubscribeNewsletter",
+        "summary": "Отключить рекламные письма по подписанной ссылке",
+        "tags": [
+          "Newsletter"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недействительная подпись"
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов; повторить после Retry-After"
+          }
+        },
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          {
+            "name": "signature",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Подпись сервера; передаётся целиком из ссылки письма"
+            }
+          }
+        ]
       }
     }
   }

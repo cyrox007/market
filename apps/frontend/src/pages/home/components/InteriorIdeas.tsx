@@ -1,14 +1,10 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { api, type InteriorIdeaHotspot } from '@/lib/api';
-import { useSSR } from '@/contexts/ssr-context';
 import { useCartActions } from '@/hooks/useCartActions';
 import { ArrowLeftRight, Heart, ImageIcon, Info, Minus, Plus } from 'lucide-react';
 
 export default function InteriorIdeas() {
-  const ssrData = useSSR();
-  const initialRooms = ssrData?.home?.interiorIdeas || [];
-
   const [activeHotspot, setActiveHotspot] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<number[]>([]);
   const [addedToCart, setAddedToCart] = useState<number[]>([]);
@@ -21,8 +17,7 @@ export default function InteriorIdeas() {
     '/api/interior-ideas',
     () => api.interiorIdeas.list(),
     {
-      fallbackData: initialRooms.length > 0 ? { data: initialRooms } : undefined,
-      revalidateOnMount: initialRooms.length === 0,
+      revalidateOnMount: true,
       revalidateIfStale: true,
     },
   );

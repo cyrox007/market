@@ -82,6 +82,9 @@ export default function CheckoutPreview() {
     total: previewCart.subtotal + fulfillment,
     fulfillment,
     mode,
+    addressId: 1,
+    building: null,
+    quote: null,
     calculating: false,
     selected: {
       warehouse_id: 1,

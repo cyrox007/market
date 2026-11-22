@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Support\AdminAccessCatalog;
+
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -28,6 +30,9 @@ class UsersTable
                     ->searchable(),
                 TextColumn::make('roles.name')
                     ->label('Роли')
+                    ->formatStateUsing(fn ($state): string => is_array($state)
+                        ? implode(', ', array_map(fn ($name): string => AdminAccessCatalog::roleTitle((string) $name), $state))
+                        : AdminAccessCatalog::roleTitle((string) $state))
                     ->badge()
                     ->separator(',')
                     ->color('primary'),

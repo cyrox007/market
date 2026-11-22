@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.mocked(api.orders.list).mockResolvedValue({ data: [] });
   vi.mocked(api.addresses.list).mockResolvedValue({ data: [] });
   vi.mocked(api.auth.getNotificationSettings).mockResolvedValue({ settings: {
-    email_promotions: true, sms_order_notifications: true, push_notifications: false, new_product_notifications: true,
+    email_promotions: true, email_order_notifications: true, sms_order_notifications: true, push_notifications: false, new_product_notifications: true,
   } });
 });
 afterEach(cleanup);
@@ -127,4 +127,14 @@ it('saves separate name fields through the new profile card editor', async () =>
   await waitFor(() => expect(updateProfile).toHaveBeenCalledExactlyOnceWith({
     first_name: 'Анна', last_name: 'Смирнова', patronymic: 'Игоревна', phone: '+79103561842',
   }));
+});
+it('shows working email controls and hides unsupported channels', async () => {
+  openProfile();
+  fireEvent.click(screen.getByRole('link', { name: 'Настройки профиля' }));
+  expect(await screen.findByRole('checkbox', { name: 'Статус заказа на email' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /Акции и скидки на email/ })).toBeChecked();
+  expect(screen.getByText('Не чаще одного раза в неделю')).toBeInTheDocument();
+  expect(screen.queryByText('SMS-уведомления о заказах')).not.toBeInTheDocument();
+  expect(screen.queryByText('Push-уведомления')).not.toBeInTheDocument();
+  expect(screen.queryByText('Уведомления о новинках')).not.toBeInTheDocument();
 });

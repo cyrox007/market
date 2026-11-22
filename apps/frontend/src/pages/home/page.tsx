@@ -2,10 +2,7 @@ import { PromoBoardConnected } from './components/PromoBoard';
 import { CategoryCarouselConnected } from './components/CategoryCarousel';
 import { PromoBannerConnected } from './components/PromoBanner';
 import FeaturedProducts from './components/FeaturedProducts';
-// В макете главной этих разделов нет. Сами файлы оставлены — вёрстка Readdy, пойдёт под замену.
-// import InteriorIdeas from './components/InteriorIdeas';
-// import WhyChooseUs from './components/WhyChooseUs';
-// import Newsletter from './components/Newsletter';
+// Прежние блоки «Идеи для интерьера» и подписки не входят в действующий макет главной.
 
 import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
@@ -27,9 +24,6 @@ export default function Home() {
       <CategoryCarouselConnected />
       <FeaturedProducts />
       <PromoBannerConnected />
-      {/* <InteriorIdeas /> */}
-      {/* <WhyChooseUs /> */}
-      {/* <Newsletter /> */}
     </div>
   );
 }

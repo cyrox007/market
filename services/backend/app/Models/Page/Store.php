@@ -38,6 +38,7 @@ class Store extends Model implements HasMedia, PageableContract
         'address',
         'city',
         'phone',
+        'email',
         'hours',
         'coordinates',
         'latitude',

@@ -27,6 +27,7 @@ class OrderItem extends Model
             'price' => 'decimal:2',
             'total' => 'decimal:2',
             'pricing_snapshot' => 'array',
+            'display_snapshot' => 'array',
         ];
     }
 
@@ -38,22 +39,21 @@ class OrderItem extends Model
     {
         parent::boot();
 
-        static::creating(function ($orderItem) {
-            // Если product_type не указан, получаем его из продукта
-            if (empty($orderItem->product_type) && $orderItem->product_id) {
-                $product = Product::find($orderItem->product_id);
-                if ($product) {
-                    $orderItem->product_type = $product->morphTypeName();
-                }
+        static::updating(function (self $item): void {
+            if ($item->getRawOriginal('display_snapshot') !== null && $item->isDirty(['display_snapshot', 'product_id'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['display_snapshot' => 'Состав оформленного товара зафиксирован и не может быть подменён.']);
             }
-
-            // Если name не указан, получаем его из продукта
-            if (empty($orderItem->name) && $orderItem->product_id) {
-                $product = Product::find($orderItem->product_id);
-                if ($product) {
-                    $orderItem->name = $product->getName();
-                }
+        });
+        static::creating(function (self $orderItem): void {
+            $product = $orderItem->product_id ? Product::find($orderItem->product_id) : null;
+            if ($product && empty($orderItem->product_type)) {
+                $orderItem->product_type = $product->morphTypeName();
             }
+            if ($product && empty($orderItem->name)) {
+                $orderItem->name = $product->getName();
+            }
+            $orderItem->display_snapshot = $product
+                ? app(\App\Services\Order\OrderItemDisplay::class)->capture($product, $orderItem) : null;
         });
     }
 

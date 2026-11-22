@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Support\AdminAccessCatalog;
 use App\Support\PhoneNumber;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
@@ -54,18 +55,15 @@ class UserForm
                             ->required(fn(string $context): bool => $context === 'create')
                             ->maxLength(255),
                     ])->columns(2),
-                Section::make('Роли и разрешения')
+                Section::make('Доступ сотрудника')
+                    ->description('Назначьте роли по должностным обязанностям. Права всех выбранных ролей суммируются.')
                     ->schema([
                         CheckboxList::make('roles')
-                            ->label('Роли')
-                            ->options(function () {
-                                return \Spatie\Permission\Models\Role::orderBy('name')->pluck('name', 'id')->toArray();
-                            })
-                            ->searchable()
-                            ->bulkToggleable()
-                            ->gridDirection('row')
-                            ->columns(2)
-                            ->helperText('Выберите роли для этого пользователя'),
+                            ->label('Назначенные роли')
+                            ->options(fn (): array => AdminAccessCatalog::roleOptions())
+                            ->descriptions(fn (): array => AdminAccessCatalog::roleDescriptions())
+                            ->columns(1)
+                            ->helperText('Для изменения разрешений откройте раздел «Права доступа → Роли».'),
                     ]),
             ]);
     }

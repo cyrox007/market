@@ -242,6 +242,14 @@ export const api = {
       priced_components: Array<{ colors?: ProductColorRow[]; product_id: number; name: string; sku: string; quantity: number; unit_price: number; total: number }>;
     }>('/orders/one-click', { method: 'POST', body: JSON.stringify({ bundle_id, primary_sku_id, quantity }) }),
     list: () => fetchAPI<{ data: Order[] }>('/orders'),
+    summary: () => fetchAPI<OrderSummary>('/orders/summary'),
+    listCompact: (params: { page?: number; per_page?: number; group?: CustomerOrderGroup } = {}) => {
+      const query = new URLSearchParams({ view: 'compact' });
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) query.set(key, String(value));
+      }
+      return fetchAPI<{ data: CustomerOrderCard[]; meta: { current_page: number; last_page: number; per_page: number; total: number }; links: { first: string; last: string; prev: string | null; next: string | null } }>(`/orders?${query}`);
+    },
     get: (id: number) => fetchAPI<{ order: Order }>(`/order-access/${id}`, { headers: guestOrderHeaders(id) }),
     create: async (data: any) => {
       const body = JSON.stringify(data);
@@ -789,26 +797,6 @@ export interface BundleComponent {
   total?: number;
 }
 
-export interface ProductFeatureBlock {
-  id: number;
-  title: string;
-  subtitle?: string | null;
-  icon?: string | null;
-  icon_image?: string | null;
-  icon_color: string;
-  bg_color: string;
-}
-
-export interface ProductDeliveryBlock {
-  id: number;
-  title: string;
-  description?: string | null;
-  icon?: string | null;
-  icon_image?: string | null;
-  icon_color: string;
-  bg_color: string;
-}
-
 export interface WarehouseStock {
   warehouse_id: number;
   warehouse_name: string;
@@ -858,8 +846,6 @@ export interface ProductDetail extends Product {
   variants?: ProductVariant[]; // ВАЖНО: Все вариации для сравнения на фронтенде
   selected_variation?: SelectedVariationItem[];
   delivery_days?: number | null;
-  feature_blocks?: ProductFeatureBlock[];
-  delivery_blocks?: ProductDeliveryBlock[];
 }
 
 export interface VariantInfo {
@@ -1220,13 +1206,38 @@ export interface ProfileUpdateData {
 }
 
 export interface NotificationSettings {
+  email_order_notifications: boolean;
   email_promotions: boolean;
   sms_order_notifications: boolean;
   push_notifications: boolean;
   new_product_notifications: boolean;
 }
 
+export type CustomerOrderGroup = 'active' | 'completed' | 'cancelled';
+export interface CustomerOrderPresentation {
+  version: number;
+  group: CustomerOrderGroup;
+  status: { code: string; label: string };
+  payment: {
+    status: string; label: string; paid_at: string | null;
+    amount_paid: number; amount_refunded: number; refund_status: string; refund_label: string | null;
+  };
+  progress: Array<{ code: string; label: string; state: 'completed' | 'current' | 'pending' | 'skipped' | 'cancelled'; occurred_at: string | null }>;
+  message: string | null;
+}
+export interface CustomerOrderCard {
+  id: number; number: string; status: string; status_label: string; total: number;
+  delivery_type: string; created_at: string; items_count: number;
+  presentation: CustomerOrderPresentation;
+}
+export interface OrderSummary {
+  total: number; active: number; completed: number; cancelled: number;
+  last_order: CustomerOrderCard | null;
+}
+
 export interface Order {
+  presentation?: CustomerOrderPresentation;
+  paid_at?: string | null;
   fulfillment?: { warehouse_id?: number; store_id?: number | null; name?: string; warehouse_name?: string; address?: string | null; address_directory?: { label?: string | null } | null } | null;
   id: number;
   number: string;

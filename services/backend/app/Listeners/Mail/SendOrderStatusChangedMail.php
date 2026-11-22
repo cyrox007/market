@@ -26,6 +26,9 @@ class SendOrderStatusChangedMail implements ShouldQueue
     {
         try {
             $order = $event->getOrder();
+            if ($order->user_id && \App\Models\User::whereKey($order->user_id)->where('email_order_notifications', false)->exists()) {
+                return;
+            }
             $oldStatus = $event->getOldStatus();
             $newStatus = $event->getNewStatus();
 
@@ -45,13 +48,16 @@ class SendOrderStatusChangedMail implements ShouldQueue
             $mailable = new OrderStatusChangedMail($order, $oldStatus, $newStatus);
 
             // Отправляем письмо через сервис
-            $this->mailEventService->sendMailable(
+            $sent = $this->mailEventService->sendMailable(
                 'order.status_changed',
                 $order->contact_email,
                 $mailable,
                 $variables
             );
 
+            if (! $sent) {
+                return;
+            }
             Log::info("SendOrderStatusChangedMail: Mail sent for order", [
                 'order_id' => $order->id,
                 'order_number' => $order->number,
@@ -60,6 +66,9 @@ class SendOrderStatusChangedMail implements ShouldQueue
                 'email' => $order->contact_email,
             ]);
         } catch (\Exception $e) {
+            if ($e instanceof \App\Services\Mail\MailDeliveryException) {
+                throw $e;
+            }
             Log::error("SendOrderStatusChangedMail: Error sending mail", [
                 'order_id' => $event->getOrder()->id,
                 'error' => $e->getMessage(),

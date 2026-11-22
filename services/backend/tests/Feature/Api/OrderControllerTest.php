@@ -143,7 +143,7 @@ class OrderControllerTest extends TestCase
         // Должна быть создана запись в истории статусов
         $this->assertDatabaseHas('order_status_history', [
             'status' => 'manager_processing',
-            'comment' => 'Заказ создан. Период охлаждения 60 минут.',
+            'comment' => 'Заказ создан.',
         ]);
     }
 

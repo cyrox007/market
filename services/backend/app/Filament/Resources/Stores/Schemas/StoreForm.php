@@ -71,17 +71,31 @@ class StoreForm
                             ->unique(ignoreRecord: true),
                         TextInput::make('phone')
                             ->label(__('filament/admin_sv/store_resource.phone'))
-                            ->required()
+                            ->nullable()
                             ->tel()
                             ->telRegex('/^[+0-9()\s.\-]+$/')
                             ->rule(static fn (): \Closure => static function (string $attribute, mixed $value, \Closure $fail): void {
-                                if (! \App\Support\PhoneNumber::isValidRu(\App\Support\PhoneNumber::normalize((string) $value))) {
+                                if (filled($value) && ! \App\Support\PhoneNumber::isValidRu(\App\Support\PhoneNumber::normalize((string) $value))) {
                                     $fail('Введите полный российский номер: +7 (800) 222-85-86 или 8 (800) 222-85-86.');
                                 }
                             })
-                            ->dehydrateStateUsing(fn ($state) => \App\Support\PhoneNumber::normalize($state))
+                            ->dehydrateStateUsing(fn ($state) => filled($state) ? \App\Support\PhoneNumber::normalize($state) : null)
                             ->maxLength(50)
                             ->helperText('Можно вводить с +7 или 8, со скобками, пробелами и дефисами.'),
+                        Select::make('shipping_location_id')->label('Регион контактов')
+                            ->searchable()
+                            ->getSearchResultsUsing(fn (string $search): array => \App\Models\Shipping\ShippingLocation::query()
+                                ->where('is_active', true)
+                                ->where('name', 'like', '%'.$search.'%')
+                                ->orderBy('name')
+                                ->limit(50)
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->getOptionLabelUsing(fn ($value): ?string => \App\Models\Shipping\ShippingLocation::query()
+                                ->find($value)?->name)
+                            ->helperText('Город или регион, для которого используются контакты магазина.'),
+                        TextInput::make('email')->label('Email магазина')->email()->maxLength(255)
+                            ->helperText('Если не указан, для связи по заказу используется email из глобальных контактов.'),
                         TextInput::make('hours')
                             ->label(__('filament/admin_sv/store_resource.hours'))
                             ->maxLength(255)

@@ -9,6 +9,7 @@ vi.mock('../../lib/api', () => ({
 }));
 const settings = {
   email_promotions: false,
+  email_order_notifications: true,
   sms_order_notifications: true,
   push_notifications: true,
   new_product_notifications: false,
@@ -46,12 +47,12 @@ it('saves only one pending intent through SWR while preserving all unrelated ser
       }),
   );
   open();
-  const email = await screen.findByRole('checkbox', { name: 'Акции и скидки' });
-  expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+  const email = await screen.findByRole('checkbox', { name: 'Акции и скидки на email' });
+  expect(screen.getAllByRole('checkbox')).toHaveLength(2);
   fireEvent.click(email);
   expect(email).toBeChecked();
   expect(email).toBeDisabled();
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Статус заказа по SMS' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Статус заказа на email' }));
   await waitFor(() => expect(api.auth.updateNotificationSettings).toHaveBeenCalledTimes(1));
   expect(api.auth.updateNotificationSettings).toHaveBeenCalledWith({
     ...settings,
@@ -61,12 +62,13 @@ it('saves only one pending intent through SWR while preserving all unrelated ser
     finish({ message: 'OK', settings: { ...settings, email_promotions: true } }),
   );
   expect(await screen.findByText('Настройки уведомлений сохранены')).toBeInTheDocument();
-  expect(screen.getByRole('checkbox', { name: 'Статус заказа по SMS' })).toBeChecked();
+  expect(screen.queryByRole('checkbox', { name: 'Статус заказа по SMS' })).not.toBeInTheDocument();
   expect(screen.queryByRole('checkbox', { name: 'Push-уведомления' })).not.toBeInTheDocument();
   expect(
     screen.getByRole('checkbox', { name: 'Статус заказа на email' }),
-  ).toBeDisabled();
-  expect(screen.getByRole('checkbox', { name: 'Статус заказа на email' })).not.toBeChecked();
+  ).not.toBeDisabled();
+  expect(screen.getByRole('checkbox', { name: 'Статус заказа на email' })).toBeChecked();
+  expect(screen.getByText('Не чаще одного раза в неделю')).toBeInTheDocument();
   expect(screen.queryByRole('checkbox', { name: 'Уведомления о новинках' })).not.toBeInTheDocument();
 });
 it('rolls back a failed preference with real SWR and retries only that intent', async () => {
@@ -74,7 +76,7 @@ it('rolls back a failed preference with real SWR and retries only that intent', 
     .mockRejectedValueOnce(new Error('offline'))
     .mockResolvedValueOnce({ message: 'OK', settings: { ...settings, email_promotions: true } });
   open();
-  const email = await screen.findByRole('checkbox', { name: 'Акции и скидки' });
+  const email = await screen.findByRole('checkbox', { name: 'Акции и скидки на email' });
   fireEvent.click(email);
   expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось сохранить настройки');
   expect(email).not.toBeChecked();
@@ -86,6 +88,19 @@ it('rolls back a failed preference with real SWR and retries only that intent', 
   expect(api.auth.updateNotificationSettings).toHaveBeenLastCalledWith({
     ...settings,
     email_promotions: true,
+  });
+});
+it('saves email order notifications without changing marketing or legacy channel preferences', async () => {
+  vi.mocked(api.auth.updateNotificationSettings).mockResolvedValue({
+    message: 'OK', settings: { ...settings, email_order_notifications: false },
+  });
+  open();
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Статус заказа на email' }));
+  expect(await screen.findByText('Настройки уведомлений сохранены')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Статус заказа на email' })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Акции и скидки на email' })).not.toBeChecked();
+  expect(api.auth.updateNotificationSettings).toHaveBeenCalledExactlyOnceWith({
+    ...settings, email_order_notifications: false,
   });
 });
 it('shows loading and failed reads without inventing unchecked preferences, then retries', async () => {
@@ -100,7 +115,7 @@ it('shows loading and failed reads without inventing unchecked preferences, then
   );
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
-  expect(await screen.findByRole('checkbox', { name: 'Статус заказа по SMS' })).toBeChecked();
+  expect(await screen.findByRole('checkbox', { name: 'Статус заказа на email' })).toBeChecked();
   expect(api.auth.getNotificationSettings).toHaveBeenCalledTimes(2);
 });
 

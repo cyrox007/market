@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Permissions;
 
+use App\Support\AdminAccessCatalog;
+
 use App\Filament\Resources\Permissions\Pages\ListPermissions;
 use BackedEnum;
 use Filament\Forms\Components\TextInput;
@@ -11,6 +13,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Spatie\Permission\Models\Permission;
 use UnitEnum;
 
@@ -32,6 +35,11 @@ class PermissionResource extends Resource
 
     protected static ?string $policy = \App\Policies\PermissionPolicy::class;
 
+    public static function getEloquentQuery(): Builder
+    {
+        return AdminAccessCatalog::withoutRetiredPermissions(parent::getEloquentQuery());
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -43,7 +51,7 @@ class PermissionResource extends Resource
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(255)
-                            ->helperText('Уникальное название разрешения (например: view products, create orders)'),
+                            ->helperText('Системный ключ используется политиками доступа. Менять его можно только после проверки всех связанных правил.'),
                     ]),
             ]);
     }
@@ -53,10 +61,16 @@ class PermissionResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')
-                    ->label('Название')
+                    ->label('Действие')
+                    ->formatStateUsing(fn (string $state): string => AdminAccessCatalog::actionLabel($state))
+                    ->description(fn (Permission $record): string => $record->name)
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
+                TextColumn::make('access_section')
+                    ->label('Раздел')
+                    ->state(fn (Permission $record): string => AdminAccessCatalog::resourceLabel($record->name))
+                    ->badge(),
                 TextColumn::make('roles_count')
                     ->label('Ролей')
                     ->counts('roles')

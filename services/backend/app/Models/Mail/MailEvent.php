@@ -19,6 +19,7 @@ class MailEvent extends Model
     }
 
     protected $fillable = [
+        'category',
         'code',
         'name',
         'description',

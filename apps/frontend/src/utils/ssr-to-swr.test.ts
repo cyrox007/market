@@ -48,6 +48,18 @@ describe('ssr-to-swr utilities', () => {
     expect(fallback['/api/products/new?region_id=2']).toBeTruthy();
     expect(fallback['/api/products/sale?region_id=2']).toBeTruthy();
   });
+  it('hydrates only the active homepage slider contract and not retired interior ideas', () => {
+    const top = { main: [{ id: 1 }], right_top: null, right_bottom: null };
+    const sliders = { top, bottom: [{ id: 2 }] };
+    const fallback = ssrToSwrFallback({
+      home: { sliders },
+    } as any);
+
+    expect(fallback['/api/sliders/home']).toEqual({ data: sliders });
+    expect(fallback['/api/sliders']).toBeUndefined();
+    expect(fallback['/api/interior-ideas']).toBeUndefined();
+  });
+
   it('never hydrates a normal product cache key with the private offer price', () => {
     const fallback = ssrToSwrFallback({ privateOfferContext: '7', product: { product: { slug: 'chair', price: 1000 } } });
     expect(fallback['/api/products/chair|offer:7']).toBeTruthy();

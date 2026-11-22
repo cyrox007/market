@@ -18,12 +18,17 @@ export type CheckoutSummaryState = Pick<
   | 'mode'
   | 'calculating'
   | 'selected'
+  | 'addressId'
+  | 'building'
+  | 'quote'
   | 'hasUnavailable'
   | 'busy'
   | 'canSubmit'
 >;
 
 export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSummaryState }) {
+  const hasAddress = Boolean(c.addressId || c.building);
+  const deliveryUnavailable = c.mode === 'delivery' && hasAddress && c.quote?.available === false;
   const discount = !c.direct && c.cart?.subtotal === c.subtotal ? (c.cart.discount_total ?? 0) : 0;
   const rows = !c.direct
     ? (c.cart?.items ?? [])
@@ -144,7 +149,7 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSum
             {c.calculating
               ? 'Расчёт…'
               : c.fulfillment == null
-                ? 'Не рассчитана'
+                ? deliveryUnavailable ? 'Недоступна' : 'Не рассчитана'
                 : money(c.fulfillment)}
           </span>
         </div>
@@ -153,7 +158,15 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSum
           <output aria-label="Итоговая стоимость">{money(c.total)}</output>
         </div>
         {c.mode === 'delivery' && !c.selected && (
-          <p className="text-12 text-ink-secondary">Выберите адрес для расчёта полной стоимости.</p>
+          <p className="text-12 text-ink-secondary">
+            {!hasAddress
+              ? 'Выберите адрес для расчёта полной стоимости.'
+              : c.calculating
+                ? 'Рассчитываем доставку по выбранному адресу…'
+                : deliveryUnavailable
+                  ? 'Для выбранного адреса и товаров нет доступной доставки.'
+                  : 'Не удалось рассчитать доставку по выбранному адресу. Обновите страницу или попробуйте позже.'}
+          </p>
         )}
         {c.hasUnavailable && (
           <p role="alert" className="text-14 text-brand-red">

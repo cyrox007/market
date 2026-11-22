@@ -21,7 +21,7 @@ vi.mock('../../lib/api', () => ({ api: {
   orders: { list: vi.fn().mockResolvedValue({ data: [] }) },
   bonuses: { balance: vi.fn().mockResolvedValue({ balance: 0 }), history: vi.fn().mockResolvedValue({ data: [] }) },
   auth: { getNotificationSettings: vi.fn().mockResolvedValue({ settings: {
-    email_promotions: false, sms_order_notifications: true, push_notifications: false, new_product_notifications: true,
+    email_promotions: false, email_order_notifications: true, sms_order_notifications: true, push_notifications: false, new_product_notifications: true,
   } }) },
 } }));
 

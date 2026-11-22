@@ -1,0 +1,28 @@
+name: Admin editing presence JS tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/tests/admin-editing-presence.test.mjs'
+      - 'services/backend/resources/views/filament/editing-presence.blade.php'
+      - '.github/workflows/admin-editing-presence.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'scripts/tests/admin-editing-presence.test.mjs'
+      - 'services/backend/resources/views/filament/editing-presence.blade.php'
+      - '.github/workflows/admin-editing-presence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  presence-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Filament editing presence client
+        run: node --test scripts/tests/admin-editing-presence.test.mjs

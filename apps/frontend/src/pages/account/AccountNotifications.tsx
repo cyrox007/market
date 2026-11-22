@@ -7,13 +7,13 @@ import { AccountDataError } from './AccountDataError';
 const choices = [
   {
     key: 'email_promotions',
-    label: 'Акции и скидки',
-    detail: 'Подборки распродаж и промокоды на email',
+    label: 'Акции и скидки на email',
+    detail: 'Не чаще одного раза в неделю',
   },
   {
-    key: 'sms_order_notifications',
-    label: 'Статус заказа по SMS',
-    detail: 'Оплата, отгрузка и доставка',
+    key: 'email_order_notifications',
+    label: 'Статус заказа на email',
+    detail: 'Уведомления об изменении статуса заказа',
   },
 ] as const;
 interface Props {
@@ -75,9 +75,9 @@ export default function AccountNotifications({
       {!settings ? (
         isLoading ? (
           <div role="status" aria-label="Загрузка настроек уведомлений" className="space-y-4">
-            {[1, 2, 3].map((n) => (
+            {choices.map(({ key }) => (
               <div
-                key={n}
+                key={key}
                 className="h-10 w-full max-w-lg animate-pulse rounded-btn bg-surface-border motion-reduce:animate-none"
               />
             ))}
@@ -89,8 +89,8 @@ export default function AccountNotifications({
             <div key={choice.key}>
               <Checkbox
                 label={choice.label}
-                checked={settings[choice.key]}
-                disabled={pending}
+                checked={settings[choice.key] ?? false}
+                disabled={pending || typeof settings[choice.key] !== 'boolean'}
                 onChange={(value) => void save({ [choice.key]: value })}
                 aria-describedby={choice.detail ? `settings-${choice.key}-hint` : undefined}
                 className="items-start"
@@ -105,22 +105,6 @@ export default function AccountNotifications({
               )}
             </div>
           ))}
-          <div>
-            <Checkbox
-              label="Статус заказа на email"
-              checked={false}
-              disabled
-              onChange={() => {}}
-              aria-describedby="settings-email-order-hint settings-email-order-unavailable"
-              className="items-start"
-            />
-            <p id="settings-email-order-hint" className="mt-1 pl-[30px] text-12 text-ink-secondary">
-              Дублируем SMS-уведомления письмом
-            </p>
-            <p id="settings-email-order-unavailable" className="mt-1 pl-[30px] text-12 text-ink-secondary">
-              Настройка пока недоступна
-            </p>
-          </div>
         </div>
       )}
       {pending && (
