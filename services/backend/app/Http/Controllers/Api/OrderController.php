@@ -75,7 +75,9 @@ class OrderController extends Controller
                 'per_page' => 'sometimes|integer|min:1|max:50', 'group' => 'sometimes|in:active,completed,cancelled',
                 'status' => 'sometimes|string|max:100',
             ]);
-            $query = Order::where('user_id', $user->id)->withCount('items');
+            $query = Order::where('user_id', $user->id)
+                ->withCount('items')
+                ->with(['items.product.media', 'items.product.parentProduct.media']);
             if (isset($validated['status'])) { $query->where('status', $validated['status']); }
             if (isset($validated['group'])) {
                 $completed = config('customer_orders.completed_statuses');
@@ -125,7 +127,10 @@ class OrderController extends Controller
             $result['total'] += (int) $row->count;
             $result[$presentation->group($row->status)] += (int) $row->count;
         }
-        $last = Order::where('user_id', $user->id)->withCount('items')->orderByDesc('created_at')->orderByDesc('id')->first();
+        $last = Order::where('user_id', $user->id)
+            ->withCount('items')
+            ->with(['items.product.media', 'items.product.parentProduct.media'])
+            ->orderByDesc('created_at')->orderByDesc('id')->first();
         if ($last) {
             $presentation->preload([$last]);
             $result['last_order'] = (new \App\Http\Resources\OrderListResource($last))->resolve($request);
