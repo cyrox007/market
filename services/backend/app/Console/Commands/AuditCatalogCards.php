@@ -58,7 +58,10 @@ class AuditCatalogCards extends Command
                     foreach ($products as $product) {
                         $checked++;
                         $reasons = $quality->inspect($product, $duplicates, $verifyFiles);
-                        if ($reasons === []) {
+                        $critical = count(array_filter($reasons, fn (array $reason) => $reason['severity'] === 'critical'));
+                        $warnings = count(array_filter($reasons, fn (array $reason) => $reason['severity'] === 'warning'));
+                        // One critical defect is enough; minor notes require at least two.
+                        if ($critical === 0 && $warnings < 2) {
                             continue;
                         }
 
@@ -66,8 +69,8 @@ class AuditCatalogCards extends Command
                         $issues[] = [
                             'run_id' => $run->id,
                             'product_id' => $product->id,
-                            'critical_count' => count(array_filter($reasons, fn (array $reason) => $reason['severity'] === 'critical')),
-                            'warning_count' => count(array_filter($reasons, fn (array $reason) => $reason['severity'] === 'warning')),
+                            'critical_count' => $critical,
+                            'warning_count' => $warnings,
                             'reasons' => json_encode($reasons, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                             'checked_at' => now(),
                         ];
@@ -87,7 +90,7 @@ class AuditCatalogCards extends Command
             ]);
 
             // Keep only a consistent complete snapshot; avoid unbounded historical growth.
-            CatalogCardAuditRun::query()->whereKeyNot($run->id)->delete();
+            CatalogCardAuditRun::query()->where('id', '!=', $run->id)->delete();
             $this->info("Checked {$checked} active records; found {$affected} cards requiring attention.");
 
             return self::SUCCESS;
