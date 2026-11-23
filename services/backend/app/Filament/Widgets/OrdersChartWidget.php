@@ -10,7 +10,7 @@ class OrdersChartWidget extends ChartWidget
 {
     protected static ?int $sort = 3;
 
-    protected int|string|array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 1;
 
     protected ?string $heading = 'Оформления за 14 дней';
 
