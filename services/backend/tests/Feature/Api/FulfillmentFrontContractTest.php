@@ -7,6 +7,7 @@ use App\Models\Order\OneClickLead;
 use App\Models\Pricing\PricingRule;
 use App\Models\Product\Category;
 use App\Models\Product\Product;
+use App\Models\Product\ProductCollection;
 use App\Models\Product\ProductRegionRule;
 use App\Models\Settings\ProductStockSettings;
 use App\Models\Shipping\AdditionalService;
@@ -258,5 +259,41 @@ class FulfillmentFrontContractTest extends TestCase
         }
         $this->postJson('/api/v1/orders/one-click', $data)->assertOk();
         $this->assertSame(0, OneClickLead::count());
+    }
+
+    public function test_regional_products_come_first_under_any_sort_and_across_pages(): void
+    {
+        $older = Product::factory()->create(['created_at' => now()->subDays(3), 'price' => 300]);
+        $regional = Product::factory()->create(['created_at' => now()->subDays(2), 'price' => 200]);
+        $newest = Product::factory()->create(['created_at' => now()->subDay(), 'price' => 100]);
+        $this->warehouse($regional, ['latitude' => null, 'longitude' => null]);
+        $this->warehouse($older, profile: ['is_active' => false]);
+        $this->warehouse($newest, quantity: 0);
+        foreach (['' => [$regional, $newest, $older], '&sort_by=price&sort_order=desc' => [$regional, $older, $newest]] as $sort => $expected) {
+            foreach ($expected as $index => $sku) {
+                $this->getJson('/api/v1/products?directory_external_id=house&per_page=1&page='.($index + 1).$sort)->assertOk()
+                    ->assertJsonPath('data.0.id', $sku->id)->assertJsonPath('data.0.available_in_region', $sku->is($regional));
+            }
+        }
+        $this->getJson('/api/v1/products')->assertOk()->assertJsonPath('data.*.id', [$newest->id, $regional->id, $older->id])
+            ->assertJsonPath('data.0.available_in_region', null);
+    }
+
+    public function test_collections_and_home_blocks_put_regional_products_first_keeping_their_order(): void
+    {
+        $first = Product::factory()->create(['units_sold' => 9, 'created_at' => now()->subDay()]);
+        $second = Product::factory()->create(['units_sold' => 5, 'created_at' => now()->subDays(2)]);
+        $regional = Product::factory()->create(['units_sold' => 1, 'created_at' => now()->subDays(3)]);
+        $this->warehouse($regional);
+        $manual = ProductCollection::create(['name' => 'Ручная', 'slug' => 'manual', 'is_active' => true]);
+        $manual->products()->attach([$second->id => ['sort_order' => 1], $first->id => ['sort_order' => 2], $regional->id => ['sort_order' => 3]]);
+        foreach (['featured', 'new'] as $block) {
+            $this->getJson('/api/v1/products/'.$block.'?directory_external_id=house')->assertOk()
+                ->assertJsonPath('data.*.id', [$regional->id, $first->id, $second->id])->assertJsonPath('data.0.available_in_region', true);
+        }
+        $this->getJson('/api/v1/products/collections/manual?directory_external_id=house')->assertOk()
+            ->assertJsonPath('data.*.id', [$regional->id, $second->id, $first->id]);
+        $this->getJson('/api/v1/products/collections/manual')->assertOk()
+            ->assertJsonPath('data.*.id', [$second->id, $first->id, $regional->id])->assertJsonPath('data.0.available_in_region', null);
     }
 }

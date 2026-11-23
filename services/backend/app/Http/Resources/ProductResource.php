@@ -130,6 +130,7 @@ class ProductResource extends JsonResource
         }
 
         $isListView = (bool) $request->get('_list_view', false);
+        $regionalIds = $request->attributes->get('available_in_region_ids');
 
         // The list returns real SKU colors and a batch-loaded palette of all
         // active siblings (including siblings outside the current page).
@@ -234,6 +235,7 @@ class ProductResource extends JsonResource
             'image_fullhd' => $isListView ? null : $imageMedia?->getAvailableUrl(['fullhd']),
             'thumbnail' => $imageMedia?->getAvailableUrl(['thumb']),
             'in_stock' => $resolvedStock > 0,
+            'available_in_region' => $regionalIds === null ? null : in_array($this->id, $regionalIds, true),
             'available_to_order' => ($isVariableKit || $isSimpleKit) ? ($kitAvailableSets > 0 || (isset($kit) && app(\App\Services\Product\SellableBundle::class)->canOrder($kit['items'])))
                 : $warehouseStockResolver->availableToOrder($this->resource, $region),
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
