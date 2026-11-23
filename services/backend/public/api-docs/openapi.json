@@ -1702,9 +1702,44 @@
           },
           "created_at": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "format": "date-time"
           },
           "updated_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "directory_external_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "gar_guid": {
+            "type": "string",
+            "nullable": true
+          },
+          "kladr_code": {
+            "type": "string",
+            "nullable": true
+          },
+          "address_snapshot": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          },
+          "room": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "intercom": {
+            "type": "string",
+            "nullable": true
+          },
+          "comment": {
             "type": "string",
             "nullable": true
           }
@@ -6482,38 +6517,48 @@
                     "maxLength": 255,
                     "nullable": true
                   },
-                  "city": {
+                  "directory_external_id": {
                     "type": "string",
-                    "maxLength": 255
-                  },
-                  "street": {
-                    "type": "string",
-                    "maxLength": 255
-                  },
-                  "house": {
-                    "type": "string",
-                    "maxLength": 255
+                    "maxLength": 128,
+                    "description": "ID конкретного здания из адресного справочника; при редактировании необязательно, если здание не меняется"
                   },
                   "apartment": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
                   "entrance": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
-                  "shipping_location_id": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "exists:shipping_locations"
+                  "room": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "floor": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "intercom": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "nullable": true
+                  },
+                  "is_default": {
+                    "type": "boolean",
+                    "description": "Необязательный выбор основного адреса одним запросом. При создании первого адреса он становится основным даже при false. При обновлении true назначает адрес основным; false для действующего основного адреса отклоняется (422)."
                   }
                 },
                 "required": [
-                  "city",
-                  "street",
-                  "house"
+                  "directory_external_id"
                 ]
               }
             }
@@ -6571,7 +6616,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Первый сохранённый адрес пользователя автоматически назначается основным. Для назначения нового адреса основным передайте is_default=true в этом же POST; отдельный POST /set-default не требуется. Выбор подтверждённого здания из справочника обязателен; city/street/house и shipping_location_id передавать запрещено."
       }
     },
     "/api/v1/addresses/{address}": {
@@ -6764,6 +6810,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Попытка снять флаг с основного адреса без выбора замены или ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -6778,38 +6834,51 @@
                     "maxLength": 255,
                     "nullable": true
                   },
-                  "city": {
+                  "directory_external_id": {
                     "type": "string",
-                    "maxLength": 255
-                  },
-                  "street": {
-                    "type": "string",
-                    "maxLength": 255
-                  },
-                  "house": {
-                    "type": "string",
-                    "maxLength": 255
+                    "maxLength": 128,
+                    "description": "ID конкретного здания из адресного справочника; при редактировании необязательно, если здание не меняется"
                   },
                   "apartment": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
                   "entrance": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
-                  "shipping_location_id": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "exists:shipping_locations"
+                  "room": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "floor": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "intercom": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "nullable": true
+                  },
+                  "is_default": {
+                    "type": "boolean",
+                    "description": "Необязательный выбор основного адреса одним запросом. При создании первого адреса он становится основным даже при false. При обновлении true назначает адрес основным; false для действующего основного адреса отклоняется (422)."
                   }
                 }
               }
             }
           }
-        }
+        },
+        "description": "Можно редактировать адрес и одновременно сделать его основным, передав is_default=true; прежний основной снимается атомарно. is_default=false для уже основного адреса возвращает 422: сначала выберите другой. При отсутствии основного в старых данных система назначает старейший адрес. Без поля is_default текущий основной сохраняется."
       },
       "delete": {
         "operationId": "deleteAddress",
@@ -6837,11 +6906,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Адрес удалён и основной переназначен при необходимости",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "default_address_id": {
+                      "type": "integer",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "default_address_id"
+                  ]
                 }
               }
             }
@@ -6900,7 +6982,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Удаляет адрес текущего пользователя, сохраняя исторический снимок адреса в заказах. Если удалён основной, автоматически выбирается самый старый оставшийся (created_at, затем id); при отсутствии адресов default_address_id=null. Возвращает идентификатор актуального основного адреса."
       }
     },
     "/api/v1/addresses/{address}/set-default": {
@@ -6930,11 +7013,23 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Адрес установлен как основной",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "default_address_id": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "default_address_id"
+                  ]
                 }
               }
             }
@@ -6957,7 +7052,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Сохранён для совместимости со старыми клиентами. Та же атомарная операция, что is_default=true при редактировании."
       }
     },
     "/api/v1/payment/raiffeisen/callback": {
