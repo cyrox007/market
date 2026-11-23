@@ -2,21 +2,26 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\News\ArticleResource;
+use App\Filament\Resources\Newsletter\NewsletterSubscriberResource;
+use App\Filament\Resources\Sliders\SliderResource;
 use App\Models\News\Article;
 use App\Models\Newsletter\NewsletterSubscriber;
 use App\Models\Page\Slider;
+use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
 
 class ContentStatsOverviewWidget extends BaseWidget
 {
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 6;
 
-    protected ?string $heading = 'Контент';
+    protected int|string|array $columnSpan = 1;
 
-    protected ?string $description = 'Новости, слайдеры и подписчики рассылки';
+    protected ?string $heading = 'Контент и публикации';
+
+    protected ?string $description = 'Только доступные разделы и действия';
 
     public static function canView(): bool
     {
@@ -25,31 +30,35 @@ class ContentStatsOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $cacheKey = 'dashboard_content_stats_v2_' . (auth()->id() ?? 'guest');
-        $stats = Cache::remember($cacheKey, 120, function () {
-            return [
-                'articles' => Article::count(),
-                'sliders' => Slider::count(),
-                'newsletter' => NewsletterSubscriber::count(),
-            ];
-        });
+        $user = auth()->user();
+        $stats = [];
 
-        return [
-            Stat::make('Статей', number_format($stats['articles'], 0, ',', ' '))
-                ->description('Новости и публикации')
-                ->descriptionIcon(Heroicon::OutlinedNewspaper)
+        // Access is checked before querying: never count data from a denied module.
+        if ($user->can('viewAny articles')) {
+            $count = Cache::remember('dashboard_articles_v3', 120, fn () => Article::count());
+            $stats[] = Stat::make('Статей', number_format($count, 0, ',', ' '))
+                ->description('Редактировать публикации')
+                ->icon(Heroicon::OutlinedNewspaper)
                 ->color('gray')
-                ->icon(Heroicon::OutlinedNewspaper),
-            Stat::make('Слайдеров', number_format($stats['sliders'], 0, ',', ' '))
-                ->description('Баннеры на главной')
-                ->descriptionIcon(Heroicon::OutlinedPhoto)
+                ->url(ArticleResource::getUrl('index'));
+        }
+        if ($user->can('viewAny sliders')) {
+            $count = Cache::remember('dashboard_sliders_v3', 120, fn () => Slider::count());
+            $stats[] = Stat::make('Слайдеров', number_format($count, 0, ',', ' '))
+                ->description('Баннеры главной')
+                ->icon(Heroicon::OutlinedPhoto)
                 ->color('info')
-                ->icon(Heroicon::OutlinedPhoto),
-            Stat::make('Подписчиков рассылки', number_format($stats['newsletter'], 0, ',', ' '))
-                ->description('Email-рассылка')
-                ->descriptionIcon(Heroicon::OutlinedEnvelope)
+                ->url(SliderResource::getUrl('index'));
+        }
+        if ($user->can('viewAny newsletter_subscribers')) {
+            $count = Cache::remember('dashboard_newsletter_v3', 120, fn () => NewsletterSubscriber::count());
+            $stats[] = Stat::make('Подписчиков рассылки', number_format($count, 0, ',', ' '))
+                ->description('Управление рассылкой')
+                ->icon(Heroicon::OutlinedEnvelope)
                 ->color('primary')
-                ->icon(Heroicon::OutlinedEnvelope),
-        ];
+                ->url(NewsletterSubscriberResource::getUrl('index'));
+        }
+
+        return $stats;
     }
 }

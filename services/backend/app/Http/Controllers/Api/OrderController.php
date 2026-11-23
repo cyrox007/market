@@ -75,7 +75,9 @@ class OrderController extends Controller
                 'per_page' => 'sometimes|integer|min:1|max:50', 'group' => 'sometimes|in:active,completed,cancelled',
                 'status' => 'sometimes|string|max:100',
             ]);
-            $query = Order::where('user_id', $user->id)->withCount('items');
+            $query = Order::where('user_id', $user->id)
+                ->withCount('items')
+                ->with(['items.product.media', 'items.product.parentProduct.media']);
             if (isset($validated['status'])) { $query->where('status', $validated['status']); }
             if (isset($validated['group'])) {
                 $completed = config('customer_orders.completed_statuses');
@@ -125,7 +127,10 @@ class OrderController extends Controller
             $result['total'] += (int) $row->count;
             $result[$presentation->group($row->status)] += (int) $row->count;
         }
-        $last = Order::where('user_id', $user->id)->withCount('items')->orderByDesc('created_at')->orderByDesc('id')->first();
+        $last = Order::where('user_id', $user->id)
+            ->withCount('items')
+            ->with(['items.product.media', 'items.product.parentProduct.media'])
+            ->orderByDesc('created_at')->orderByDesc('id')->first();
         if ($last) {
             $presentation->preload([$last]);
             $result['last_order'] = (new \App\Http\Resources\OrderListResource($last))->resolve($request);
@@ -418,6 +423,11 @@ class OrderController extends Controller
 
             DB::beginTransaction();
             try {
+                // Match address-book lock ordering before creating an order/address
+                // with a user FK, so parallel checkout and profile writes serialize.
+                if ($directoryDelivery && ! $savedDestination && $user) {
+                    User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                }
                 if ($bundleComposition !== null) {
                     $lockedComposition = app(\App\Services\Product\SellableBundle::class)->composition(
                         $bundleComposition['bundle_id'], $bundleComposition['primary_sku_id'], $bundleComposition['bundle_quantity']
@@ -494,6 +504,9 @@ class OrderController extends Controller
                 $address = Address::create(array_merge($warehouseQuote['address'], $validated['delivery_details'] ?? [], [
                     'user_id' => $user?->id, 'title' => 'Адрес доставки', 'is_default' => false,
                 ]));
+                if ($user) {
+                    app(\App\Services\Address\DefaultAddressManager::class)->ensure($user);
+                }
                 $order->update(['address_id' => $address->id, 'address_snapshot' => $address->full_address]);
             }
             if ($directoryDelivery || $warehousePickup) {

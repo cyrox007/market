@@ -12,6 +12,10 @@ if (config('local_sber.enabled')) {
     return;
 }
 
+// Full catalog-quality and image checks run in the scheduler, never in a web request.
+// The bank sandbox deliberately schedules only its own two commands.
+Schedule::command('catalog:audit-cards')->dailyAt('03:30')->withoutOverlapping(180);
+
 Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
 Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
 

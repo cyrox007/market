@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Cache;
 
 class UsersStatsWidget extends BaseWidget
 {
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 7;
 
     protected ?string $heading = 'Пользователи';
 

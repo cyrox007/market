@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Notifications\AccountEmailChanged;
 use App\Notifications\AccountEmailVerification;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +29,13 @@ final class AccountEmail
             ->where('purpose', 'change')->where('expires_at', '>', now())->first();
         return ['email' => $user->email, 'is_verified' => $user->email_verified_at !== null,
             'email_verified_at' => $user->email_verified_at?->toISOString(),
-            'pending_email' => $pending?->email, 'pending_expires_at' => $pending?->expires_at];
+            'pending_email' => $pending?->email,
+            // Query Builder returns a timezone-less SQL datetime. The application
+            // stores these expiry instants in UTC; tag that timezone explicitly
+            // rather than depending on the server or administrator timezone.
+            'pending_expires_at' => $pending
+                ? Carbon::parse((string) $pending->expires_at, 'UTC')->toISOString()
+                : null];
     }
 
     public function issue(User $user, ?string $newEmail = null, ?string $currentPassword = null): array

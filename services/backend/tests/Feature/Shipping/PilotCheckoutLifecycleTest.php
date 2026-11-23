@@ -65,4 +65,26 @@ class PilotCheckoutLifecycleTest extends TestCase
         $this->postJson('/api/v1/orders', $body + ['expected_subtotal' => 1500])->assertCreated()->assertJsonPath('order.subtotal', 1500);
         $this->assertEquals(1000, Order::first()->subtotal);
     }
+    public function test_checkout_assigns_its_first_saved_address_as_default(): void
+    {
+        [$sku, $warehouse, $body] = $this->scenario();
+        $user = \App\Models\User::factory()->create();
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/orders', $body)->assertCreated();
+        $this->assertSame(1, $user->addresses()->count());
+        $this->assertSame(1, $user->addresses()->where('is_default', true)->count());
+    }
+
+    public function test_checkout_preserves_an_existing_primary_address(): void
+    {
+        [$sku, $warehouse, $body] = $this->scenario();
+        $user = \App\Models\User::factory()->create();
+        $primary = \App\Models\Address\Address::factory()->create([
+            'user_id' => $user->id, 'is_default' => true,
+        ]);
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/orders', $body)->assertCreated();
+        $this->assertSame(2, $user->addresses()->count());
+        $this->assertSame(1, $user->addresses()->where('is_default', true)->count());
+        $this->assertSame($primary->id, $user->addresses()->where('is_default', true)->value('id'));
+    }
+
 }

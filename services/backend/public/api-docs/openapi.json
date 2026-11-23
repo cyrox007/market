@@ -1702,9 +1702,44 @@
           },
           "created_at": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "format": "date-time"
           },
           "updated_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "directory_external_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "gar_guid": {
+            "type": "string",
+            "nullable": true
+          },
+          "kladr_code": {
+            "type": "string",
+            "nullable": true
+          },
+          "address_snapshot": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          },
+          "room": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "intercom": {
+            "type": "string",
+            "nullable": true
+          },
+          "comment": {
             "type": "string",
             "nullable": true
           }
@@ -2742,6 +2777,21 @@
           },
           "presentation": {
             "$ref": "#/components/schemas/CustomerOrderPresentation"
+          },
+          "items": {
+            "type": "array",
+            "description": "Все позиции в облегченном виде для списка заказов и существующего UI. Без полной модели товара, адреса и истории статусов.",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderItemPreview"
+            }
+          },
+          "items_preview": {
+            "type": "array",
+            "maxItems": 3,
+            "description": "Первые три позиции в порядке строк заказа. Полное число позиций — items_count.",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderItemPreview"
+            }
           }
         },
         "required": [
@@ -2753,7 +2803,9 @@
           "delivery_type",
           "created_at",
           "items_count",
-          "presentation"
+          "presentation",
+          "items",
+          "items_preview"
         ]
       },
       "CustomerOrderSummary": {
@@ -2809,6 +2861,21 @@
               },
               "presentation": {
                 "$ref": "#/components/schemas/CustomerOrderPresentation"
+              },
+              "items": {
+                "type": "array",
+                "description": "Все позиции в облегченном виде для списка заказов и существующего UI. Без полной модели товара, адреса и истории статусов.",
+                "items": {
+                  "$ref": "#/components/schemas/CustomerOrderItemPreview"
+                }
+              },
+              "items_preview": {
+                "type": "array",
+                "maxItems": 3,
+                "description": "Первые три позиции в порядке строк заказа. Полное число позиций — items_count.",
+                "items": {
+                  "$ref": "#/components/schemas/CustomerOrderItemPreview"
+                }
               }
             },
             "required": [
@@ -2820,7 +2887,9 @@
               "delivery_type",
               "created_at",
               "items_count",
-              "presentation"
+              "presentation",
+              "items",
+              "items_preview"
             ],
             "nullable": true
           }
@@ -2878,7 +2947,9 @@
           "pending_expires_at": {
             "type": "string",
             "format": "date-time",
-            "nullable": true
+            "nullable": true,
+            "description": "ISO 8601 / RFC 3339 в UTC (суффикс Z), например 2026-11-23T07:47:51.000000Z. Источник — UTC datetime из account_email_requests; null при отсутствии активной заявки. Не трактовать как московское локальное время.",
+            "example": "2026-11-23T07:47:51.000000Z"
           }
         },
         "required": [
@@ -3146,6 +3217,70 @@
             "nullable": true
           }
         }
+      },
+      "CustomerOrderItemPreview": {
+        "type": "object",
+        "description": "Облегчённая позиция заказа. Название сохраняется в order_items; изображение берётся из актуального каталога с наследованием от родителя предложения. Полная карточка Product и складские данные не включаются.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "product_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Название на момент покупки из сохранённой строки заказа"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "price": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "product": {
+            "type": "object",
+            "description": "Только поля отображения; это не полный ProductResource, даже если исходный товар больше недоступен.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "image": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true
+              },
+              "thumbnail": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true,
+                "description": "Thumb, если конверсия готова; иначе оригинал. Может быть null."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "image",
+              "thumbnail"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "product_id",
+          "name",
+          "quantity",
+          "price",
+          "total",
+          "product"
+        ]
       }
     }
   },
@@ -5983,7 +6118,7 @@
             }
           }
         ],
-        "description": "Без новых параметров сохраняется прежний полный data. view=compact либо наличие page/per_page/group включает компактную пагинацию с links/meta. Нет контактов, адреса, полного состава и истории. Сортировка created_at DESC, id DESC."
+        "description": "Без новых параметров сохраняется прежний полный data. view=compact либо наличие page/per_page/group включает компактную пагинацию с links/meta. Нет контактов, адреса, полного состава и истории. Сортировка created_at DESC, id DESC. В режиме view=compact каждая карточка содержит items (все облегчённые позиции) и items_preview (первые три); полные ProductResource и события заказа не загружаются."
       }
     },
     "/api/v1/orders/{id}/payment-config": {
@@ -6384,38 +6519,48 @@
                     "maxLength": 255,
                     "nullable": true
                   },
-                  "city": {
+                  "directory_external_id": {
                     "type": "string",
-                    "maxLength": 255
-                  },
-                  "street": {
-                    "type": "string",
-                    "maxLength": 255
-                  },
-                  "house": {
-                    "type": "string",
-                    "maxLength": 255
+                    "maxLength": 128,
+                    "description": "ID конкретного здания из адресного справочника; при редактировании необязательно, если здание не меняется"
                   },
                   "apartment": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
                   "entrance": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
-                  "shipping_location_id": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "exists:shipping_locations"
+                  "room": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "floor": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "intercom": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "nullable": true
+                  },
+                  "is_default": {
+                    "type": "boolean",
+                    "description": "Необязательный выбор основного адреса одним запросом. При создании первого адреса он становится основным даже при false. При обновлении true назначает адрес основным; false для действующего основного адреса отклоняется (422)."
                   }
                 },
                 "required": [
-                  "city",
-                  "street",
-                  "house"
+                  "directory_external_id"
                 ]
               }
             }
@@ -6473,7 +6618,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Первый сохранённый адрес пользователя автоматически назначается основным. Для назначения нового адреса основным передайте is_default=true в этом же POST; отдельный POST /set-default не требуется. Выбор подтверждённого здания из справочника обязателен; city/street/house и shipping_location_id передавать запрещено."
       }
     },
     "/api/v1/addresses/{address}": {
@@ -6666,6 +6812,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Попытка снять флаг с основного адреса без выбора замены или ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -6680,38 +6836,51 @@
                     "maxLength": 255,
                     "nullable": true
                   },
-                  "city": {
+                  "directory_external_id": {
                     "type": "string",
-                    "maxLength": 255
-                  },
-                  "street": {
-                    "type": "string",
-                    "maxLength": 255
-                  },
-                  "house": {
-                    "type": "string",
-                    "maxLength": 255
+                    "maxLength": 128,
+                    "description": "ID конкретного здания из адресного справочника; при редактировании необязательно, если здание не меняется"
                   },
                   "apartment": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
                   "entrance": {
                     "type": "string",
-                    "maxLength": 255,
+                    "maxLength": 64,
                     "nullable": true
                   },
-                  "shipping_location_id": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "exists:shipping_locations"
+                  "room": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "floor": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "intercom": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "nullable": true
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "nullable": true
+                  },
+                  "is_default": {
+                    "type": "boolean",
+                    "description": "Необязательный выбор основного адреса одним запросом. При создании первого адреса он становится основным даже при false. При обновлении true назначает адрес основным; false для действующего основного адреса отклоняется (422)."
                   }
                 }
               }
             }
           }
-        }
+        },
+        "description": "Можно редактировать адрес и одновременно сделать его основным, передав is_default=true; прежний основной снимается атомарно. is_default=false для уже основного адреса возвращает 422: сначала выберите другой. При отсутствии основного в старых данных система назначает старейший адрес. Без поля is_default текущий основной сохраняется."
       },
       "delete": {
         "operationId": "deleteAddress",
@@ -6739,11 +6908,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Адрес удалён и основной переназначен при необходимости",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "default_address_id": {
+                      "type": "integer",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "default_address_id"
+                  ]
                 }
               }
             }
@@ -6802,7 +6984,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Удаляет адрес текущего пользователя, сохраняя исторический снимок адреса в заказах. Если удалён основной, автоматически выбирается самый старый оставшийся (created_at, затем id); при отсутствии адресов default_address_id=null. Возвращает идентификатор актуального основного адреса."
       }
     },
     "/api/v1/addresses/{address}/set-default": {
@@ -6832,11 +7015,23 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Адрес установлен как основной",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "default_address_id": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "default_address_id"
+                  ]
                 }
               }
             }
@@ -6859,7 +7054,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Сохранён для совместимости со старыми клиентами. Та же атомарная операция, что is_default=true при редактировании."
       }
     },
     "/api/v1/payment/raiffeisen/callback": {
@@ -9437,7 +9633,7 @@
             "description": "Слишком много запросов; повторить после Retry-After"
           }
         },
-        "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории."
+        "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории. last_order включает те же облегчённые items/items_preview, что и compact-список."
       }
     },
     "/api/v1/auth/email": {
@@ -9482,7 +9678,8 @@
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
           }
-        }
+        },
+        "description": "Статус подтверждения почты и незавершённой смены адреса. pending_expires_at возвращается в ISO 8601 со смещением UTC (Z), либо null; SQL-формат без часового пояса больше не используется."
       }
     },
     "/api/v1/auth/email/verification": {
