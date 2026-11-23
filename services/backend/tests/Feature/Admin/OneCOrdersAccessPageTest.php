@@ -71,6 +71,18 @@ class OneCOrdersAccessPageTest extends TestCase
         $this->assertNotNull($used->last_used_ip);
 
         $component->call('dismissIssuedToken')->assertSet('issuedToken', null);
+        $component->call('revokeToken', $id)->assertSuccessful();
+        $this->assertNotNull(DB::table('onec_orders_access_tokens')->find($id)->revoked_at);
+        $this->withHeader('X-1C-Orders-Token', $plaintext)
+            ->getJson('/api/v1/integration/1c/orders')->assertUnauthorized();
+        $this->assertEqualsCanonicalizing(
+            ['issued', 'revoked'],
+            DB::table('onec_orders_access_token_events')->pluck('event')->all()
+        );
+        // Idempotent revoke: no duplicate audit log.
+        $component->call('revokeToken', $id);
+        $this->assertSame(2, DB::table('onec_orders_access_token_events')->count());
+
         // The preceding API request is stateless; re-enter the Filament
         // web guard before mounting a *new* admin page component.
         $this->actingAs($user);
@@ -84,18 +96,6 @@ class OneCOrdersAccessPageTest extends TestCase
             'name' => '1С — рабочая база',
             'created_by' => $user->id,
         ]);
-
-        $component->call('revokeToken', $id)->assertSuccessful();
-        $this->assertNotNull(DB::table('onec_orders_access_tokens')->find($id)->revoked_at);
-        $this->withHeader('X-1C-Orders-Token', $plaintext)
-            ->getJson('/api/v1/integration/1c/orders')->assertUnauthorized();
-        $this->assertEqualsCanonicalizing(
-            ['issued', 'revoked'],
-            DB::table('onec_orders_access_token_events')->pluck('event')->all()
-        );
-        // Idempotent revoke: no duplicate audit log.
-        $component->call('revokeToken', $id);
-        $this->assertSame(2, DB::table('onec_orders_access_token_events')->count());
     }
 
     public function test_expiry_ability_and_ip_restrictions_are_enforced_at_the_api(): void
