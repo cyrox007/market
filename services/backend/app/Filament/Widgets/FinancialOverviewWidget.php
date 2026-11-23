@@ -2,19 +2,22 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order\Order;
+use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
 
 class FinancialOverviewWidget extends BaseWidget
 {
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 7;
 
-    protected ?string $heading = 'Финансы';
+    protected int|string|array $columnSpan = 'full';
 
-    protected ?string $description = 'Выручка и средний чек';
+    protected ?string $heading = 'Стоимость заказов (не оплаченная выручка)';
+
+    protected ?string $description = 'Неотменённые заказы по дате создания. Оплаты и возвраты учитываются отдельно в платёжном контуре.';
 
     public static function canView(): bool
     {
@@ -23,53 +26,36 @@ class FinancialOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $cacheKey = 'dashboard_financial_stats_' . (auth()->id() ?? 'guest');
-        $stats = Cache::remember($cacheKey, 120, function () {
-            $query = Order::where('status', '!=', 'cancelled');
-
-            $revenueMonth = (float) (clone $query)
-                ->whereMonth('created_at', now()->month)
-                ->whereYear('created_at', now()->year)
-                ->sum('total');
-            $revenueToday = (float) (clone $query)
-                ->whereDate('created_at', today())
-                ->sum('total');
-            $ordersCountMonth = (clone $query)
-                ->whereMonth('created_at', now()->month)
-                ->whereYear('created_at', now()->year)
-                ->count();
-            $avgCheck = $ordersCountMonth > 0
-                ? (float) (clone $query)
-                    ->whereMonth('created_at', now()->month)
-                    ->whereYear('created_at', now()->year)
-                    ->avg('total')
-                : 0;
+        $stats = Cache::remember('dashboard_order_amounts_v2_'.today()->toDateString(), 120, static function (): array {
+            $orders = Order::query()->where('status', '!=', 'cancelled');
+            $month = (clone $orders)->where('created_at', '>=', now()->startOfMonth());
+            $today = (clone $orders)->where('created_at', '>=', today());
 
             return [
-                'revenue_month' => $revenueMonth,
-                'revenue_today' => $revenueToday,
-                'avg_check' => round($avgCheck, 2),
+                'month_total' => (float) (clone $month)->sum('total'),
+                'today_total' => (float) $today->sum('total'),
+                'month_average' => (float) $month->avg('total'),
             ];
         });
-
-        $format = fn($v) => number_format($v, 0, ',', ' ') . ' ₽';
+        $format = static fn (float $value): string => number_format($value, 0, ',', ' ').' ₽';
+        $url = OrderResource::getUrl('index');
 
         return [
-            Stat::make('Выручка за месяц', $format($stats['revenue_month']))
-                ->description('Текущий месяц, без отменённых')
-                ->descriptionIcon(Heroicon::OutlinedArrowTrendingUp)
-                ->color('success')
-                ->icon(Heroicon::OutlinedBanknotes),
-            Stat::make('Выручка сегодня', $format($stats['revenue_today']))
-                ->description('За текущий день')
-                ->descriptionIcon(Heroicon::OutlinedCalendarDays)
-                ->color('primary')
-                ->icon(Heroicon::OutlinedCurrencyDollar),
-            Stat::make('Средний чек (месяц)', $format($stats['avg_check']))
-                ->description('Средняя сумма заказа')
-                ->descriptionIcon(Heroicon::OutlinedChartBar)
+            Stat::make('Сумма заказов за месяц', $format($stats['month_total']))
+                ->description('Без отменённых; не равно оплатам')
+                ->icon(Heroicon::OutlinedClipboardDocumentList)
                 ->color('gray')
-                ->icon(Heroicon::OutlinedCalculator),
+                ->url($url),
+            Stat::make('Сумма заказов сегодня', $format($stats['today_total']))
+                ->description('По дате создания заказа')
+                ->icon(Heroicon::OutlinedCalendarDays)
+                ->color('primary')
+                ->url($url),
+            Stat::make('Средняя сумма заказа за месяц', $format($stats['month_average']))
+                ->description('Без отменённых; не является средним платежом')
+                ->icon(Heroicon::OutlinedCalculator)
+                ->color('gray')
+                ->url($url),
         ];
     }
 }
