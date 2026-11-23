@@ -62,7 +62,6 @@ class CatalogCardIssuesTable
                     ['record' => $record->product])
                 : null)
             ->defaultSort('critical_count', 'desc')
-            ->modifyQueryUsing(fn (Builder $query) => $query->orderByDesc('warning_count')->orderBy('product_id'))
             ->emptyStateHeading('Проблемных карточек пока нет')
             ->emptyStateDescription('Проверьте дату последнего аудита: отсутствие записей до первого прохода не означает, что ошибок нет.')
             ->defaultPaginationPageOption(25)
