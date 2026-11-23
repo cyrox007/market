@@ -423,6 +423,11 @@ class OrderController extends Controller
 
             DB::beginTransaction();
             try {
+                // Match address-book lock ordering before creating an order/address
+                // with a user FK, so parallel checkout and profile writes serialize.
+                if ($directoryDelivery && ! $savedDestination && $user) {
+                    User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                }
                 if ($bundleComposition !== null) {
                     $lockedComposition = app(\App\Services\Product\SellableBundle::class)->composition(
                         $bundleComposition['bundle_id'], $bundleComposition['primary_sku_id'], $bundleComposition['bundle_quantity']
@@ -499,6 +504,9 @@ class OrderController extends Controller
                 $address = Address::create(array_merge($warehouseQuote['address'], $validated['delivery_details'] ?? [], [
                     'user_id' => $user?->id, 'title' => 'Адрес доставки', 'is_default' => false,
                 ]));
+                if ($user) {
+                    app(\App\Services\Address\DefaultAddressManager::class)->ensure($user);
+                }
                 $order->update(['address_id' => $address->id, 'address_snapshot' => $address->full_address]);
             }
             if ($directoryDelivery || $warehousePickup) {

@@ -28,7 +28,8 @@ class DefaultAddressManager
      * Prefer an explicit choice; otherwise keep the current default, or
      * choose the oldest saved address with ID as a deterministic tie-breaker.
      *
-     * Must be called inside forUser(), while holding the user-row lock.
+     * Must be called in a transaction holding the user-row lock: forUser()
+     * for profile writes, or the enclosing checkout transaction.
      */
     public function ensure(User $user, ?Address $preferred = null): ?Address
     {
