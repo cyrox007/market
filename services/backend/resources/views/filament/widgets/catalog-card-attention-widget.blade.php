@@ -1,6 +1,14 @@
 <x-filament-widgets::widget>
+    <div wire:poll.120s>
     <x-filament::section heading="Карточки требуют внимания"
         description="Конкретные причины с учётом типа товара и наследования данных. Проверка выполняется в фоне.">
+        @if ($lastAttempt && $lastAttempt->status === 'failed')
+            <p class="mb-3 rounded-lg border border-amber-200 p-3 text-sm text-amber-700 dark:border-amber-800 dark:text-amber-400">
+                Последняя фоновая проверка завершилась ошибкой. Ниже показан последний успешно завершённый результат, если он есть.
+            </p>
+        @elseif ($lastAttempt && $lastAttempt->status === 'running')
+            <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">Фоновая проверка выполняется. Отображаются результаты предыдущего завершённого прохода.</p>
+        @endif
         @if (! $run)
             <div class="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                 Аудит ещё не завершался. После первого фонового запуска здесь появятся проблемы и дата проверки.
@@ -52,4 +60,5 @@
             </div>
         @endif
     </x-filament::section>
+    </div>
 </x-filament-widgets::widget>
