@@ -23,7 +23,7 @@
 | Корзина, заказы и отмена | [пилот checkout](pilot-checkout-implementation.md), [складской контракт](warehouse-only-fulfillment.md) | `CartController`, `OrderController`, `AutomaticOrderRefunds` |
 | Склады и самовывоз | [складская доставка](warehouse-only-fulfillment.md), [несколько складов](bundle-multi-warehouse-stock.md), [тарифы услуг](warehouse-service-store-cleanup.md) | `WarehouseDeliveryQuote`, `WarehouseServices` |
 | Адреса и ГАР | [интеграция адресов](address-directory-frontend-launch.md) | `AddressDirectoryClient`, `DeliveryAddressResolver` |
-| Операторы | [заказы в админке](admin-orders-workspace.md) | Filament-ресурсы заказов и платежей |
+| Операторы | [заказы в админке](admin-orders-workspace.md), [ролевой дашборд](admin-role-dashboard-20261123.md) | Filament-ресурсы заказов, виджеты и права |
 
 Основной API: `/api/v1`; фактический перечень определяется `services/backend/routes/api.php`. В этом PR [OpenAPI](../services/backend/public/api-docs/openapi.json) согласована с **93 операциями**; дальнейшую сверку на каждом релизе выполняет [CI-проверка маршрутов](../scripts/check-openapi-routes.mjs).
 
