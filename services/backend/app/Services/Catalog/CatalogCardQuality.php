@@ -6,9 +6,12 @@ use App\Models\Product\Product;
 use App\Services\Product\ProductDescriptionHtml;
 use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Vanilo\Category\Models\Taxonomy;
 
 class CatalogCardQuality
 {
+    private ?int $categoryTaxonomyId = null;
+
     /** @return list<array{code:string,severity:string,label:string}> */
     public function inspect(Product $product, array $duplicateExternalIds = [], bool $verifyFiles = true): array
     {
@@ -56,7 +59,15 @@ class CatalogCardQuality
             }
         }
 
-        if ($product->taxons->isEmpty() && (! $parent || $parent->taxons->isEmpty())) {
+        // The shared taxons pivot can also contain room taxonomies, which are
+        // not product categories and must not satisfy this requirement.
+        $categoryTaxonomyId = $this->categoryTaxonomyId
+            ??= (int) Taxonomy::query()->where('slug', 'product-categories')->value('id');
+        $hasCategory = static fn (Product $item): bool => $item->taxons
+            ->contains(fn ($taxon): bool => $categoryTaxonomyId > 0
+                && (int) $taxon->taxonomy_id === $categoryTaxonomyId);
+
+        if (! $hasCategory($product) && (! $parent || ! $hasCategory($parent))) {
             $add('no_category', 'warning', 'Не назначена категория, включая категорию родителя');
         }
 
