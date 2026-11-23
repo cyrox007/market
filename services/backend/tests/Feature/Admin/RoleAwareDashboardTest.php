@@ -10,7 +10,6 @@ use App\Filament\Widgets\LatestOrdersTableWidget;
 use App\Filament\Widgets\OrdersChartWidget;
 use App\Filament\Widgets\OrdersStatsOverviewWidget;
 use App\Filament\Widgets\ProductsStatsOverviewWidget;
-use App\Filament\Widgets\QuickActionsWidget;
 use App\Models\Order\Order;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -35,9 +34,8 @@ class RoleAwareDashboardTest extends TestCase
         $this->assertSame('Рабочая панель', $page->getTitle());
         $this->assertSame(['default' => 1, 'xl' => 2], $page->getColumns());
         $this->assertSame([
-            QuickActionsWidget::class,
-            OrdersStatsOverviewWidget::class,
             LatestOrdersTableWidget::class,
+            OrdersStatsOverviewWidget::class,
             OrdersChartWidget::class,
             ProductsStatsOverviewWidget::class,
             ContentStatsOverviewWidget::class,

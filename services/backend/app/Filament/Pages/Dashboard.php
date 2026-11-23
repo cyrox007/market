@@ -8,7 +8,6 @@ use App\Filament\Widgets\LatestOrdersTableWidget;
 use App\Filament\Widgets\OrdersChartWidget;
 use App\Filament\Widgets\OrdersStatsOverviewWidget;
 use App\Filament\Widgets\ProductsStatsOverviewWidget;
-use App\Filament\Widgets\QuickActionsWidget;
 use App\Filament\Widgets\UsersStatsWidget;
 use Filament\Pages\Dashboard as BaseDashboard;
 
@@ -28,9 +27,8 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
-            QuickActionsWidget::class,
-            OrdersStatsOverviewWidget::class,
             LatestOrdersTableWidget::class,
+            OrdersStatsOverviewWidget::class,
             OrdersChartWidget::class,
             ProductsStatsOverviewWidget::class,
             ContentStatsOverviewWidget::class,

@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class LatestOrdersTableWidget extends BaseWidget
 {
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 0;
 
     protected int|string|array $columnSpan = 'full';
 
