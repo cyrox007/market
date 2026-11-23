@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\AdminUserPresenceWidget;
 use App\Filament\Widgets\ContentStatsOverviewWidget;
 use App\Filament\Widgets\FinancialOverviewWidget;
 use App\Filament\Widgets\LatestOrdersTableWidget;
@@ -27,6 +28,7 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            AdminUserPresenceWidget::class,
             LatestOrdersTableWidget::class,
             OrdersStatsOverviewWidget::class,
             OrdersChartWidget::class,
