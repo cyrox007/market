@@ -64,38 +64,41 @@ class OneCOrdersAccessPageTest extends TestCase
         $this->assertSame($user->id, $row->created_by);
         $this->assertSame('issued', DB::table('onec_orders_access_token_events')->first()->event);
 
+        // Finish the creation component's actions before switching to an API
+        // HTTP request; the Livewire testing snapshot is request-scoped.
+        $component->call('dismissIssuedToken')->assertSet('issuedToken', null);
+
         $this->withHeader('X-1C-Orders-Token', $plaintext)
             ->getJson('/api/v1/integration/1c/orders')->assertOk();
         $used = DB::table('onec_orders_access_tokens')->find($id);
         $this->assertNotNull($used->last_used_at);
         $this->assertNotNull($used->last_used_ip);
 
-        $component->call('dismissIssuedToken')->assertSet('issuedToken', null);
-        $component->call('revokeToken', $id)->assertSuccessful();
+        // Re-enter the web guard after calling the stateless API and mount a
+        // fresh Filament component to revoke the issued credential.
+        $this->actingAs($user);
+        Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
+        $revokeComponent = Livewire::test(OneCOrdersAccessPage::class)
+            ->assertDontSee($plaintext)
+            ->assertSee('Выданные токены')
+            ->assertSee('1С — рабочая база');
+        $revokeComponent->call('revokeToken', $id)->assertSuccessful();
         $this->assertNotNull(DB::table('onec_orders_access_tokens')->find($id)->revoked_at);
-        $this->withHeader('X-1C-Orders-Token', $plaintext)
-            ->getJson('/api/v1/integration/1c/orders')->assertUnauthorized();
+        // Idempotent revoke: no duplicate audit log.
+        $revokeComponent->call('revokeToken', $id);
+        $this->assertSame(2, DB::table('onec_orders_access_token_events')->count());
         $this->assertEqualsCanonicalizing(
             ['issued', 'revoked'],
             DB::table('onec_orders_access_token_events')->pluck('event')->all()
         );
-        // Idempotent revoke: no duplicate audit log.
-        $component->call('revokeToken', $id);
-        $this->assertSame(2, DB::table('onec_orders_access_token_events')->count());
-
-        // The preceding API request is stateless; re-enter the Filament
-        // web guard before mounting a *new* admin page component.
-        $this->actingAs($user);
-        Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
-        Livewire::test(OneCOrdersAccessPage::class)
-            ->assertDontSee($plaintext)
-            ->assertSee('Выданные токены')
-            ->assertSee('1С — рабочая база');
         $this->assertDatabaseHas('onec_orders_access_tokens', [
             'id' => $id,
             'name' => '1С — рабочая база',
             'created_by' => $user->id,
         ]);
+
+        $this->withHeader('X-1C-Orders-Token', $plaintext)
+            ->getJson('/api/v1/integration/1c/orders')->assertUnauthorized();
     }
 
     public function test_expiry_ability_and_ip_restrictions_are_enforced_at_the_api(): void
