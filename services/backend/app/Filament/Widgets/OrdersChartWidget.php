@@ -8,61 +8,53 @@ use Illuminate\Support\Facades\Cache;
 
 class OrdersChartWidget extends ChartWidget
 {
-    protected static ?int $sort = 7;
+    protected static ?int $sort = 3;
 
-    protected ?string $heading = 'Заказы и выручка за 14 дней';
+    protected int|string|array $columnSpan = 'full';
 
-    protected ?string $description = 'Динамика по дням';
+    protected ?string $heading = 'Оформления за 14 дней';
+
+    protected ?string $description = 'Количество созданных заказов, включая впоследствии отменённые. Без смешения рублей и штук.';
 
     public static function canView(): bool
     {
-        return DashboardRoleChecks::canSeeFinancial();
+        return DashboardRoleChecks::canSeeOrders();
     }
 
     protected function getType(): string
     {
-        return 'bar';
+        return 'line';
     }
 
     protected function getData(): array
     {
-        $cacheKey = 'dashboard_orders_chart_' . (auth()->id() ?? 'guest');
-        $data = Cache::remember($cacheKey, 120, function () {
+        $key = 'dashboard_order_trend_v2_'.today()->toDateString();
+        return Cache::remember($key, 120, static function (): array {
+            $start = today()->subDays(13);
+            $counts = Order::query()->where('created_at', '>=', $start)
+                ->selectRaw('DATE(created_at) AS day, COUNT(*) AS total')
+                ->groupByRaw('DATE(created_at)')
+                ->pluck('total', 'day');
+
             $labels = [];
-            $ordersCount = [];
-            $revenue = [];
-            for ($i = 13; $i >= 0; $i--) {
-                $date = now()->subDays($i);
-                $labels[] = $date->translatedFormat('d.m');
-                $ordersCount[] = Order::whereDate('created_at', $date)->count();
-                $revenue[] = round((float) Order::whereDate('created_at', $date)
-                    ->where('status', '!=', 'cancelled')
-                    ->sum('total') / 1000, 1);
+            $orders = [];
+            for ($i = 0; $i < 14; $i++) {
+                $day = $start->copy()->addDays($i);
+                $labels[] = $day->format('d.m');
+                $orders[] = (int) ($counts[$day->toDateString()] ?? 0);
             }
 
             return [
+                'datasets' => [[
+                    'label' => 'Создано заказов',
+                    'data' => $orders,
+                    'borderColor' => 'rgb(220, 38, 38)',
+                    'backgroundColor' => 'rgba(220, 38, 38, 0.08)',
+                    'fill' => true,
+                    'tension' => 0.25,
+                ]],
                 'labels' => $labels,
-                'orders' => $ordersCount,
-                'revenue' => $revenue,
             ];
         });
-
-        return [
-            'datasets' => [
-                [
-                    'label' => 'Количество заказов',
-                    'data' => $data['orders'],
-                    'backgroundColor' => 'rgba(245, 158, 11, 0.5)',
-                    'borderColor' => 'rgb(245, 158, 11)',
-                ],
-                [
-                    'label' => 'Выручка (тыс. ₽)',
-                    'data' => $data['revenue'],
-                    'backgroundColor' => 'rgba(34, 197, 94, 0.5)',
-                    'borderColor' => 'rgb(34, 197, 94)',
-                ],
-            ],
-            'labels' => $data['labels'],
-        ];
     }
 }
