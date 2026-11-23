@@ -1,6 +1,10 @@
 @import "../../../../vendor/filament/filament/resources/css/theme.css";
 @import "../../../../vendor/spykapps/theme-edinburgh/resources/css/edinburgh.css";
 
+/* Filament disables automatic Tailwind scanning; include application widgets and forms. */
+@source "../../../../app/Filament/**/*.php";
+@source "../../../../resources/views/filament/**/*.blade.php";
+
 /* Primary #dc2626 + лёгкие бордеры, тени, скругления, компактные таблицы */
 :root {
     /* Скругления */
