@@ -3371,6 +3371,29 @@
             "nullable": true,
             "additionalProperties": true,
             "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+          },
+          "parent_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Историческое название родителя вариации из display_snapshot"
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Все сохранённые характеристики SKU, включая размеры и вес"
           }
         }
       },
@@ -3601,6 +3624,22 @@
                     "nullable": true,
                     "additionalProperties": true,
                     "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+                  },
+                  "kladr_hierarchy": {
+                    "type": "array",
+                    "description": "Историческая последовательность кодов КЛАДР по адресу, если были сохранены",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   }
                 }
               }
