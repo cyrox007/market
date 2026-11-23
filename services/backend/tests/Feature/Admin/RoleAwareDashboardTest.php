@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\AdminUserPresenceWidget;
 use App\Filament\Widgets\ContentStatsOverviewWidget;
 use App\Filament\Widgets\DashboardRoleChecks;
 use App\Filament\Widgets\FinancialOverviewWidget;
@@ -34,6 +35,7 @@ class RoleAwareDashboardTest extends TestCase
         $this->assertSame('Рабочая панель', $page->getTitle());
         $this->assertSame(['default' => 1, 'xl' => 2], $page->getColumns());
         $this->assertSame([
+            AdminUserPresenceWidget::class,
             LatestOrdersTableWidget::class,
             OrdersStatsOverviewWidget::class,
             OrdersChartWidget::class,
