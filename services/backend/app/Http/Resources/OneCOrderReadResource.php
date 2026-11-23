@@ -90,6 +90,16 @@ class OneCOrderReadResource extends JsonResource
                     'kladr_code' => $codeInfo['addressKladrCode'],
                     'building_kladr_code' => $codeInfo['addressBuildingKladrCode'],
                     'kladr_level' => $codeInfo['addressKladrLevel'],
+                    'kladr_hierarchy' => collect($directory['path'] ?? [])
+                        ->filter(fn ($node): bool => is_array($node) && (
+                            filled($node['kladrCode'] ?? null)
+                            || (($node['source'] ?? null) === 'kladr' && filled($node['externalId'] ?? null))
+                        ))
+                        ->map(fn (array $node): array => [
+                            'kind' => $node['kind'] ?? null,
+                            'code' => (string) (filled($node['kladrCode'] ?? null)
+                                ? $node['kladrCode'] : $node['externalId']),
+                        ])->values()->all(),
                     'details' => $directory['details'] ?? data_get($checkout, 'address.details'),
                 ],
             ],
@@ -113,6 +123,7 @@ class OneCOrderReadResource extends JsonResource
                     'product_id' => (int) $item->product_id,
                     'product_external_id' => $saved['article'] ?? null,
                     'sku' => $saved['sku'] ?? null,
+                    'parent_name' => $saved['parent_name'] ?? null,
                     'name' => (string) ($item->name ?: ($saved['name'] ?? '')),
                     'quantity' => (int) $item->quantity,
                     'unit_price' => $this->money($item->price),
@@ -121,6 +132,7 @@ class OneCOrderReadResource extends JsonResource
                     'colors' => $saved['colors'] ?? [],
                     'materials' => $saved['materials'] ?? [],
                     'configuration' => $saved['configuration'] ?? [],
+                    'specifications' => $saved['specifications'] ?? [],
                     'bundle' => $saved['bundle'] ?? ($item->pricing_snapshot['bundle'] ?? null),
                     'bundle_pricing' => $item->pricing_snapshot['bundle_pricing'] ?? null,
                 ];
