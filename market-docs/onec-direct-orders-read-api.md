@@ -307,7 +307,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | --- | --- | --- |
 | `items[].line_id` | integer | ID конкретной строки заказа |
 | `items[].product_id` | integer | **Внутренний** ID SKU, не идентификатор товара 1С |
-| `items[].product_external_id` | string/null | Внешний ID SKU, зафиксированный в `display_snapshot.article` |
+| `items[].product_external_id` | string/null | Код номенклатуры 1С из `display_snapshot.article`; если не сохранён — `external_id` связанного SKU |
 | `items[].sku` | string/null | Сохранённый SKU/артикул, если присутствует |
 | `items[].parent_name` | string/null | Историческое название родительского товара для вариации, если сохранено |
 | `items[].name` | string | Историческое имя из `order_items.name` |
@@ -389,3 +389,5 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 Тестовая команда: `cd services/backend && php artisan test --filter=OneCOrdersReadTest`.
 
 При доставке без `fulfillment_snapshot.address_directory` коды КЛАДР и ГАР, а также квартира, подъезд, этаж и домофон берутся из сохранённого `checkout_snapshot.address`. Текущая адресная книга не используется. Если снимок fulfillment есть, он остаётся основным источником.
+
+Для старых строк без сохранённого кода номенклатуры `product_external_id` берётся из связанного товара/предложения (`products.external_id`). Внутренний `product_id` и код родительского товара вместо него не используются. Название, цена и характеристики остаются историческими. `display_source` описывает снимок отображения и при таком дополнении остаётся `legacy`. Если код отсутствует в обоих источниках, значение остаётся null — такую строку нельзя идентифицировать в 1С до исправления данных.

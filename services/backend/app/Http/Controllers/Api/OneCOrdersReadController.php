@@ -122,7 +122,7 @@ class OneCOrdersReadController extends Controller
         $orders = $query->where('id', '>', $afterId)
             ->where('id', '<=', $snapshotMaxId)
             ->with([
-                'items', 'payments', 'additionalServices', 'statusHistory',
+                'items', 'items.product:id,external_id', 'payments', 'additionalServices', 'statusHistory',
                 'deliveryHandlingType',
             ])
             ->orderBy('id')

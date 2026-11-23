@@ -3302,7 +3302,7 @@
           },
           "product_external_id": {
             "type": "string",
-            "description": "Исторический внешний ID SKU из display_snapshot.article; null если не сохранён",
+            "description": "Код номенклатуры 1С из display_snapshot.article, при отсутствии — external_id связанного SKU; null только если отсутствует в обоих источниках",
             "nullable": true
           },
           "sku": {

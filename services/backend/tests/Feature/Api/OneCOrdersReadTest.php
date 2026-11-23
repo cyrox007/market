@@ -440,4 +440,38 @@ class OneCOrdersReadTest extends TestCase
             ->assertJsonPath('data.0.delivery.address.details', ['apartment' => '7']);
     }
 
+    public function test_legacy_line_uses_linked_sku_external_id_without_replacing_historical_data(): void
+    {
+        $order = $this->createReleased();
+        $product = Product::factory()->create(['external_id' => '400614']);
+        $item = OrderItem::create([
+            'order_id' => $order->id, 'product_id' => $product->id,
+            'quantity' => 1, 'price' => 116554, 'total' => 116554,
+        ]);
+        DB::table('order_items')->where('id', $item->id)->update([
+            'display_snapshot' => null, 'name' => 'Название на момент заказа',
+        ]);
+        $product->update(['name' => 'Новое название', 'price' => 999]);
+        $this->requestList(['order_id' => $order->id])->assertOk()
+            ->assertJsonPath('data.0.items.0.product_external_id', '400614')
+            ->assertJsonPath('data.0.items.0.display_source', 'legacy')
+            ->assertJsonPath('data.0.items.0.name', 'Название на момент заказа')
+            ->assertJsonPath('data.0.items.0.unit_price', '116554.00')
+            ->assertJsonPath('data.0.items.0.colors', []);
+
+        // A partially populated snapshot must not hide the linked SKU's 1C code.
+        DB::table('order_items')->where('id', $item->id)->update([
+            'display_snapshot' => json_encode(['article' => '', 'colors' => []]),
+        ]);
+        $this->requestList(['order_id' => $order->id])->assertOk()
+            ->assertJsonPath('data.0.items.0.product_external_id', '400614');
+
+        // A code already captured at checkout remains authoritative.
+        DB::table('order_items')->where('id', $item->id)->update([
+            'display_snapshot' => json_encode(['article' => 'original-1c-code']),
+        ]);
+        $this->requestList(['order_id' => $order->id])->assertOk()
+            ->assertJsonPath('data.0.items.0.product_external_id', 'original-1c-code');
+    }
+
 }

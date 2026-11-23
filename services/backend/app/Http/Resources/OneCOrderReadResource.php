@@ -11,7 +11,7 @@ use Vanilo\Payment\Models\PaymentStatusProxy;
 
 /**
  * Read-only 1C contract. All customer, prices, colors and bundle attributes
- * come from the placed order, never the mutable current ProductResource.
+ * come from the placed order. Only a missing 1C identifier falls back to the linked SKU.
  */
 class OneCOrderReadResource extends JsonResource
 {
@@ -140,7 +140,9 @@ class OneCOrderReadResource extends JsonResource
                 return [
                     'line_id' => (int) $item->id,
                     'product_id' => (int) $item->product_id,
-                    'product_external_id' => $saved['article'] ?? null,
+                    'product_external_id' => filled($saved['article'] ?? null)
+                        ? trim((string) $saved['article'])
+                        : (filled($item->product?->external_id) ? trim((string) $item->product->external_id) : null),
                     'sku' => $saved['sku'] ?? null,
                     'parent_name' => $saved['parent_name'] ?? null,
                     'name' => (string) ($item->name ?: ($saved['name'] ?? '')),
