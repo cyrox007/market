@@ -1728,6 +1728,11 @@
             "type": "string",
             "nullable": true
           },
+          "postal_code": {
+            "type": "string",
+            "nullable": true,
+            "description": "Почтовый индекс из адресного справочника, только для чтения."
+          },
           "address_snapshot": {
             "type": "object",
             "nullable": true,
