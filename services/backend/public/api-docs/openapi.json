@@ -2742,6 +2742,21 @@
           },
           "presentation": {
             "$ref": "#/components/schemas/CustomerOrderPresentation"
+          },
+          "items": {
+            "type": "array",
+            "description": "Все позиции в облегченном виде для списка заказов и существующего UI. Без полной модели товара, адреса и истории статусов.",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderItemPreview"
+            }
+          },
+          "items_preview": {
+            "type": "array",
+            "maxItems": 3,
+            "description": "Первые три позиции в порядке строк заказа. Полное число позиций — items_count.",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderItemPreview"
+            }
           }
         },
         "required": [
@@ -2753,7 +2768,9 @@
           "delivery_type",
           "created_at",
           "items_count",
-          "presentation"
+          "presentation",
+          "items",
+          "items_preview"
         ]
       },
       "CustomerOrderSummary": {
@@ -2809,6 +2826,21 @@
               },
               "presentation": {
                 "$ref": "#/components/schemas/CustomerOrderPresentation"
+              },
+              "items": {
+                "type": "array",
+                "description": "Все позиции в облегченном виде для списка заказов и существующего UI. Без полной модели товара, адреса и истории статусов.",
+                "items": {
+                  "$ref": "#/components/schemas/CustomerOrderItemPreview"
+                }
+              },
+              "items_preview": {
+                "type": "array",
+                "maxItems": 3,
+                "description": "Первые три позиции в порядке строк заказа. Полное число позиций — items_count.",
+                "items": {
+                  "$ref": "#/components/schemas/CustomerOrderItemPreview"
+                }
               }
             },
             "required": [
@@ -2820,7 +2852,9 @@
               "delivery_type",
               "created_at",
               "items_count",
-              "presentation"
+              "presentation",
+              "items",
+              "items_preview"
             ],
             "nullable": true
           }
@@ -3146,6 +3180,70 @@
             "nullable": true
           }
         }
+      },
+      "CustomerOrderItemPreview": {
+        "type": "object",
+        "description": "Облегчённая позиция заказа. Название сохраняется в order_items; изображение берётся из актуального каталога с наследованием от родителя предложения. Полная карточка Product и складские данные не включаются.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "product_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Название на момент покупки из сохранённой строки заказа"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "price": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "product": {
+            "type": "object",
+            "description": "Только поля отображения; это не полный ProductResource, даже если исходный товар больше недоступен.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "image": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true
+              },
+              "thumbnail": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true,
+                "description": "Thumb, если конверсия готова; иначе оригинал. Может быть null."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "image",
+              "thumbnail"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "product_id",
+          "name",
+          "quantity",
+          "price",
+          "total",
+          "product"
+        ]
       }
     }
   },
@@ -5983,7 +6081,7 @@
             }
           }
         ],
-        "description": "Без новых параметров сохраняется прежний полный data. view=compact либо наличие page/per_page/group включает компактную пагинацию с links/meta. Нет контактов, адреса, полного состава и истории. Сортировка created_at DESC, id DESC."
+        "description": "Без новых параметров сохраняется прежний полный data. view=compact либо наличие page/per_page/group включает компактную пагинацию с links/meta. Нет контактов, адреса, полного состава и истории. Сортировка created_at DESC, id DESC. В режиме view=compact каждая карточка содержит items (все облегчённые позиции) и items_preview (первые три); полные ProductResource и события заказа не загружаются."
       }
     },
     "/api/v1/orders/{id}/payment-config": {
@@ -9437,7 +9535,7 @@
             "description": "Слишком много запросов; повторить после Retry-After"
           }
         },
-        "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории."
+        "description": "Только заказы текущего user_id. completed=delivered, cancelled=cancelled, остальные active. last_order по created_at DESC, id DESC; null при пустой истории. last_order включает те же облегчённые items/items_preview, что и compact-список."
       }
     },
     "/api/v1/auth/email": {
