@@ -199,6 +199,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | `delivery.address.kladr_code` | string/null | Самый точный известный код КЛАДР |
 | `delivery.address.building_kladr_code` | string/null | КЛАДР именно здания (если известен) |
 | `delivery.address.kladr_level` | string/null | Уровень объекта, для которого известен КЛАДР |
+| `delivery.address.kladr_hierarchy[]` | array | Сохранённый путь КЛАДР: `kind` — тип уровня и `code` — код объекта; пустой, если в историческом снимке нет кодов |
 | `delivery.address.details` | object/null | Зафиксированные квартира/комната/подъезд/этаж/домофон/комментарий |
 | `fulfillment.multi_warehouse` | boolean | Заказ размещён на нескольких складах |
 | `fulfillment.warehouse_external_id` | string/null | Общий внешний ID склада, **null** при многоскладском заказе |
@@ -219,6 +220,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | `items[].product_id` | integer | **Внутренний** ID SKU, не идентификатор товара 1С |
 | `items[].product_external_id` | string/null | Внешний ID SKU, зафиксированный в `display_snapshot.article` |
 | `items[].sku` | string/null | Сохранённый SKU/артикул, если присутствует |
+| `items[].parent_name` | string/null | Историческое название родительского товара для вариации, если сохранено |
 | `items[].name` | string | Историческое имя из `order_items.name` |
 | `items[].quantity` | integer | Количество |
 | `items[].unit_price` | decimal string | Цена единицы из сохранённой строки |
@@ -227,6 +229,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | `items[].colors` | array | Сохранённые цветовые решения (структура объектов текущего снимка) |
 | `items[].materials` | array | Сохранённые данные материалов |
 | `items[].configuration` | array | Сохранённая вариативная конфигурация |
+| `items[].specifications` | array | Полные исторические характеристики SKU (включая размеры/вес при наличии), каждая строка: `name`, `slug`, `value` |
 | `items[].bundle` | array/object/null | Сохранённая связь позиции с комплектом |
 | `items[].bundle_pricing` | object/null | Сохранённая детализация цены комплекта |
 | `bundle_snapshot` | array/object/null | Снимок комплекта заказа, если был сформирован |
@@ -238,6 +241,8 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | `status_history[]` | array | История изменений статуса |
 | `status_history[].status` | string | Код статуса на момент события |
 | `status_history[].occurred_at` | ISO 8601 UTC/null | Когда произошёл переход |
+
+**Цветовые решения в `items[].colors`:** каждая строка содержит `element` (или `null` для основного цвета) с `id, name, slug`, а также `solution` с `id, name, slug, icon_url` и массивом `base_colors`. Базовый цвет включает `id, name, slug, hex`. `icon_url` — ссылка на текущий медиафайл, а не гарантированно неизменяемое историческое изображение. Строки `materials`, `configuration`, `specifications` используют `name` (название характеристики), `slug` (стабильный код), `value` (зафиксированное текстовое значение). Значение `legacy` означает отсутствие части этих сведений.
 
 **Без подмены исторических данных:** если `display_source=legacy`, старые цвета и внешний ID могут отсутствовать. Не подставлять текущие цвета каталога и **не заменять `product_external_id` внутренним `product_id`**. Строка всё равно возвращается, чтобы 1С могла обозначить её как требующую сопоставления.
 
