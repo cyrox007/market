@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Cache;
 
 class FinancialOverviewWidget extends BaseWidget
 {
-    protected static ?int $sort = 7;
+    protected static ?int $sort = 4;
 
-    protected int|string|array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 1;
 
     protected ?string $heading = 'Стоимость заказов (не оплаченная выручка)';
 
