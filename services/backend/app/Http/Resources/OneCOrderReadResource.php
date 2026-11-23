@@ -99,7 +99,7 @@ class OneCOrderReadResource extends JsonResource
                     ? null : ($fulfillment['warehouse_external_id'] ?? null),
                 'warehouse_allocations' => $allocations,
             ],
-            'bundle_snapshot' => $order->bundle_snapshot,
+            'bundle_snapshot' => $this->snapshotJson($order->bundle_snapshot),
             'additional_services' => $order->additionalServices->map(fn ($service): array => [
                 'code' => $service->code,
                 'name' => $service->pivot->service_name ?? $service->name,
@@ -143,6 +143,20 @@ class OneCOrderReadResource extends JsonResource
                 'preorder_quantity' => (int) ($item['preorder_quantity'] ?? 0),
             ])->values()->all(),
         ];
+    }
+
+    private function snapshotJson(mixed $value): mixed
+    {
+        if ($value === null || is_array($value)) {
+            return $value;
+        }
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $parsed = json_decode($value, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $parsed : null;
     }
 
     private function money(mixed $value): string
