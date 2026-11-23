@@ -139,9 +139,9 @@ class AccountEmailTest extends TestCase
 
         $expiry = $response->json('pending_expires_at');
         $this->assertIsString($expiry);
-        $this->assertMatchesRegularExpression('/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$/', $expiry);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/', $expiry);
         $this->assertSame(
-            \\Illuminate\\Support\\Carbon::parse((string) $storedExpiry, 'UTC')->toISOString(),
+            \Illuminate\Support\Carbon::parse((string) $storedExpiry, 'UTC')->toISOString(),
             $expiry
         );
 
