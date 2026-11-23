@@ -111,7 +111,7 @@ class AdminUserPresenceTest extends TestCase
         ]);
 
         $invalid = ['kind' => 'resource', 'resource' => 'App\\Models\\User', 'action' => 'index'];
-        $this->postJson('/admin_sv/editing-presence', $this->heartbeat($window, $invalid))
+        $this->actingAs($viewer, 'web')->postJson('/admin_sv/editing-presence', $this->heartbeat($window, $invalid))
             ->assertUnprocessable();
         $this->assertDatabaseCount('admin_panel_presence', 1);
     }
@@ -218,6 +218,7 @@ class AdminUserPresenceTest extends TestCase
             $admin->givePermissionTo(Permission::findOrCreate($permission, 'web'));
         }
 
+        $this->actingAs($admin, 'web');
         Livewire::test(AdminUserPresenceWidget::class)
             ->assertSuccessful()
             ->assertSee('Редактирует запись #'.$product->id)
