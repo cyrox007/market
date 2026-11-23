@@ -232,6 +232,8 @@ class OneCOrdersReadTest extends TestCase
             ->assertJsonPath('data.0.amounts.handling_in_delivery', '200.00')
             ->assertJsonPath('data.0.delivery.address.text', 'Липецк, улица Старая, 10')
             ->assertJsonPath('data.0.fulfillment.multi_warehouse', true)
+            ->assertJsonPath('data.0.delivery.address.kladr_hierarchy', [])
+            ->assertJsonStructure(['data' => [['items' => [['parent_name', 'specifications']]]]])
             ->assertJsonPath('data.0.fulfillment.warehouse_allocations.0.items.0.preorder_quantity', 1)
             ->assertJsonPath('data.0.payment.is_paid', false)
             ->assertJsonMissingPath('data.0.integration_state')
