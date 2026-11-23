@@ -8,7 +8,7 @@ use App\Filament\Widgets\FinancialOverviewWidget;
 use App\Filament\Widgets\LatestOrdersTableWidget;
 use App\Filament\Widgets\OrdersChartWidget;
 use App\Filament\Widgets\OrdersStatsOverviewWidget;
-use App\Filament\Widgets\ProductsStatsOverviewWidget;
+use App\Filament\Widgets\CatalogCardAttentionWidget;
 use App\Filament\Widgets\UsersStatsWidget;
 use Filament\Pages\Dashboard as BaseDashboard;
 
@@ -32,7 +32,7 @@ class Dashboard extends BaseDashboard
             LatestOrdersTableWidget::class,
             OrdersStatsOverviewWidget::class,
             OrdersChartWidget::class,
-            ProductsStatsOverviewWidget::class,
+            CatalogCardAttentionWidget::class,
             ContentStatsOverviewWidget::class,
             FinancialOverviewWidget::class,
             UsersStatsWidget::class,

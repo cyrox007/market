@@ -10,7 +10,7 @@ use App\Filament\Widgets\FinancialOverviewWidget;
 use App\Filament\Widgets\LatestOrdersTableWidget;
 use App\Filament\Widgets\OrdersChartWidget;
 use App\Filament\Widgets\OrdersStatsOverviewWidget;
-use App\Filament\Widgets\ProductsStatsOverviewWidget;
+use App\Filament\Widgets\CatalogCardAttentionWidget;
 use App\Models\Order\Order;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -39,7 +39,7 @@ class RoleAwareDashboardTest extends TestCase
             LatestOrdersTableWidget::class,
             OrdersStatsOverviewWidget::class,
             OrdersChartWidget::class,
-            ProductsStatsOverviewWidget::class,
+            CatalogCardAttentionWidget::class,
             ContentStatsOverviewWidget::class,
             FinancialOverviewWidget::class,
             \App\Filament\Widgets\UsersStatsWidget::class,
