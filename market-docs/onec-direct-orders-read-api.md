@@ -59,7 +59,7 @@ curl --fail-with-body -H 'Accept: application/json' \
 | `created_to` | `2026-11-23` | Создан не позднее окончания календарной даты UTC |
 | `cooling_from` | `2026-11-01` | Дедлайн охлаждения не раньше начала даты UTC |
 | `cooling_to` | `2026-11-23` | Дедлайн охлаждения не позднее окончания даты UTC |
-| `delivery_type` | `delivery` / `pickup` | Доставка / самовывоз |
+| `delivery_type` | `delivery` / `pickup` | Доставка курьером к покупателю / самовывоз из выбранного склада или связанной с ним точки выдачи |
 | `payment_method` | Например, `cash` | **Код** способа оплаты, не его русское название |
 | `limit` | 1..100; по умолчанию 50 | Максимальное количество заказов в странице |
 | `after_id` | Целое >= 0 | Следующая страница: только ID строго больше значения |
@@ -111,7 +111,8 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
         "directory_external_id": "building-001", "gar_guid": null,
         "kladr_code": "4800000012345", "building_kladr_code": "4800000012345",
         "kladr_level": "building", "details": {"apartment": "14"}
-      }
+      },
+      "pickup": null
     },
     "fulfillment": {
       "multi_warehouse": false, "warehouse_external_id": "WH-001",
@@ -140,6 +141,63 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
   }
 }
 ```
+
+### 4.1. Самовывоз — отдельная форма ответа
+
+Если `delivery.type = "pickup"`, **адрес покупателя не используется**: `delivery.address = null`. Адрес, по которому выдаётся заказ, находится в **`delivery.pickup.address`**. Это исторический адрес физического объекта склада (или связанной с ним точки выдачи), выбранного при оформлении заказа. Не путайте его со складом, который может числиться источником товара при курьерской доставке.
+
+Укороченный пример записи самовывоза (все остальные поля заказа, включая `items`, `amounts` и `status_history`, такие же, как в общем формате):
+
+```json
+{
+  "id": 12346,
+  "number": "2026-00124",
+  "status": "assembling",
+  "delivery": {
+    "type": "pickup",
+    "date": null,
+    "time": null,
+    "days_min": 0,
+    "days_max": 2,
+    "floor": null,
+    "requires_assembly": false,
+    "handling": null,
+    "address": null,
+    "pickup": {
+      "warehouse_id": 7,
+      "warehouse_external_id": "WH-LIP-01",
+      "store_id": 12,
+      "point_name": "Пункт самовывоза на Складской",
+      "address": {
+        "text": "Липецк, улица Складская, 10",
+        "directory_external_id": "building-001",
+        "gar_guid": null,
+        "kladr_code": "4800000012345",
+        "building_kladr_code": "4800000012345",
+        "kladr_level": "building",
+        "kladr_hierarchy": [],
+        "details": []
+      },
+      "hours": "Пн–Пт 09:00–18:00",
+      "opening_hours": null,
+      "timezone": "Europe/Moscow"
+    }
+  },
+  "fulfillment": {
+    "multi_warehouse": false,
+    "warehouse_external_id": "WH-LIP-01",
+    "warehouse_allocations": [{
+      "warehouse_id": 7,
+      "warehouse_external_id": "WH-LIP-01",
+      "items": [{"product_id": 91, "quantity": 2, "preorder_quantity": 0}]
+    }]
+  }
+}
+```
+
+Если покупатель выбирает выдачу **на самом складе**, без отдельного магазина, `delivery.pickup.store_id = null`, `point_name` берётся из названия склада. Когда выбрана связанная точка выдачи, `store_id` содержит внутренний ID магазина сайта, а `point_name` — историческое название точки. Адрес в обоих случаях берётся из выбранного физического объекта/склада, а не из `stores.address`, и фиксируется в `fulfillment_snapshot`.
+
+Если старый заказ не содержит сохранённого адреса точки, `delivery.pickup.address = null`. Это **пробел в исторических данных**, требующий проверки, а не разрешение автоматически подставить сегодняшний адрес склада.
 
 ## 5. Словарь всех полей
 
@@ -189,11 +247,26 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | `delivery.type` | `delivery`/`pickup` | Доставка или самовывоз |
 | `delivery.date` | YYYY-MM-DD/null | Назначенная дата, если сохранена; не путать с оценкой |
 | `delivery.time` | string/null | Назначенный интервал, если сохранён |
-| `delivery.days_min`/`days_max` | integer/null | Оценочный срок в днях, не обещанный слот |
+| `delivery.days_min`/`days_max` | integer/null | Для доставки — ориентировочный срок транспортировки; для самовывоза — ориентировочный срок подготовки к выдаче, не обещанная дата |
 | `delivery.floor` | integer/null | Этаж |
 | `delivery.requires_assembly` | boolean | Нужна сборка |
 | `delivery.handling` | object/null | Тип обработки: `code`, `name` |
-| `delivery.address.text` | string/null | Исторический адрес из заказа, а не редактируемая адресная книга |
+| `delivery.address` | object/null | **Только доставка:** исторический адрес покупателя; при самовывозе всегда `null` |
+| `delivery.pickup` | object/null | **Только самовывоз:** сведения о выбранной выдаче; при доставке всегда `null` |
+| `delivery.pickup.warehouse_id` | integer/null | Внутренний идентификатор склада сайта, из которого производится выдача |
+| `delivery.pickup.warehouse_external_id` | string/null | Внешний ID выбранного склада для сопоставления в 1С |
+| `delivery.pickup.store_id` | integer/null | ID связанного магазина/точки выдачи сайта; `null` при выдаче непосредственно на складе |
+| `delivery.pickup.point_name` | string/null | Историческое название выбранной точки или склада |
+| `delivery.pickup.address` | object/null | **Адрес самовывоза (склада/физического объекта)**, сохранённый при оформлении. Поля те же, что у `delivery.address` |
+| `delivery.pickup.address.text` | string/null | Текст адреса выдачи: из сохранённого `fulfillment_snapshot.address` или исторической резервной копии адреса заказа; **не из текущей карточки склада** |
+| `delivery.pickup.address.directory_external_id` | string/null | Исторический ID адресного объекта выбранного склада |
+| `delivery.pickup.address.gar_guid` / `kladr_code` | string/null | Исторические ГАР/КЛАДР адреса склада, если они были сохранены |
+| `delivery.pickup.address.building_kladr_code` / `kladr_level` / `kladr_hierarchy` | string/null или array | КЛАДР здания, уровень и иерархия по сохранённому адресу выдачи |
+| `delivery.pickup.address.details` | object/null | Дополнительные сведения адресного снимка точки выдачи, если они были |
+| `delivery.pickup.hours` | string/null | Сохранённая текстовая подпись часов работы точки |
+| `delivery.pickup.opening_hours` | object/array/null | Сохранённое расписание точки, если выбрана связанная торговая точка |
+| `delivery.pickup.timezone` | string/null | Часовой пояс точки, записанный при выборе варианта самовывоза |
+| `delivery.address.text` | string/null | Исторический адрес **покупателя для доставки**, не редактируемая адресная книга |
 | `delivery.address.directory_external_id` | string/null | Внешний ID здания классификатора |
 | `delivery.address.gar_guid` | string/null | GUID ГАР, если есть |
 | `delivery.address.kladr_code` | string/null | Самый точный известный код КЛАДР |
@@ -210,7 +283,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 | `warehouse_allocations[].items[].quantity` | integer | Количество SKU с этого склада |
 | `warehouse_allocations[].items[].preorder_quantity` | integer | Из него — количество под заказ |
 
-**Самовывоз:** магазин/точка выдачи и склад — разные сущности. В этой версии пока нет гарантированного отдельного `store_external_id` для 1С. **Нельзя** автоматически использовать внешний ID склада в роли магазина. Если нет распределений в старом снимке, не выдумывать склад.
+**Самовывоз:** в `delivery.pickup` всегда различаются **склад-источник** (`warehouse_id`, `warehouse_external_id`) и **магазин/точка выдачи** (`store_id`, если выбрана). Для магазинов в этой схеме нет отдельного гарантированного `store_external_id` 1С. **Нельзя** использовать внешний ID склада вместо ID магазина. Адрес выдачи — `delivery.pickup.address`, из сохранённого `fulfillment_snapshot`; актуальный склад или магазин из БД для восстановления старых адресов не опрашивается. Если исторический адрес отсутствует — `null` и ручная сверка. Если нет распределений в старом снимке, склад тоже не выдумывается.
 
 ### 5.4. Строки товаров, вариации, комплекты, услуги
 
