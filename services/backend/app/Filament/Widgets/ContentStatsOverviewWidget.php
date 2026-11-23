@@ -15,9 +15,9 @@ use Illuminate\Support\Facades\Cache;
 
 class ContentStatsOverviewWidget extends BaseWidget
 {
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 6;
 
-    protected int|string|array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 1;
 
     protected ?string $heading = 'Контент и публикации';
 
