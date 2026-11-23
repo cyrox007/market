@@ -3447,6 +3447,11 @@
             "nullable": true,
             "description": "Дедлайн охлаждения UTC, не факт приёмки"
           },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "description": "Сохранённый комментарий покупателя к заказу"
+          },
           "customer": {
             "type": "object",
             "description": "Сохранённый контакт покупателя",

@@ -388,4 +388,56 @@ class OneCOrdersReadTest extends TestCase
             ->assertJsonPath('data.0.delivery.pickup.store_id', null);
     }
 
+
+    public function test_exports_sealed_checkout_address_codes_details_and_customer_comment(): void
+    {
+        $order = $this->createReleased([
+            'delivery_type' => 'delivery',
+            'fulfillment_snapshot' => null,
+            'address_snapshot' => 'Липецк, Советская, 13',
+            'comment' => 'Позвонить за час',
+        ]);
+        $order->forceFill(['checkout_snapshot' => ['address' => [
+            'directory_external_id' => 'saved-building-13',
+            'kladr_code' => '480000010000013',
+            'gar_guid' => 'saved-gar-guid',
+            'apartment' => '5', 'entrance' => '2', 'floor' => 0,
+            'intercom' => '5К', 'room' => null,
+        ]]])->save();
+
+        $this->requestList(['order_id' => $order->id])->assertOk()
+            ->assertJsonPath('data.0.comment', 'Позвонить за час')
+            ->assertJsonPath('data.0.delivery.address.text', 'Липецк, Советская, 13')
+            ->assertJsonPath('data.0.delivery.address.directory_external_id', 'saved-building-13')
+            ->assertJsonPath('data.0.delivery.address.kladr_code', '480000010000013')
+            ->assertJsonPath('data.0.delivery.address.building_kladr_code', '480000010000013')
+            ->assertJsonPath('data.0.delivery.address.gar_guid', 'saved-gar-guid')
+            ->assertJsonPath('data.0.delivery.address.details', [
+                'apartment' => '5', 'entrance' => '2', 'floor' => 0, 'intercom' => '5К',
+            ]);
+    }
+
+    public function test_fulfillment_address_remains_authoritative_over_checkout_fallback(): void
+    {
+        $order = $this->createReleased([
+            'delivery_type' => 'delivery',
+            'comment' => null,
+            'fulfillment_snapshot' => ['address_directory' => [
+                'external_id' => 'fulfillment-building', 'kladr_code' => '480000010000014',
+                'gar_guid' => 'fulfillment-gar', 'details' => ['apartment' => '7'],
+            ]],
+        ]);
+        $order->forceFill(['checkout_snapshot' => ['address' => [
+            'directory_external_id' => 'other-building', 'kladr_code' => '480000010000013',
+            'gar_guid' => 'other-gar', 'apartment' => '5',
+        ]]])->save();
+
+        $this->requestList(['order_id' => $order->id])->assertOk()
+            ->assertJsonPath('data.0.comment', null)
+            ->assertJsonPath('data.0.delivery.address.directory_external_id', 'fulfillment-building')
+            ->assertJsonPath('data.0.delivery.address.kladr_code', '480000010000014')
+            ->assertJsonPath('data.0.delivery.address.gar_guid', 'fulfillment-gar')
+            ->assertJsonPath('data.0.delivery.address.details', ['apartment' => '7']);
+    }
+
 }

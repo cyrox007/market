@@ -22,6 +22,20 @@ class OneCOrderReadResource extends JsonResource
         $directory = $fulfillment['address_directory'] ?? null;
         $checkout = $order->checkout_snapshot ?? [];
         $isPickup = $order->delivery_type === 'pickup';
+        // Older orders may keep the address only in the sealed checkout snapshot.
+        // Use those saved codes and flat details; never consult today's address book.
+        if ($directory === null && ! $isPickup && is_array($checkout['address'] ?? null)) {
+            $address = $checkout['address'];
+            $directory = [
+                'external_id' => $address['directory_external_id'] ?? null,
+                'gar_guid' => $address['gar_guid'] ?? null,
+                'kladr_code' => $address['kladr_code'] ?? null,
+                'details' => $address['details'] ?? array_filter(
+                    \Illuminate\Support\Arr::only($address, ['apartment', 'room', 'entrance', 'floor', 'intercom', 'comment']),
+                    fn ($value): bool => $value !== null && $value !== ''
+                ),
+            ];
+        }
         $display = app(OrderItemDisplay::class);
         $paymentMethodLabels = $request->attributes->get('onec_payment_labels', []);
         $methodCode = $order->payment_method;
@@ -49,6 +63,7 @@ class OneCOrderReadResource extends JsonResource
             'created_at' => $order->created_at?->toISOString(),
             'updated_at' => $order->updated_at?->toISOString(),
             'cooling_until' => $order->cooling_until?->toISOString(),
+            'comment' => $order->comment,
             'customer' => [
                 'name' => $order->contact_name,
                 'phone' => $order->contact_phone,

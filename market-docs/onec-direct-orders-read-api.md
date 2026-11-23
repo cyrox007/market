@@ -239,6 +239,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 
 | Поле | Тип | Значение |
 | --- | --- | --- |
+| `comment` | string/null | Сохранённый комментарий покупателя к заказу |
 | `customer.name` | string/null | Имя контакта из заказа |
 | `customer.phone` | string/null | Сохранённый номер телефона |
 | `customer.email` | string/null | Email на момент оформления |
@@ -386,3 +387,5 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
 - Тесты: `services/backend/tests/Feature/Api/OneCOrdersReadTest.php`.
 
 Тестовая команда: `cd services/backend && php artisan test --filter=OneCOrdersReadTest`.
+
+При доставке без `fulfillment_snapshot.address_directory` коды КЛАДР и ГАР, а также квартира, подъезд, этаж и домофон берутся из сохранённого `checkout_snapshot.address`. Текущая адресная книга не используется. Если снимок fulfillment есть, он остаётся основным источником.
