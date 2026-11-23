@@ -3531,117 +3531,20 @@
             }
           },
           "delivery": {
-            "type": "object",
-            "description": "Доставка и исторический адрес",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "delivery",
-                  "pickup"
-                ]
+            "description": "Два взаимоисключающих сценария: type=delivery означает адрес покупателя в address, pickup=null; type=pickup означает address=null и обязательный объект pickup с адресом склада.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OneCOrderCourierDelivery"
               },
-              "date": {
-                "type": "string",
-                "format": "date",
-                "nullable": true,
-                "description": "Назначенная дата, если заполнена"
-              },
-              "time": {
-                "type": "string",
-                "description": "Интервал доставки, если назначен",
-                "nullable": true
-              },
-              "days_min": {
-                "type": "integer",
-                "description": "Минимальный ориентировочный срок в днях",
-                "nullable": true
-              },
-              "days_max": {
-                "type": "integer",
-                "description": "Максимальный ориентировочный срок",
-                "nullable": true
-              },
-              "floor": {
-                "type": "integer",
-                "description": "Этаж",
-                "nullable": true
-              },
-              "requires_assembly": {
-                "type": "boolean"
-              },
-              "handling": {
-                "type": "object",
-                "nullable": true,
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "description": "Код обработки",
-                    "nullable": true
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Название обработки",
-                    "nullable": true
-                  }
-                }
-              },
-              "address": {
-                "type": "object",
-                "properties": {
-                  "text": {
-                    "type": "string",
-                    "description": "Сохранённый текст адреса",
-                    "nullable": true
-                  },
-                  "directory_external_id": {
-                    "type": "string",
-                    "description": "ID здания справочника",
-                    "nullable": true
-                  },
-                  "gar_guid": {
-                    "type": "string",
-                    "description": "GUID ГАР",
-                    "nullable": true
-                  },
-                  "kladr_code": {
-                    "type": "string",
-                    "description": "Ближайший достоверный КЛАДР",
-                    "nullable": true
-                  },
-                  "building_kladr_code": {
-                    "type": "string",
-                    "description": "КЛАДР здания",
-                    "nullable": true
-                  },
-                  "kladr_level": {
-                    "type": "string",
-                    "description": "Уровень КЛАДР",
-                    "nullable": true
-                  },
-                  "details": {
-                    "type": "object",
-                    "nullable": true,
-                    "additionalProperties": true,
-                    "description": "Исторический снимок, структура может отличаться для legacy-заказов"
-                  },
-                  "kladr_hierarchy": {
-                    "type": "array",
-                    "description": "Историческая последовательность кодов КЛАДР по адресу, если были сохранены",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "code": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
+              {
+                "$ref": "#/components/schemas/OneCOrderWarehousePickup"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "delivery": "#/components/schemas/OneCOrderCourierDelivery",
+                "pickup": "#/components/schemas/OneCOrderWarehousePickup"
               }
             }
           },
@@ -3822,6 +3725,269 @@
                 "description": "Не является журналом изменений"
               }
             }
+          }
+        }
+      },
+      "OneCOrderAddress": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Сохранённый текст адреса",
+            "nullable": true
+          },
+          "directory_external_id": {
+            "type": "string",
+            "description": "ID здания справочника",
+            "nullable": true
+          },
+          "gar_guid": {
+            "type": "string",
+            "description": "GUID ГАР",
+            "nullable": true
+          },
+          "kladr_code": {
+            "type": "string",
+            "description": "Ближайший достоверный КЛАДР",
+            "nullable": true
+          },
+          "building_kladr_code": {
+            "type": "string",
+            "description": "КЛАДР здания",
+            "nullable": true
+          },
+          "kladr_level": {
+            "type": "string",
+            "description": "Уровень КЛАДР",
+            "nullable": true
+          },
+          "details": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+          },
+          "kladr_hierarchy": {
+            "type": "array",
+            "description": "Историческая последовательность кодов КЛАДР по адресу, если были сохранены",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "code": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "nullable": true,
+        "description": "Исторический адрес: при доставке адрес покупателя, при самовывозе — отдельный delivery.pickup.address. Может отсутствовать у legacy."
+      },
+      "OneCOrderPickupDetails": {
+        "type": "object",
+        "description": "Самовывоз из выбранного склада / физического объекта; магазин опционален и расположен при складе. Все значения из сохранённого при оформлении fulfillment_snapshot; текущее состояние склада не используется.",
+        "required": [
+          "warehouse_id",
+          "warehouse_external_id",
+          "store_id",
+          "point_name",
+          "address",
+          "hours",
+          "opening_hours",
+          "timezone"
+        ],
+        "properties": {
+          "warehouse_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Внутренний ID склада магазина, выбранного для самовывоза"
+          },
+          "warehouse_external_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Внешний идентификатор выбранного склада; не ID магазина 1С"
+          },
+          "store_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Внутренний ID связанной точки выдачи; null при непосредственной выдаче со склада"
+          },
+          "point_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Историческое название связанной торговой точки либо склада"
+          },
+          "address": {
+            "$ref": "#/components/schemas/OneCOrderAddress",
+            "description": "Адрес склада/физического объекта выдачи, сохранённый при оформлении; null при отсутствии исторического адреса"
+          },
+          "hours": {
+            "type": "string",
+            "nullable": true,
+            "description": "Часы работы текстом из снимка"
+          },
+          "opening_hours": {
+            "nullable": true,
+            "description": "Сохранённое структурированное расписание магазина: array/object; null при отсутствии или выдаче прямо со склада"
+          },
+          "timezone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Часовой пояс точки, записанный в снимке самовывоза"
+          }
+        }
+      },
+      "OneCOrderCourierDelivery": {
+        "type": "object",
+        "description": "Заказ с курьерской доставкой; адрес покупателя расположен в delivery.address",
+        "required": [
+          "type",
+          "address",
+          "pickup"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "delivery"
+            ],
+            "description": "Курьерская доставка покупателю"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Назначенная дата, если заполнена"
+          },
+          "time": {
+            "type": "string",
+            "description": "Интервал доставки, если назначен",
+            "nullable": true
+          },
+          "days_min": {
+            "type": "integer",
+            "description": "Минимальный ориентировочный срок в днях",
+            "nullable": true
+          },
+          "days_max": {
+            "type": "integer",
+            "description": "Максимальный ориентировочный срок",
+            "nullable": true
+          },
+          "floor": {
+            "type": "integer",
+            "description": "Этаж",
+            "nullable": true
+          },
+          "requires_assembly": {
+            "type": "boolean"
+          },
+          "handling": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Код обработки",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "description": "Название обработки",
+                "nullable": true
+              }
+            }
+          },
+          "address": {
+            "$ref": "#/components/schemas/OneCOrderAddress",
+            "description": "Адрес покупателя, сохранённый в заказе"
+          },
+          "pickup": {
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ],
+            "description": "При доставке всегда null"
+          }
+        }
+      },
+      "OneCOrderWarehousePickup": {
+        "type": "object",
+        "description": "Заказ самовывоза; адрес склада/точки расположен в delivery.pickup.address",
+        "required": [
+          "type",
+          "address",
+          "pickup"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "pickup"
+            ],
+            "description": "Самовывоз из выбранного склада/связанной с ним точки выдачи"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Назначенная дата, если заполнена"
+          },
+          "time": {
+            "type": "string",
+            "description": "Интервал доставки, если назначен",
+            "nullable": true
+          },
+          "days_min": {
+            "type": "integer",
+            "description": "Минимальный ориентировочный срок в днях",
+            "nullable": true
+          },
+          "days_max": {
+            "type": "integer",
+            "description": "Максимальный ориентировочный срок",
+            "nullable": true
+          },
+          "floor": {
+            "type": "integer",
+            "description": "Этаж",
+            "nullable": true
+          },
+          "requires_assembly": {
+            "type": "boolean"
+          },
+          "handling": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Код обработки",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "description": "Название обработки",
+                "nullable": true
+              }
+            }
+          },
+          "address": {
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ],
+            "description": "При самовывозе всегда null: адрес покупателя не используется"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/OneCOrderPickupDetails",
+            "description": "Информация об исторически выбранном складе, пункте и адресе выдачи"
           }
         }
       }
