@@ -144,6 +144,30 @@ class CatalogCardAttentionTest extends TestCase
         $this->assertContains('no_image', $this->codes($product->fresh(), true));
     }
 
+    public function test_duplicate_external_id_is_reported_only_between_active_sellable_skus(): void
+    {
+        $first = Product::factory()->create(['external_id' => 'DUP-001', 'description' => null]);
+        $second = Product::factory()->create(['external_id' => 'DUP-001', 'description' => null]);
+        $virtualParent = Product::factory()->create([
+            'is_variable' => true, 'external_id' => 'DUP-001',
+        ]);
+
+        $this->assertSame(0, Artisan::call('catalog:audit-cards', ['--skip-files' => true]));
+        $this->assertTrue(CatalogCardIssue::query()
+            ->where('product_id', $first->id)->exists());
+        $this->assertTrue(CatalogCardIssue::query()
+            ->where('product_id', $second->id)->exists());
+
+        foreach ([$first, $second] as $product) {
+            $stored = CatalogCardIssue::query()->where('product_id', $product->id)->firstOrFail();
+            $this->assertContains('duplicate_external_id', array_column($stored->reasons, 'code'));
+        }
+
+        $parentStored = CatalogCardIssue::query()->where('product_id', $virtualParent->id)->firstOrFail();
+        $this->assertNotContains('duplicate_external_id', array_column($parentStored->reasons, 'code'));
+        $this->assertNotContains('no_external_id', array_column($parentStored->reasons, 'code'));
+    }
+
     public function test_inactive_products_do_not_trigger_diagnostics(): void
     {
         $product = Product::factory()->create(['state' => 'inactive', 'price' => 0]);
