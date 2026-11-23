@@ -17,8 +17,9 @@ return new class extends Migration
             $table->string('page_action', 16)->nullable();
             $table->string('record_key', 150)->nullable();
             $table->string('page_slug', 150)->nullable();
-            $table->timestamp('last_seen_at');
-            $table->timestamp('expires_at')->index();
+            // Avoid legacy MySQL implicit zero defaults on a second NOT NULL TIMESTAMP.
+            $table->dateTime('last_seen_at');
+            $table->dateTime('expires_at')->index();
 
             // A single browser tab can contribute only one active page.
             $table->unique(['user_id', 'window_id'], 'admin_panel_presence_user_window_unique');
