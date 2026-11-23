@@ -4,17 +4,19 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order\Order;
+use App\Models\Order\OrderStatus;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
+use Illuminate\Database\Eloquent\Builder;
 
 class LatestOrdersTableWidget extends BaseWidget
 {
-    protected static ?int $sort = 6;
+    protected static ?int $sort = 2;
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Последние заказы';
+    protected static ?string $heading = 'Требуют внимания';
 
     public static function canView(): bool
     {
@@ -24,50 +26,62 @@ class LatestOrdersTableWidget extends BaseWidget
     public function table(Table $table): Table
     {
         return $table
-            ->recordUrl(fn(Order $record): string => OrderResource::getUrl('view', ['record' => $record]))
+            ->recordUrl(fn (Order $record): string => OrderResource::getUrl(
+                OrderResource::canEdit($record) ? 'edit' : 'view', ['record' => $record]))
             ->columns([
-                TextColumn::make('number')
-                    ->label('Номер')
-                    ->searchable()
-                    ->weight('bold'),
-                TextColumn::make('created_at')
-                    ->label('Дата')
-                    ->dateTime('d.m.Y H:i')
-                    ->sortable(),
-                TextColumn::make('status')
-                    ->label('Статус')
-                    ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'new' => 'info',
-                        'accepted' => 'warning',
-                        'assembled' => 'warning',
-                        'shipped' => 'info',
-                        'in_transit' => 'info',
-                        'delivered' => 'success',
+                TextColumn::make('number')->label('Заказ')->weight('bold')
+                    ->description(fn (Order $record) => $record->created_at?->format('d.m.Y H:i')),
+                TextColumn::make('status')->label('Статус')->badge()
+                    ->formatStateUsing(fn ($state) => OrderStatus::tryFrom($state)?->label() ?? $state)
+                    ->color(fn ($state): string => match ($state) {
+                        'new', 'manager_processing' => 'warning',
+                        'assembling', 'assembled' => 'info',
                         'cancelled' => 'danger',
                         default => 'gray',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'new' => 'Новый',
-                        'accepted' => 'Принят',
-                        'assembled' => 'Собран',
-                        'shipped' => 'Отправлен',
-                        'in_transit' => 'В пути',
-                        'delivered' => 'Доставлен',
-                        'cancelled' => 'Отменен',
-                        default => $state,
                     }),
-                TextColumn::make('total')
-                    ->label('Сумма')
-                    ->money('RUB')
-                    ->sortable(),
+                TextColumn::make('attention_reason')->label('Причина')->state(static function (Order $record): string {
+                    if ($record->integration_state === 'failed') {
+                        return 'Ошибка передачи в интеграцию';
+                    }
+                    if ($record->cancellationRequest?->status !== null
+                        && $record->cancellationRequest->status !== 'resolved') {
+                        return 'Обращение на отмену';
+                    }
+                    if ($record->refundTask?->status !== null
+                        && $record->refundTask->status !== 'completed') {
+                        return 'Ожидается возврат';
+                    }
+
+                    return match ($record->status) {
+                        'new', 'manager_processing' => 'Ожидает обработки',
+                        'assembling' => 'Сборка',
+                        'assembled' => 'Ожидает отгрузки',
+                        default => 'Проверить заказ',
+                    };
+                })->wrap(),
+                TextColumn::make('total')->label('Сумма')->money('RUB'),
             ])
+            ->emptyStateHeading('Нет заказов, требующих внимания')
+            ->emptyStateDescription('Новые задачи и проблемные операции появятся здесь.')
             ->defaultPaginationPageOption(10)
             ->paginationPageOptions([10]);
     }
 
-    protected function getTableQuery(): \Illuminate\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Relations\Relation|null
+    protected function getTableQuery(): Builder
     {
-        return Order::query()->latest();
+        return Order::query()
+            ->with(['cancellationRequest', 'refundTask'])
+            ->where(static function (Builder $query): void {
+                $query->whereIn('status', [
+                    OrderStatus::NEW->value,
+                    OrderStatus::MANAGER_PROCESSING->value,
+                    OrderStatus::ASSEMBLING->value,
+                    OrderStatus::ASSEMBLED->value,
+                ])->orWhere('integration_state', 'failed')
+                    ->orWhereHas('cancellationRequest', fn (Builder $sub) => $sub->where('status', '!=', 'resolved'))
+                    ->orWhereHas('refundTask', fn (Builder $sub) => $sub->where('status', '!=', 'completed'));
+            })
+            ->orderByRaw("CASE status WHEN 'manager_processing' THEN 0 WHEN 'new' THEN 1 WHEN 'assembling' THEN 2 WHEN 'assembled' THEN 3 ELSE 4 END")
+            ->orderBy('created_at', 'asc');
     }
 }
