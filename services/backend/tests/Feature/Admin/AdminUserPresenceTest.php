@@ -189,4 +189,39 @@ class AdminUserPresenceTest extends TestCase
         ])->assertStatus(409);
         $this->assertDatabaseMissing('admin_panel_presence', ['user_id' => $two->id]);
     }
+    public function test_record_context_is_hidden_from_a_dashboard_viewer_without_resource_access(): void
+    {
+        $actor = $this->staff('Оператор карточки', 'manager');
+        foreach (['viewAny products', 'view products', 'update products'] as $permission) {
+            $actor->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+        $product = Product::factory()->create();
+        $this->actingAs($actor, 'web');
+        $page = [
+            'kind' => 'resource',
+            'resource' => ProductResource::getSlug(),
+            'action' => 'edit',
+            'record' => (string) $product->id,
+        ];
+        $this->postJson('/admin_sv/editing-presence', $this->heartbeat((string) Str::uuid(), $page))
+            ->assertOk();
+
+        $admin = $this->staff('Администратор', 'admin');
+        $this->actingAs($admin, 'web');
+        Livewire::test(AdminUserPresenceWidget::class)
+            ->assertSuccessful()
+            ->assertSee('Оператор карточки')
+            ->assertSee('Раздел с ограниченным доступом')
+            ->assertDontSee('Редактирует запись #'.$product->id);
+
+        foreach (['viewAny products', 'view products'] as $permission) {
+            $admin->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+
+        Livewire::test(AdminUserPresenceWidget::class)
+            ->assertSuccessful()
+            ->assertSee('Редактирует запись #'.$product->id)
+            ->assertDontSee('Раздел с ограниченным доступом');
+    }
+
 }
