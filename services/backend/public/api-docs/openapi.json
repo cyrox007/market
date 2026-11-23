@@ -2947,7 +2947,9 @@
           "pending_expires_at": {
             "type": "string",
             "format": "date-time",
-            "nullable": true
+            "nullable": true,
+            "description": "ISO 8601 / RFC 3339 в UTC (суффикс Z), например 2026-11-23T07:47:51.000000Z. Источник — UTC datetime из account_email_requests; null при отсутствии активной заявки. Не трактовать как московское локальное время.",
+            "example": "2026-11-23T07:47:51.000000Z"
           }
         },
         "required": [
@@ -9676,7 +9678,8 @@
           "429": {
             "description": "Слишком много запросов; повторить после Retry-After"
           }
-        }
+        },
+        "description": "Статус подтверждения почты и незавершённой смены адреса. pending_expires_at возвращается в ISO 8601 со смещением UTC (Z), либо null; SQL-формат без часового пояса больше не используется."
       }
     },
     "/api/v1/auth/email/verification": {
