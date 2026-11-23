@@ -26,9 +26,10 @@ class CatalogCardAttentionWidget extends Widget
     {
         abort_unless(static::canView(), 403);
         $run = CatalogCardAuditRun::latestCompleted();
+        $lastAttempt = CatalogCardAuditRun::query()->latest('id')->first();
 
         if (! $run) {
-            return ['run' => null, 'criticalCount' => 0, 'warningsCount' => 0, 'items' => [], 'allUrl' => null];
+            return ['run' => null, 'lastAttempt' => $lastAttempt, 'criticalCount' => 0, 'warningsCount' => 0, 'items' => [], 'allUrl' => null];
         }
 
         $query = CatalogCardIssue::query()->where('run_id', $run->id);
@@ -56,6 +57,7 @@ class CatalogCardAttentionWidget extends Widget
 
         return [
             'run' => $run,
+            'lastAttempt' => $lastAttempt,
             'criticalCount' => $criticalCount,
             'warningsCount' => $warningsCount,
             'items' => $items,
