@@ -18,6 +18,10 @@ class RetiredContentDashboardTest extends TestCase
         Role::findOrCreate('super_admin', 'web');
         $user = User::factory()->create();
         $user->assignRole('super_admin');
+        foreach (['viewAny articles', 'viewAny sliders', 'viewAny newsletter_subscribers'] as $permission) {
+            Permission::findOrCreate($permission, 'web');
+            $user->givePermissionTo($permission);
+        }
         $this->actingAs($user);
         Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
 
