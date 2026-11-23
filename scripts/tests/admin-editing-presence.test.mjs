@@ -6,6 +6,7 @@ import { randomUUID, randomFillSync } from 'node:crypto';
 const source = readFileSync(new URL('../../services/backend/resources/views/filament/editing-presence.blade.php', import.meta.url),'utf8')
  .split('<script>')[1].split('</script>')[0]
  .replace('@js($presenceResources)',JSON.stringify([{slug:'products',url:'https://example.test/admin_sv/products',product:true}]))
+ .replace('@js($presencePages)',JSON.stringify([{slug:'dashboard',url:'https://example.test/admin_sv'}]))
  .replace("@js((string) auth('web')->id())",'"17"')
  .replace("@js(url('/admin_sv/editing-presence'))",'"https://example.test/admin_sv/editing-presence"');
 function setup(all,{randomUUIDAvailable=true}={}) {
