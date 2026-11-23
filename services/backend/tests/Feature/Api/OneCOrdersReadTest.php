@@ -32,11 +32,31 @@ class OneCOrdersReadTest extends TestCase
 
     private function createReleased(array $fields = []): Order
     {
-        return Order::factory()->create(array_replace([
+        $attributes = array_replace([
             'cooling_until' => now()->subHours(2),
             'status' => 'assembling',
             'payment_method' => null,
-        ], $fields));
+        ], $fields);
+
+        // Some intentionally inconsistent/legacy rows cannot be written via
+        // Order::saving (which correctly blocks real business transitions).
+        // Insert as manager_processing and mutate the test fixture directly.
+        $wantedStatus = $attributes['status'];
+        $unsafe = in_array($wantedStatus, ['new', 'awaiting_payment', 'accepted'], true)
+            || ($attributes['cooling_until'] !== null
+                && \Illuminate\Support\Carbon::parse($attributes['cooling_until'])->isFuture()
+                && in_array($wantedStatus, ['assembling', 'assembled', 'shipped', 'in_transit', 'delivered'], true));
+        if ($unsafe) {
+            $attributes['status'] = 'manager_processing';
+        }
+
+        $order = Order::factory()->create($attributes);
+        if ($unsafe) {
+            DB::table('orders')->where('id', $order->id)->update(['status' => $wantedStatus]);
+            return $order->fresh();
+        }
+
+        return $order;
     }
 
     public function test_token_is_required_and_feature_is_disabled_by_default(): void
