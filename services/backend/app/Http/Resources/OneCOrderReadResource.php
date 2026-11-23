@@ -21,7 +21,7 @@ class OneCOrderReadResource extends JsonResource
         $fulfillment = $order->fulfillment_snapshot ?? [];
         $directory = $fulfillment['address_directory'] ?? null;
         $checkout = $order->checkout_snapshot ?? [];
-        $codeInfo = app(FulfillmentAddress::class)->integrationCodes($directory);
+        $isPickup = $order->delivery_type === 'pickup';
         $display = app(OrderItemDisplay::class);
         $paymentMethodLabels = $request->attributes->get('onec_payment_labels', []);
         $methodCode = $order->payment_method;
@@ -80,28 +80,32 @@ class OneCOrderReadResource extends JsonResource
                     'code' => $order->deliveryHandlingType->code,
                     'name' => $order->deliveryHandlingType->name,
                 ] : null,
-                'address' => [
-                    'text' => filled($order->address_snapshot)
+                // Customer address exists ONLY for courier delivery, never pickup.
+                'address' => $isPickup ? null : $this->address(
+                    $directory,
+                    filled($order->address_snapshot)
                         ? (string) $order->address_snapshot
                         : data_get($checkout, 'address.full_address'),
-                    'directory_external_id' => $directory['external_id']
-                        ?? data_get($checkout, 'address.directory_external_id'),
-                    'gar_guid' => $codeInfo['addressGarGuid'],
-                    'kladr_code' => $codeInfo['addressKladrCode'],
-                    'building_kladr_code' => $codeInfo['addressBuildingKladrCode'],
-                    'kladr_level' => $codeInfo['addressKladrLevel'],
-                    'kladr_hierarchy' => collect($directory['path'] ?? [])
-                        ->filter(fn ($node): bool => is_array($node) && (
-                            filled($node['kladrCode'] ?? null)
-                            || (($node['source'] ?? null) === 'kladr' && filled($node['externalId'] ?? null))
-                        ))
-                        ->map(fn (array $node): array => [
-                            'kind' => $node['kind'] ?? null,
-                            'code' => (string) (filled($node['kladrCode'] ?? null)
-                                ? $node['kladrCode'] : $node['externalId']),
-                        ])->values()->all(),
-                    'details' => $directory['details'] ?? data_get($checkout, 'address.details'),
-                ],
+                    data_get($checkout, 'address.directory_external_id'),
+                    data_get($checkout, 'address.details')
+                ),
+                // A pickup can be directly at the warehouse or at an associated
+                // store on the same physical site. Both use the checkout snapshot.
+                'pickup' => $isPickup ? [
+                    'warehouse_id' => isset($fulfillment['warehouse_id'])
+                        ? (int) $fulfillment['warehouse_id'] : null,
+                    'warehouse_external_id' => $fulfillment['warehouse_external_id'] ?? null,
+                    'store_id' => isset($fulfillment['store_id'])
+                        ? (int) $fulfillment['store_id'] : null,
+                    'point_name' => $fulfillment['name'] ?? null,
+                    'address' => $this->address(
+                        $directory,
+                        $this->pickupAddress($fulfillment, $order->address_snapshot)
+                    ),
+                    'hours' => $fulfillment['hours'] ?? null,
+                    'opening_hours' => $fulfillment['opening_hours'] ?? null,
+                    'timezone' => $fulfillment['timezone'] ?? null,
+                ] : null,
             ],
             'fulfillment' => [
                 'multi_warehouse' => (bool) ($fulfillment['multi_warehouse'] ?? false),
@@ -142,6 +146,58 @@ class OneCOrderReadResource extends JsonResource
                 'occurred_at' => $entry->created_at?->toISOString(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Resolve historical delivery/pickup address, without querying the
+     * current warehouse, store or customer's mutable address book.
+     */
+    private function address(?array $snapshot, mixed $text, mixed $externalId = null, mixed $details = null): ?array
+    {
+        $text = is_string($text) && trim($text) !== '' ? $text : null;
+        if ($text === null && $snapshot === null && $externalId === null) {
+            return null;
+        }
+
+        $codes = app(FulfillmentAddress::class)->integrationCodes($snapshot);
+
+        return [
+            'text' => $text,
+            'directory_external_id' => $snapshot['external_id'] ?? $externalId,
+            'gar_guid' => $codes['addressGarGuid'],
+            'kladr_code' => $codes['addressKladrCode'],
+            'building_kladr_code' => $codes['addressBuildingKladrCode'],
+            'kladr_level' => $codes['addressKladrLevel'],
+            'kladr_hierarchy' => collect($snapshot['path'] ?? [])
+                ->filter(fn ($node): bool => is_array($node) && (
+                    filled($node['kladrCode'] ?? null)
+                    || (($node['source'] ?? null) === 'kladr' && filled($node['externalId'] ?? null))
+                ))
+                ->map(fn (array $node): array => [
+                    'kind' => $node['kind'] ?? null,
+                    'code' => (string) (filled($node['kladrCode'] ?? null)
+                        ? $node['kladrCode'] : $node['externalId']),
+                ])->values()->all(),
+            'details' => $snapshot['details'] ?? $details,
+        ];
+    }
+
+    private function pickupAddress(array $fulfillment, mixed $historicalAddress): ?string
+    {
+        // WarehousePickup::select() saves the physical-site/warehouse address.
+        // The order-level address_snapshot is also a pickup point for pickup
+        // orders and is a reliable legacy fallback.
+        foreach ([
+            $fulfillment['address'] ?? null,
+            data_get($fulfillment, 'address_directory.label'),
+            $historicalAddress,
+        ] as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function allocation(array $value): array
