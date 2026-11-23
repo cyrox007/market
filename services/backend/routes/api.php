@@ -43,6 +43,12 @@ Route::prefix('v1')->group(function () {
     Route::get('/integration/1c/orders', [\App\Http\Controllers\Api\OneCOrdersReadController::class, 'index'])
         ->middleware(['throttle:onec-orders-read', \App\Http\Middleware\AuthorizeOneCOrdersRead::class]);
 
+    // Machine-only inbound 1C status update. Distinct from the GET/read permission.
+    Route::post('/integration/1c/orders/{orderId}/status',
+        [\App\Http\Controllers\Api\OneCOrderStatusController::class, 'update'])
+        ->whereNumber('orderId')
+        ->middleware(['throttle:onec-order-status-write', \App\Http\Middleware\AuthorizeOneCOrderStatusWrite::class]);
+
     Route::post('/address-directory/detect', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'detect'])->middleware('throttle:address-geo');
     Route::get('/address-directory/status', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'status'])->middleware('throttle:address-read');
     Route::get('/address-directory/hierarchy/{externalId}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'hierarchy'])->middleware('throttle:address-read');

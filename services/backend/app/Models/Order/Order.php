@@ -338,9 +338,9 @@ class Order extends Model implements Payable
      * Change order status.
      * Автоматически вызывает Vanilo события при изменении статуса
      */
-    public function changeStatus(OrderStatus $status, ?string $comment = null, ?int $userId = null): void
+    public function changeStatus(OrderStatus $status, ?string $comment = null, ?int $userId = null, string $origin = 'internal'): void
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($status, $comment, $userId): void {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($status, $comment, $userId, $origin): void {
         static::whereKey($this->id)->lockForUpdate()->firstOrFail();
         $this->refresh();
         if ($this->cooling_until && $this->status === OrderStatus::CANCELLED->value && $status !== OrderStatus::CANCELLED) {
@@ -365,7 +365,7 @@ class Order extends Model implements Payable
 
         $this->load(['items.product']);
 
-        event(new OrderStatusChanged($this, $oldStatus, $status->value));
+        event(new OrderStatusChanged($this, $oldStatus, $status->value, $origin));
 
         // Возврат остатков при отмене (слушатель HandleOrderCancelled)
         if ($status === OrderStatus::CANCELLED) {
