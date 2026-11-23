@@ -24,6 +24,7 @@ foreach(\Filament\Facades\Filament::getPanel('admin_sv')->getPages() as $page){
  function target(url,editOnly=false){try{const path=new URL(url,location.href).pathname;for(const r of resources){const base=new URL(r.url).pathname;const tail=path.slice(base.length).match(/^\/([^/]+)(?:\/(edit|operator-edit))?$/);if(path.startsWith(base)&&tail&&(!editOnly||tail[2])&&!['create','import','sort'].includes(tail[1]))return {resource:r.slug,record:decodeURIComponent(tail[1])};}}catch{}return null;}
  function currentPage(){
   const path=new URL(location.href).pathname.replace(/\/+$/,'')||'/';
+  if(path==='/admin_sv') return {kind:'dashboard'};
   for(const r of resources){
    const base=new URL(r.url,location.href).pathname.replace(/\/+$/,'');
    if(path===base) return {kind:'resource',resource:r.slug,action:'index'};
@@ -34,7 +35,6 @@ foreach(\Filament\Facades\Filament::getPanel('admin_sv')->getPages() as $page){
     return {kind:'resource',resource:r.slug,action:tail[1]==='operator-edit'?'edit':tail[1],record:tail[0]};
   }
   for(const p of pages){if(path===(new URL(p.url,location.href).pathname.replace(/\/+$/,'')||'/')) return {kind:'page',slug:p.slug};}
-  if(path==='/admin_sv') return {kind:'dashboard'};
   return {kind:'other'};
  }
  function release(){
