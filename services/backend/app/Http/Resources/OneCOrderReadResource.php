@@ -160,6 +160,7 @@ class OneCOrderReadResource extends JsonResource
         }
 
         $codes = app(FulfillmentAddress::class)->integrationCodes($snapshot);
+        $details = $snapshot['details'] ?? $details;
 
         return [
             'text' => $text,
@@ -178,7 +179,7 @@ class OneCOrderReadResource extends JsonResource
                     'code' => (string) (filled($node['kladrCode'] ?? null)
                         ? $node['kladrCode'] : $node['externalId']),
                 ])->values()->all(),
-            'details' => $snapshot['details'] ?? $details,
+            'details' => is_array($details) && $details === [] ? null : $details,
         ];
     }
 
