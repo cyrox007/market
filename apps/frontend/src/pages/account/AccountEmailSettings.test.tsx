@@ -32,6 +32,23 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it.each([
+  ['2099-11-22T09:30:00Z', false],
+  ['2099-11-22 09:30:00', false],
+  ['2000-11-22T09:30:00Z', true],
+])('shows the server deadline and distinguishes an expired request (%s)', async (deadline, expired) => {
+  vi.mocked(api.accountEmail.status).mockResolvedValue({ ...initial, pending_email: 'new@example.test', pending_expires_at: deadline });
+  const { container } = render(<AccountEmailSettings userId={1} email={initial.email} />);
+  await screen.findByText('new@example.test');
+  if (expired) {
+    expect(screen.getByText('Срок подтверждения истёк. Запросите смену почты повторно.')).toBeInTheDocument();
+  } else {
+    expect(container.querySelector('time')).toHaveAttribute('datetime', '2099-11-22T09:30:00Z');
+    expect(screen.getByText(/12:30/)).toBeInTheDocument();
+  }
+  expect(screen.getByText('old@example.test')).toBeInTheDocument();
+});
+
 it('queues reads behind session mutations and avoids sending a successful action twice after a refresh error', async () => {
   let release!: () => void;
   const pending = runSessionTask(() => new Promise<void>(resolve => { release = resolve; }));

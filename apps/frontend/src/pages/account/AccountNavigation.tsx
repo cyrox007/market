@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import type { Order } from '../../lib/api';
+import { orderGroup } from '../../components/orders/order-group';
 import { plural } from '../../lib/plural';
 import ordersIcon from './assets/account-orders.svg';
 import favoritesIcon from './assets/account-favorites.svg';
@@ -12,14 +13,13 @@ import arrowIcon from './assets/account-arrow.svg';
 
 interface ResourceState { isLoading: boolean; error?: unknown; hasData?: boolean }
 interface Props {
-  orders: ResourceState & { items: Pick<Order, 'status'>[] };
+  orders: ResourceState & { items: Pick<Order, 'status' | 'presentation'>[] };
   addresses: ResourceState & { count: number };
   counters: ResourceState & { wishlistCount?: number; compareCount?: number };
 
 
 }
 
-const activeStatuses = new Set(['new', 'manager_processing', 'assembling', 'awaiting_payment', 'accepted', 'assembled', 'shipped', 'in_transit']);
 const tileClass = 'flex min-w-0 flex-col gap-3 rounded-popover border border-surface-border bg-surface p-4 text-left text-ink outline-none transition-colors hover:border-brand-yellow focus-visible:ring-2 focus-visible:ring-brand-green motion-reduce:transition-none max-vsm:flex-row max-vsm:items-center max-vsm:gap-3.5 max-vsm:py-5 max-vsm:pl-5';
 
 function Count({ state, children }: { state: ResourceState; children: ReactNode }) {
@@ -34,7 +34,7 @@ export default function AccountNavigation({ orders, addresses, counters }: Props
     next.set('section', section);
     return `/account?${next}`;
   };
-  const active = orders.items.filter((order) => activeStatuses.has(order.status)).length;
+  const active = orders.items.filter((order) => orderGroup(order) === 'active').length;
   const countProducts = (count: number | undefined) => count === undefined ? 'Не удалось загрузить' : `${count} ${plural(count, ['товар', 'товара', 'товаров'])}`;
   const tiles = [
     { title: 'Мои заказы', to: '/orders', icon: ordersIcon, state: orders,

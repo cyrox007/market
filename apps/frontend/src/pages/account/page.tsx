@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useCounters } from '../../hooks/useCounters';
 import {
@@ -13,7 +13,7 @@ import { usePageSeo } from '../../hooks/usePageSeo';
 import { buildTitle } from '../../constants/seo';
 import Icon from '../../components/ui/icons/Icon';
 import { canOrder } from '../../lib/availability';
-import { useCartPanel } from '../../contexts/cart-panel-context';
+
 import { useAccountSection, type AccountSection } from './useAccountSection';
 import { useAccountData } from './useAccountData';
 import { AccountDataError } from './AccountDataError';
@@ -24,9 +24,7 @@ import AccountSettings from './AccountSettings';
 import AccountAddresses from './AccountAddresses';
 import addressChevron from './assets/address-chevron.svg';
 import {
-  Calendar,
   ChevronRight,
-  ClipboardList,
   Gift,
   Heart,
   ImageIcon,
@@ -53,22 +51,8 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function getStatusColor(status: string): string {
-  const statusMap: Record<string, string> = {
-    Доставлен: 'green',
-    'В пути': 'blue',
-    Отправлен: 'blue',
-    Собран: 'yellow',
-    Принят: 'blue',
-    Новый: 'blue',
-    Обрабатывается: 'blue',
-    Отменен: 'red',
-  };
-  return statusMap[status] || 'gray';
-}
-
 export default function Account() {
-  const { openCart } = useCartPanel();
+
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
   const { refreshWishlistCount, wishlistCount, compareCount, isLoading: isLoadingCounters, error: countersError, hasLoaded: hasCounters, refreshAllCounts } = useCounters();
@@ -159,45 +143,6 @@ export default function Account() {
     }
   };
 
-  const handleRepeatOrder = async (orderId: number) => {
-    try {
-      const response = (await api.orders.repeat(orderId)) as {
-        message: string;
-        added_items: Array<{
-          product_id: number;
-          product_name: string;
-          quantity: number;
-          was_adjusted: boolean;
-        }>;
-        skipped_items: Array<{
-          product_id: number;
-          product_name?: string;
-          requested_quantity: number;
-          reason: string;
-        }>;
-        errors: Array<{ product_id: number; product_name: string; error: string }>;
-        added_count: number;
-        skipped_count: number;
-      };
-      const message = response?.message || 'Товары добавлены в корзину';
-
-      // Показываем информативное сообщение
-      if (response?.skipped_count && response.skipped_count > 0) {
-        alert(
-          `${message}\n\nОбратите внимание: некоторые товары не были добавлены, так как они недоступны.`,
-        );
-      } else {
-        alert(message);
-      }
-
-      openCart();
-    } catch (error: any) {
-      console.error('Failed to repeat order:', error);
-      const errorMessage = error?.data?.message || error?.message || 'Ошибка повторения заказа';
-      alert(errorMessage);
-    }
-  };
-
   const handleRemoveFavorite = async (productId: number) => {
     try {
       await runSessionTask(() => api.wishlist.remove(productId));
@@ -213,6 +158,8 @@ export default function Account() {
   if (!user) {
     return null;
   }
+
+  if (activeSection === 'orders') return <Navigate to="/orders" replace />;
 
   const userInitial = user.name.charAt(0).toUpperCase();
   const fullWidth = activeSection === 'profile' || activeSection === 'addresses' || activeSection === 'settings';
@@ -240,9 +187,6 @@ export default function Account() {
           {activeSection === 'profile' && <span className="md:hidden">Профиль</span>}
         </h1>}
 
-        {activeSection === 'orders' && ordersError && (
-          <AccountDataError label="Не удалось загрузить заказы" onRetry={reloadOrders} />
-        )}
         {activeSection === 'profile' && addressesError && (
           <AccountDataError label="Не удалось загрузить адреса" onRetry={loadAddresses} />
         )}
@@ -330,117 +274,6 @@ export default function Account() {
 
           {/* Content */}
           <div className={fullWidth ? 'min-w-0' : 'lg:col-span-3'}>
-            {/* Orders */}
-            {activeSection === 'orders' && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <ShoppingBag className="size-[1em] text-2xl text-red-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold">Мои заказы</h2>
-                      {orders.length > 0 && (
-                        <p className="text-sm text-gray-500 mt-1">
-                          Всего заказов: {orders.length} • Сумма покупок:{' '}
-                          {orders.reduce((sum, order) => sum + order.total, 0).toLocaleString()} ₽
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {isLoadingOrders ? (
-                  <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-                    <p className="mt-4 text-gray-600">Загрузка заказов...</p>
-                  </div>
-                ) : ordersError && orders.length === 0 ? null : orders.length === 0 ? (
-                  <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
-                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <ShoppingBag className="size-[1em] text-4xl text-gray-400" />
-                    </div>
-                    <p className="text-gray-600 text-lg mb-2">У вас пока нет заказов</p>
-                    <Link
-                      to="/catalog"
-                      className="inline-block text-red-600 hover:text-red-700 font-medium"
-                    >
-                      Перейти в каталог →
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {orders.map((order) => {
-                      const statusColor = getStatusColor(order.status_label || order.status);
-                      const firstItem = order.items?.[0];
-                      const productImage =
-                        firstItem?.product?.image || firstItem?.product?.thumbnail;
-                      return (
-                        <div
-                          key={order.id}
-                          className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <ClipboardList className="size-[1em] text-xl text-red-600" />
-                                <h3 className="font-bold text-lg">
-                                  Заказ {order.number || `#${order.id}`}
-                                </h3>
-                              </div>
-                              <p className="text-sm text-gray-600 flex items-center gap-2">
-                                <Calendar className="size-[1em]" />
-                                {formatDate(order.created_at)}
-                              </p>
-                            </div>
-                            <span
-                              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap bg-${statusColor}-100 text-${statusColor}-700`}
-                            >
-                              {order.status_label || order.status}
-                            </span>
-                          </div>
-                          {firstItem && (
-                            <div className="flex items-center gap-4 mb-4">
-                              {productImage ? (
-                                <img
-                                  src={productImage}
-                                  alt={firstItem.product?.name || 'Товар'}
-                                  className="w-20 h-16 object-cover object-top rounded-lg"
-                                />
-                              ) : (
-                                <div className="w-20 h-16 flex items-center justify-center rounded-lg">
-                                  <ImageIcon className="size-[1em] text-3xl text-gray-400" />
-                                </div>
-                              )}
-                              <div className="flex-1">
-                                <p className="text-gray-700">Товаров: {order.items?.length || 0}</p>
-                                <p className="text-2xl font-bold text-red-600">
-                                  {order.total.toLocaleString()} ₽
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                          <div className="flex gap-3">
-                            <Link
-                              to={`/orders/${order.id}`}
-                              className="flex-1 bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors whitespace-nowrap text-center"
-                            >
-                              Подробнее
-                            </Link>
-                            <button
-                              onClick={() => handleRepeatOrder(order.id)}
-                              className="px-6 py-3 border border-gray-300 rounded-lg font-medium hover:border-red-600 transition-colors whitespace-nowrap"
-                            >
-                              Повторить заказ
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Favorites */}
             {activeSection === 'favorites' && (
               <div>

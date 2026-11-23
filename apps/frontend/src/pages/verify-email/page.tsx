@@ -9,6 +9,7 @@ export default function VerifyEmail() {
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [requiresLogin, setRequiresLogin] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const { refreshUser } = useAuth();
@@ -41,6 +42,7 @@ export default function VerifyEmail() {
         return confirmed;
       });
       setDone(true);
+      setRequiresLogin(result.requires_login);
       setMessage(result.message);
     } catch (err: unknown) {
       const data = (err as { data?: { message?: string; errors?: Record<string, string[]> } }).data;
@@ -66,15 +68,16 @@ export default function VerifyEmail() {
           </p>
         )}
         {message && <p role="status">{message}</p>}
+        {requiresLogin && <p>Войдите заново с новым адресом электронной почты.</p>}
         {!done && token && (
           <Button type="button" disabled={busy} onClick={() => void confirm()}>
             {busy ? 'Подтверждаем…' : 'Подтвердить почту'}
           </Button>
         )}
         <div className="flex flex-wrap gap-3">
-          <Button to="/account" variant="outline">
+          {!requiresLogin && <Button to="/account" variant="outline">
             Личный кабинет
-          </Button>
+          </Button>}
           <Button to="/login" variant="outline">
             Войти
           </Button>

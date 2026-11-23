@@ -51,6 +51,12 @@ it('opens saved addresses directly and keeps section changes in browser history'
   expect(screen.getByLabelText('Текущий адрес')).toHaveTextContent('section=addresses');
 });
 
+it('redirects the legacy order section to the single order list', async () => {
+  openAccount('/account?section=orders');
+  await waitFor(() => expect(screen.getByLabelText('Текущий адрес')).toHaveTextContent('/orders'));
+  expect(screen.queryByText('История заказов')).not.toBeInTheDocument();
+});
+
 it.each([
   ['settings', 'Уведомления'],
   ['bonuses', 'История начислений'],

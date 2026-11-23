@@ -9,13 +9,18 @@ const readAddresses = () => runSessionRead(async () => {
   return [...data].sort((a, b) => Number(b.is_default) - Number(a.is_default));
 });
 
+/** The overview and order list share one owner-scoped cache and session read. */
+export function useAccountOrders(userId: number | undefined, enabled = true) {
+  return useSWR(
+    userId && enabled ? ['account', userId, 'orders'] : null,
+    () => runSessionRead(async () => (await api.orders.list()).data), options,
+  );
+}
+
 /** Shared account reads. Keys include the owner; data never carries over to another user. */
 export function useAccountData(userId: number | undefined, section: AccountSection) {
   const overview = section === 'profile';
-  const orders = useSWR(
-    userId && (overview || section === 'orders') ? ['account', userId, 'orders'] : null,
-    () => runSessionRead(async () => (await api.orders.list()).data), options,
-  );
+  const orders = useAccountOrders(userId, overview);
   const addresses = useSWR(
     userId && (overview || section === 'addresses') ? ['account', userId, 'addresses'] : null,
     readAddresses, options,

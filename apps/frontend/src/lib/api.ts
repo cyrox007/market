@@ -1310,6 +1310,8 @@ export interface WarehouseQuote { available: boolean; subtotal: number; selected
 
 export interface OrderItem {
   id: number;
+  /** Historical name supplied by the order snapshot, including legacy orders. */
+  display?: { name: string | null };
   product_id: number;
   product?: Product | null;
   quantity: number;

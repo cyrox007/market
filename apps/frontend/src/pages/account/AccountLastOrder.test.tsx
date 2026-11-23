@@ -15,6 +15,14 @@ const order = {
   ],
 } as unknown as Order;
 
+it('uses historical names and server labels, and shows all three thumbnails for three positions', () => {
+  const items = [...order.items!, { ...order.items![0], id: 3 }].map((item) => ({ ...item, display: { name: 'Сохраненное название' } }));
+  render(<MemoryRouter><AccountLastOrder orders={[{ ...order, items, status_label: 'Готов к выдаче' }]} isLoading={false} onRetry={vi.fn()} /></MemoryRouter>);
+  expect(screen.getByText('Готов к выдаче')).toBeInTheDocument();
+  expect(screen.getAllByRole('img', { name: 'Сохраненное название' })).toHaveLength(3);
+  expect(screen.queryByText('+1')).not.toBeInTheDocument();
+});
+
 it('shows the latest returned order, saved total and total units with links to details and history', () => {
   render(<MemoryRouter><AccountLastOrder orders={[order]} isLoading={false} onRetry={vi.fn()} /></MemoryRouter>);
   expect(screen.getByRole('region', { name: 'Последний заказ' })).toBeInTheDocument();
@@ -69,7 +77,7 @@ it('distinguishes first loading, failure and confirmed empty history, and retrie
 });
 
 it('keeps a known latest cancelled order visible during background loading and failure', () => {
-  render(<MemoryRouter><AccountLastOrder orders={[{ ...order, status: 'cancelled' }, { ...order, id: 999, number: 'OLD' }]} isLoading error={new Error('offline')} onRetry={vi.fn()} /></MemoryRouter>);
+  render(<MemoryRouter><AccountLastOrder orders={[{ ...order, status: 'cancelled', status_label: 'Отменен' }, { ...order, id: 999, number: 'OLD' }]} isLoading error={new Error('offline')} onRetry={vi.fn()} /></MemoryRouter>);
   expect(screen.getByRole('link', { name: 'Открыть заказ № 48217' })).toHaveAttribute('href', '/orders/42');
   expect(screen.getByText('Отменен')).toBeInTheDocument();
   expect(screen.queryByRole('status')).not.toBeInTheDocument();

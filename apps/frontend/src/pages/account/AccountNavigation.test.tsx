@@ -5,7 +5,7 @@ import AccountNavigation from './AccountNavigation';
 
 afterEach(cleanup);
 
-it('links to the five sections and counts orders, not ordered units, excluding unknown statuses from active', () => {
+it('links to the five sections and counts orders, not ordered units, including future statuses in active by the server contract', () => {
   render(<MemoryRouter><AccountNavigation
     orders={{ items: [{ status: 'new' }, { status: 'awaiting_payment' }, { status: 'shipped' }, { status: 'delivered' }, { status: 'cancelled' }, { status: 'future_status' }], isLoading: false }}
     addresses={{ count: 2, isLoading: false }}
@@ -13,8 +13,8 @@ it('links to the five sections and counts orders, not ordered units, excluding u
   /></MemoryRouter>);
   const nav = screen.getByRole('navigation', { name: 'Разделы кабинета' });
   expect(within(nav).getByRole('link', { name: 'Мои заказы' })).toHaveAttribute('href', '/orders');
-  expect(within(nav).getByText('6 заказов, 3 активных')).toBeInTheDocument();
-  expect(within(nav).getByText('3 в работе')).toBeInTheDocument();
+  expect(within(nav).getByText('6 заказов, 4 активных')).toBeInTheDocument();
+  expect(within(nav).getByText('4 в работе')).toBeInTheDocument();
   expect(within(nav).getByRole('link', { name: 'Избранное' })).toHaveAttribute('href', '/favorites');
   expect(within(nav).getByText('4 товара')).toBeInTheDocument();
   expect(within(nav).getByRole('link', { name: 'Сравнение' })).toHaveAttribute('href', '/compare');

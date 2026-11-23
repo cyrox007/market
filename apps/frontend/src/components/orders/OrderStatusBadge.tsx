@@ -27,7 +27,7 @@ export default function OrderStatusBadge({ status, className = '', appearance = 
       cancelled: 'bg-brand-red/10 text-brand-red',
     };
     return <span className={`inline-flex max-w-full rounded-pill px-2.5 py-1 text-12 font-medium [overflow-wrap:anywhere] ${accountColors[status] || (statusConfig.color === 'gray' ? 'bg-surface-grey text-ink-secondary' : 'bg-brand-green/10 text-brand-green')} ${className}`}>
-      {statusConfig.color === 'gray' ? fallbackLabel || 'Статус уточняется' : statusConfig.label}
+      {fallbackLabel || (statusConfig.color === 'gray' ? 'Статус уточняется' : statusConfig.label)}
     </span>;
   }
   const colors = colorClasses[statusConfig.color] || colorClasses.gray;

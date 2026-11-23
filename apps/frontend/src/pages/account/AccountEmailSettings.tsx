@@ -4,6 +4,21 @@ import Button from '../../components/ui/primitives/Button';
 import Input from '../../components/ui/primitives/Input';
 import { runSessionRead, runSessionTask } from '../../lib/session-queue';
 
+function EmailChangeDeadline({ expiresAt }: { expiresAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  // AccountEmail currently returns the raw SQL timestamp; backend app.timezone is UTC.
+  const timestamp = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(expiresAt)
+    ? `${expiresAt.replace(' ', 'T')}Z` : expiresAt;
+  const deadline = new Date(timestamp);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (!Number.isFinite(deadline.getTime())) return null;
+  if (deadline.getTime() <= now) return <p>Срок подтверждения истёк. Запросите смену почты повторно.</p>;
+  return <p>Подтвердите новый адрес до <time dateTime={timestamp}>{deadline.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })}</time> МСК.</p>;
+}
+
 export default function AccountEmailSettings({ userId, email }: { userId: number; email: string }) {
   const [status, setStatus] = useState<AccountEmailStatus | null>(null);
   const [newEmail, setNewEmail] = useState('');
@@ -104,6 +119,7 @@ export default function AccountEmailSettings({ userId, email }: { userId: number
             Ожидает подтверждения: <strong className="break-words">{status.pending_email}</strong>.
             До подтверждения действует прежняя почта.
           </p>
+          {status.pending_expires_at && <EmailChangeDeadline key={status.pending_expires_at} expiresAt={status.pending_expires_at} />}
           <Button
             type="button"
             size="xs"

@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { SWRConfig } from 'swr';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { api } from '../../lib/api';
-import { useAccountData } from './useAccountData';
+import { useAccountData, useAccountOrders } from './useAccountData';
 
 vi.mock('../../lib/api', () => ({ api: {
   orders: { list: vi.fn() }, addresses: { list: vi.fn() },
@@ -24,6 +24,25 @@ beforeEach(() => {
   vi.mocked(api.auth.getNotificationSettings).mockResolvedValue({ settings });
 });
 afterEach(cleanup);
+
+it('shares order reads between the overview and history without leaking the previous owner', async () => {
+  vi.mocked(api.orders.list).mockResolvedValueOnce({ data: [{ id: 77 }] } as never);
+  let finish!: (value: { data: [] }) => void;
+  const { result, rerender } = renderHook(({ id }: { id: number | undefined }) => ({
+    overview: useAccountData(id, 'profile'), history: useAccountOrders(id),
+  }), { wrapper: wrapper(), initialProps: { id: 1 as number | undefined } });
+  await waitFor(() => expect(result.current.history.data?.[0].id).toBe(77));
+  expect(result.current.overview.orders[0].id).toBe(77);
+  expect(api.orders.list).toHaveBeenCalledTimes(1);
+  vi.mocked(api.orders.list).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  rerender({ id: 2 });
+  expect(result.current.history.data).toBeUndefined();
+  expect(result.current.overview.orders).toEqual([]);
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  rerender({ id: undefined });
+  await act(async () => finish({ data: [] }));
+  expect(result.current.history.data).toBeUndefined();
+});
 
 it('loads overview data without inventing notification defaults and puts the default address first', async () => {
   vi.mocked(api.addresses.list).mockResolvedValue({ data: [
