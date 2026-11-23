@@ -176,7 +176,7 @@ GET /api/v1/integration/1c/orders?payment_method=cash&status=assembling
         "building_kladr_code": "4800000012345",
         "kladr_level": "building",
         "kladr_hierarchy": [],
-        "details": []
+        "details": null
       },
       "hours": "Пн–Пт 09:00–18:00",
       "opening_hours": null,
