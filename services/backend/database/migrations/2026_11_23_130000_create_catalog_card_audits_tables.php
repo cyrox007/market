@@ -22,7 +22,9 @@ return new class extends Migration
         Schema::create('catalog_card_issues', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('run_id')->constrained('catalog_card_audit_runs')->cascadeOnDelete();
-            $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
+            // Vanilo products.id is an unsigned INT, not a BIGINT.
+            $table->unsignedInteger('product_id');
+            $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
             $table->unsignedSmallInteger('critical_count')->default(0)->index();
             $table->unsignedSmallInteger('warning_count')->default(0);
             $table->json('reasons');

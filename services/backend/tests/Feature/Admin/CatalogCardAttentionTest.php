@@ -12,6 +12,8 @@ use App\Services\Catalog\CatalogCardQuality;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 use Livewire\Livewire;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\Permission\Models\Permission;
@@ -119,11 +121,12 @@ class CatalogCardAttentionTest extends TestCase
     public function test_empty_color_row_is_a_specific_warning(): void
     {
         $product = Product::factory()->create();
-        ProductColorRow::query()->create([
+        // Simulate an incomplete legacy row without violating the live NOT NULL constraint.
+        $product->setRelation('colorRows', collect([new ProductColorRow([
             'product_id' => $product->id, 'color_element_id' => null,
             'color_solution_id' => null, 'sort_order' => 0,
-        ]);
-        $this->assertContains('incomplete_colors', $this->codes($product->fresh()));
+        ])]));
+        $this->assertContains('incomplete_colors', $this->codes($product));
     }
 
     public function test_existing_original_with_missing_thumbnail_is_warning_only_after_processing_grace_period(): void
@@ -146,6 +149,8 @@ class CatalogCardAttentionTest extends TestCase
 
     public function test_duplicate_external_id_is_reported_only_between_active_sellable_skus(): void
     {
+        // Historical installations may lack the unique index; fresh databases prevent duplicates.
+        Schema::table('products', fn (Blueprint $table) => $table->dropUnique('products_external_id_unique'));
         $first = Product::factory()->create(['external_id' => 'DUP-001', 'description' => null]);
         $second = Product::factory()->create(['external_id' => 'DUP-001', 'description' => null]);
         $virtualParent = Product::factory()->create([

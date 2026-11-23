@@ -437,7 +437,8 @@ html {
 .staff-presence__heading-title { gap: .625rem; }
 .staff-presence__heading h2 { margin: 0; font-size: 1rem; font-weight: 650; }
 .staff-presence__count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; height: 1.5rem; border-radius: 999px; padding: 0 .45rem; background: var(--theme-surface-inset); font-size: .75rem; font-weight: 600; color: var(--theme-slate-dim); }
-.staff-presence__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 25rem)); gap: .875rem; }
+.staff-presence__grid { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: .875rem; }
+@media (min-width: 700px) { .staff-presence__grid { grid-template-columns: repeat(auto-fit, minmax(18rem, 25rem)); } }
 .staff-presence__card { min-width: 0; border: 1px solid var(--theme-border-mid); border-radius: 12px; background: var(--theme-surface); padding: 1rem; }
 .staff-presence__card--editing { border-color: rgb(217 119 6 / .4); background: linear-gradient(135deg, rgb(217 119 6 / .06), transparent 75%), var(--theme-surface); }
 .staff-presence__person { gap: .75rem; }
