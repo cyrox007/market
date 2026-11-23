@@ -39,6 +39,10 @@ use Illuminate\Support\Facades\Route;
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
+    // Machine-only READ endpoint; never use session/customer authentication.
+    Route::get('/integration/1c/orders', [\App\Http\Controllers\Api\OneCOrdersReadController::class, 'index'])
+        ->middleware(['throttle:onec-orders-read', \App\Http\Middleware\AuthorizeOneCOrdersRead::class]);
+
     Route::post('/address-directory/detect', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'detect'])->middleware('throttle:address-geo');
     Route::get('/address-directory/status', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'status'])->middleware('throttle:address-read');
     Route::get('/address-directory/hierarchy/{externalId}', [\App\Http\Controllers\Api\AddressDirectoryController::class, 'hierarchy'])->middleware('throttle:address-read');

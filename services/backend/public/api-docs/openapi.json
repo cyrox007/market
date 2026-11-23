@@ -36,6 +36,12 @@
         "scheme": "bearer",
         "bearerFormat": "Laravel Sanctum token",
         "description": "Альтернатива сессионной авторизации. Для SPA используется сессионная cookie; Bearer-токен должен принадлежать пользователю и иметь нужные права."
+      },
+      "oneCOrdersToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-1C-Orders-Token",
+        "description": "Заголовок X-1C-Orders-Token. Токен выдаётся через Filament → Интеграции → Доступ 1С к заказам (роль super_admin), хранится только SHA-256; право orders:read, срок действия, возможный whitelist IP и отзыв. Отдельный резервный статический секрет в .env допустим при ONEC_ORDERS_READ_ENABLED=true. Не использовать административную сессию и ONEC_API_KEY."
       }
     },
     "schemas": {
@@ -3281,6 +3287,714 @@
           "total",
           "product"
         ]
+      },
+      "OneCOrderReadItem": {
+        "type": "object",
+        "description": "Строка заказа из исторического снимка, без чтения текущего каталога",
+        "properties": {
+          "line_id": {
+            "type": "integer",
+            "description": "ID строки заказа сайта"
+          },
+          "product_id": {
+            "type": "integer",
+            "description": "Внутренний ID SKU сайта, не ID 1С"
+          },
+          "product_external_id": {
+            "type": "string",
+            "description": "Код номенклатуры 1С из display_snapshot.article, при отсутствии — external_id связанного SKU; null только если отсутствует в обоих источниках",
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "description": "Сохранённый SKU",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Название из order_items.name на момент покупки"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Количество единиц товара"
+          },
+          "unit_price": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "description": "Фактическая сохранённая цена единицы RUB"
+          },
+          "line_total": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "description": "Сохранённая сумма строки RUB"
+          },
+          "display_source": {
+            "type": "string",
+            "enum": [
+              "snapshot",
+              "legacy"
+            ],
+            "description": "Источник исторических характеристик"
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Сохранённые цвета, формат снимка"
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Материалы на момент покупки"
+          },
+          "configuration": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Исторические настройки варианта"
+          },
+          "bundle": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+          },
+          "bundle_pricing": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+          },
+          "parent_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Историческое название родителя вариации из display_snapshot"
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Все сохранённые характеристики SKU, включая размеры и вес"
+          }
+        }
+      },
+      "OneCOrderRead": {
+        "type": "object",
+        "description": "Заказ из первичной БД Laravel, только после серверного допуска",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID заказа сайта, не посредника/1С"
+          },
+          "number": {
+            "type": "string",
+            "description": "Человекочитаемый номер заказа"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "manager_processing",
+              "awaiting_payment",
+              "accepted",
+              "assembling",
+              "assembled",
+              "shipped",
+              "in_transit",
+              "delivered",
+              "cancelled"
+            ],
+            "description": "Код состояния выполнения; показан только заказ после охлаждения"
+          },
+          "status_label": {
+            "type": "string",
+            "description": "Русское название статуса"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Дата создания UTC"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Последнее изменение записи, включая служебные поля; не cursor версий"
+          },
+          "cooling_until": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Дедлайн охлаждения UTC, не факт приёмки"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "description": "Сохранённый комментарий покупателя к заказу"
+          },
+          "customer": {
+            "type": "object",
+            "description": "Сохранённый контакт покупателя",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Имя контакта",
+                "nullable": true
+              },
+              "phone": {
+                "type": "string",
+                "description": "Телефон",
+                "nullable": true
+              },
+              "email": {
+                "type": "string",
+                "description": "Email",
+                "nullable": true
+              }
+            }
+          },
+          "payment": {
+            "type": "object",
+            "description": "Признак полной оплаты, не учёт банковских транзакций",
+            "properties": {
+              "method_code": {
+                "type": "string",
+                "description": "Код способа оплаты",
+                "nullable": true
+              },
+              "method_name": {
+                "type": "string",
+                "description": "Название способа оплаты из текущего справочника",
+                "nullable": true
+              },
+              "is_paid": {
+                "type": "boolean",
+                "description": "Есть полностью оплаченный и подтверждённый платёж; частичные оплаты = false"
+              }
+            }
+          },
+          "amounts": {
+            "type": "object",
+            "description": "Финансовый снимок заказа; суммы не складывать повторно",
+            "properties": {
+              "currency": {
+                "type": "string",
+                "enum": [
+                  "RUB"
+                ]
+              },
+              "subtotal": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$",
+                "description": "Сумма товаров"
+              },
+              "delivery_total": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$",
+                "description": "Общая сумма доставки, включает часть обработки"
+              },
+              "handling_in_delivery": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$",
+                "description": "Часть суммы доставки за обработку/подъём"
+              },
+              "assembly": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$",
+                "description": "Сборка"
+              },
+              "additional_services": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$",
+                "description": "Допуслуги"
+              },
+              "total": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$",
+                "description": "Сохранённый итог"
+              }
+            }
+          },
+          "delivery": {
+            "description": "Два взаимоисключающих сценария: type=delivery означает адрес покупателя в address, pickup=null; type=pickup означает address=null и обязательный объект pickup с адресом склада.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OneCOrderCourierDelivery"
+              },
+              {
+                "$ref": "#/components/schemas/OneCOrderWarehousePickup"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "delivery": "#/components/schemas/OneCOrderCourierDelivery",
+                "pickup": "#/components/schemas/OneCOrderWarehousePickup"
+              }
+            }
+          },
+          "fulfillment": {
+            "type": "object",
+            "description": "Исторические складские условия",
+            "properties": {
+              "multi_warehouse": {
+                "type": "boolean",
+                "description": "Признак распределения по нескольким складам"
+              },
+              "warehouse_external_id": {
+                "type": "string",
+                "description": "Общий внешний ID склада; null при нескольких складах",
+                "nullable": true
+              },
+              "warehouse_allocations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "description": "Складской источник",
+                  "properties": {
+                    "warehouse_id": {
+                      "type": "integer",
+                      "description": "Внутренний ID склада",
+                      "nullable": true
+                    },
+                    "warehouse_external_id": {
+                      "type": "string",
+                      "description": "Внешний ID склада",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Распределение SKU",
+                        "properties": {
+                          "product_id": {
+                            "type": "integer",
+                            "description": "Внутренний ID SKU",
+                            "nullable": true
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "description": "Количество из этого склада"
+                          },
+                          "preorder_quantity": {
+                            "type": "integer",
+                            "description": "Из него количество под заказ"
+                          }
+                        }
+                      },
+                      "description": "Список распределённых SKU"
+                    }
+                  }
+                },
+                "description": "Сохранённые распределения по складам"
+              }
+            }
+          },
+          "bundle_snapshot": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+          },
+          "additional_services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Дополнительная услуга",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Код услуги",
+                  "nullable": true
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Название услуги"
+                },
+                "price": {
+                  "type": "string",
+                  "pattern": "^[0-9]+\\.[0-9]{2}$",
+                  "description": "Зафиксированная цена"
+                },
+                "price_type": {
+                  "type": "string",
+                  "description": "Тип цены",
+                  "nullable": true
+                }
+              }
+            },
+            "description": "Услуги заказа"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OneCOrderReadItem"
+            },
+            "description": "Все строки заказа; legacy-строки с отсутствующими идентификаторами не удаляются"
+          },
+          "status_history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Запись истории",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "new",
+                    "manager_processing",
+                    "awaiting_payment",
+                    "accepted",
+                    "assembling",
+                    "assembled",
+                    "shipped",
+                    "in_transit",
+                    "delivered",
+                    "cancelled"
+                  ]
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "description": "Время события UTC"
+                }
+              }
+            },
+            "description": "История статусов, включая прошлые допуском ранее события"
+          }
+        }
+      },
+      "OneCOrdersReadResponse": {
+        "type": "object",
+        "description": "Список заказов с фильтрацией",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OneCOrderRead"
+            },
+            "description": "Фильтрованный список"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Метаданные keyset-пагинации",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "description": "Размер страницы"
+              },
+              "snapshot_max_id": {
+                "type": "integer",
+                "description": "Верхняя граница ID первоначального обхода"
+              },
+              "next_after_id": {
+                "type": "integer",
+                "description": "Следующий ID для after_id либо null",
+                "nullable": true
+              },
+              "has_more": {
+                "type": "boolean"
+              },
+              "as_of": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Время формирования ответа UTC"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "list"
+                ],
+                "description": "Не является журналом изменений"
+              }
+            }
+          }
+        }
+      },
+      "OneCOrderAddress": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Сохранённый текст адреса",
+            "nullable": true
+          },
+          "directory_external_id": {
+            "type": "string",
+            "description": "ID здания справочника",
+            "nullable": true
+          },
+          "gar_guid": {
+            "type": "string",
+            "description": "GUID ГАР",
+            "nullable": true
+          },
+          "kladr_code": {
+            "type": "string",
+            "description": "Ближайший достоверный КЛАДР",
+            "nullable": true
+          },
+          "building_kladr_code": {
+            "type": "string",
+            "description": "КЛАДР здания",
+            "nullable": true
+          },
+          "kladr_level": {
+            "type": "string",
+            "description": "Уровень КЛАДР",
+            "nullable": true
+          },
+          "details": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Исторический снимок, структура может отличаться для legacy-заказов"
+          },
+          "kladr_hierarchy": {
+            "type": "array",
+            "description": "Историческая последовательность кодов КЛАДР по адресу, если были сохранены",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "code": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "nullable": true,
+        "description": "Исторический адрес: при доставке адрес покупателя, при самовывозе — отдельный delivery.pickup.address. Может отсутствовать у legacy."
+      },
+      "OneCOrderPickupDetails": {
+        "type": "object",
+        "description": "Самовывоз из выбранного склада / физического объекта; магазин опционален и расположен при складе. Все значения из сохранённого при оформлении fulfillment_snapshot; текущее состояние склада не используется.",
+        "required": [
+          "warehouse_id",
+          "warehouse_external_id",
+          "store_id",
+          "point_name",
+          "address",
+          "hours",
+          "opening_hours",
+          "timezone"
+        ],
+        "properties": {
+          "warehouse_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Внутренний ID склада магазина, выбранного для самовывоза"
+          },
+          "warehouse_external_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Внешний идентификатор выбранного склада; не ID магазина 1С"
+          },
+          "store_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Внутренний ID связанной точки выдачи; null при непосредственной выдаче со склада"
+          },
+          "point_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Историческое название связанной торговой точки либо склада"
+          },
+          "address": {
+            "$ref": "#/components/schemas/OneCOrderAddress",
+            "description": "Адрес склада/физического объекта выдачи, сохранённый при оформлении; null при отсутствии исторического адреса"
+          },
+          "hours": {
+            "type": "string",
+            "nullable": true,
+            "description": "Часы работы текстом из снимка"
+          },
+          "opening_hours": {
+            "nullable": true,
+            "description": "Сохранённое структурированное расписание магазина: array/object; null при отсутствии или выдаче прямо со склада"
+          },
+          "timezone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Часовой пояс точки, записанный в снимке самовывоза"
+          }
+        }
+      },
+      "OneCOrderCourierDelivery": {
+        "type": "object",
+        "description": "Заказ с курьерской доставкой; адрес покупателя расположен в delivery.address",
+        "required": [
+          "type",
+          "address",
+          "pickup"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "delivery"
+            ],
+            "description": "Курьерская доставка покупателю"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Назначенная дата, если заполнена"
+          },
+          "time": {
+            "type": "string",
+            "description": "Интервал доставки, если назначен",
+            "nullable": true
+          },
+          "days_min": {
+            "type": "integer",
+            "description": "Минимальный ориентировочный срок в днях",
+            "nullable": true
+          },
+          "days_max": {
+            "type": "integer",
+            "description": "Максимальный ориентировочный срок",
+            "nullable": true
+          },
+          "floor": {
+            "type": "integer",
+            "description": "Этаж",
+            "nullable": true
+          },
+          "requires_assembly": {
+            "type": "boolean"
+          },
+          "handling": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Код обработки",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "description": "Название обработки",
+                "nullable": true
+              }
+            }
+          },
+          "address": {
+            "$ref": "#/components/schemas/OneCOrderAddress",
+            "description": "Адрес покупателя, сохранённый в заказе"
+          },
+          "pickup": {
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ],
+            "description": "При доставке всегда null"
+          }
+        }
+      },
+      "OneCOrderWarehousePickup": {
+        "type": "object",
+        "description": "Заказ самовывоза; адрес склада/точки расположен в delivery.pickup.address",
+        "required": [
+          "type",
+          "address",
+          "pickup"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "pickup"
+            ],
+            "description": "Самовывоз из выбранного склада/связанной с ним точки выдачи"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Назначенная дата, если заполнена"
+          },
+          "time": {
+            "type": "string",
+            "description": "Интервал доставки, если назначен",
+            "nullable": true
+          },
+          "days_min": {
+            "type": "integer",
+            "description": "Минимальный ориентировочный срок в днях",
+            "nullable": true
+          },
+          "days_max": {
+            "type": "integer",
+            "description": "Максимальный ориентировочный срок",
+            "nullable": true
+          },
+          "floor": {
+            "type": "integer",
+            "description": "Этаж",
+            "nullable": true
+          },
+          "requires_assembly": {
+            "type": "boolean"
+          },
+          "handling": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Код обработки",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "description": "Название обработки",
+                "nullable": true
+              }
+            }
+          },
+          "address": {
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ],
+            "description": "При самовывозе всегда null: адрес покупателя не используется"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/OneCOrderPickupDetails",
+            "description": "Информация об исторически выбранном складе, пункте и адресе выдачи"
+          }
+        }
       }
     }
   },
@@ -10007,6 +10721,182 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/integration/1c/orders": {
+      "get": {
+        "operationId": "readOrdersForOneC",
+        "tags": [
+          "Integration 1C"
+        ],
+        "summary": "Защищённое прямое чтение заказов после периода охлаждения",
+        "description": "READ-only из первичной Laravel БД. Серверный допуск: cooling_until <= now и разрешённый статус; отмена только ранее допущенной записи. Старые заказы без срока охлаждения исключены. Пагинация id+snapshot_max_id — НЕ журнал изменений, изменившиеся записи могут не попасть в повторный обход. Полный словарь полей и статусов: market-docs/onec-direct-orders-read-api.md. По умолчанию выключено. Токен создаётся через /admin_sv/onec-orders-access (только super_admin), отзывается там же. Токены Filament работают независимо от ONEC_ORDERS_READ_ENABLED; статический .env токен включается отдельно. GET не предоставляет запись статусов.",
+        "security": [
+          {
+            "oneCOrdersToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": false,
+            "description": "Точный ID заказа сайта",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "number",
+            "in": "query",
+            "required": false,
+            "description": "Точный номер заказа",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Коды статусов через запятую, например assembling,assembled",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "description": "Создан с даты UTC включительно",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "description": "Создан по дату UTC включительно",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cooling_from",
+            "in": "query",
+            "required": false,
+            "description": "Дедлайн охлаждения с даты UTC включительно",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cooling_to",
+            "in": "query",
+            "required": false,
+            "description": "Дедлайн охлаждения по дату UTC включительно",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "delivery_type",
+            "in": "query",
+            "required": false,
+            "description": "Тип получения",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delivery",
+                "pickup"
+              ]
+            }
+          },
+          {
+            "name": "payment_method",
+            "in": "query",
+            "required": false,
+            "description": "Код способа оплаты",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "description": "Последний обработанный ID предыдущей страницы",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "snapshot_max_id",
+            "in": "query",
+            "required": false,
+            "description": "Значение из meta первой страницы",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Размер страницы",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Отфильтрованные доступные заказы",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OneCOrdersReadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Выключенный endpoint или отсутствующий/недействительный отдельный токен 1С"
+          },
+          "403": {
+            "description": "HTTPS обязателен на production"
+          },
+          "422": {
+            "description": "Неверные параметры или дата/курсор",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит; использовать Retry-After"
+          },
+          "500": {
+            "description": "Ошибка сервера"
+          }
+        }
       }
     }
   }

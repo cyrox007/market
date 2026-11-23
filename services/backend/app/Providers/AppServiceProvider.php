@@ -121,6 +121,14 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('auth', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
         RateLimiter::for('auth-settings', fn (Request $r) => Limit::perMinute(120)->by($r->ip()));
         RateLimiter::for('orders', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
+        RateLimiter::for('onec-orders-read', fn (Request $r) => Limit::perMinute(
+            max(1, min(120, (int) config('onec_orders_read.per_minute', 30)))
+        )->by('onec-orders-read:'.$r->ip())->response(
+            fn (Request $request, array $headers) => response()->json([
+                'message' => 'Too Many Requests',
+                'retry_after' => (int) ($headers['Retry-After'] ?? 60),
+            ], 429, $headers)->header('Cache-Control', 'private, no-store')
+        ));
         RateLimiter::for('writes', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
 
         foreach (['address-read' => 'read_requests_per_minute', 'address-geo' => 'geo_requests_per_minute'] as $name => $setting) {
