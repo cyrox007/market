@@ -191,6 +191,7 @@ class OneCOrdersReadTest extends TestCase
     {
         $order = $this->createReleased([
             'status' => 'assembling',
+            'delivery_type' => 'delivery',
             'subtotal' => 3000,
             'delivery_cost' => 500,
             'assembly_cost' => 0,
