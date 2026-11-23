@@ -26,7 +26,7 @@ class AdminEditingPresenceController extends Controller
             'editing.*.resource' => 'required|string|max:150',
             'editing.*.record' => 'required|string|max:150',
             'page' => 'sometimes|nullable|array',
-            'page.kind' => 'required_with:page|in:dashboard,resource,page',
+            'page.kind' => 'required_with:page|in:dashboard,resource,page,other',
             'page.resource' => 'nullable|string|max:150',
             'page.action' => 'nullable|in:index,create,view,edit',
             'page.record' => 'nullable|string|max:150',
@@ -127,7 +127,7 @@ class AdminEditingPresenceController extends Controller
             'page_slug' => null,
         ];
 
-        if ($kind === 'dashboard') {
+        if ($kind === 'dashboard' || $kind === 'other') {
             return $details;
         }
 
