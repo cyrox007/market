@@ -37,7 +37,7 @@
                         </div>
                         @if ($item['url'])
                             <a href="{{ $item['url'] }}" class="shrink-0 text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">
-                                {{ auth()->user()?->can('update products') ? 'Редактировать' : 'Открыть' }}
+                                {{ $item['can_edit'] ? 'Редактировать' : 'Открыть' }}
                             </a>
                         @endif
                     </div>
