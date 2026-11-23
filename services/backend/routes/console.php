@@ -4,9 +4,6 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
-// Full catalog-quality and image file checks run in the scheduler, never in the dashboard request.
-Schedule::command('catalog:audit-cards')->dailyAt('03:30')->withoutOverlapping(180);
-
 // The local bank sandbox advances orders, but never schedules real integrations or bank refunds.
 if (config('local_sber.enabled')) {
     app(\App\Services\Payment\LocalSberSimulator::class)->assertEnabled();
@@ -14,6 +11,10 @@ if (config('local_sber.enabled')) {
     Schedule::command('orders:cancel-expired-unpaid')->everyMinute()->withoutOverlapping(10);
     return;
 }
+
+// Full catalog-quality and image checks run in the scheduler, never in a web request.
+// The bank sandbox deliberately schedules only its own two commands.
+Schedule::command('catalog:audit-cards')->dailyAt('03:30')->withoutOverlapping(180);
 
 Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
 Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
