@@ -67,7 +67,7 @@ class AdminUserPresenceTest extends TestCase
 
         $this->postJson('/admin_sv/editing-presence', $this->heartbeat($first, $page))->assertOk();
         $this->travel(1)->seconds();
-        $this->postJson('/admin_sv/editing-presence', $this->heartbeat($second, $page))->assertOk();
+        $this->actingAs($anna, 'web')->postJson('/admin_sv/editing-presence', $this->heartbeat($second, $page))->assertOk();
         $this->assertDatabaseCount('admin_panel_presence', 2);
 
         $this->actingAs($admin, 'web');
@@ -103,7 +103,7 @@ class AdminUserPresenceTest extends TestCase
 
         Permission::findOrCreate('viewAny products', 'web');
         $viewer->givePermissionTo('viewAny products');
-        $this->postJson('/admin_sv/editing-presence', $this->heartbeat($window, $validPage))->assertOk();
+        $this->actingAs($viewer, 'web')->postJson('/admin_sv/editing-presence', $this->heartbeat($window, $validPage))->assertOk();
         $this->assertDatabaseHas('admin_panel_presence', [
             'user_id' => $viewer->id,
             'resource_slug' => ProductResource::getSlug(),
@@ -136,7 +136,7 @@ class AdminUserPresenceTest extends TestCase
         $this->assertDatabaseCount('admin_panel_presence', 0);
 
         $user->givePermissionTo(Permission::findOrCreate('update products', 'web'));
-        $this->postJson('/admin_sv/editing-presence', $this->heartbeat((string) Str::uuid(), $page))
+        $this->actingAs($user, 'web')->postJson('/admin_sv/editing-presence', $this->heartbeat((string) Str::uuid(), $page))
             ->assertOk();
         $this->assertDatabaseHas('admin_panel_presence', [
             'user_id' => $user->id,
@@ -183,7 +183,7 @@ class AdminUserPresenceTest extends TestCase
         ])->assertOk();
 
         $this->assertDatabaseHas('admin_panel_presence', ['user_id' => $one->id, 'window_id' => $window]);
-        $this->postJson('/admin_sv/editing-presence', [
+        $this->actingAs($two, 'web')->postJson('/admin_sv/editing-presence', [
             ...$this->heartbeat($window, ['kind' => 'dashboard']),
             'actor_id' => (string) $one->id,
         ])->assertStatus(409);
