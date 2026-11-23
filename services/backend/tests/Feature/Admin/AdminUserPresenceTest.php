@@ -212,7 +212,7 @@ class AdminUserPresenceTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Оператор карточки')
             ->assertSee('Раздел с ограниченным доступом')
-            ->assertDontSee('Редактирует запись #'.$product->id);
+            ->assertDontSee($product->name);
 
         foreach (['viewAny products', 'view products'] as $permission) {
             $admin->givePermissionTo(Permission::findOrCreate($permission, 'web'));
@@ -221,7 +221,9 @@ class AdminUserPresenceTest extends TestCase
         $this->actingAs($admin, 'web');
         Livewire::test(AdminUserPresenceWidget::class)
             ->assertSuccessful()
-            ->assertSee('Редактирует запись #'.$product->id)
+            ->assertSee($product->name)
+            ->assertSee('Редактирует')
+            ->assertSee(now()->timezone(config('app.admin_timezone', 'Europe/Moscow'))->format('d.m.Y H:i'))
             ->assertDontSee('Раздел с ограниченным доступом');
     }
 

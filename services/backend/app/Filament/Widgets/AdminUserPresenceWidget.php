@@ -70,10 +70,17 @@ class AdminUserPresenceWidget extends Widget
             $location = $this->location($row, $resources, $pages);
             $activities[] = [
                 'name' => $row->name,
+                'initials' => collect(preg_split('/\s+/u', trim($row->name), -1, PREG_SPLIT_NO_EMPTY))->take(2)->map(fn (string $part): string => mb_substr($part, 0, 1))->implode(''),
+                'subject' => $location['subject'] ?? $location['section'],
+                'editing' => str_starts_with($location['action'], 'Редактирует'),
+                'label' => str_starts_with($location['action'], 'Редактирует') ? 'Редактирует'
+                    : (str_starts_with($location['action'], 'Создаёт') ? 'Создаёт запись' : 'Просматривает'),
+                'link_label' => isset($location['subject']) ? 'Открыть карточку' : 'Открыть раздел',
                 'section' => $location['section'],
                 'action' => $location['action'],
                 'url' => $location['url'],
-                'last_seen' => \Carbon\Carbon::parse($row->last_seen_at),
+                'last_seen' => \Carbon\Carbon::parse($row->last_seen_at, config('app.timezone', 'UTC'))
+                    ->timezone(config('app.admin_timezone', 'Europe/Moscow'))->locale('ru'),
                 'windows' => $windowCounts[$row->user_id],
             ];
         }
@@ -86,7 +93,7 @@ class AdminUserPresenceWidget extends Widget
         ];
     }
 
-    /** @return array{section:string,action:string,url:?string} */
+    /** @return array{section:string,action:string,url:?string,subject?:string} */
     private function location(object $row, array $resources, array $pages): array
     {
         if ($row->page_kind === 'dashboard') {
@@ -142,6 +149,7 @@ class AdminUserPresenceWidget extends Widget
                 : (($class::canEdit($record) && isset($pagesForResource['edit'])) ? 'edit' : null);
             return [
                 'section' => $section,
+                'subject' => strip_tags((string) ($class::getRecordTitle($record) ?: '#'.$record->getKey())),
                 'action' => ($action === 'edit' ? 'Редактирует запись ' : 'Просматривает запись ').'#'.$record->getKey(),
                 'url' => $route ? $class::getUrl($route, ['record' => $record]) : $fallback['url'],
             ];

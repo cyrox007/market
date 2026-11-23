@@ -1,63 +1,58 @@
 <x-filament-widgets::widget>
-    <x-filament::section
-        heading="Активность сотрудников"
-        description="Последний подтверждённый раздел и редактирование. Вкладки обновляют присутствие каждые 25 секунд; без активности отметка исчезает."
-    >
-        <div wire:poll.30s="$refresh" class="space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
-                    <span class="inline-flex h-2 w-2 rounded-full bg-green-500" aria-hidden="true"></span>
-                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                        Сейчас активны: {{ $totalUsers }}
-                    </span>
+    <x-filament::section>
+        <div wire:poll.30s="$refresh" class="staff-presence">
+            <header class="staff-presence__heading">
+                <div class="staff-presence__heading-title">
+                    <h2>Сейчас работают</h2>
+                    <span class="staff-presence__count" aria-label="Активных сотрудников: {{ $totalUsers }}">{{ $totalUsers }}</span>
                 </div>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
-                    Обновлено {{ now()->format('H:i:s') }}
-                </span>
-            </div>
-
-            @forelse ($activities as $activity)
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="min-w-0">
-                        <p class="font-semibold text-gray-900 dark:text-white">{{ $activity['name'] }}</p>
-                        <p class="text-sm text-gray-700 dark:text-gray-200">{{ $activity['section'] }}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ $activity['action'] }}
-                            @if ($activity['windows'] > 1)
-                                · {{ $activity['windows'] }} активные вкладки
-                            @endif
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span class="text-xs text-gray-500 dark:text-gray-400" title="Время последнего подтверждения">
-                            {{ $activity['last_seen']->diffForHumans() }}
-                        </span>
-                        @if ($activity['url'])
-                            <a class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400"
-                               href="{{ $activity['url'] }}">
-                                Открыть раздел
-                            </a>
-                        @endif
-                    </div>
-                </div>
-            @empty
-                <div class="rounded-lg border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                    Сейчас нет сотрудников с подтверждённой активностью в административной панели.
-                </div>
-            @endforelse
-
-            @if ($totalUsers > 5)
-                <div class="flex items-center justify-between gap-3">
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                        Показано {{ $visibleCount }} из {{ $totalUsers }}
-                        @if ($showAll && $totalUsers > 50)
-                            (не более 50 одновременно)
-                        @endif
-                    </span>
+                @if ($totalUsers > 5)
                     <x-filament::button size="sm" color="gray" outlined wire:click="toggleShowAll">
-                        {{ $showAll ? 'Свернуть список' : 'Показать больше' }}
+                        {{ $showAll ? 'Свернуть' : 'Все сотрудники' }}
                     </x-filament::button>
-                </div>
+                @endif
+            </header>
+
+            <div class="staff-presence__grid">
+                @forelse ($activities as $activity)
+                    <article class="staff-presence__card {{ $activity['editing'] ? 'staff-presence__card--editing' : '' }}">
+                        <div class="staff-presence__person">
+                            <div class="staff-presence__avatar" aria-hidden="true">
+                                {{ $activity['initials'] }}
+                                <span class="staff-presence__online"></span>
+                            </div>
+                            <div class="staff-presence__identity">
+                                <h3>{{ $activity['name'] }}</h3>
+                                <span class="staff-presence__status">{{ $activity['label'] }}</span>
+                            </div>
+                            @if ($activity['editing'])
+                                <x-filament::icon icon="heroicon-o-pencil-square" class="staff-presence__edit-icon" />
+                            @endif
+                        </div>
+                        <div class="staff-presence__context">
+                            @if ($activity['section'] !== $activity['subject'])
+                                <p class="staff-presence__section">{{ $activity['section'] }}</p>
+                            @endif
+                            <p class="staff-presence__subject" title="{{ $activity['subject'] }}">{{ $activity['subject'] }}</p>
+                        </div>
+                        <footer class="staff-presence__footer">
+                            <span title="Последняя активность: {{ $activity['last_seen']->format('d.m.Y H:i:s') }}">
+                                {{ $activity['last_seen']->diffInSeconds(now(), absolute: true) < 60 ? 'Только что' : $activity['last_seen']->diffForHumans() }}
+                                @if ($activity['windows'] > 1)
+                                    <span class="staff-presence__tabs">· {{ $activity['windows'] }} активные вкладки</span>
+                                @endif
+                            </span>
+                            @if ($activity['url'])
+                                <a href="{{ $activity['url'] }}" class="staff-presence__link">{{ $activity['link_label'] }} <span aria-hidden="true">→</span></a>
+                            @endif
+                        </footer>
+                    </article>
+                @empty
+                    <p class="staff-presence__empty">Сейчас нет сотрудников с активными вкладками.</p>
+                @endforelse
+            </div>
+            @if ($showAll && $totalUsers > $visibleCount)
+                <p class="staff-presence__limit">Показано {{ $visibleCount }} из {{ $totalUsers }} сотрудников</p>
             @endif
         </div>
     </x-filament::section>
