@@ -71,11 +71,14 @@ class OneCOrdersAccessPageTest extends TestCase
         $this->assertNotNull($used->last_used_ip);
 
         $component->call('dismissIssuedToken')->assertSet('issuedToken', null);
-        // A new page instance must never recover the issued plaintext.
-        // Verify list persistence in storage: Livewire's initial-page HTML can
-        // omit deferred table rows in the testing renderer.
+        // The preceding API request is stateless; re-enter the Filament
+        // web guard before mounting a *new* admin page component.
+        $this->actingAs($user);
+        Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
         Livewire::test(OneCOrdersAccessPage::class)
-            ->assertDontSee($plaintext)->assertSee('Выданные токены');
+            ->assertDontSee($plaintext)
+            ->assertSee('Выданные токены')
+            ->assertSee('1С — рабочая база');
         $this->assertDatabaseHas('onec_orders_access_tokens', [
             'id' => $id,
             'name' => '1С — рабочая база',
