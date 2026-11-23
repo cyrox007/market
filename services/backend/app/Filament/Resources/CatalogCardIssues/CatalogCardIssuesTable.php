@@ -57,6 +57,7 @@ class CatalogCardIssuesTable
                     }),
             ])
             ->recordUrl(fn (CatalogCardIssue $record) => $record->product
+                && (ProductResource::canEdit($record->product) || ProductResource::canView($record->product))
                 ? ProductResource::getUrl(ProductResource::canEdit($record->product) ? 'edit' : 'view',
                     ['record' => $record->product])
                 : null)
