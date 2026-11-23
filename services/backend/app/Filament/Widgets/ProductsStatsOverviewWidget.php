@@ -2,19 +2,22 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
+use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
 
 class ProductsStatsOverviewWidget extends BaseWidget
 {
     protected static ?int $sort = 4;
 
-    protected ?string $heading = 'Товары';
+    protected int|string|array $columnSpan = 'full';
 
-    protected ?string $description = 'Каталог и наличие';
+    protected ?string $heading = 'Каталог';
+
+    protected ?string $description = 'Активные позиции, а не скрытые и архивные записи';
 
     public static function canView(): bool
     {
@@ -23,21 +26,31 @@ class ProductsStatsOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $cacheKey = 'dashboard_products_stats_' . (auth()->id() ?? 'guest');
-        $stats = Cache::remember($cacheKey, 120, function () {
-            $total = Product::count();
-
+        $stats = Cache::remember('dashboard_catalog_v2', 120, static function (): array {
             return [
-                'total' => $total,
+                'active' => Product::query()->catalogItems()->count(),
+                'backorder' => Product::query()->catalogItems()->where('backorder', true)->count(),
+                'no_own_media' => Product::query()->catalogItems()->whereDoesntHave('media')->count(),
             ];
         });
+        $url = ProductResource::getUrl('index');
 
         return [
-            Stat::make('Всего товаров', number_format($stats['total'], 0, ',', ' '))
-                ->description('В каталоге')
-                ->descriptionIcon(Heroicon::OutlinedCube)
+            Stat::make('Активных позиций каталога', number_format($stats['active'], 0, ',', ' '))
+                ->description('Товары и активные предложения')
+                ->icon(Heroicon::OutlinedCube)
                 ->color('primary')
-                ->icon(Heroicon::OutlinedCube),
+                ->url($url),
+            Stat::make('Разрешён предзаказ', number_format($stats['backorder'], 0, ',', ' '))
+                ->description('Признак разрешения, не обещание наличия')
+                ->icon(Heroicon::OutlinedClipboardDocumentList)
+                ->color('info')
+                ->url($url),
+            Stat::make('Без собственных изображений', number_format($stats['no_own_media'], 0, ',', ' '))
+                ->description('Предложения могут наследовать фото родителя')
+                ->icon(Heroicon::OutlinedPhoto)
+                ->color($stats['no_own_media'] > 0 ? 'warning' : 'success')
+                ->url($url),
         ];
     }
 }
