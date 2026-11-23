@@ -24,6 +24,8 @@ test('Livewire proxy exposes __instance object and nested offer edit uses $wire.
  const t=setup(()=>[{__instance:{name:'app.filament.resources.products.relation-managers.product-variants-relation-manager',$wire:wire}}]);
  await t.tick();assert.equal(t.requests.length,1);assert.equal(t.requests[0].actor_id,'17');
  assert(t.requests[0].editing.some(x=>x.record==='25'&&x.resource==='products'));
+ assert.equal(t.requests[0].page.record,'25');
+ assert.equal(t.requests[0].page.action,'edit');
  t.events.pagehide();assert.equal(t.requests[1].actor_id,'17');
 });
 test('direct Livewire instance works and unexpected inspection errors cannot latch busy',async()=>{
