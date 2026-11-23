@@ -41,7 +41,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-1C-Orders-Token",
-        "description": "Отдельный read-only секрет, не ONEC_API_KEY и не сессия"
+        "description": "Заголовок X-1C-Orders-Token. Токен выдаётся через Filament → Интеграции → Доступ 1С к заказам (роль super_admin), хранится только SHA-256; право orders:read, срок действия, возможный whitelist IP и отзыв. Отдельный резервный статический секрет в .env допустим при ONEC_ORDERS_READ_ENABLED=true. Не использовать административную сессию и ONEC_API_KEY."
       }
     },
     "schemas": {
@@ -10725,7 +10725,7 @@
           "Integration 1C"
         ],
         "summary": "Защищённое прямое чтение заказов после периода охлаждения",
-        "description": "READ-only из первичной Laravel БД. Серверный допуск: cooling_until <= now и разрешённый статус; отмена только ранее допущенной записи. Старые заказы без срока охлаждения исключены. Пагинация id+snapshot_max_id — НЕ журнал изменений, изменившиеся записи могут не попасть в повторный обход. Полный словарь полей и статусов: market-docs/onec-direct-orders-read-api.md. По умолчанию выключено.",
+        "description": "READ-only из первичной Laravel БД. Серверный допуск: cooling_until <= now и разрешённый статус; отмена только ранее допущенной записи. Старые заказы без срока охлаждения исключены. Пагинация id+snapshot_max_id — НЕ журнал изменений, изменившиеся записи могут не попасть в повторный обход. Полный словарь полей и статусов: market-docs/onec-direct-orders-read-api.md. По умолчанию выключено. Токен создаётся через /admin_sv/onec-orders-access (только super_admin), отзывается там же. Токены Filament работают независимо от ONEC_ORDERS_READ_ENABLED; статический .env токен включается отдельно. GET не предоставляет запись статусов.",
         "security": [
           {
             "oneCOrdersToken": []
