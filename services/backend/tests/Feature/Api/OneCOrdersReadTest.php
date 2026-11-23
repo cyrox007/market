@@ -92,7 +92,9 @@ class OneCOrdersReadTest extends TestCase
         $response = $this->requestList()->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $released->id);
-        $this->assertSame('private, no-store, max-age=0', $response->headers->get('Cache-Control'));
+        $this->assertTrue($response->headers->hasCacheControlDirective('private'));
+        $this->assertTrue($response->headers->hasCacheControlDirective('no-store'));
+        $this->assertSame('0', (string) $response->headers->getCacheControlDirective('max-age'));
         foreach ([$cooling, $legacy, $new, $manager, $awaiting, $cancelledEarly] as $hidden) {
             $this->requestList(['order_id' => $hidden->id])
                 ->assertOk()->assertJsonCount(0, 'data');
