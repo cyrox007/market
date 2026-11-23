@@ -119,11 +119,12 @@ class CatalogCardAttentionTest extends TestCase
     public function test_empty_color_row_is_a_specific_warning(): void
     {
         $product = Product::factory()->create();
-        ProductColorRow::query()->create([
-            'product_id' => $product->id, 'color_element_id' => null,
-            'color_solution_id' => null, 'sort_order' => 0,
-        ]);
-        $this->assertContains('incomplete_colors', $this->codes($product->fresh()));
+        // The database rejects incomplete rows; check the diagnostic on a
+        // hydrated legacy/unsaved row without weakening the NOT NULL constraint.
+        $product->setRelation('colorRows', new \Illuminate\Database\Eloquent\Collection([
+            new ProductColorRow(['product_id' => $product->id, 'color_solution_id' => null]),
+        ]));
+        $this->assertContains('incomplete_colors', $this->codes($product));
     }
 
     public function test_existing_original_with_missing_thumbnail_is_warning_only_after_processing_grace_period(): void
