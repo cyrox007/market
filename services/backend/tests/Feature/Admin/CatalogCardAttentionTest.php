@@ -12,8 +12,6 @@ use App\Services\Catalog\CatalogCardQuality;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Livewire\Livewire;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\Permission\Models\Permission;
@@ -147,30 +145,23 @@ class CatalogCardAttentionTest extends TestCase
         $this->assertContains('no_image', $this->codes($product->fresh(), true));
     }
 
-    public function test_duplicate_external_id_is_reported_only_between_active_sellable_skus(): void
+    public function test_duplicate_external_id_rule_ignores_virtual_parents(): void
     {
-        // Historical installations may lack the unique index; fresh databases prevent duplicates.
-        Schema::table('products', fn (Blueprint $table) => $table->dropUnique('products_external_id_unique'));
-        $first = Product::factory()->create(['external_id' => 'DUP-001', 'description' => null]);
-        $second = Product::factory()->create(['external_id' => 'DUP-001', 'description' => null]);
-        $virtualParent = Product::factory()->create([
-            'is_variable' => true, 'external_id' => 'DUP-001',
+        // Current products.external_id has a UNIQUE index: actual duplicates
+        // cannot be inserted normally. Exercise the defensive rule explicitly,
+        // without dropping production-like database constraints in the test.
+        $sku = Product::factory()->create(['external_id' => 'DUP-001']);
+        $parent = Product::factory()->create([
+            'is_variable' => true, 'external_id' => 'PARENT-EXT',
         ]);
 
-        $this->assertSame(0, Artisan::call('catalog:audit-cards', ['--skip-files' => true]));
-        $this->assertTrue(CatalogCardIssue::query()
-            ->where('product_id', $first->id)->exists());
-        $this->assertTrue(CatalogCardIssue::query()
-            ->where('product_id', $second->id)->exists());
+        $rule = app(CatalogCardQuality::class);
+        $skuCodes = array_column($rule->inspect($sku, ['DUP-001' => true], false), 'code');
+        $parentCodes = array_column($rule->inspect($parent, ['PARENT-EXT' => true], false), 'code');
 
-        foreach ([$first, $second] as $product) {
-            $stored = CatalogCardIssue::query()->where('product_id', $product->id)->firstOrFail();
-            $this->assertContains('duplicate_external_id', array_column($stored->reasons, 'code'));
-        }
-
-        $parentStored = CatalogCardIssue::query()->where('product_id', $virtualParent->id)->firstOrFail();
-        $this->assertNotContains('duplicate_external_id', array_column($parentStored->reasons, 'code'));
-        $this->assertNotContains('no_external_id', array_column($parentStored->reasons, 'code'));
+        $this->assertContains('duplicate_external_id', $skuCodes);
+        $this->assertNotContains('duplicate_external_id', $parentCodes);
+        $this->assertNotContains('no_external_id', $parentCodes);
     }
 
     public function test_inactive_products_do_not_trigger_diagnostics(): void
