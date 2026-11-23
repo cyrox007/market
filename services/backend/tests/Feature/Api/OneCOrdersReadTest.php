@@ -2,7 +2,11 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Inventory\PhysicalSite;
+use App\Models\Inventory\Warehouse;
 use App\Models\Order\Order;
+use App\Models\Page\Store;
+use App\Services\Shipping\WarehousePickup;
 use App\Models\Order\OrderItem;
 use App\Models\Product\Product;
 use App\Models\User;
@@ -252,4 +256,135 @@ class OneCOrdersReadTest extends TestCase
             ->assertJsonPath('data.0.items.0.display_source', 'legacy')
             ->assertJsonPath('data.0.items.0.product_external_id', null);
     }
+
+    public function test_pickup_exports_historical_physical_site_address_and_selected_store(): void
+    {
+        $site = PhysicalSite::create([
+            'name' => 'Общий объект',
+            'address' => 'Липецк, улица Складская, 10',
+            'address_snapshot' => [
+                'target' => [
+                    'kind' => 'building', 'source' => 'kladr',
+                    'externalId' => 'pickup-building-10', 'kladrCode' => '4800000000100',
+                ],
+                'path' => [
+                    ['kind' => 'street', 'source' => 'kladr',
+                        'externalId' => '4800000000', 'name' => 'Складская'],
+                ],
+                'label' => 'Липецк, улица Складская, 10',
+            ],
+        ]);
+        $warehouse = Warehouse::create([
+            'name' => 'Главный склад', 'source_type' => 'physical',
+            'stock_mode' => 'quantity', 'physical_site_id' => $site->id,
+            'is_active' => true, 'pickup_enabled' => true, 'external_id' => 'WH-LIP',
+        ]);
+        $store = Store::create([
+            'name' => 'Пункт самовывоза', 'slug' => 'lip-pickup-test',
+            'phone' => '+79001234567', 'address' => 'Адрес магазина в справочнике',
+            'city' => 'Липецк', 'physical_site_id' => $site->id,
+            'warehouse_id' => $warehouse->id, 'is_active' => true,
+            'pickup_enabled' => true, 'timezone' => 'Europe/Moscow',
+        ]);
+        $product = Product::factory()->create(['backorder' => false]);
+        $warehouse->productStocks()->create(['product_id' => $product->id, 'quantity' => 5]);
+        $quote = app(WarehousePickup::class)->select($warehouse->id, $store->id, [
+            ['product_id' => $product->id, 'quantity' => 2],
+        ]);
+        $order = $this->createReleased([
+            'delivery_type' => 'pickup',
+            'fulfillment_snapshot' => $quote,
+            'address_snapshot' => $quote['address_directory']['label'] ?? $quote['address'],
+        ]);
+
+        // The source warehouse and store can change after the order is placed.
+        $site->update(['address' => 'Новый адрес объекта']);
+        $store->update(['name' => 'Новое название магазина']);
+        $warehouse->update(['name' => 'Новое название склада']);
+
+        $this->requestList(['order_id' => $order->id, 'delivery_type' => 'pickup'])
+            ->assertOk()
+            ->assertJsonPath('data.0.delivery.type', 'pickup')
+            ->assertJsonPath('data.0.delivery.address', null)
+            ->assertJsonPath('data.0.delivery.pickup.warehouse_id', $warehouse->id)
+            ->assertJsonPath('data.0.delivery.pickup.warehouse_external_id', 'WH-LIP')
+            ->assertJsonPath('data.0.delivery.pickup.store_id', $store->id)
+            ->assertJsonPath('data.0.delivery.pickup.point_name', 'Пункт самовывоза')
+            ->assertJsonPath('data.0.delivery.pickup.address.text', 'Липецк, улица Складская, 10')
+            ->assertJsonPath('data.0.delivery.pickup.address.directory_external_id', 'pickup-building-10')
+            ->assertJsonPath('data.0.delivery.pickup.address.kladr_code', '4800000000100')
+            ->assertJsonPath('data.0.delivery.pickup.timezone', 'Europe/Moscow')
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_direct_warehouse_pickup_without_store_exposes_warehouse_address(): void
+    {
+        $warehouse = Warehouse::create([
+            'name' => 'Выдача на складе',
+            'address' => 'Воронеж, Проезд Заводской, 8',
+            'external_id' => 'WH-VRN',
+            'source_type' => 'physical', 'stock_mode' => 'quantity',
+            'is_active' => true, 'pickup_enabled' => true,
+        ]);
+        $product = Product::factory()->create(['backorder' => false]);
+        $warehouse->productStocks()->create(['product_id' => $product->id, 'quantity' => 5]);
+        $quote = app(WarehousePickup::class)->select($warehouse->id, null, [
+            ['product_id' => $product->id, 'quantity' => 1],
+        ]);
+        $order = $this->createReleased([
+            'delivery_type' => 'pickup',
+            'fulfillment_snapshot' => $quote,
+            'address_snapshot' => $quote['address'],
+        ]);
+
+        $this->requestList(['order_id' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.0.delivery.type', 'pickup')
+            ->assertJsonPath('data.0.delivery.address', null)
+            ->assertJsonPath('data.0.delivery.pickup.store_id', null)
+            ->assertJsonPath('data.0.delivery.pickup.point_name', 'Выдача на складе')
+            ->assertJsonPath('data.0.delivery.pickup.address.text', 'Воронеж, Проезд Заводской, 8')
+            ->assertJsonPath('data.0.delivery.pickup.address.directory_external_id', null);
+    }
+
+    public function test_delivery_has_customer_address_without_pickup_information(): void
+    {
+        $order = $this->createReleased([
+            'delivery_type' => 'delivery',
+            'address_snapshot' => 'Тамбов, улица Покупателя, 5',
+            'fulfillment_snapshot' => [
+                'warehouse_id' => 77,
+                'warehouse_external_id' => 'WH-77',
+                'address_directory' => [
+                    'external_id' => 'buyer-building',
+                    'label' => 'Тамбов, улица Покупателя, 5',
+                    'kladr_code' => '6800000000050',
+                ],
+            ],
+        ]);
+
+        $this->requestList(['order_id' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.0.delivery.type', 'delivery')
+            ->assertJsonPath('data.0.delivery.pickup', null)
+            ->assertJsonPath('data.0.delivery.address.text', 'Тамбов, улица Покупателя, 5')
+            ->assertJsonPath('data.0.delivery.address.directory_external_id', 'buyer-building')
+            ->assertJsonPath('data.0.fulfillment.warehouse_external_id', 'WH-77');
+    }
+
+    public function test_legacy_pickup_with_missing_address_never_invents_a_current_warehouse_address(): void
+    {
+        $order = $this->createReleased([
+            'delivery_type' => 'pickup',
+            'address_snapshot' => null,
+            'fulfillment_snapshot' => ['mode' => 'pickup', 'warehouse_id' => 101],
+        ]);
+        $this->requestList(['order_id' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.0.delivery.address', null)
+            ->assertJsonPath('data.0.delivery.pickup.address', null)
+            ->assertJsonPath('data.0.delivery.pickup.warehouse_id', 101)
+            ->assertJsonPath('data.0.delivery.pickup.store_id', null);
+    }
+
 }
