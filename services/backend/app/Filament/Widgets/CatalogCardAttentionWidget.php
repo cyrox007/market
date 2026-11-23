@@ -47,9 +47,10 @@ class CatalogCardAttentionWidget extends Widget
                     'type' => $product ? CatalogCardQuality::typeLabel($product) : 'Неизвестный тип',
                     'critical' => $issue->critical_count > 0,
                     'reasons' => $issue->reasons ?? [],
-                    'url' => $product
+                    'url' => $product && (ProductResource::canEdit($product) || ProductResource::canView($product))
                         ? ProductResource::getUrl(ProductResource::canEdit($product) ? 'edit' : 'view',
                             ['record' => $product]) : null,
+                    'can_edit' => $product && ProductResource::canEdit($product),
                 ];
             })->all();
 
