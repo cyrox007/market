@@ -121,6 +121,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('auth', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
         RateLimiter::for('auth-settings', fn (Request $r) => Limit::perMinute(120)->by($r->ip()));
         RateLimiter::for('orders', fn (Request $r) => Limit::perMinute(20)->by($r->ip()));
+        RateLimiter::for('sberbank-callback', fn (Request $r) => [
+            Limit::perMinute(max(1, min(5000, (int) config('payment.sberbank_acquiring.callback_per_ip', 120))))->by('ip:'.$r->ip()),
+            Limit::perMinute(max(1, min(10000, (int) config('payment.sberbank_acquiring.callback_global', 600))))->by('global'),
+        ]);
         RateLimiter::for('onec-orders-read', fn (Request $r) => Limit::perMinute(
             max(1, min(120, (int) config('onec_orders_read.per_minute', 30)))
         )->by('onec-orders-read:'.$r->ip())->response(

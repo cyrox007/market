@@ -83,6 +83,11 @@ return [
         'pay_page_path' => env('SBERBANK_ACQUIRING_PAY_PAGE_PATH', '/pp/pay_ru'),
         'callback_url' => env('SBERBANK_ACQUIRING_CALLBACK_URL', null),
         'verify_ssl' => (bool) env('SBERBANK_ACQUIRING_VERIFY_SSL', true),
+        'ca_bundle' => env('SBERBANK_ACQUIRING_CA_BUNDLE'),
+        'status_path' => env('SBERBANK_ACQUIRING_STATUS_PATH'),
+        'callback_per_ip' => (int) env('SBERBANK_CALLBACK_PER_IP', 120),
+        'callback_global' => (int) env('SBERBANK_CALLBACK_GLOBAL', 600),
+        'callback_dedup_seconds' => (int) env('SBERBANK_CALLBACK_DEDUP_SECONDS', 60),
     ],
 
     'sberbank_acquiring_callback_path' => 'api/v1/payment/sberbank/callback',

@@ -32,6 +32,10 @@ class SberbankAcquiringClient
         if (config('local_sber.enabled')) {
             return app(LocalSberSimulator::class)->register($order, $amountRub, $orderNumberOverride ?? (string) $order->number);
         }
+        SberbankConnectionSettings::assertTransport();
+        if (! SberbankConnectionSettings::credentialsPresent()) {
+            return ['ok' => false, 'error' => 'invalid_configuration'];
+        }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
         $userName = (string) config('payment.sberbank_acquiring.username');
         $password = (string) config('payment.sberbank_acquiring.password');
@@ -253,8 +257,8 @@ class SberbankAcquiringClient
         }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
         $legacy = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom')) === 'legacy';
-        $path = (string) config('payment.sberbank_acquiring.status_path',
-            $legacy ? '/payment/rest/getOrderStatusExtended.do' : '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
+        $path = (string) (config('payment.sberbank_acquiring.status_path')
+            ?: ($legacy ? '/payment/rest/getOrderStatusExtended.do' : '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do'));
         $endpoint = $baseUrl . $path;
         $verifySsl = (bool) config('payment.sberbank_acquiring.verify_ssl', true);
 
@@ -270,6 +274,8 @@ class SberbankAcquiringClient
         }
 
         try {
+            SberbankConnectionSettings::assertTransport();
+            if (! SberbankConnectionSettings::credentialsPresent() || ($orderId === '' && $orderNumber === '')) { return []; }
             /** @var Response $response */
             $response = ($legacy ? Http::asForm()->acceptJson() : Http::asJson())
                 ->timeout(15)
@@ -328,6 +334,12 @@ class SberbankAcquiringClient
             'orderId' => $remoteId, 'amount' => $minor];
         $endpoint = $base . $path;
 
+        try {
+            SberbankConnectionSettings::assertTransport();
+        } catch (\RuntimeException $error) {
+            return ['ok' => false, 'error' => 'invalid_configuration_or_payment'];
+        }
+
         $this->gatewayLog->log('sberbank_acquiring', 'refund_requested',
             'Запрос возврата Сбербанка', ['order_id' => $order->id,
                 'refund_id' => $refundId, 'amount_rub' => $amountRub], $order, 'payment', 'info');
@@ -356,15 +368,6 @@ class SberbankAcquiringClient
 
     private function httpVerifyOptions(bool $verifySsl): array
     {
-        if (!$verifySsl) {
-            return ['verify' => false];
-        }
-
-        $caBundle = config('payment.sberbank_acquiring.ca_bundle');
-        if (is_string($caBundle) && $caBundle !== '' && is_file($caBundle)) {
-            return ['verify' => $caBundle];
-        }
-
-        return ['verify' => true];
+        return SberbankConnectionSettings::verifyOptions();
     }
 }
