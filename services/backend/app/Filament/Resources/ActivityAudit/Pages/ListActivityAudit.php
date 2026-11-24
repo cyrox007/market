@@ -14,6 +14,7 @@ final class ListActivityAudit extends ListRecords
     {
         parent::mount();
         abort_unless(ActivityAuditResource::canViewAny(), 403);
-        app(ActivityAudit::class)->record('security', 'audit.view');
+        $audit = app(ActivityAudit::class);
+        if ($audit->enabled()) { $audit->record('security', 'audit.view', context: $audit->context(auth()->user())); }
     }
 }

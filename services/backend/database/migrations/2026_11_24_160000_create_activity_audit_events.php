@@ -13,6 +13,7 @@ return new class extends Migration {
             $table->string('category', 24);
             $table->string('event_type', 100);
             $table->string('actor_type', 24);
+            $table->string('source', 24);
             $table->unsignedBigInteger('actor_id')->nullable();
             $table->char('session_tag', 64)->nullable();
             $table->uuid('request_id')->nullable();
@@ -23,6 +24,7 @@ return new class extends Migration {
             $table->timestamp('created_at');
             $table->index(['category', 'created_at', 'id']);
             $table->index(['actor_id', 'created_at']);
+            $table->index(['source', 'created_at']);
             $table->index(['session_tag', 'created_at']);
             $table->index(['subject_type', 'subject_id', 'created_at']);
             $table->index(['request_id']);

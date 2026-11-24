@@ -30,13 +30,19 @@ final class ActivityAuditObserver
         if ($action === 'updated' && ! array_diff($fields, ['updated_at', 'remember_token', 'last_seen_at', 'last_activity_at'])) { return; }
         $details = ['fields' => $fields];
         if ($action === 'updated') {
-            foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price'] as $field) {
+            foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price','amount_paid'] as $field) {
                 if (in_array($field, $fields, true)) { $details['changes'][$field] = [$model->getRawOriginal($field), $model->getAttribute($field)]; }
             }
         }
         if ($subject === 'payment') {
             if ($model->payable_type !== 'order' || ($action === 'updated' && ! array_intersect($fields, ['status','amount_paid']))) { return; }
             $details['order_id'] = (int) $model->payable_id;
+            $details['payment_id'] = (int) $model->getKey();
+            $details['new_payment_status'] = (string) $model->getRawOriginal('status');
+            if ($action === 'updated' && in_array('status', $fields, true)) {
+                $details['previous_payment_status'] = (string) $model->getRawOriginal('status');
+                $details['new_payment_status'] = (string) ($model->getChanges()['status'] ?? '');
+            }
         }
         if ($model instanceof Order && $action === 'updated' && in_array('status', $fields, true)) {
             $details += ['previous_status' => $model->getRawOriginal('status'), 'new_status' => $model->status];

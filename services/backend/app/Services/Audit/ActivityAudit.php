@@ -15,7 +15,14 @@ final class ActivityAudit
     public function context(?User $actor = null): array
     {
         $request = app()->bound('request') ? request() : null;
+        $source = 'system';
         if ($request instanceof Request && $request->route()) {
+            $source = match (true) {
+                $request->is('api/v1/integration/*') => 'integration',
+                $request->is('api/v1/payment/*/callback') => 'bank',
+                $request->is('admin_sv', 'admin_sv/*', 'livewire/*') => 'admin',
+                default => 'storefront',
+            };
             $actor ??= $request->user() ?? $request->user('web');
             $requestId = $request->attributes->get('activity_audit_request_id');
             if (! $requestId) {
@@ -32,11 +39,13 @@ final class ActivityAudit
                 $tag = hash_hmac('sha256', $nonce, (string) config('app.key'));
             }
         } else {
+            if ($actor && $actor->hasAnyRole(['super_admin','admin','manager','editor','viewer'])) { $source = 'admin'; }
             $requestId = null;
             $tag = null;
         }
         return [
-            'actor_type' => $actor ? ($actor->hasAnyRole(['super_admin','admin','manager','editor','viewer']) ? 'admin' : 'user') : ($requestId ? 'guest' : 'system'),
+            'actor_type' => $actor ? ($source === 'admin' && $actor->hasAnyRole(['super_admin','admin','manager','editor','viewer']) ? 'admin' : 'user') : (in_array($source, ['integration','bank','system'], true) ? $source : 'guest'),
+            'source' => $source,
             'actor_id' => $actor?->id,
             'session_tag' => $tag,
             'request_id' => $requestId,
@@ -56,15 +65,15 @@ final class ActivityAudit
         }
         $safe = [];
         foreach ($details as $key => $value) {
-            if (in_array($key, ['http_status', 'product_id', 'quantity', 'order_id', 'changed_count'], true)
+            if (in_array($key, ['http_status', 'product_id', 'quantity', 'order_id', 'payment_id', 'changed_count'], true)
                 && (is_int($value) || (is_string($value) && ctype_digit($value)))) {
                 $safe[$key] = (int) $value;
             }
             if ($key === 'fields' && is_array($value)) {
-                $safe[$key] = array_values(array_slice(array_intersect($value, ['name','is_active','is_enabled','is_coming_soon','status','payment_method','delivery_type','total','price','sale_price','allow_preorder','email','phone','password','address_id','contact_email','contact_phone','contact_name','configuration','roles']), 0, 30));
+                $safe[$key] = array_values(array_slice(array_intersect($value, ['name','is_active','is_enabled','is_coming_soon','status','payment_method','delivery_type','total','price','sale_price','amount_paid','allow_preorder','email','phone','password','address_id','contact_email','contact_phone','contact_name','configuration','roles']), 0, 30));
             }
             if ($key === 'changes' && is_array($value)) {
-                foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price'] as $field) {
+                foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price','amount_paid'] as $field) {
                     $pair = $value[$field] ?? null;
                     if (is_array($pair) && count($pair) === 2 && array_is_list($pair)
                         && collect($pair)->every(fn ($v) => $v === null || is_bool($v) || is_int($v) || is_float($v)
@@ -73,6 +82,8 @@ final class ActivityAudit
                     }
                 }
             }
+            if (in_array($key, ['previous_payment_status','new_payment_status'], true) && is_string($value)
+                && in_array($value, ['pending','paid','declined','cancelled','refunded','partially_refunded','timeout','authorized','failed'], true)) { $safe[$key] = $value; }
             if (in_array($key, ['previous_status','new_status'], true) && is_string($value)
                 && in_array($value, array_column(\App\Models\Order\OrderStatus::cases(), 'value'), true)) {
                 $safe[$key] = $value;

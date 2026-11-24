@@ -100,6 +100,7 @@ class ActivityAuditTest extends TestCase
         $row = ActivityAuditEvent::where('event_type', 'auth.login')->firstOrFail();
         $this->assertSame('denied', $row->result);
         $this->assertNotNull($row->request_id);
+        $this->assertSame('storefront', $row->source);
         $this->assertStringNotContainsString('missing@example.test', json_encode($row->toArray()));
         $this->assertStringNotContainsString('not-a-real-password', json_encode($row->toArray()));
     }

@@ -35,6 +35,7 @@ final class ActivityAuditResource extends Resource
     {
         return $table->columns([
             TextColumn::make('created_at')->label('Время')->dateTime('d.m.Y H:i:s')->sortable(),
+            TextColumn::make('source')->label('Источник')->badge(),
             TextColumn::make('actor_type')->label('Инициатор')->badge(),
             TextColumn::make('actor_id')->label('ID пользователя')->searchable(),
             TextColumn::make('event_type')->label('Действие')->searchable()->wrap(),
@@ -58,7 +59,8 @@ final class ActivityAuditResource extends Resource
                 ->when($data['from'] ?? null, fn (Builder $q, $date) => $q->where('created_at', '>=', $date.' 00:00:00'))
                 ->when($data['to'] ?? null, fn (Builder $q, $date) => $q->where('created_at', '<', \Illuminate\Support\Carbon::parse($date)->addDay()->startOfDay()))),
             SelectFilter::make('category')->label('Категория')->options(['security'=>'Безопасность','admin'=>'Администрирование','order'=>'Заказы','account'=>'Аккаунт','shopping'=>'Корзина и оформление','behavior'=>'Каталог']),
-            SelectFilter::make('actor_type')->label('Инициатор')->options(['admin'=>'Администратор','user'=>'Покупатель','guest'=>'Гость','system'=>'Система']),
+            SelectFilter::make('actor_type')->label('Инициатор')->options(['admin'=>'Администратор','user'=>'Покупатель','guest'=>'Гость','system'=>'Система','integration'=>'Интеграция','bank'=>'Банк']),
+            SelectFilter::make('source')->label('Источник')->options(['storefront'=>'Витрина','admin'=>'Админка','integration'=>'Интеграция','bank'=>'Банк','system'=>'Система']),
             SelectFilter::make('result')->label('Результат')->options(['success'=>'Успешно','denied'=>'Отказ','error'=>'Ошибка']),
         ])->defaultSort('id', 'desc')->paginated([25, 50, 100])->recordActions([])->toolbarActions([]);
     }
