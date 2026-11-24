@@ -154,4 +154,63 @@ class OneCOrderStatusUpdateTest extends TestCase
         $this->send($order)->assertUnauthorized();
         $this->assertSame('assembling', $order->fresh()->status);
     }
+
+    public function test_uuid_case_is_canonical_and_replay_returns_current_status(): void
+    {
+        $order = $this->order();
+        $id = '7b7cce9f-920b-42f7-9524-72a823b7f56c';
+        $this->send($order, ['event_id' => strtoupper($id)])->assertOk()
+            ->assertJsonPath('data.event_id', $id);
+        $this->send($order, ['expected_status' => 'assembled', 'status' => 'shipped'])->assertOk();
+        $this->send($order, ['event_id' => $id])->assertOk()
+            ->assertJsonPath('data.duplicate', true)
+            ->assertJsonPath('data.current_status', 'shipped');
+        $this->assertDatabaseCount('onec_order_status_update_events', 2);
+    }
+
+    public function test_unpaid_online_order_cannot_advance(): void
+    {
+        $method = \App\Models\Payment\PaymentMethod::create([
+            'name' => 'Sber', 'code' => 'onec-test-sber', 'gateway' => 'sberbank_acquiring', 'is_active' => true,
+        ]);
+        $order = $this->order(['payment_method' => $method->code, 'total' => 1500]);
+        $this->send($order)->assertStatus(409);
+        $this->assertSame('assembling', $order->fresh()->status);
+        $this->assertDatabaseCount('onec_order_status_update_events', 0);
+    }
+
+    public function test_pickup_cannot_be_shipped_or_delivered_without_payment(): void
+    {
+        $order = $this->order(['status' => 'assembled', 'delivery_type' => 'pickup']);
+        $this->send($order, ['expected_status' => 'assembled', 'status' => 'shipped'])->assertStatus(409);
+        $this->send($order, ['expected_status' => 'assembled', 'status' => 'delivered'])->assertStatus(409);
+        $this->assertSame('assembled', $order->fresh()->status);
+        $this->assertDatabaseCount('onec_order_status_update_events', 0);
+    }
+
+    public function test_transition_failure_rolls_back_receipt_and_order_status(): void
+    {
+        $order = $this->order();
+        $id = (string) Str::uuid();
+        \Illuminate\Support\Facades\Event::listen(\App\Events\OrderStatusChanged::class, function ($event) use ($order): void {
+            if ($event->order->id === $order->id) {
+                throw new \RuntimeException('Injected lifecycle failure');
+            }
+        });
+        $this->send($order, ['event_id' => $id])->assertStatus(500);
+        $this->assertSame('assembling', $order->fresh()->status);
+        $this->assertDatabaseMissing('onec_order_status_update_events', ['event_id' => $id]);
+        $this->assertSame(0, $order->statusHistory()->where('status', 'assembled')->count());
+    }
+
+    public function test_write_rate_limit_is_independent_of_read(): void
+    {
+        config(['onec_order_status_write.per_minute' => 1, 'onec_orders_read.per_minute' => 10]);
+        $order = $this->order();
+        $response = $this->send($order)->assertOk();
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->send($order)->assertStatus(429);
+        $this->withHeader('X-1C-Orders-Token', $this->readToken)
+            ->getJson('/api/v1/integration/1c/orders')->assertOk();
+    }
 }
