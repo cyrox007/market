@@ -36,6 +36,12 @@ final class SberbankPaymentAttempts
     {
         $payment = $order->getLatestPayment();
         if (! $payment || ! $payment->status->isPending() || ! filled($payment->remote_id)) { return null; }
+        return $this->formConfig($payment);
+    }
+
+    private function formConfig($payment): ?array
+    {
+        if (LocalSberSimulator::isSimulatedId((string) $payment->remote_id) !== (bool) config('local_sber.enabled')) { return null; }
         $url = $payment->data['sberbank_form_url'] ?? null;
         return is_string($url) && $url !== '' ? ['useEcomApi' => true, 'payformUrl' => $url] : null;
     }
@@ -55,15 +61,24 @@ final class SberbankPaymentAttempts
                     abort_unless(LocalSberSimulator::isSimulatedId((string) $payment->remote_id), 409);
                 }
                 if (! config('local_sber.enabled') && LocalSberSimulator::isSimulatedId((string) $payment->remote_id)) { return null; }
-                if ($cached = $this->cachedConfig($order)) { return $cached; }
-                if (! $retry) { return null; }
-                // A new attempt is possible only after authoritative terminal failure.
+                $cached = $this->cachedConfig($order);
+                if (! $retry) { return $cached; }
+                // A declined authorization may still be retried on the same
+                // form. Only reversal or the bank's expired-session code is
+                // sufficient to issue a DIFFERENT bank registration.
                 $bank = app(SberbankAcquiringClient::class)->getOrderStatusExtended((string) $payment->remote_id, (string) $order->number);
                 $status = filter_var($bank['orderStatus'] ?? null, FILTER_VALIDATE_INT);
                 $error = filter_var($bank['errorCode'] ?? null, FILTER_VALIDATE_INT);
-                if ($error !== 0 || ! in_array($status, [3, 6], true)) {
+                $action = filter_var($bank['actionCode'] ?? null, FILTER_VALIDATE_INT);
+                if ($error !== 0) { return $cached; }
+                if ($status === 0 || ($status === 6 && $action !== -2007)) {
+                    return $this->formConfig($payment);
+                }
+                if ($status === 2) {
+                    $this->reconcileOrder($order);
                     return null;
                 }
+                if ($status !== 3 && ! ($status === 6 && $action === -2007)) { return null; }
                 $payment = DB::transaction(function () use ($order, $payment) {
                     $fresh = Order::lockForUpdate()->findOrFail($order->id);
                     if (! $this->eligible($fresh) || $fresh->getLatestPayment()?->id !== $payment->id) { return null; }
@@ -80,8 +95,8 @@ final class SberbankPaymentAttempts
             $this->prepare($order, $payment);
             $intent = $payment->fresh()->data['sberbank_registration'];
             if ($intent['state'] !== 'prepared') {
-                if ($this->recover($order, $payment->fresh())) {
-                    $this->reconcileOrder($order);
+                if ($this->recover($order, $payment->fresh()) && ! $this->reconcileOrder($order)) {
+                    return null;
                 }
                 return $this->eligible($order->fresh()) ? $this->cachedConfig($order->fresh()) : null;
             }
@@ -170,6 +185,7 @@ final class SberbankPaymentAttempts
     {
         $complete = true;
         foreach ($order->payments()->get() as $payment) {
+            try {
             if (! ($payment->getMethod()->getGateway() instanceof SberbankAcquiringGateway)) { continue; }
             if (in_array((string) $payment->getRawOriginal('status'), ['paid', 'refunded', 'partially_refunded'], true)) { continue; }
             if (! filled($payment->remote_id)) {
@@ -180,6 +196,10 @@ final class SberbankPaymentAttempts
             }
             $job = new ProcessSberbankCallbackJob(['mdOrder' => $payment->remote_id, 'orderNumber' => $order->number]);
             if (! $job->reconcile(app(GatewayLoggerInterface::class))) { $complete = false; }
+            } catch (\Throwable $e) {
+                report($e);
+                $complete = false;
+            }
         }
         if (! $complete) { Log::warning('Sber order reconciliation incomplete', ['order_id' => $order->id]); }
         return $complete;

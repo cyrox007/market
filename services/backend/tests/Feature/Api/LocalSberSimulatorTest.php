@@ -77,15 +77,11 @@ class LocalSberSimulatorTest extends TestCase
         $this->assertSame(0.0, (float) $payment->fresh()->amount_paid);
         $method = PaymentMethod::where('code', 'card_sberbank')->firstOrFail();
         app(SberbankAcquiringGateway::class)->getClientConfig($method, $order, true);
-        $next = $order->getLatestPayment();
-        $newId = $next->remote_id;
-        $this->assertNotSame($payment->remote_id, $newId);
-        $this->assertSame($payment->remote_id, $payment->fresh()->remote_id);
-        $this->assertCount(2, $order->payments()->get());
-        app(LocalSberSimulator::class)->decide($newId, 'success');
-        $this->notify($newId);
-        $this->assertEquals(1234.56, (float) $next->fresh()->amount_paid);
-        $this->assertSame(0.0, (float) $payment->fresh()->amount_paid);
+        $this->assertSame($payment->remote_id, $order->getLatestPayment()->remote_id);
+        $this->assertCount(1, $order->payments()->get());
+        app(LocalSberSimulator::class)->decide($payment->remote_id, 'success');
+        $this->notify($payment->remote_id);
+        $this->assertEquals(1234.56, (float) $payment->fresh()->amount_paid);
     }
 
     public function test_refund_uses_persisted_intent_and_status_check_once(): void
@@ -200,11 +196,14 @@ class LocalSberSimulatorTest extends TestCase
     public function test_callback_of_older_attempt_is_not_discarded_when_new_attempt_exists(): void
     {
         [$order, $old] = $this->payment();
-        app(LocalSberSimulator::class)->decide($old->remote_id, 'decline');
+        app(LocalSberSimulator::class)->decide($old->remote_id, 'cancel');
         $this->notify($old->remote_id);
         $method = PaymentMethod::where('code', 'card_sberbank')->firstOrFail();
         app(SberbankAcquiringGateway::class)->getClientConfig($method, $order, true);
         $new = $order->getLatestPayment();
+        $this->assertNotSame($old->remote_id, $new->remote_id);
+        $this->assertSame($old->remote_id, $old->fresh()->remote_id);
+        $this->assertCount(2, $order->payments()->get());
         app(LocalSberSimulator::class)->decide($old->remote_id, 'success');
         $this->notify($old->remote_id);
         $this->assertEquals(1234.56, (float) $old->fresh()->amount_paid);

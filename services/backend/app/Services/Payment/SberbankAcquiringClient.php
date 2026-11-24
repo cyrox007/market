@@ -252,7 +252,9 @@ class SberbankAcquiringClient
             return [];
         }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
-        $path = (string) config('payment.sberbank_acquiring.status_path', '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
+        $legacy = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom')) === 'legacy';
+        $path = (string) config('payment.sberbank_acquiring.status_path',
+            $legacy ? '/payment/rest/getOrderStatusExtended.do' : '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
         $endpoint = $baseUrl . $path;
         $verifySsl = (bool) config('payment.sberbank_acquiring.verify_ssl', true);
 
@@ -269,7 +271,7 @@ class SberbankAcquiringClient
 
         try {
             /** @var Response $response */
-            $response = Http::asJson()
+            $response = ($legacy ? Http::asForm()->acceptJson() : Http::asJson())
                 ->timeout(15)
                 ->withOptions($this->httpVerifyOptions($verifySsl))
                 ->post($endpoint, $payload);

@@ -95,13 +95,14 @@ class OrderControllerTest extends TestCase
         $this->addProductToCart($product);
         $level = \Illuminate\Support\Facades\DB::transactionLevel();
         $client = \Mockery::mock(\App\Services\Payment\SberbankAcquiringClient::class);
-        $client->shouldReceive('registerOrder')->once()->andReturnUsing(function ($order, $amount, $return, $fail, $number, $key) use ($level) {
-            $this->assertSame($level, \Illuminate\Support\Facades\DB::transactionLevel());
-            $this->assertDatabaseHas('checkout_attempts', ['order_id' => $order->id]);
-            $intent = $order->getLatestPayment()->data['sberbank_registration'];
-            $this->assertSame('submitted', $intent['state']);
-            $this->assertSame($number, $intent['number']);
-            $this->assertSame($key, $intent['key']);
+        $observed = [];
+        $client->shouldReceive('registerOrder')->once()->andReturnUsing(function ($order, $amount, $return, $fail, $number, $key) use (&$observed) {
+            $observed = [
+                'level' => \Illuminate\Support\Facades\DB::transactionLevel(),
+                'committed' => \Illuminate\Support\Facades\DB::table('checkout_attempts')->where('order_id', $order->id)->exists(),
+                'intent' => $order->getLatestPayment()->data['sberbank_registration'],
+                'number' => $number, 'key' => $key,
+            ];
             throw new \RuntimeException('Bank response lost');
         });
         $client->shouldReceive('getOrderStatusExtended')->once()->andReturn([]);
@@ -113,6 +114,11 @@ class OrderControllerTest extends TestCase
         $response = $this->postJson('/api/v1/orders', $body, $headers)->assertCreated()
             ->assertJsonPath('payment_registration_pending', true);
         $id = $response->json('order.id');
+        $this->assertSame($level, $observed['level']);
+        $this->assertTrue($observed['committed']);
+        $this->assertSame('submitted', $observed['intent']['state']);
+        $this->assertSame($observed['number'], $observed['intent']['number']);
+        $this->assertSame($observed['key'], $observed['intent']['key']);
         $this->postJson('/api/v1/orders', $body, $headers)->assertCreated()
             ->assertJsonPath('order.id', $id)->assertJsonPath('payment_registration_pending', true);
         $this->assertCount(1, Order::where('payment_method', $method->code)->get());
