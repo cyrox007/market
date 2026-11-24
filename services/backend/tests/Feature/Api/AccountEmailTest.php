@@ -114,6 +114,44 @@ class AccountEmailTest extends TestCase
         $this->assertSame($user->email, $user->fresh()->email);
     }
 
+    public function test_pending_email_expiry_uses_utc_iso8601_instead_of_sql_datetime(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.test']);
+
+        // With no pending change the existing nullable API contract is preserved.
+        $this->actingAs($user, 'web')->getJson('/api/v1/auth/email')
+            ->assertOk()
+            ->assertJsonPath('pending_email', null)
+            ->assertJsonPath('pending_expires_at', null);
+
+        $this->requestChange($user, 'new@example.test');
+        $storedExpiry = DB::table('account_email_requests')
+            ->where('user_id', $user->id)
+            ->where('purpose', 'change')
+            ->value('expires_at');
+        $this->assertNotNull($storedExpiry);
+
+        // The admin UI may run in Moscow, but the API should never interpret
+        // the stored timezone-less SQL timestamp as Moscow local time.
+        config(['app.admin_timezone' => 'Europe/Moscow']);
+        $response = $this->actingAs($user, 'web')->getJson('/api/v1/auth/email');
+        $response->assertOk()->assertJsonPath('pending_email', 'new@example.test');
+
+        $expiry = $response->json('pending_expires_at');
+        $this->assertIsString($expiry);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/', $expiry);
+        $this->assertSame(
+            \Illuminate\Support\Carbon::parse((string) $storedExpiry, 'UTC')->toISOString(),
+            $expiry
+        );
+
+        $this->actingAs($user, 'web')->deleteJson('/api/v1/auth/email/change')
+            ->assertOk();
+        $this->actingAs($user, 'web')->getJson('/api/v1/auth/email')
+            ->assertOk()
+            ->assertJsonPath('pending_expires_at', null);
+    }
+
     public function test_old_verification_cannot_verify_a_changed_address_and_profile_cannot_bypass_flow(): void
     {
         $user = User::factory()->unverified()->create();

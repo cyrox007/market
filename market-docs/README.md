@@ -20,10 +20,10 @@
 | --- | --- | --- |
 | Каталог, SKU и цветовые решения | [отдельные SKU и цвета](catalog-individual-sku-api.md), [комплекты](bundle-multi-warehouse-stock.md) | `ProductController`, `ProductColors`, `SellableBundle`, `BundlePricing` |
 | Цены и акции | [вывод старых правил](retired-product-region-rules.md), [скидки корзины](cart-discounts-and-delivery-estimates.md) | `PricingEngine`, `CartItemResource` |
-| Корзина, заказы и отмена | [пилот checkout](pilot-checkout-implementation.md), [складской контракт](warehouse-only-fulfillment.md) | `CartController`, `OrderController`, `AutomaticOrderRefunds` |
+| Корзина, заказы и отмена | [API прямого чтения заказов для 1С](onec-direct-orders-read-api.md), [пилот checkout](pilot-checkout-implementation.md), [миниатюры и состав в списках заказов](order-list-items-preview-20261123.md), [основной адрес пользователя](default-address-behavior-20261123.md), [складской контракт](warehouse-only-fulfillment.md) | `CartController`, `OrderController`, `OrderListResource`, `AutomaticOrderRefunds` |
 | Склады и самовывоз | [складская доставка](warehouse-only-fulfillment.md), [несколько складов](bundle-multi-warehouse-stock.md), [тарифы услуг](warehouse-service-store-cleanup.md) | `WarehouseDeliveryQuote`, `WarehouseServices` |
 | Адреса и ГАР | [интеграция адресов](address-directory-frontend-launch.md) | `AddressDirectoryClient`, `DeliveryAddressResolver` |
-| Операторы | [заказы в админке](admin-orders-workspace.md) | Filament-ресурсы заказов и платежей |
+| Операторы | [заказы в админке](admin-orders-workspace.md), [ролевой дашборд](admin-role-dashboard-20261123.md) | Filament-ресурсы заказов, виджеты и права |
 
 Основной API: `/api/v1`; фактический перечень определяется `services/backend/routes/api.php`. В этом PR [OpenAPI](../services/backend/public/api-docs/openapi.json) согласована с **93 операциями**; дальнейшую сверку на каждом релизе выполняет [CI-проверка маршрутов](../scripts/check-openapi-routes.mjs).
 
@@ -38,7 +38,9 @@
 
 ## Исторические документы
 
-Аудиты с датами, старые прототипы ГАР/КЛАДР и ранние схемы тарифов **не удаляем**: они объясняют, почему отказались от решений. Но **не используем как действующее ТЗ**. Ключевые: [исследование старой доставки](shipping-legacy-audit-20261021.md), [отложенное удаление legacy](legacy-shipping-api-removal.md), [аудит склада](warehouse-store-audit-20261026.md), [исходный аудит пилота](pilot-order-readiness-20261026.md), [старый план закрытия бэкенда](backend-completion-plan.md). Полный список — в [реестре](documentation-inventory.md).
+Аудиты с датами, старые прототипы ГАР/КЛАДР и ранние схемы тарифов **не удаляем**: они объясняют, почему отказались от решений. Но **не используем как действующее ТЗ**. Актуальный план проверки перед выводом из эксплуатации архивного контента: [«Идеи для интерьера» — инвентаризация и ограничения удаления](interior-ideas-retirement-preflight-20261120.md).
+
+Ключевые: [исследование старой доставки](shipping-legacy-audit-20261021.md), [отложенное удаление legacy](legacy-shipping-api-removal.md), [аудит склада](warehouse-store-audit-20261026.md), [исходный аудит пилота](pilot-order-readiness-20261026.md), [старый план закрытия бэкенда](backend-completion-plan.md). Полный список — в [реестре](documentation-inventory.md).
 
 ## Незавершённые изменения, которые легко принять за готовое
 

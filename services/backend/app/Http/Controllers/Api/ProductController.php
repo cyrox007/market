@@ -10,12 +10,14 @@ use App\Models\Product\Product;
 use App\Models\Product\ProductCollection;
 use App\Models\Product\Room;
 use App\Models\Shipping\ShippingLocation;
+use App\Services\Inventory\RegionalAvailability;
 use App\Services\Product\ProductRegionRuleService;
 use App\Services\Product\ProductVariantSelector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -416,6 +418,10 @@ class ProductController extends Controller
             return response()->json(['total' => (clone $query)->reorder()->count('products.id')]);
         }
 
+        $regionalWarehouseIds = app(RegionalAvailability::class)->warehouses($destination)->modelKeys();
+        if ($sortBy !== 'distance') {
+            app(RegionalAvailability::class)->orderFirst($query, $regionalWarehouseIds);
+        }
         if ($sortBy === 'distance') {
             if (! $destination['specified']) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['directory_external_id' => 'Для сортировки по расстоянию выберите местоположение.']);
@@ -513,6 +519,7 @@ class ProductController extends Controller
 
         // Облегчённый ответ для списка: без specifications и seo — меньше payload и быстрее сериализация
         $request->merge(['_list_view' => true]);
+        $this->markAvailableInRegion($request, $products->pluck('id')->all(), $regionalWarehouseIds);
         $request->attributes->set('matching_sku_ids', $catalogFilters->skus((clone $baseQueryForFilters)->whereIn('products.id', $products->pluck('id')),
             $catalogFilters->filters($catalogInput, $roomEffectiveFilters ?? []))->pluck('products.id')->all());
         app(\App\Services\Pricing\PricingEngine::class)->preload($request->attributes->get('matching_sku_ids'), $location);
@@ -940,7 +947,7 @@ class ProductController extends Controller
                 ->get();
         });
 
-        return ProductResource::collection($products);
+        return ProductResource::collection($this->rankByRegion($request, $products));
     }
 
     /**
@@ -982,7 +989,7 @@ class ProductController extends Controller
                 ->get();
         });
 
-        return ProductResource::collection($products);
+        return ProductResource::collection($this->rankByRegion($request, $products));
     }
 
     /**
@@ -1024,7 +1031,7 @@ class ProductController extends Controller
             return $roots->limit(12)->get();
         });
 
-        return ProductResource::collection($products);
+        return ProductResource::collection($this->rankByRegion($request, $products));
     }
 
     /**
@@ -1078,12 +1085,29 @@ class ProductController extends Controller
             return $collection->getProductsForApi();
         }, $hotTtl);
 
-        return ProductResource::collection($products)->additional([
+        return ProductResource::collection($this->rankByRegion($request, $products))->additional([
             'collection' => [
                 'slug' => $collection->slug,
                 'name' => $collection->name,
             ],
         ]);
+    }
+
+    private function rankByRegion(Request $request, Collection $products): Collection
+    {
+        $warehouseIds = app(RegionalAvailability::class)->warehouses($request->attributes->get('warehouse_destination'))->modelKeys();
+
+        return app(RegionalAvailability::class)->putFirst($products, $this->markAvailableInRegion($request, $products->pluck('id')->all(), $warehouseIds) ?? []);
+    }
+
+    /** @return array<int, int>|null id доступных в регионе; null — пункт не передан */
+    private function markAvailableInRegion(Request $request, array $productIds, array $warehouseIds): ?array
+    {
+        $available = $request->attributes->get('warehouse_destination')['specified']
+            ? app(RegionalAvailability::class)->availableIds($productIds, $warehouseIds) : null;
+        $request->attributes->set('available_in_region_ids', $available);
+
+        return $available;
     }
 
     /**

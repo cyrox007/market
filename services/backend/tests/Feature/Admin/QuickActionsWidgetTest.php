@@ -20,6 +20,9 @@ class QuickActionsWidgetTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
 
         Livewire::test(QuickActionsWidget::class)->assertSuccessful()
-            ->assertSee('Все заказы')->assertDontSee('Создать заказ');
+            ->assertSee('Все заказы')
+            ->assertDontSee('Создать заказ')
+            ->assertDontSee('Идеи интерьера')
+            ->assertDontSee('Добавить идею');
     }
 }

@@ -15,14 +15,15 @@ class DashboardRoleChecks
     {
         $user = auth()->user();
 
-        return $user && ($user->hasRole('super_admin') || $user->hasRole('admin'));
+        return $user && $user->can('viewAny orders')
+            && ($user->hasRole('super_admin') || $user->hasRole('admin'));
     }
 
     public static function canSeeUsers(): bool
     {
         $user = auth()->user();
 
-        return $user && ($user->hasRole('super_admin') || $user->hasRole('admin'));
+        return $user && $user->can('viewAny users');
     }
 
     public static function canSeeProducts(): bool
@@ -37,12 +38,9 @@ class DashboardRoleChecks
         $user = auth()->user();
 
         return $user && (
-            $user->hasRole('super_admin')
-            || $user->hasRole('admin')
-            || $user->hasRole('editor')
-            || $user->can('viewAny articles')
+            $user->can('viewAny articles')
             || $user->can('viewAny sliders')
-            || $user->can('viewAny interior_ideas')
+            || $user->can('viewAny newsletter_subscribers')
         );
     }
 

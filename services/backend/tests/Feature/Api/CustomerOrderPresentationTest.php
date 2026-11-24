@@ -33,7 +33,8 @@ class CustomerOrderPresentationTest extends TestCase
         Order::factory()->create(['status' => 'new']);
         $this->actingAs($user)->getJson('/api/v1/orders/summary')->assertOk()
             ->assertJsonPath('total', 3)->assertJsonPath('active', 1)->assertJsonPath('completed', 1)->assertJsonPath('cancelled', 1)
-            ->assertJsonPath('last_order.id', $last->id)->assertJsonMissingPath('last_order.contact_email')->assertJsonMissingPath('last_order.items');
+            ->assertJsonPath('last_order.id', $last->id)->assertJsonMissingPath('last_order.contact_email')
+            ->assertJsonPath('last_order.items', [])->assertJsonPath('last_order.items_preview', []);
     }
 
     public function test_empty_summary_and_unauthenticated_access(): void

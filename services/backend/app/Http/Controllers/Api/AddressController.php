@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AddressResource;
 use App\Models\Address\Address;
+use App\Services\Address\DefaultAddressManager;
 use App\Services\Address\DeliveryAddressResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,10 @@ use Throwable;
 
 class AddressController extends Controller
 {
-    public function __construct(private readonly DeliveryAddressResolver $resolver) {}
+    public function __construct(
+        private readonly DeliveryAddressResolver $resolver,
+        private readonly DefaultAddressManager $defaults,
+    ) {}
 
     private function addressInput(Request $request, ?Address $address = null): array
     {
@@ -29,6 +33,7 @@ class AddressController extends Controller
             'floor' => 'nullable|string|max:64',
             'intercom' => 'nullable|string|max:64',
             'comment' => 'nullable|string|max:2000',
+            'is_default' => 'sometimes|boolean',
             'city' => 'prohibited', 'street' => 'prohibited', 'house' => 'prohibited',
             'shipping_location_id' => 'prohibited',
         ]);
@@ -76,14 +81,23 @@ class AddressController extends Controller
         }
 
         $validated = $this->addressInput($request);
-        $address = $user->addresses()->create(array_merge($validated, [
-            'title' => $validated['title'] ?? 'Адрес доставки', 'is_default' => false,
-        ]));
+        $requestedDefault = (bool) ($validated['is_default'] ?? false);
+        unset($validated['is_default']);
 
-        $address->load('shippingLocation');
+        $address = $this->defaults->forUser($user, function () use ($user, $validated, $requestedDefault): Address {
+            $address = $user->addresses()->create(array_merge($validated, [
+                'title' => $validated['title'] ?? 'Адрес доставки',
+                'is_default' => false,
+            ]));
+            // On the first insert this selects the new address automatically;
+            // otherwise it preserves the existing primary unless explicitly changed.
+            $this->defaults->ensure($user, $requestedDefault ? $address : null);
+
+            return $address;
+        });
 
         return response()->json([
-            'address' => new AddressResource($address),
+            'address' => new AddressResource($address->fresh('shippingLocation')),
         ], 201);
     }
 
@@ -122,12 +136,31 @@ class AddressController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $address->fill($this->addressInput($request, $address));
-        $address->save();
-        $address->load('shippingLocation');
+        $validated = $this->addressInput($request, $address);
+        $hasDefaultChoice = array_key_exists('is_default', $validated);
+        $requestedDefault = (bool) ($validated['is_default'] ?? false);
+        unset($validated['is_default']);
+
+        $address = $this->defaults->forUser($user, function () use ($user, $address, $validated, $hasDefaultChoice, $requestedDefault): Address {
+            $address = $user->addresses()->whereKey($address->id)->firstOrFail();
+
+            // A standalone "uncheck" would leave the account without a selected
+            // primary. The client should select another address instead.
+            if ($hasDefaultChoice && ! $requestedDefault && $address->is_default) {
+                throw ValidationException::withMessages([
+                    'is_default' => 'Сначала выберите другой основной адрес. Нельзя снять отметку с текущего основного адреса.',
+                ]);
+            }
+
+            $address->fill($validated);
+            $address->save();
+            $this->defaults->ensure($user, $hasDefaultChoice && $requestedDefault ? $address : null);
+
+            return $address;
+        });
 
         return response()->json([
-            'address' => new AddressResource($address),
+            'address' => new AddressResource($address->fresh('shippingLocation')),
         ]);
     }
 
@@ -145,19 +178,25 @@ class AddressController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        DB::transaction(function () use ($user, $address): void {
-            // Detach historical orders from this address to avoid FK issues
-            // on environments where old schema may still use RESTRICT.
+        $replacement = $this->defaults->forUser($user, function () use ($user, $address): ?Address {
+            $address = $user->addresses()->whereKey($address->id)->firstOrFail();
+
+            // Preserve the saved order snapshot; detach only the old address FK.
             DB::table('orders')
                 ->where('user_id', $user->id)
                 ->where('address_id', $address->id)
                 ->update(['address_id' => null]);
 
             $address->delete();
+
+            // Keeps the current default if another address was deleted. If the
+            // primary was deleted, select the oldest remaining saved address.
+            return $this->defaults->ensure($user);
         });
 
         return response()->json([
             'message' => 'Адрес успешно удален',
+            'default_address_id' => $replacement?->id,
         ]);
     }
 
@@ -175,15 +214,16 @@ class AddressController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        // Снимаем флаг is_default со всех адресов пользователя
-        $user->addresses()->update(['is_default' => false]);
-
-        // Устанавливаем is_default для выбранного адреса
-        $address->is_default = true;
-        $address->save();
+        // Legacy endpoint remains supported; it uses the same atomic path
+        // as create/update so parallel tabs cannot leave two primary addresses.
+        $this->defaults->forUser($user, function () use ($user, $address): void {
+            $address = $user->addresses()->whereKey($address->id)->firstOrFail();
+            $this->defaults->ensure($user, $address);
+        });
 
         return response()->json([
             'message' => 'Адрес установлен как основной',
+            'default_address_id' => $address->id,
         ]);
     }
 }

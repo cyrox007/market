@@ -1,6 +1,10 @@
 @import "../../../../vendor/filament/filament/resources/css/theme.css";
 @import "../../../../vendor/spykapps/theme-edinburgh/resources/css/edinburgh.css";
 
+/* Filament disables automatic Tailwind scanning; include application widgets and forms. */
+@source "../../../../app/Filament/**/*.php";
+@source "../../../../resources/views/filament/**/*.blade.php";
+
 /* Primary #dc2626 + лёгкие бордеры, тени, скругления, компактные таблицы */
 :root {
     /* Скругления */
@@ -429,3 +433,34 @@ html {
     padding-right: 0;
     justify-content: center;
 }
+
+/* Staff activity: compact cards, independent of generated utility classes. */
+.staff-presence { color: var(--theme-slate); }
+.staff-presence__heading, .staff-presence__heading-title, .staff-presence__person, .staff-presence__footer { display: flex; align-items: center; }
+.staff-presence__heading { justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.staff-presence__heading-title { gap: .625rem; }
+.staff-presence__heading h2 { margin: 0; font-size: 1rem; font-weight: 650; }
+.staff-presence__count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; height: 1.5rem; border-radius: 999px; padding: 0 .45rem; background: var(--theme-surface-inset); font-size: .75rem; font-weight: 600; color: var(--theme-slate-dim); }
+.staff-presence__grid { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: .875rem; }
+@media (min-width: 700px) { .staff-presence__grid { grid-template-columns: repeat(auto-fit, minmax(18rem, 25rem)); } }
+.staff-presence__card { min-width: 0; border: 1px solid var(--theme-border-mid); border-radius: 12px; background: var(--theme-surface); padding: 1rem; }
+.staff-presence__card--editing { border-color: rgb(217 119 6 / .4); background: linear-gradient(135deg, rgb(217 119 6 / .06), transparent 75%), var(--theme-surface); }
+.staff-presence__person { gap: .75rem; }
+.staff-presence__avatar { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 2.5rem; height: 2.5rem; border-radius: 50%; background: var(--theme-surface-inset); color: var(--theme-slate-dim); font-size: .875rem; font-weight: 700; text-transform: uppercase; }
+.staff-presence__online { position: absolute; right: -1px; bottom: 0; width: .7rem; height: .7rem; border: 2px solid var(--theme-surface); border-radius: 50%; background: #22c55e; }
+.staff-presence__identity { min-width: 0; flex: 1; }
+.staff-presence__identity h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: .875rem; font-weight: 650; }
+.staff-presence__status { font-size: .75rem; color: var(--theme-slate-dim); }
+.staff-presence__card--editing .staff-presence__status, .staff-presence__edit-icon { color: #b45309; }
+.dark .staff-presence__card--editing .staff-presence__status, .dark .staff-presence__edit-icon { color: #fbbf24; }
+.staff-presence__edit-icon { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+.staff-presence__context { margin: 1rem 0; }
+.staff-presence__section { margin: 0 0 .25rem; color: var(--theme-slate-dim); font-size: .6875rem; }
+.staff-presence__subject { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; min-height: 2.5rem; margin: 0; font-size: .875rem; line-height: 1.25rem; font-weight: 550; }
+.staff-presence__footer { justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding-top: .75rem; border-top: 1px solid var(--theme-border); font-size: .6875rem; color: var(--theme-slate-dim); }
+.staff-presence__link { display: inline-flex; align-items: center; gap: .375rem; color: var(--theme-brass); font-size: .75rem; font-weight: 600; text-decoration: none; }
+.staff-presence__link:hover { text-decoration: underline; }
+.staff-presence__link:focus-visible { outline: 2px solid var(--theme-brass); outline-offset: 3px; border-radius: 2px; }
+.staff-presence__tabs { white-space: nowrap; }
+.staff-presence__empty { grid-column: 1 / -1; margin: 0; padding: .75rem 0; color: var(--theme-slate-dim); font-size: .875rem; }
+.staff-presence__limit { margin: .75rem 0 0; font-size: .75rem; color: var(--theme-slate-dim); }
