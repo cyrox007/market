@@ -238,11 +238,11 @@
 
 **Raiffeisen e-commerce (`/raiffeisen-ecom/callback`)** — подпись проверяется: заголовок `X-Api-Signature-SHA256` → `RaiffeisenEcomClient::verifyPaymentSignature`. При неверной подписи джоба логирует `callback_rejected` и выходит. Но проверка выполняется только если заданы `publicId` и `secretKey` (`if ($publicId !== '' && $secretKey !== '' && $signature)`) — при пустом секрете подпись не проверяется, конфигурация должна это гарантировать.
 
-**⚠️ Sberbank (`/sberbank/callback`) — подпись не проверяется.** `ProcessSberbankCallbackJob` находит заказ по `mdOrder`/`orderNumber` из тела и определяет успех по полям `operation`/`status` того же тела (`SberbankAcquiringGateway::processPaymentResponse`: `wasSuccessful = operation in [DEPOSITED, APPROVED] || status in [...] || status === 1`). Никакого HMAC/checksum.
+**Sberbank (`/sberbank/callback`) — подпись не проверяется, но уведомление не подтверждает оплату.** Актуальный ProcessSberbankCallbackJob выполняет прямую сверку с банком по сохранённому идентификатору попытки, коду, статусу и точной сумме. Callback ограничен по частоте и дедуплицируется. Историческое описание Р-1 ниже относится к прежней реализации. См. [актуальный регламент Сбера](PAYMENT_SBERBANK_ACQUIRING.md).
 
 **⚠️ Raiffeisen acquiring (`/raiffeisen/callback`) — подпись тоже не проверяется.** `ProcessRaiffeisenCallbackJob` находит заказ по `number` (из `orderId`) и определяет успех по `status` из тела (`RaiffeisenAcquiringGateway::processPaymentResponse`: `wasSuccessful = status in SUCCESS_STATUSES`). Никакой верификации отправителя.
 
-Практически по обоим: любой, кто знает номер заказа (он в URL и письмах) и endpoint, может отправить, например, `{"orderNumber": "...", "operation": "DEPOSITED", "status": 1}` (Сбербанк) или `{"orderId": "...", "status": "SUCCESS"}` (Райффайзен-эквайринг) и пометить заказ оплаченным. **Это находка уровня «блокер» для приёмки.**
+Исторический риск подделки оплаты по полям callback для Сбера устранён независимой проверкой банка. Этот вывод не является проверкой production или других шлюзов.
 
 ---
 

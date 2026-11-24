@@ -44,7 +44,10 @@ class SberbankAcquiringClient
 
         $amountKopecks = (int) round($amountRub * 100);
         $orderNumber = $orderNumberOverride ?? (string) $order->number;
-        $requestId = $idempotencyKey ?? (string) Str::uuid();
+        if (! is_string($idempotencyKey) || ! Str::isUuid($idempotencyKey)) {
+            return ['ok' => false, 'error' => 'missing_registration_intent_key'];
+        }
+        $requestId = $idempotencyKey;
 
         if ($apiFormat === 'legacy') {
             return $this->registerLegacy($order, $baseUrl, $userName, $password, $verifySsl, $orderNumber, $amountKopecks, $returnUrl, $failUrl, $requestId, $amountRub);

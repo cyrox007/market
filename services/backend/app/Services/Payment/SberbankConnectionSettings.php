@@ -13,7 +13,7 @@ final class SberbankConnectionSettings
         $base = (string) config('payment.sberbank_acquiring.base_url');
         $url = parse_url($base);
         if (! is_array($url) || ($url['scheme'] ?? '') !== 'https' || empty($url['host'])
-            || isset($url['user'], $url['pass']) || isset($url['user']) || isset($url['query']) || isset($url['fragment'])) {
+            || isset($url['user']) || isset($url['pass']) || isset($url['query']) || isset($url['fragment'])) {
             $problems[] = 'Укажите корректный HTTPS-адрес банка.';
         }
         if (! in_array(strtolower((string) config('payment.sberbank_acquiring.api_format')), ['ecom', 'legacy'], true)) {
