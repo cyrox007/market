@@ -25,7 +25,7 @@ class AddressControllerTest extends TestCase
             $street = $id === 'building-new' ? 'Невский проспект' : 'Ленина';
 
             return Http::response([
-                'target' => ['kind' => 'building', 'externalId' => $id, 'name' => '1', 'source' => 'kladr', 'kladrCode' => $id],
+                'target' => ['kind' => 'building', 'externalId' => $id, 'name' => '1', 'source' => 'kladr', 'kladrCode' => $id, 'postalCode' => '101000'],
                 'path' => [['kind' => 'locality', 'name' => $city], ['kind' => 'street', 'name' => $street]],
                 'label' => "$city, $street, д. 1",
             ]);
@@ -76,6 +76,15 @@ class AddressControllerTest extends TestCase
             'apartment' => '10',
             'entrance' => '2',
         ]);
+    }
+
+    public function test_postal_code_comes_from_directory_only(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/addresses', ['directory_external_id' => 'building-1', 'postal_code' => '999999'])
+            ->assertCreated()->assertJsonPath('address.postal_code', '101000');
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/addresses')->assertJsonPath('data.0.postal_code', '101000');
     }
 
     public function test_authenticated_user_can_get_address_details(): void
