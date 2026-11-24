@@ -1172,36 +1172,6 @@
           }
         }
       },
-      "InteriorIdea": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string",
-            "nullable": true
-          },
-          "image": {
-            "type": "string",
-            "nullable": true
-          },
-          "image_thumb": {
-            "type": "string",
-            "nullable": true
-          },
-          "image_main": {
-            "type": "string",
-            "nullable": true
-          },
-          "hotspots": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        }
-      },
       "AboutPage": {
         "type": "object",
         "properties": {
@@ -8787,35 +8757,6 @@
                   "properties": {
                     "contact": {
                       "$ref": "#/components/schemas/Contact"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/interior-ideas": {
-      "get": {
-        "operationId": "getInteriorIdeas",
-        "summary": "Идеи интерьера с хотспотами",
-        "tags": [
-          "Content"
-        ],
-        "responses": {
-          "200": {
-            "description": "Список идей",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/InteriorIdea"
-                      }
                     }
                   }
                 }
