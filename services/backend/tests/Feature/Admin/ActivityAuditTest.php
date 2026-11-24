@@ -303,4 +303,47 @@ class ActivityAuditTest extends TestCase
         }
         $this->assertDatabaseMissing('activity_audit_events',['event_type'=>'audit.export']);
     }
+
+    public function test_role_seeder_does_not_implicitly_grant_audit_permissions(): void
+    {
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $admin = Role::findByName('admin','web');
+        $viewer = Role::findByName('viewer','web');
+        $this->assertFalse($admin->hasPermissionTo('viewAny activity_audit'));
+        $this->assertFalse($admin->hasPermissionTo('export activity_audit'));
+        $this->assertFalse($viewer->hasPermissionTo('viewAny activity_audit'));
+        $admin->givePermissionTo('viewAny activity_audit');
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->assertTrue($admin->fresh()->hasPermissionTo('viewAny activity_audit'));
+        $this->assertFalse($admin->fresh()->hasPermissionTo('export activity_audit'));
+    }
+
+    public function test_operator_cannot_take_over_privileged_accounts_or_change_roles(): void
+    {
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $admin->givePermissionTo(['update roles','create roles','delete roles','update permissions']);
+        $super = User::factory()->create();
+        $super->assignRole('super_admin');
+        $customer = User::factory()->create();
+        $policy = new \App\Policies\UserPolicy();
+        $this->assertFalse($policy->update($admin,$super));
+        $this->assertFalse($policy->delete($admin,$super));
+        $this->assertTrue($policy->update($admin,$customer));
+        $rolePolicy = new \App\Policies\RolePolicy();
+        $this->assertFalse($rolePolicy->create($admin));
+        $this->assertFalse($rolePolicy->update($admin,Role::findByName('admin','web')));
+        $this->assertFalse((new \App\Policies\PermissionPolicy())->update($admin,\Spatie\Permission\Models\Permission::findByName('viewAny activity_audit','web')));
+        $this->assertTrue($policy->update($super,$admin));
+    }
+
+    public function test_behavior_queue_uses_the_scheduled_worker_connection(): void
+    {
+        config(['queue_workers.connection'=>'database','queue.default'=>'sync']);
+        $context = ['actor_type'=>'guest','source'=>'storefront','actor_id'=>null,'session_tag'=>null,'request_id'=>null];
+        $job = new \App\Jobs\RecordBehaviorAudit((string)\Illuminate\Support\Str::uuid(),now()->format('Y-m-d H:i:s.u'),'catalog.list','success',200,$context);
+        $this->assertSame('database',$job->connection);
+        $this->assertSame('activity-audit',$job->queue);
+    }
 }
