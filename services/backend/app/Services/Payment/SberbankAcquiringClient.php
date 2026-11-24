@@ -27,6 +27,7 @@ class SberbankAcquiringClient
         string $returnUrl,
         string $failUrl,
         ?string $orderNumberOverride = null,
+        ?string $idempotencyKey = null,
     ): array {
         if (config('local_sber.enabled')) {
             return app(LocalSberSimulator::class)->register($order, $amountRub, $orderNumberOverride ?? (string) $order->number);
@@ -39,7 +40,7 @@ class SberbankAcquiringClient
 
         $amountKopecks = (int) round($amountRub * 100);
         $orderNumber = $orderNumberOverride ?? (string) $order->number;
-        $requestId = (string) Str::uuid();
+        $requestId = $idempotencyKey ?? (string) Str::uuid();
 
         if ($apiFormat === 'legacy') {
             return $this->registerLegacy($order, $baseUrl, $userName, $password, $verifySsl, $orderNumber, $amountKopecks, $returnUrl, $failUrl, $requestId, $amountRub);
@@ -244,7 +245,7 @@ class SberbankAcquiringClient
     public function getOrderStatusExtended(string $orderId = '', string $orderNumber = ''): array
     {
         if (config('local_sber.enabled')) {
-            return app(LocalSberSimulator::class)->status($orderId);
+            return app(LocalSberSimulator::class)->status($orderId, $orderNumber);
         }
         // Never send a local simulator transaction to a real bank after changing configuration.
         if (LocalSberSimulator::isSimulatedId($orderId)) {

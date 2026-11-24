@@ -48,13 +48,16 @@ final class LocalSberSimulator
         return DB::table('local_sber_payments')->where('id', $id)->first() ?? abort(404);
     }
 
-    public function status(string $id): array
+    public function status(string $id, string $orderNumber = ''): array
     {
-        $row = $this->find($id);
+        $this->assertEnabled();
+        $row = $id !== '' ? $this->find($id) : DB::table('local_sber_payments')->where('order_number', $orderNumber)->first();
+        if (! $row) { return []; }
         if ($row->unreachable) {
             return [];
         }
-        return ['errorCode' => 0, 'orderStatus' => (int) $row->status, 'amount' => (int) $row->amount,
+        return ['errorCode' => 0, 'orderId' => $row->id, 'orderNumber' => $row->order_number,
+            'orderStatus' => (int) $row->status, 'amount' => (int) $row->amount,
             'paymentAmountInfo' => ['refundedAmount' => (int) $row->refunded_amount]];
     }
 
