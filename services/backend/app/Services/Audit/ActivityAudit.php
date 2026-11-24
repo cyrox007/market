@@ -66,7 +66,7 @@ final class ActivityAudit
         }
         $safe = [];
         foreach ($details as $key => $value) {
-            if (in_array($key, ['http_status', 'product_id', 'quantity', 'order_id', 'payment_id', 'changed_count', 'added_count', 'removed_count', 'selected_count', 'product_count', 'category_count'], true)
+            if (in_array($key, ['http_status', 'product_id', 'quantity', 'order_id', 'payment_id', 'refund_id', 'changed_count', 'added_count', 'removed_count', 'selected_count', 'product_count', 'category_count'], true)
                 && (is_int($value) || (is_string($value) && ctype_digit($value)))) {
                 $safe[$key] = (int) $value;
             }
@@ -86,6 +86,8 @@ final class ActivityAudit
                     }
                 }
             }
+            if (in_array($key, ['previous_refund_status','new_refund_status'], true) && is_string($value)
+                && in_array($value, ['pending','in_progress','completed','failed'], true)) { $safe[$key] = $value; }
             if (in_array($key, ['previous_payment_status','new_payment_status'], true) && is_string($value)
                 && in_array($value, ['pending','paid','declined','cancelled','refunded','partially_refunded','timeout','authorized','failed'], true)) { $safe[$key] = $value; }
             if (in_array($key, ['previous_status','new_status'], true) && is_string($value)

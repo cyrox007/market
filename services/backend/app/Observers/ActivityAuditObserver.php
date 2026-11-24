@@ -21,6 +21,7 @@ final class ActivityAuditObserver
         $subject = match (true) {
             $model instanceof Order => 'order',
             $model instanceof User => 'user',
+            $model instanceof \App\Models\Payment\PaymentRefund => 'refund',
             is_a($model, \Vanilo\Payment\Models\PaymentProxy::modelClass()) => 'payment',
             default => strtolower(class_basename($model)),
         };
@@ -34,11 +35,20 @@ final class ActivityAuditObserver
                 if (in_array($field, $fields, true)) { $details['changes'][$field] = [$model->getRawOriginal($field), $model->getAttribute($field)]; }
             }
         }
+        if ($subject === 'refund') {
+            if ($action === 'updated' && ! in_array('status', $fields, true)) { return; }
+            $payment = $model->payment;
+            if (! $payment || $payment->payable_type !== 'order') { return; }
+            $details['payment_id'] = (int) $payment->id;
+            $details['refund_id'] = (int) $model->id;
+            $details['new_refund_status'] = (string) $model->status;
+            if ($action === 'updated') { $details['previous_refund_status'] = (string) $model->getRawOriginal('status'); }
+        }
         if ($subject === 'payment') {
             if ($model->payable_type !== 'order' || ($action === 'updated' && ! array_intersect($fields, ['status','amount_paid']))) { return; }
             $details['order_id'] = (int) $model->payable_id;
             $details['payment_id'] = (int) $model->getKey();
-            $details['new_payment_status'] = (string) $model->getRawOriginal('status');
+            $details['new_payment_status'] = (string) $model->getAttributes()['status'];
             if ($action === 'updated' && in_array('status', $fields, true)) {
                 $details['previous_payment_status'] = (string) $model->getRawOriginal('status');
                 $details['new_payment_status'] = (string) ($model->getChanges()['status'] ?? '');
@@ -47,10 +57,10 @@ final class ActivityAuditObserver
         if ($model instanceof Order && $action === 'updated' && in_array('status', $fields, true)) {
             $details += ['previous_status' => $model->getRawOriginal('status'), 'new_status' => $model->status];
         }
-        $category = in_array($subject, ['order','payment'], true) ? 'order' : ($context['actor_type'] === 'admin' ? 'admin' : 'account');
+        $category = in_array($subject, ['order','payment','refund'], true) ? 'order' : ($context['actor_type'] === 'admin' ? 'admin' : 'account');
         // Other models are audited only for administrators, not noisy bulk imports.
-        if (! in_array($subject, ['order','user','payment'], true) && $context['actor_type'] !== 'admin') { return; }
-        $audit->record($category, $subject.'.'.$action, $subject === 'payment' ? 'order' : $subject,
-            $subject === 'payment' ? (int) $model->payable_id : (int) $model->getKey(), details: $details, context: $context);
+        if (! in_array($subject, ['order','user','payment','refund'], true) && $context['actor_type'] !== 'admin') { return; }
+        $audit->record($category, $subject.'.'.$action, in_array($subject, ['payment','refund'], true) ? 'order' : $subject,
+            $subject === 'refund' ? (int) $payment->payable_id : ($subject === 'payment' ? (int) $model->payable_id : (int) $model->getKey()), details: $details, context: $context);
     }
 }

@@ -14,6 +14,7 @@ if (config('local_sber.enabled')) {
 
 Schedule::command('audit:prune-activity')->hourly()->withoutOverlapping(10);
 if (config('activity_audit.enabled')) {
+    Schedule::command('audit:check-activity')->everyFiveMinutes()->withoutOverlapping(5)->runInBackground();
     Schedule::command('queue:work', [config('queue_workers.connection', 'database'), '--queue=activity-audit', '--sleep=1', '--tries=3', '--max-time=25', '--timeout=30', '--memory=128'])
         ->everyMinute()->withoutOverlapping(2)->runInBackground();
 }

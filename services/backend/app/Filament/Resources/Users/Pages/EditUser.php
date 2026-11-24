@@ -17,7 +17,7 @@ class EditUser extends EditRecord
         return [
             Actions\Action::make('activity_audit')->label('История действий')
                 ->visible(fn () => \App\Services\Audit\ActivityAudit::canView(auth()->user()))
-                ->url(fn () => \App\Filament\Resources\ActivityAudit\ActivityAuditResource::getUrl('index', ['tableFilters' => ['actor' => ['id' => $this->record->id]]])),
+                ->url(fn () => \App\Filament\Resources\ActivityAudit\ActivityAuditResource::getUrl('user-timeline', ['userId' => $this->record->id])),
             Actions\DeleteAction::make(),
         ];
     }

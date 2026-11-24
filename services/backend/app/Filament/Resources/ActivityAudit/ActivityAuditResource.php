@@ -68,5 +68,5 @@ final class ActivityAuditResource extends Resource
         ])->defaultSort('created_at', 'desc')->paginated([25, 50, 100])->recordActions([])->toolbarActions([]);
     }
 
-    public static function getPages(): array { return ['index' => Pages\ListActivityAudit::route('/')]; }
+    public static function getPages(): array { return ['index' => Pages\ListActivityAudit::route('/'), 'user-timeline' => Pages\UserActivityTimeline::route('/user/{userId}')]; }
 }
