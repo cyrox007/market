@@ -6645,6 +6645,14 @@
                   "properties": {
                     "order": {
                       "$ref": "#/components/schemas/Order"
+                    },
+                    "payment_registration_pending": {
+                      "type": "boolean",
+                      "description": "Заказ сохранён, но регистрация Сбера пока не подтверждена; повторите исходный Idempotency-Key или запрос payment-config, не создавайте новый заказ."
+                    },
+                    "gateway_client_config": {
+                      "type": "object",
+                      "additionalProperties": true
                     }
                   }
                 }
@@ -6842,6 +6850,10 @@
                     },
                     "fail_url": {
                       "type": "string"
+                    },
+                    "gateway_client_config": {
+                      "type": "object",
+                      "additionalProperties": true
                     }
                   }
                 }
@@ -6883,6 +6895,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Регистрация Сбера ещё не подтверждена; повторить запрос конфигурации, не создавать новый заказ."
           }
         }
       }

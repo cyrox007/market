@@ -84,6 +84,41 @@ class OrderControllerTest extends TestCase
         return [$location, $handling, $this->warehouse];
     }
 
+
+    public function test_sber_registration_failure_preserves_order_and_checkout_key_after_commit(): void
+    {
+        $method = PaymentMethod::create(['code' => 'sber-checkout', 'name' => 'Sber', 'gateway' => 'sberbank_acquiring',
+            'is_active' => true, 'is_enabled' => true]);
+        $user = User::factory()->create();
+        $this->actingAs($user, 'web');
+        $product = Product::factory()->create(['state' => 'active', 'price' => 1000, 'stock' => 10, 'backorder' => false]);
+        $this->addProductToCart($product);
+        $level = \Illuminate\Support\Facades\DB::transactionLevel();
+        $client = \Mockery::mock(\App\Services\Payment\SberbankAcquiringClient::class);
+        $client->shouldReceive('registerOrder')->once()->andReturnUsing(function ($order, $amount, $return, $fail, $number, $key) use ($level) {
+            $this->assertSame($level, \Illuminate\Support\Facades\DB::transactionLevel());
+            $this->assertDatabaseHas('checkout_attempts', ['order_id' => $order->id]);
+            $intent = $order->getLatestPayment()->data['sberbank_registration'];
+            $this->assertSame('submitted', $intent['state']);
+            $this->assertSame($number, $intent['number']);
+            $this->assertSame($key, $intent['key']);
+            throw new \RuntimeException('Bank response lost');
+        });
+        $client->shouldReceive('getOrderStatusExtended')->once()->andReturn([]);
+        $this->app->instance(\App\Services\Payment\SberbankAcquiringClient::class, $client);
+        $body = ['contact_name' => 'Test User', 'contact_phone' => '+79991234567',
+            'contact_email' => $user->email, 'payment_method' => $method->code,
+            'delivery_type' => 'pickup', 'warehouse_id' => $this->warehouse->id];
+        $headers = ['Idempotency-Key' => 'sber-committed-checkout-test', 'Authorization' => 'Bearer '.$user->createToken('sber')->plainTextToken];
+        $response = $this->postJson('/api/v1/orders', $body, $headers)->assertCreated()
+            ->assertJsonPath('payment_registration_pending', true);
+        $id = $response->json('order.id');
+        $this->postJson('/api/v1/orders', $body, $headers)->assertCreated()
+            ->assertJsonPath('order.id', $id)->assertJsonPath('payment_registration_pending', true);
+        $this->assertCount(1, Order::where('payment_method', $method->code)->get());
+        $this->assertCount(1, Order::findOrFail($id)->payments()->get());
+    }
+
     public function test_authenticated_user_can_list_orders(): void
     {
         $user = User::factory()->create();

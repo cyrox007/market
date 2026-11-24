@@ -93,6 +93,13 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         $payment = $mdOrder
             ? $payments->first(fn ($p) => (string) $p->remote_id === (string) $mdOrder)
             : $payments->first(fn ($p) => ($p->data['sberbank_registration']['number'] ?? null) === $orderNumber);
+        if ($mdOrder && ! $payment && is_string($mdOrder) && \Illuminate\Support\Str::isUuid($mdOrder)) {
+            $candidate = $payments->first(fn ($p) => ($p->data['sberbank_registration']['number'] ?? null) === $orderNumber
+                && ($p->data['sberbank_registration']['state'] ?? null) === 'submitted');
+            if ($candidate && app(\App\Services\Payment\SberbankPaymentAttempts::class)->recover($order, $candidate, $mdOrder)) {
+                $payment = $candidate->fresh();
+            }
+        }
         if (! $mdOrder && ! $payment && $payments->count() === 1) {
             $payment = $payments->first();
         }

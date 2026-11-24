@@ -9,6 +9,7 @@ return new class extends Migration {
     {
         Schema::table('payments', function (Blueprint $table): void {
             $table->timestamp('sberbank_reconcile_at')->nullable()->index();
+            $table->string('sberbank_bank_id', 64)->nullable()->unique();
         });
     }
 
@@ -16,7 +17,8 @@ return new class extends Migration {
     {
         Schema::table('payments', function (Blueprint $table): void {
             $table->dropIndex(['sberbank_reconcile_at']);
-            $table->dropColumn('sberbank_reconcile_at');
+            $table->dropUnique(['sberbank_bank_id']);
+            $table->dropColumn(['sberbank_reconcile_at', 'sberbank_bank_id']);
         });
     }
 };

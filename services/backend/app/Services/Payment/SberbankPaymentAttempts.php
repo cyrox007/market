@@ -134,17 +134,18 @@ final class SberbankPaymentAttempts
             $data['sberbank_registration']['state'] = 'bound';
             if ($url !== '') { $data['sberbank_form_url'] = $url; }
             $row->remote_id = $id;
+            $row->sberbank_bank_id = $id;
             $row->data = $data;
             $row->saveOrFail();
         });
     }
 
     /** Find a lost registration by the exact persisted merchant number. Never trust callback IDs here. */
-    public function recover(Order $order, $payment): bool
+    public function recover(Order $order, $payment, ?string $hint = null): bool
     {
         $intent = $payment->data['sberbank_registration'] ?? null;
         if (! $intent || $intent['state'] !== 'submitted') { return false; }
-        $bank = app(SberbankAcquiringClient::class)->getOrderStatusExtended('', $intent['number']);
+        $bank = app(SberbankAcquiringClient::class)->getOrderStatusExtended($hint ?? '', $intent['number']);
         if (filter_var($bank['errorCode'] ?? null, FILTER_VALIDATE_INT) !== 0
             || (string) ($bank['orderNumber'] ?? '') !== $intent['number']
             || filter_var($bank['amount'] ?? null, FILTER_VALIDATE_INT) !== (int) round((float) $payment->amount * 100)) { return false; }
@@ -152,7 +153,8 @@ final class SberbankPaymentAttempts
         foreach ($bank['attributes'] ?? [] as $attribute) {
             if (($attribute['name'] ?? null) === 'mdOrder') { $id ??= $attribute['value'] ?? null; }
         }
-        if (! is_string($id) || ! Str::isUuid($id)) { return false; }
+        $id ??= $hint;
+        if (! is_string($id) || ! Str::isUuid($id) || ($hint !== null && $id !== $hint)) { return false; }
         $url = config('local_sber.enabled')
             ? \Illuminate\Support\Facades\URL::temporarySignedRoute('local-sber.show', now()->addHours(24), ['id' => $id]) : '';
         if (! config('local_sber.enabled') && config('payment.sberbank_acquiring.api_format') === 'ecom') {
