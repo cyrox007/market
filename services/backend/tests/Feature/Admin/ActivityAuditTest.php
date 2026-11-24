@@ -104,4 +104,85 @@ class ActivityAuditTest extends TestCase
         $this->assertStringNotContainsString('missing@example.test', json_encode($row->toArray()));
         $this->assertStringNotContainsString('not-a-real-password', json_encode($row->toArray()));
     }
+
+    public function test_only_explicitly_authorized_admin_can_view_or_export(): void
+    {
+        $admin = User::factory()->create();
+        Role::findOrCreate('admin', 'web');
+        $admin->assignRole('admin');
+        $this->assertFalse(ActivityAudit::canView($admin));
+        $admin->givePermissionTo('viewAny activity_audit');
+        $this->assertTrue(ActivityAudit::canView($admin));
+        $this->assertFalse(ActivityAudit::canExport($admin));
+        $admin->givePermissionTo('export activity_audit');
+        $this->assertTrue(ActivityAudit::canExport($admin));
+        $admin->revokePermissionTo('viewAny activity_audit');
+        $this->assertFalse(ActivityAudit::canExport($admin));
+
+        $manager = User::factory()->create();
+        Role::findOrCreate('manager', 'web');
+        $manager->assignRole('manager');
+        $manager->givePermissionTo(['viewAny activity_audit','export activity_audit']);
+        $this->assertFalse(ActivityAudit::canView($manager));
+        $this->assertFalse(ActivityAudit::canExport($manager));
+    }
+
+    public function test_export_is_bounded_filtered_and_audited(): void
+    {
+        $admin = User::factory()->create();
+        Role::findOrCreate('super_admin', 'web');
+        $admin->assignRole('super_admin');
+        $audit = app(ActivityAudit::class);
+        $audit->record('order', 'test.export_selected');
+        $audit->record('security', 'test.export_excluded');
+        $response = app(\App\Services\Audit\ActivityAuditExport::class)->download($admin,
+            ActivityAuditEvent::query()->where('event_type', 'test.export_selected'));
+        ob_start();
+        try { $response->sendContent(); $csv = ob_get_contents(); }
+        finally { ob_end_clean(); }
+        $this->assertStringContainsString('test.export_selected', $csv);
+        $this->assertStringNotContainsString('test.export_excluded', $csv);
+        $row = ActivityAuditEvent::where('event_type', 'audit.export')->firstOrFail();
+        $this->assertSame(1, $row->details['changed_count']);
+        $this->assertEquals($admin->id, $row->actor_id);
+    }
+
+    public function test_settings_are_audited_and_critical_retention_is_bounded(): void
+    {
+        $admin = User::factory()->create();
+        Role::findOrCreate('super_admin', 'web');
+        $admin->assignRole('super_admin');
+        $settings = app(\App\Services\Audit\ActivityAuditSettings::class);
+        $defaults = config('activity_audit.retention_days');
+        $settings->save($admin, ['behavior' => true, 'retention_days' => $defaults]);
+        $this->assertTrue($settings->get()['behavior']);
+        $this->assertDatabaseHas('activity_audit_events', ['event_type' => 'audit.settings_changed', 'actor_id' => $admin->id]);
+        $defaults['security'] = 1;
+        try {
+            $settings->save($admin, ['behavior' => false, 'retention_days' => $defaults]);
+            $this->fail('Unsafe retention was accepted');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('retention_days.security', $e->errors());
+        }
+        $this->assertTrue($settings->get()['behavior']);
+    }
+
+    public function test_user_history_includes_only_unambiguous_prelogin_guest_activity(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $audit = app(ActivityAudit::class);
+        $ctx = ['actor_type'=>'guest','actor_id'=>null,'source'=>'storefront','session_tag'=>str_repeat('a',64),'request_id'=>null];
+        $audit->record('shopping','test.guest_before',context:$ctx);
+        $audit->record('security','auth.login',context:array_replace($ctx,['actor_type'=>'user','actor_id'=>$user->id]));
+        $audit->record('shopping','test.guest_after',context:$ctx);
+        $shared = array_replace($ctx,['session_tag'=>str_repeat('b',64)]);
+        $audit->record('shopping','test.shared_guest',context:$shared);
+        $audit->record('security','auth.login',context:array_replace($shared,['actor_type'=>'user','actor_id'=>$user->id]));
+        $audit->record('security','auth.login',context:array_replace($shared,['actor_type'=>'user','actor_id'=>$other->id]));
+        $events = \App\Services\Audit\ActivityAuditHistory::forUser(ActivityAuditEvent::query(),$user->id)->pluck('event_type')->all();
+        $this->assertContains('test.guest_before',$events);
+        $this->assertNotContains('test.guest_after',$events);
+        $this->assertNotContains('test.shared_guest',$events);
+    }
 }

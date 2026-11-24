@@ -42,5 +42,6 @@ final class ActivityAuditSettings
             $audit->record('security', 'audit.settings_changed', details: ['retention_days' => $days, 'behavior_enabled' => (bool) $data['behavior']], context: $audit->context($actor));
         });
         Cache::forget(self::KEY);
+        DB::afterCommit(fn () => Cache::forget(self::KEY));
     }
 }

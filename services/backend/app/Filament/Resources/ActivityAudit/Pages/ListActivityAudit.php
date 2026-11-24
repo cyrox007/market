@@ -20,6 +20,11 @@ final class ListActivityAudit extends ListRecords
         ];
     }
 
+    public function hydrate(): void
+    {
+        abort_unless(ActivityAuditResource::canViewAny(), 403);
+    }
+
     public function mount(): void
     {
         parent::mount();

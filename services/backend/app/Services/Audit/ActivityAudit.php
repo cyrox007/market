@@ -114,11 +114,11 @@ final class ActivityAudit
     {
         // No reliance on global Gate::before, nor on customer/admin session alone.
         return $user !== null && ($user->hasRole('super_admin')
-            || ($user->hasRole('admin') && $user->hasPermissionTo('viewAny activity_audit', 'web')));
+            || ($user->hasRole('admin') && $user->checkPermissionTo('viewAny activity_audit', 'web')));
     }
 
     public static function canExport(?User $user): bool
     {
-        return self::canView($user) && ($user->hasRole('super_admin') || $user->hasPermissionTo('export activity_audit', 'web'));
+        return self::canView($user) && ($user->hasRole('super_admin') || $user->checkPermissionTo('export activity_audit', 'web'));
     }
 }
