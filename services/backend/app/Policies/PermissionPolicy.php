@@ -19,16 +19,16 @@ class PermissionPolicy
 
     public function create(User $user): bool
     {
-        return $user->can('create permissions');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin')) && $user->can('create permissions');
     }
 
     public function update(User $user, Permission $permission): bool
     {
-        return $user->can('update permissions');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin')) && $user->can('update permissions');
     }
 
     public function delete(User $user, Permission $permission): bool
     {
-        return $user->can('delete permissions');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin')) && $user->can('delete permissions');
     }
 }

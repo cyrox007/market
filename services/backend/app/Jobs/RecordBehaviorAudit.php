@@ -24,6 +24,7 @@ final class RecordBehaviorAudit implements ShouldQueue
         private readonly int $status,
         private readonly array $context,
     ) {
+        $this->onConnection((string) config('queue_workers.connection', 'database'));
         $this->onQueue('activity-audit');
     }
 

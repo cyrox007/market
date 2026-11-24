@@ -15,6 +15,9 @@ class CreateUser extends CreateRecord
     {
         // Сохраняем роли для последующей синхронизации
         $this->rolesToSync = $data['roles'] ?? [];
+        if (config('activity_audit.enabled') && ! auth()->user()?->hasRole('super_admin') && $this->rolesToSync !== []) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['data.roles' => 'Назначать роли сотрудников может только суперадминистратор.']);
+        }
         // Удаляем роли из данных, чтобы не пытаться сохранить их напрямую
         unset($data['roles']);
 

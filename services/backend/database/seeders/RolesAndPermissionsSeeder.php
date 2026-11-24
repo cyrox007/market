@@ -73,6 +73,9 @@ class RolesAndPermissionsSeeder extends Seeder
         // Super Admin - все разрешения (включая delete_all_catalog)
         $superAdmin->syncPermissions(Permission::all());
 
+        // Preserve deliberately delegated audit grants, never grant them by default.
+        $auditPermissions = ['viewAny activity_audit', 'export activity_audit'];
+        $existingAuditGrants = $admin->permissions()->whereIn('name', $auditPermissions)->get();
         // Admin - все кроме управления ролями и разрешениями
         $adminPermissions = Permission::whereNotIn('name', [
             'viewAny roles',
@@ -85,8 +88,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'create permissions',
             'update permissions',
             'delete permissions',
+            ...$auditPermissions,
         ])->get();
-        $admin->syncPermissions($adminPermissions);
+        $admin->syncPermissions($adminPermissions->merge($existingAuditGrants));
 
         // Manager - управление заказами, товарами, категориями, характеристиками, блоками, почтовыми событиями
         $managerPermissions = Permission::whereIn('name', [
@@ -152,8 +156,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $editor->syncPermissions($editorPermissions);
 
         // Viewer - только просмотр
-        $viewerPermissions = Permission::where('name', 'like', 'viewAny%')
-            ->orWhere('name', 'like', 'view %')
+        $viewerPermissions = Permission::where(fn ($q) => $q->where('name', 'like', 'viewAny%')->orWhere('name', 'like', 'view %'))
+            ->whereNotIn('name', $auditPermissions)
             ->get();
         $viewer->syncPermissions($viewerPermissions);
 
