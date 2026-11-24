@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Schedule;
 // The local bank sandbox advances orders, but never schedules real integrations or bank refunds.
 if (config('local_sber.enabled')) {
     app(\App\Services\Payment\LocalSberSimulator::class)->assertEnabled();
+    Schedule::command('payments:reconcile-sberbank')->everyMinute()->withoutOverlapping(10);
     Schedule::command('orders:advance-cooling')->everyMinute()->withoutOverlapping(5);
     Schedule::command('orders:cancel-expired-unpaid')->everyMinute()->withoutOverlapping(10);
     return;
@@ -16,6 +17,7 @@ if (config('local_sber.enabled')) {
 // The bank sandbox deliberately schedules only its own two commands.
 Schedule::command('catalog:audit-cards')->dailyAt('03:30')->withoutOverlapping(180);
 
+Schedule::command('payments:reconcile-sberbank')->everyMinute()->withoutOverlapping(10)->runInBackground();
 Schedule::command('orders:recover-integration')->everyFiveMinutes()->withoutOverlapping(5);
 Schedule::command('orders:process-cancellation-refunds')->everyMinute()->withoutOverlapping(10);
 

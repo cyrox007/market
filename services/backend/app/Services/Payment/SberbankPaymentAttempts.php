@@ -80,7 +80,9 @@ final class SberbankPaymentAttempts
             $this->prepare($order, $payment);
             $intent = $payment->fresh()->data['sberbank_registration'];
             if ($intent['state'] !== 'prepared') {
-                $this->recover($order, $payment->fresh());
+                if ($this->recover($order, $payment->fresh())) {
+                    $this->reconcileOrder($order);
+                }
                 return $this->eligible($order->fresh()) ? $this->cachedConfig($order->fresh()) : null;
             }
             // Commit the send marker before touching the bank. A crash between
@@ -151,7 +153,8 @@ final class SberbankPaymentAttempts
             if (($attribute['name'] ?? null) === 'mdOrder') { $id ??= $attribute['value'] ?? null; }
         }
         if (! is_string($id) || ! Str::isUuid($id)) { return false; }
-        $url = '';
+        $url = config('local_sber.enabled')
+            ? \Illuminate\Support\Facades\URL::temporarySignedRoute('local-sber.show', now()->addHours(24), ['id' => $id]) : '';
         if (! config('local_sber.enabled') && config('payment.sberbank_acquiring.api_format') === 'ecom') {
             $url = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/')
                 . config('payment.sberbank_acquiring.pay_page_path', '/pp/pay_ru') . '?orderId=' . rawurlencode($id);

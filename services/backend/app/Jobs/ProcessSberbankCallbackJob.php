@@ -47,6 +47,14 @@ class ProcessSberbankCallbackJob implements ShouldQueue
 
     public function handle(GatewayLoggerInterface $gatewayLog): void
     {
+        if (! $this->reconcile($gatewayLog) && $this->job !== null) {
+            $this->release(30);
+        }
+    }
+
+    /** False means that a conclusive bank state could not be obtained. */
+    public function reconcile(GatewayLoggerInterface $gatewayLog): bool
+    {
         $requestIp = $this->payload['_request_ip'] ?? null;
         $payloadClean = array_diff_key($this->payload, array_flip(['_request_ip', '_request_user_agent']));
 
@@ -62,7 +70,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], null, 'payment', 'warning');
 
-            return;
+            return true;
         }
 
         $order = $this->resolveOrder($mdOrder, $orderNumber);
@@ -77,13 +85,17 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], null, 'payment', 'warning');
 
-            return;
+            return true;
         }
 
-        $payment = PaymentProxy::modelClass()::where('payable_type', 'order')
-            ->where('payable_id', $order->id)
-            ->orderByDesc('id')
-            ->first();
+        // Resolve the exact attempt, not the newest payment of the order.
+        $payments = $order->payments()->get();
+        $payment = $mdOrder
+            ? $payments->first(fn ($p) => (string) $p->remote_id === (string) $mdOrder)
+            : $payments->first(fn ($p) => ($p->data['sberbank_registration']['number'] ?? null) === $orderNumber);
+        if (! $mdOrder && ! $payment && $payments->count() === 1) {
+            $payment = $payments->first();
+        }
 
         if (!$payment) {
             Log::warning('ProcessSberbankCallbackJob: payment not found', ['order_id' => $order->id]);
@@ -93,7 +105,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], $order, 'payment', 'warning');
 
-            return;
+            return true;
         }
 
         // A bank payment must already be bound to this order. An orderNumber
@@ -103,14 +115,14 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         if ($boundRemoteId === '' || ($mdOrder && ! hash_equals($boundRemoteId, (string) $mdOrder))) {
             $gatewayLog->log(self::GATEWAY_ID, 'callback_rejected', 'Идентификатор банка не совпадает с платёжной записью',
                 ['order_id' => $order->id, 'payment_id' => $payment->id], $payment, 'payment', 'warning');
-            return;
+            return true;
         }
 
         $gateway = $payment->getMethod()->getGateway();
         if (!$gateway instanceof SberbankAcquiringGateway) {
             Log::warning('ProcessSberbankCallbackJob: invalid gateway for payment', ['payment_id' => $payment->id]);
 
-            return;
+            return true;
         }
 
         $gatewayLog->log(self::GATEWAY_ID, 'callback_received', 'Получен callback по заказу ' . $order->number, [
@@ -123,6 +135,8 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             'contact_email' => $order->contact_email,
             'ip' => $requestIp,
         ], $payment, 'payment', 'info');
+
+        if (in_array((string) $payment->getRawOriginal('status'), ['paid', 'refunded', 'partially_refunded'], true)) { return true; }
 
         // --- Р-1: обратная сверка статуса у банка. Callback — лишь триггер;
         // факт оплаты определяется прямым запросом getOrderStatusExtended, а НЕ полями callback.
@@ -140,7 +154,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], $payment, 'payment', 'warning');
 
-            return;
+            return false;
         }
 
         // No errorCode is not proof of success; bank replies must be complete.
@@ -170,7 +184,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], $payment, 'payment', 'warning');
 
-            return;
+            return false;
         }
 
         // Обновление платежа/заказа — по ДОВЕРЕННОМУ статусу банка, а не по телу callback.
@@ -181,8 +195,13 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'Неподтверждённый или возвращённый статус банка — платёж не меняем',
                 ['order_id' => $order->id, 'bank_order_status' => $bankOrderStatus, 'error_code' => $errorCode],
                 $payment, 'payment', 'warning');
-            return;
+            return false;
         }
+        // A pending/authorized transaction must not overwrite a terminal local
+        // status. Authorization or active authentication is not safe to cancel.
+        if ($bankOrderStatus === 0) { return true; }
+        if (in_array($bankOrderStatus, [1, 5], true)) { return false; }
+        if (! in_array($bankOrderStatus, [2, 3, 6], true)) { return false; }
         $failed = in_array($bankOrderStatus, [3, 6], true);
         $trustedPayload = [
             'operation' => $paid ? 'deposited' : ($failed ? 'declined' : 'pending'),
@@ -199,7 +218,10 @@ class ProcessSberbankCallbackJob implements ShouldQueue
         \Illuminate\Support\Facades\DB::transaction(function () use ($gateway, $payment, $order, $request, $gatewayLog, $requestIp, $payloadClean): void {
         $order = Order::lockForUpdate()->findOrFail($order->id);
         $payment = $payment->newQuery()->lockForUpdate()->findOrFail($payment->id);
-        if ($payment->getStatus()->equals(\Vanilo\Payment\Models\PaymentStatusProxy::PAID())) { return; }
+        if ((string) $payment->remote_id !== (string) $request->json('mdOrder')
+            || in_array((string) $payment->getRawOriginal('status'), ['paid', 'refunded', 'partially_refunded'], true)) { return; }
+        if ($payment->getStatus()->equals(\Vanilo\Payment\Models\PaymentStatusProxy::DECLINED()) && $request->json('operation') === 'declined') { return; }
+        $alreadyPaid = app(\App\Services\Order\OrderCooling::class)->isPaid($order);
         $response = $gateway->processPaymentResponse($request, ['payment' => $payment]);
 
         $handler = new PaymentResponseHandler($payment, $response);
@@ -210,7 +232,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             $payment->remote_id = $response->getTransactionId();
             $payment->save();
         }
-        if ($order instanceof \Vanilo\Contracts\Payable && $response->getTransactionId()) {
+        if (! $alreadyPaid && $response->wasSuccessful() && $order instanceof \Vanilo\Contracts\Payable && $response->getTransactionId()) {
             $order->setPayableRemoteId($response->getTransactionId());
         }
 
@@ -227,7 +249,10 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 'ip' => $requestIp,
             ], $payment, 'payment', 'info');
 
-            if (in_array($order->status, [OrderStatus::NEW->value, OrderStatus::AWAITING_PAYMENT->value], true)) {
+            if ($alreadyPaid) {
+                $gatewayLog->log(self::GATEWAY_ID, 'duplicate_settlement_review', 'Вторая подтверждённая оплата заказа: требуется сверка и возврат излишка',
+                    ['order_id' => $order->id, 'payment_id' => $payment->id], $payment, 'payment', 'error');
+            } elseif (in_array($order->status, [OrderStatus::NEW->value, OrderStatus::AWAITING_PAYMENT->value], true)) {
                 $order->changeStatus(
                     OrderStatus::ACCEPTED,
                     'Оплата получена (Сбербанк)',
@@ -250,6 +275,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             ], $payment, 'payment', 'warning');
         }
         });
+        return true;
     }
 
     private function resolveOrder(mixed $mdOrder, mixed $orderNumber): ?Order
@@ -278,7 +304,7 @@ class ProcessSberbankCallbackJob implements ShouldQueue
             }
 
             // Повторная регистрация: ORDER-1-R12-2 → ORDER-1
-            if (preg_match('/^(.+)-R\d+-\d+$/', $orderNumber, $matches) === 1) {
+            if (preg_match('/^(.+)-(?:R\d+-\d+|S\d+)$/', $orderNumber, $matches) === 1) {
                 return Order::where('number', $matches[1])->first();
             }
         }

@@ -65,7 +65,10 @@ class CheckoutIdempotency
                     $data['payment_registration_pending'] = true;
                 }
             }
-            $data['order'] = (new \App\Http\Resources\OrderResource($order->fresh()->load(['items.product', 'statusHistory', 'address'])))->resolve(request());
+            $data['order'] = (new \App\Http\Resources\OrderResource($order->fresh()->load([
+                'items.product.taxons', 'address', 'statusHistory.user', 'shippingLocation',
+                'shippingMethod.carrier', 'deliveryHandlingType', 'additionalServices',
+            ])))->resolve(request());
         }
         return response()->json($data, 201);
     }

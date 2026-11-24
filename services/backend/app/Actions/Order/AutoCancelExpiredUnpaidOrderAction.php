@@ -13,6 +13,13 @@ class AutoCancelExpiredUnpaidOrderAction
 
     public function execute(Order $order): bool
     {
+        if ($order->status === OrderStatus::AWAITING_PAYMENT->value
+            && $order->created_at && now()->gte($order->created_at->copy()->addMinutes(max(1, (int) config('orders.unpaid_auto_cancel_minutes', 10))))
+            && $order->getPaymentGateway() === 'sberbank_acquiring'
+            && ! $this->hasSuccessfulPayment($order)
+            && ! app(\App\Services\Payment\SberbankPaymentAttempts::class)->reconcileOrder($order)) {
+            return false;
+        }
         return DB::transaction(function () use ($order): bool {
             /** @var Order|null $freshOrder */
             $freshOrder = Order::query()->lockForUpdate()->find($order->id);
