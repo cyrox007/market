@@ -43,8 +43,14 @@ final class ActivityAuditResource extends Resource
             TextColumn::make('result')->label('Результат')->badge(),
             TextColumn::make('session_tag')->label('Сессия')->limit(12)->searchable()->toggleable(isToggledHiddenByDefault: true),
             TextColumn::make('request_id')->label('Запрос')->searchable()->toggleable(isToggledHiddenByDefault: true),
-            TextColumn::make('details')->label('Детали')->formatStateUsing(fn ($state, $record) => json_encode($record->details, JSON_UNESCAPED_UNICODE))->wrap(),
+            TextColumn::make('details')->label('Детали')->getStateUsing(fn ($record) => json_encode($record->details, JSON_UNESCAPED_UNICODE))->wrap(),
         ])->filters([
+            \Filament\Tables\Filters\Filter::make('period')->label('Период')->schema([
+                \Filament\Forms\Components\DatePicker::make('from')->label('С'),
+                \Filament\Forms\Components\DatePicker::make('to')->label('По'),
+            ])->query(fn (Builder $query, array $data) => $query
+                ->when($data['from'] ?? null, fn (Builder $q, $date) => $q->where('created_at', '>=', $date.' 00:00:00'))
+                ->when($data['to'] ?? null, fn (Builder $q, $date) => $q->where('created_at', '<', \Illuminate\Support\Carbon::parse($date)->addDay()->startOfDay()))),
             SelectFilter::make('category')->label('Категория')->options(['security'=>'Безопасность','admin'=>'Администрирование','order'=>'Заказы','account'=>'Аккаунт','shopping'=>'Корзина и оформление','behavior'=>'Каталог']),
             SelectFilter::make('actor_type')->label('Инициатор')->options(['admin'=>'Администратор','user'=>'Покупатель','guest'=>'Гость','system'=>'Система']),
             SelectFilter::make('result')->label('Результат')->options(['success'=>'Успешно','denied'=>'Отказ','error'=>'Ошибка']),

@@ -50,9 +50,22 @@ final class AuditUserActivity
 
     public function handle(Request $request, Closure $next): Response
     {
-        // Session middleware executes inside this middleware. Capture pre-logout
-        // identity using the dedicated auth event below, not raw cookie data.
-        return $next($request);
+        $audit = app(ActivityAudit::class);
+        if (! $audit->enabled() || ! $request->route()) { return $next($request); }
+        $spec = self::EVENTS[$request->method().' '.$request->route()->uri()] ?? null;
+        if (! $spec || ($spec[0] === 'behavior' && ! config('activity_audit.behavior'))) { return $next($request); }
+        // Inside api-session: persist the nonce before StartSession saves.
+        $before = $audit->context();
+        $request->attributes->set('activity_audit_context', $before);
+        try { return $next($request); }
+        finally {
+            if ($spec[1] !== 'auth.logout') {
+                $after = $audit->context();
+                // Authenticated login/registration retain the original guest tag.
+                if ($before['session_tag']) { $after['session_tag'] = $before['session_tag']; }
+                $request->attributes->set('activity_audit_context', $after);
+            }
+        }
     }
 
     public function terminate(Request $request, Response $response): void
@@ -72,6 +85,8 @@ final class AuditUserActivity
         if ($spec[1] === 'cart.add' && $result === 'success') {
             $details += ['product_id' => $request->input('product_id'), 'quantity' => $request->input('quantity')];
         }
-        $audit->bestEffort($spec[0], $spec[1], $spec[2] ?? null, $id, $result, $details);
+        $context = $request->attributes->get('activity_audit_context');
+        if (! is_array($context)) { return; }
+        $audit->bestEffort($spec[0], $spec[1], $spec[2] ?? null, $id, $result, $details, $context);
     }
 }

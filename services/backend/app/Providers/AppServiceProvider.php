@@ -114,7 +114,7 @@ class AppServiceProvider extends ServiceProvider
 
         foreach ([Order::class, User::class, \App\Models\Product\Product::class,
             PaymentMethod::class, \App\Models\Inventory\Warehouse::class,
-            \App\Models\Pricing\PricingRule::class] as $auditedModel) {
+            \App\Models\Pricing\PricingRule::class, \Vanilo\Payment\Models\PaymentProxy::modelClass()] as $auditedModel) {
             $auditedModel::observe(\App\Observers\ActivityAuditObserver::class);
         }
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event): void {

@@ -36,7 +36,7 @@ final class ActivityAudit
             $tag = null;
         }
         return [
-            'actor_type' => $actor ? ($actor->hasRole('super_admin') || $actor->hasRole('admin') ? 'admin' : 'user') : ($requestId ? 'guest' : 'system'),
+            'actor_type' => $actor ? ($actor->hasAnyRole(['super_admin','admin','manager','editor','viewer']) ? 'admin' : 'user') : ($requestId ? 'guest' : 'system'),
             'actor_id' => $actor?->id,
             'session_tag' => $tag,
             'request_id' => $requestId,
@@ -62,6 +62,16 @@ final class ActivityAudit
             }
             if ($key === 'fields' && is_array($value)) {
                 $safe[$key] = array_values(array_slice(array_intersect($value, ['name','is_active','is_enabled','is_coming_soon','status','payment_method','delivery_type','total','price','sale_price','allow_preorder','email','phone','password','address_id','contact_email','contact_phone','contact_name','configuration','roles']), 0, 30));
+            }
+            if ($key === 'changes' && is_array($value)) {
+                foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price'] as $field) {
+                    $pair = $value[$field] ?? null;
+                    if (is_array($pair) && count($pair) === 2 && array_is_list($pair)
+                        && collect($pair)->every(fn ($v) => $v === null || is_bool($v) || is_int($v) || is_float($v)
+                            || (is_string($v) && strlen($v) <= 24 && is_numeric($v)))) {
+                        $safe['changes'][$field] = $pair;
+                    }
+                }
             }
             if (in_array($key, ['previous_status','new_status'], true) && is_string($value)
                 && in_array($value, array_column(\App\Models\Order\OrderStatus::cases(), 'value'), true)) {
