@@ -24,7 +24,7 @@ final class ActivityAudit
                 $request->is('admin_sv', 'admin_sv/*', 'livewire/*') => 'admin',
                 default => 'storefront',
             };
-            $actor ??= $request->user() ?? $request->user('web');
+            $actor ??= in_array($source, ['bank','integration'], true) ? null : ($request->user() ?? $request->user('web'));
             $requestId = $request->attributes->get('activity_audit_request_id');
             if (! $requestId) {
                 $requestId = (string) Str::uuid();

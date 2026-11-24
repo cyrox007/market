@@ -7,7 +7,7 @@ trait TransactionalActivityAudit
 {
     public function save(array $options = [])
     {
-        if (! config('activity_audit.enabled') || $this->getConnection()->transactionLevel() > 0) {
+        if (! config('activity_audit.enabled')) {
             return parent::save($options);
         }
         return $this->getConnection()->transaction(fn () => parent::save($options));
@@ -15,7 +15,7 @@ trait TransactionalActivityAudit
 
     public function delete()
     {
-        if (! config('activity_audit.enabled') || $this->getConnection()->transactionLevel() > 0) {
+        if (! config('activity_audit.enabled')) {
             return parent::delete();
         }
         return $this->getConnection()->transaction(fn () => parent::delete());

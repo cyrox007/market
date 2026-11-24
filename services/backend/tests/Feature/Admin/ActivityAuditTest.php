@@ -198,4 +198,87 @@ class ActivityAuditTest extends TestCase
         $this->assertSame(1,ActivityAuditEvent::where('event_id',$id)->count());
         $this->assertSame(substr($when,0,19),ActivityAuditEvent::where('event_id',$id)->firstOrFail()->created_at->format('Y-m-d H:i:s'));
     }
+
+    public function test_bulk_collection_audit_is_transactional(): void
+    {
+        $series = \App\Models\Product\ProductCollection::create(['name'=>'Audit series','slug'=>'audit-series','is_auto'=>false,'is_active'=>true,'priority'=>0,'limit'=>12]);
+        $product = \App\Models\Product\Product::factory()->create(['state'=>'active']);
+        DB::beginTransaction();
+        try {
+            app(\App\Services\Catalog\BulkCollectionMembership::class)->apply($series->id,[$product->id],'add');
+            $row = ActivityAuditEvent::where('event_type','collection.bulk_add')->firstOrFail();
+            $this->assertSame([$product->id],$row->details['product_ids']);
+            $this->assertSame(1,$row->details['added_count']);
+        } finally { DB::rollBack(); }
+        $this->assertDatabaseMissing('activity_audit_events',['event_type'=>'collection.bulk_add']);
+        $this->assertSame(0,$series->products()->count());
+    }
+
+    public function test_failed_audit_write_rolls_back_critical_model_even_if_caller_catches(): void
+    {
+        $user = User::factory()->create(['name'=>'Before audit']);
+        $invalid = ['actor_type'=>'system','source'=>null,'actor_id'=>null,'session_tag'=>null,'request_id'=>null];
+        try {
+            \App\Services\Audit\AuditExecutionContext::run($invalid, fn () => $user->update(['name'=>'After audit']));
+            $this->fail('Expected audit insert failure');
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->assertSame('Before audit',$user->fresh()->name);
+        }
+        $this->assertNull(\App\Services\Audit\AuditExecutionContext::current());
+    }
+
+    public function test_job_scope_does_not_leak_and_correlates_events(): void
+    {
+        $id = (string) \Illuminate\Support\Str::uuid();
+        $context = ['actor_type'=>'bank','source'=>'bank','actor_id'=>null,'session_tag'=>null,'request_id'=>$id];
+        $middleware = new \App\Jobs\Middleware\WithActivityAuditContext('bank',$context);
+        try {
+            $middleware->handle(new \stdClass(), function () {
+                app(ActivityAudit::class)->record('order','test.bank_context');
+                throw new \RuntimeException('job failed');
+            });
+        } catch (\RuntimeException $e) { $this->assertSame('job failed',$e->getMessage()); }
+        $this->assertDatabaseHas('activity_audit_events',['event_type'=>'test.bank_context','source'=>'bank','request_id'=>$id]);
+        $this->assertNull(\App\Services\Audit\AuditExecutionContext::current());
+        app(ActivityAudit::class)->record('order','test.after_job');
+        $this->assertDatabaseHas('activity_audit_events',['event_type'=>'test.after_job','source'=>'system']);
+    }
+
+    public function test_timeline_has_server_side_access_checks(): void
+    {
+        $user = User::factory()->create();
+        Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
+        $this->actingAs($user);
+        Livewire::test(\App\Filament\Resources\ActivityAudit\Pages\UserActivityTimeline::class,['userId'=>$user->id])->assertForbidden();
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::findOrCreate('super_admin','web'));
+        $this->actingAs($admin);
+        Livewire::test(\App\Filament\Resources\ActivityAudit\Pages\UserActivityTimeline::class,['userId'=>$user->id])->assertSuccessful()->assertSee('Хронология аккаунта');
+        $this->assertDatabaseHas('activity_audit_events',['event_type'=>'audit.user_timeline_view','actor_id'=>$admin->id,'subject_id'=>$user->id]);
+    }
+
+    public function test_queue_health_detects_stale_backlog(): void
+    {
+        config(['queue_workers.connection'=>'database','queue.connections.database.connection'=>null]);
+        DB::table('jobs')->insert(['queue'=>'activity-audit','payload'=>'{}','attempts'=>0,'reserved_at'=>null,'available_at'=>now()->subMinutes(10)->timestamp,'created_at'=>now()->subMinutes(10)->timestamp]);
+        $health = app(\App\Services\Audit\ActivityAuditHealth::class)->inspect();
+        $this->assertGreaterThanOrEqual(1,$health['pending']);
+        $this->assertGreaterThanOrEqual(600,$health['oldest_seconds']);
+        $this->assertFalse($health['healthy']);
+        $this->artisan('audit:check-activity')->assertFailed();
+    }
+
+    public function test_behavior_batch_has_bounded_export_and_history_pagination(): void
+    {
+        $user = User::factory()->create();
+        $context = ['actor_type'=>'user','source'=>'storefront','actor_id'=>$user->id,'session_tag'=>null,'request_id'=>null];
+        for ($i=0;$i<120;$i++) {
+            app(ActivityAudit::class)->record('behavior','test.batch',context:$context);
+        }
+        $query = \App\Services\Audit\ActivityAuditHistory::forUser(ActivityAuditEvent::query(),$user->id)->where('event_type','test.batch');
+        $page = $query->orderByDesc('created_at')->orderByDesc('id')->simplePaginate(50);
+        $this->assertCount(50,$page);
+        $this->assertTrue($page->hasMorePages());
+        $this->assertSame(120,(clone $query)->count());
+    }
 }

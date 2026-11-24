@@ -4,7 +4,6 @@ namespace App\Services\Audit;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Schema;
 
 final class ActivityAuditHealth
 {
@@ -23,7 +22,7 @@ final class ActivityAuditHealth
         $failed = null;
         $failedConnection = DB::connection(config('queue.failed.database'));
         $table = config('queue.failed.table', 'failed_jobs');
-        if ($failedConnection->getSchemaBuilder()->hasTable($table)) {
+        if (in_array(config('queue.failed.driver'), ['database','database-uuids'], true) && $failedConnection->getSchemaBuilder()->hasTable($table)) {
             $failed = $failedConnection->table($table)->where('queue', 'activity-audit')
                 ->where('failed_at', '>=', now()->subDay())->count();
         }
