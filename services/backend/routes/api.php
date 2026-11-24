@@ -9,7 +9,6 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompareController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\CountersController;
-use App\Http\Controllers\Api\InteriorIdeaController;
 use App\Http\Controllers\Api\NewsletterController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -126,11 +125,6 @@ Route::prefix('v1')->group(function () {
 
     // About (public)
     Route::get('/about', [AboutController::class, 'show']);
-
-    // Interior Ideas (public)
-    Route::prefix('interior-ideas')->group(function () {
-        Route::get('/', [InteriorIdeaController::class, 'index']);
-    });
 
     // Newsletter (public)
     Route::prefix('newsletter')->group(function () {
