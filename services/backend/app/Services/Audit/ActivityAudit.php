@@ -14,6 +14,7 @@ final class ActivityAudit
 
     public function context(?User $actor = null): array
     {
+        if ($actor === null && AuditExecutionContext::current() !== null) { return AuditExecutionContext::current(); }
         $request = app()->bound('request') ? request() : null;
         $source = 'system';
         if ($request instanceof Request && $request->route()) {
@@ -65,9 +66,12 @@ final class ActivityAudit
         }
         $safe = [];
         foreach ($details as $key => $value) {
-            if (in_array($key, ['http_status', 'product_id', 'quantity', 'order_id', 'payment_id', 'changed_count'], true)
+            if (in_array($key, ['http_status', 'product_id', 'quantity', 'order_id', 'payment_id', 'changed_count', 'added_count', 'removed_count', 'selected_count', 'product_count', 'category_count'], true)
                 && (is_int($value) || (is_string($value) && ctype_digit($value)))) {
                 $safe[$key] = (int) $value;
+            }
+            if (in_array($key, ['product_ids','target_ids'], true) && is_array($value)) {
+                $safe[$key] = array_values(array_slice(array_unique(array_filter($value, fn ($v) => is_int($v) && $v > 0)), 0, 100));
             }
             if ($key === 'fields' && is_array($value)) {
                 $safe[$key] = array_values(array_slice(array_intersect($value, ['name','is_active','is_enabled','is_coming_soon','status','payment_method','delivery_type','total','price','sale_price','amount_paid','allow_preorder','email','phone','password','address_id','contact_email','contact_phone','contact_name','configuration','roles']), 0, 30));

@@ -34,9 +34,10 @@ final class OrderOneCSyncDispatcher
         }
 
         $record?->update(['integration_state' => 'queued']);
-        \Illuminate\Support\Facades\DB::afterCommit(function () use ($orderId): void {
+        $auditContext = \App\Services\Audit\AuditExecutionContext::capture('integration');
+        \Illuminate\Support\Facades\DB::afterCommit(function () use ($orderId, $auditContext): void {
             try {
-                $pending = SyncOrderTo1CJob::dispatch($orderId);
+                $pending = SyncOrderTo1CJob::dispatch($orderId, $auditContext);
                 unset($pending); // Execute PendingDispatch inside this catch, including unique-job locking.
             }
             catch (\Throwable $error) {

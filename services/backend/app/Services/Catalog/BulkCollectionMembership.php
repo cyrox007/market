@@ -68,6 +68,8 @@ class BulkCollectionMembership
                     $removed = count($existing);
                 }
             }
+            app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'collection.bulk_'.$operation, 'productcollection', $collectionId,
+                details: ['product_ids' => $ids, 'selected_count' => count($ids), 'added_count' => $added, 'removed_count' => $removed]);
             return [
                 'collection_id' => (int) $collection->id,
                 'selected' => count($ids),
