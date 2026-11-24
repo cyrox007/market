@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\MeasureApiTiming::class,
             \App\Http\Middleware\PublicReferenceCache::class,
             \App\Http\Middleware\ApiJsonEncoding::class,
+            \App\Http\Middleware\AuditUserActivity::class,
         ]);
 
         // Create a custom middleware group for API routes that need sessions

@@ -112,6 +112,18 @@ class AppServiceProvider extends ServiceProvider
             return null;
         });
 
+        foreach ([Order::class, User::class, \App\Models\Product\Product::class,
+            PaymentMethod::class, \App\Models\Inventory\Warehouse::class,
+            \App\Models\Pricing\PricingRule::class] as $auditedModel) {
+            $auditedModel::observe(\App\Observers\ActivityAuditObserver::class);
+        }
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event): void {
+            $audit = app(\App\Services\Audit\ActivityAudit::class);
+            if ($audit->enabled() && $event->user instanceof User) {
+                $audit->bestEffort('security', 'auth.session_ended', context: $audit->context($event->user));
+            }
+        });
+
         ProductWarehouseStock::observe(ProductWarehouseStockObserver::class);
         \Vanilo\Payment\Models\PaymentProxy::modelClass()::observe(\App\Observers\PaidPaymentIdentityObserver::class);
         Media::observe(ColorSolutionIconObserver::class);
