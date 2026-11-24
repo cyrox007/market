@@ -82,6 +82,8 @@ class MergeProductsIntoVariableProductAction
                 'warnings' => $draft->warnings,
             ]);
 
+            app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'product.merge_variable', 'product', (int) $parent->id,
+                details: ['product_ids' => $products->pluck('id')->map(fn ($id) => (int) $id)->all(), 'selected_count' => $products->count()]);
             return $parent;
         });
 

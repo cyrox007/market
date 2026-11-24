@@ -29,6 +29,11 @@ final class ActivityAuditSettingsPage extends Page
         $this->retentionDays = $settings['retention_days'];
     }
 
+    public function hydrate(): void
+    {
+        abort_unless(static::canAccess(), 403);
+    }
+
     public function save(): void
     {
         abort_unless(static::canAccess(), 403);

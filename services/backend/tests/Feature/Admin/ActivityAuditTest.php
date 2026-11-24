@@ -281,4 +281,26 @@ class ActivityAuditTest extends TestCase
         $this->assertTrue($page->hasMorePages());
         $this->assertSame(120,(clone $query)->count());
     }
+
+    public function test_export_rejects_more_than_5000_events_without_recording_success(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::findOrCreate('super_admin','web'));
+        $now = now()->format('Y-m-d H:i:s.u');
+        for ($batch=0;$batch<11;$batch++) {
+            $rows=[];
+            for ($i=0;$i<($batch===10?1:500);$i++) {
+                $rows[]=['event_id'=>(string)\Illuminate\Support\Str::uuid(),'category'=>'behavior','event_type'=>'test.large_export',
+                    'actor_type'=>'system','source'=>'system','result'=>'success','details'=>'{}','created_at'=>$now];
+            }
+            DB::table('activity_audit_events')->insert($rows);
+        }
+        try {
+            app(\App\Services\Audit\ActivityAuditExport::class)->download($admin,ActivityAuditEvent::where('event_type','test.large_export'));
+            $this->fail('Oversized export was permitted');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(422,$e->getStatusCode());
+        }
+        $this->assertDatabaseMissing('activity_audit_events',['event_type'=>'audit.export']);
+    }
 }

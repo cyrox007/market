@@ -15,9 +15,10 @@ class ClearAttributesService
 {
     public function clearAll(): int
     {
-        $count = Attribute::query()->count();
-
         Schema::disableForeignKeyConstraints();
+        try {
+            $count = DB::transaction(function (): int {
+                $count = Attribute::query()->count();
 
         // Пивот-таблицы каталога.
         $tablesToClear = [
@@ -43,7 +44,12 @@ class ClearAttributesService
             DB::table('product_attributes')->delete();
         }
 
-        Schema::enableForeignKeyConstraints();
+                app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'catalog.clear_attributes', details: ['changed_count' => $count]);
+                return $count;
+            });
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
 
         // Один общий сброс кэша товаров после очистки.
         Product::flushAllProductCaches();
