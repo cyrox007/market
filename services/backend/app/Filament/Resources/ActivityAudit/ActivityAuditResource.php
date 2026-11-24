@@ -45,6 +45,12 @@ final class ActivityAuditResource extends Resource
             TextColumn::make('request_id')->label('Запрос')->searchable()->toggleable(isToggledHiddenByDefault: true),
             TextColumn::make('details')->label('Детали')->getStateUsing(fn ($record) => json_encode($record->details, JSON_UNESCAPED_UNICODE))->wrap(),
         ])->filters([
+            \Filament\Tables\Filters\Filter::make('actor')->label('Пользователь')->schema([
+                \Filament\Forms\Components\TextInput::make('id')->numeric()->label('ID пользователя'),
+            ])->query(fn (Builder $query, array $data) => $query->when($data['id'] ?? null, fn (Builder $q, $id) => $q->where('actor_id', (int) $id))),
+            \Filament\Tables\Filters\Filter::make('order')->label('Заказ')->schema([
+                \Filament\Forms\Components\TextInput::make('id')->numeric()->label('ID заказа'),
+            ])->query(fn (Builder $query, array $data) => $query->when($data['id'] ?? null, fn (Builder $q, $id) => $q->where('subject_type', 'order')->where('subject_id', (int) $id))),
             \Filament\Tables\Filters\Filter::make('period')->label('Период')->schema([
                 \Filament\Forms\Components\DatePicker::make('from')->label('С'),
                 \Filament\Forms\Components\DatePicker::make('to')->label('По'),

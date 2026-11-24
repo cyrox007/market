@@ -117,6 +117,12 @@ class AppServiceProvider extends ServiceProvider
             \App\Models\Pricing\PricingRule::class, \Vanilo\Payment\Models\PaymentProxy::modelClass()] as $auditedModel) {
             $auditedModel::observe(\App\Observers\ActivityAuditObserver::class);
         }
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Login::class, function ($event): void {
+            $audit = app(\App\Services\Audit\ActivityAudit::class);
+            if ($audit->enabled() && $event->user instanceof User && request()->is('admin_sv/*', 'livewire/*')) {
+                $audit->bestEffort('security', 'admin.login', context: $audit->context($event->user));
+            }
+        });
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event): void {
             $audit = app(\App\Services\Audit\ActivityAudit::class);
             if ($audit->enabled() && $event->user instanceof User) {
