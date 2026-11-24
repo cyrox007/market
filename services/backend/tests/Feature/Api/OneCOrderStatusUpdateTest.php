@@ -173,8 +173,12 @@ class OneCOrderStatusUpdateTest extends TestCase
         $method = \App\Models\Payment\PaymentMethod::create([
             'name' => 'Sber', 'code' => 'onec-test-sber', 'gateway' => 'sberbank_acquiring', 'is_active' => true,
         ]);
-        $order = $this->order(['payment_method' => $method->code, 'total' => 1500]);
-        $this->send($order)->assertStatus(409);
+        $order = $this->order(['status' => 'manager_processing', 'payment_method' => $method->code, 'total' => 1500]);
+        // Simulate an inconsistent imported/legacy record: normal model writes
+        // already forbid entering assembly without confirmed online payment.
+        \Illuminate\Support\Facades\DB::table('orders')->where('id', $order->id)->update(['status' => 'assembling']);
+        $order->refresh();
+        $this->send($order)->assertStatus(409)->assertJsonPath('message', 'Payment must be confirmed first');
         $this->assertSame('assembling', $order->fresh()->status);
         $this->assertDatabaseCount('onec_order_status_update_events', 0);
     }
