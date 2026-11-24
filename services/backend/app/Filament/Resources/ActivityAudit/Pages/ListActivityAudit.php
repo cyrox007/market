@@ -10,6 +10,11 @@ final class ListActivityAudit extends ListRecords
 {
     protected static string $resource = ActivityAuditResource::class;
 
+    protected function getHeaderWidgets(): array
+    {
+        return [\App\Filament\Resources\ActivityAudit\Widgets\ActivityAuditOverview::class];
+    }
+
     protected function getHeaderActions(): array
     {
         return [

@@ -53,14 +53,25 @@ final class AuditUserActivity
         $audit = app(ActivityAudit::class);
         if (! $audit->enabled() || ! $request->route()) { return $next($request); }
         $spec = self::EVENTS[$request->method().' '.$request->route()->uri()] ?? null;
-        if (! $spec || ($spec[0] === 'behavior' && ! app(\App\Services\Audit\ActivityAuditSettings::class)->get()['behavior'])) { return $next($request); }
+        if (! $spec) { return $next($request); }
+        try {
+            $collect = $spec[0] !== 'behavior' || app(\App\Services\Audit\ActivityAuditSettings::class)->get()['behavior'];
+            $before = $collect ? $audit->context() : null;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('activity_audit_context_failed', ['exception_type' => $e::class]);
+            return $next($request);
+        }
+        if ($before === null) { return $next($request); }
         // Inside api-session: persist the nonce before StartSession saves.
-        $before = $audit->context();
         $request->attributes->set('activity_audit_context', $before);
         try { return $next($request); }
         finally {
             if ($spec[1] !== 'auth.logout') {
-                $after = $audit->context();
+                try { $after = $audit->context(); }
+                catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('activity_audit_context_failed', ['exception_type' => $e::class]);
+                    $after = $before;
+                }
                 // Authenticated login/registration retain the original guest tag.
                 if ($before['session_tag']) { $after['session_tag'] = $before['session_tag']; }
                 $request->attributes->set('activity_audit_context', $after);
@@ -73,7 +84,7 @@ final class AuditUserActivity
         $audit = app(ActivityAudit::class);
         if (! $audit->enabled() || ! $request->route()) { return; }
         $spec = self::EVENTS[$request->method().' '.$request->route()->uri()] ?? null;
-        if (! $spec || ($spec[0] === 'behavior' && ! app(\App\Services\Audit\ActivityAuditSettings::class)->get()['behavior'])) { return; }
+        if (! $spec) { return; }
         $status = $response->getStatusCode();
         $id = null;
         foreach (['id','itemId','productId','address'] as $parameter) {
@@ -87,6 +98,17 @@ final class AuditUserActivity
         }
         $context = $request->attributes->get('activity_audit_context');
         if (! is_array($context)) { return; }
+        if ($spec[0] === 'behavior') {
+            try {
+                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\RecordBehaviorAudit(
+                    (string) \Illuminate\Support\Str::uuid(), now()->format('Y-m-d H:i:s.u'),
+                    $spec[1], $result, $status, $context
+                ));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('activity_audit_queue_failed', ['exception_type' => $e::class]);
+            }
+            return;
+        }
         $audit->bestEffort($spec[0], $spec[1], $spec[2] ?? null, $id, $result, $details, $context);
     }
 }

@@ -21,7 +21,7 @@ return new class extends Migration {
             $table->unsignedBigInteger('subject_id')->nullable();
             $table->string('result', 24);
             $table->json('details')->nullable();
-            $table->timestamp('created_at');
+            $table->timestamp('created_at', 6);
             $table->index(['category', 'created_at', 'id']);
             $table->index(['actor_id', 'created_at']);
             $table->index(['source', 'created_at']);

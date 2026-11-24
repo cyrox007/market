@@ -13,6 +13,10 @@ if (config('local_sber.enabled')) {
 }
 
 Schedule::command('audit:prune-activity')->hourly()->withoutOverlapping(10);
+if (config('activity_audit.enabled')) {
+    Schedule::command('queue:work', [config('queue_workers.connection', 'database'), '--queue=activity-audit', '--sleep=1', '--tries=3', '--max-time=25', '--timeout=30', '--memory=128'])
+        ->everyMinute()->withoutOverlapping(2)->runInBackground();
+}
 
 // Full catalog-quality and image checks run in the scheduler, never in a web request.
 // The bank sandbox deliberately schedules only its own two commands.

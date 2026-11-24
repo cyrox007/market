@@ -185,4 +185,17 @@ class ActivityAuditTest extends TestCase
         $this->assertNotContains('test.guest_after',$events);
         $this->assertNotContains('test.shared_guest',$events);
     }
+
+    public function test_behavior_job_is_idempotent_and_preserves_occurrence_time(): void
+    {
+        $id = (string) \Illuminate\Support\Str::uuid();
+        $when = now()->subMinute()->format('Y-m-d H:i:s.u');
+        $context = ['actor_type'=>'guest','actor_id'=>null,'source'=>'storefront','session_tag'=>str_repeat('c',64),'request_id'=>null];
+        $job = new \App\Jobs\RecordBehaviorAudit($id,$when,'catalog.search','success',200,$context);
+        $this->assertSame('activity-audit',$job->queue);
+        $job->handle(app(ActivityAudit::class));
+        $job->handle(app(ActivityAudit::class));
+        $this->assertSame(1,ActivityAuditEvent::where('event_id',$id)->count());
+        $this->assertSame(substr($when,0,19),ActivityAuditEvent::where('event_id',$id)->firstOrFail()->created_at->format('Y-m-d H:i:s'));
+    }
 }

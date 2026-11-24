@@ -65,7 +65,7 @@ final class ActivityAuditResource extends Resource
             SelectFilter::make('actor_type')->label('Инициатор')->options(['admin'=>'Администратор','user'=>'Покупатель','guest'=>'Гость','system'=>'Система','integration'=>'Интеграция','bank'=>'Банк']),
             SelectFilter::make('source')->label('Источник')->options(['storefront'=>'Витрина','admin'=>'Админка','integration'=>'Интеграция','bank'=>'Банк','system'=>'Система']),
             SelectFilter::make('result')->label('Результат')->options(['success'=>'Успешно','denied'=>'Отказ','error'=>'Ошибка']),
-        ])->defaultSort('id', 'desc')->paginated([25, 50, 100])->recordActions([])->toolbarActions([]);
+        ])->defaultSort('created_at', 'desc')->paginated([25, 50, 100])->recordActions([])->toolbarActions([]);
     }
 
     public static function getPages(): array { return ['index' => Pages\ListActivityAudit::route('/')]; }

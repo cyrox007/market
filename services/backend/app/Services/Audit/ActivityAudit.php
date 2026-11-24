@@ -55,7 +55,7 @@ final class ActivityAudit
     // No request bodies, arbitrary metadata, raw IPs, secrets or exception messages.
     // Only bounded, enumerated fields are accepted by this service.
     public function record(string $category, string $event, ?string $subject = null, ?int $id = null,
-        string $result = 'success', array $details = [], ?array $context = null): void
+        string $result = 'success', array $details = [], ?array $context = null, ?string $eventId = null, ?string $occurredAt = null): void
     {
         if (! $this->enabled()) { return; }
         if (! array_key_exists($category, config('activity_audit.retention_days'))
@@ -96,11 +96,16 @@ final class ActivityAudit
             }
             if (is_bool($details['behavior_enabled'] ?? null)) { $safe['behavior_enabled'] = $details['behavior_enabled']; }
         }
-        DB::table('activity_audit_events')->insert(array_merge($context ?? $this->context(), [
-            'event_id' => (string) Str::uuid(), 'category' => $category, 'event_type' => $event,
+        $eventId ??= (string) Str::uuid();
+        try {
+            DB::table('activity_audit_events')->insert(array_merge($context ?? $this->context(), [
+            'event_id' => $eventId, 'category' => $category, 'event_type' => $event,
             'subject_type' => $subject, 'subject_id' => $id, 'result' => $result,
-            'details' => json_encode($safe, JSON_THROW_ON_ERROR), 'created_at' => now(),
-        ]));
+            'details' => json_encode($safe, JSON_THROW_ON_ERROR), 'created_at' => $occurredAt ?? now()->format('Y-m-d H:i:s.u'),
+            ]));
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            if (! DB::table('activity_audit_events')->where('event_id', $eventId)->exists()) { throw $e; }
+        }
     }
 
     public function bestEffort(string $category, string $event, ?string $subject = null, ?int $id = null,
