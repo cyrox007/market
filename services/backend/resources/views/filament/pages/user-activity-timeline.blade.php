@@ -1,3 +1,4 @@
+@php use App\Filament\Resources\ActivityAudit\ActivityAuditPresentation; @endphp
 <x-filament-panels::page>
     <x-filament::section heading="Хронология аккаунта #{{ $userId }}">
         <p class="text-sm text-gray-500 dark:text-gray-400">Новые события сверху. Гостевые действия показаны только при однозначной связи с аккаунтом.</p>
@@ -7,11 +8,12 @@
                 <li class="relative ps-5 pb-5" wire:key="audit-{{ $event->id }}">
                     <span class="absolute -start-1.5 top-2 h-3 w-3 rounded-full {{ $event->result === 'success' ? 'bg-success-500' : 'bg-warning-500' }}"></span>
                     <time class="text-xs text-gray-500">{{ $event->created_at?->timezone(config('app.admin_timezone','Europe/Moscow'))->format('d.m.Y H:i:s') }}</time>
-                    <div class="font-medium">{{ $event->event_type }} · {{ $event->result }}</div>
-                    <div class="text-sm text-gray-500">{{ $event->source }} · {{ $event->actor_type }} @if($event->subject_type) · {{ $event->subject_type }} #{{ $event->subject_id }} @endif</div>
-                    @if($event->details)
-                        <div class="text-xs break-all">{{ json_encode($event->details, JSON_UNESCAPED_UNICODE) }}</div>
-                    @endif
+                    <div class="font-medium">{{ ActivityAuditPresentation::action($event) }} · {{ ActivityAuditPresentation::RESULTS[$event->result] ?? $event->result }}</div>
+                    <div class="text-sm text-gray-500">{{ ActivityAuditPresentation::actor($event) }}</div>
+                    <details class="mt-2 text-sm">
+                        <summary>Подробности</summary>
+                        @include('filament.activity-audit.event-details', ['event' => $event])
+                    </details>
                 </li>
             @empty
                 <li class="ps-5 py-4 text-gray-500">Нет зарегистрированных действий.</li>

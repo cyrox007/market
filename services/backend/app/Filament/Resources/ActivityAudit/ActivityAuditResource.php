@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ActivityAudit;
 
 use App\Models\ActivityAuditEvent;
 use App\Services\Audit\ActivityAudit;
+use Filament\Actions\Action;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -33,18 +34,30 @@ final class ActivityAuditResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table->columns([
-            TextColumn::make('created_at')->label('Время')->dateTime('d.m.Y H:i:s')->sortable(),
-            TextColumn::make('source')->label('Источник')->badge(),
-            TextColumn::make('actor_type')->label('Инициатор')->badge(),
-            TextColumn::make('actor_id')->label('ID пользователя')->searchable(),
-            TextColumn::make('event_type')->label('Действие')->searchable()->wrap(),
-            TextColumn::make('subject_type')->label('Объект')->searchable(),
-            TextColumn::make('subject_id')->label('ID объекта')->searchable(),
-            TextColumn::make('result')->label('Результат')->badge(),
+        return $table->modifyQueryUsing(fn (Builder $query) => $query->with(['actor:id,name', 'product:id,name', 'order:id,number']))
+            ->columns([
+            TextColumn::make('created_at')->label('Время')->dateTime('d.m.Y H:i:s', config('app.admin_timezone', 'Europe/Moscow'))->sortable(),
+            TextColumn::make('actor_id')->label('Кто')
+                ->state(fn (ActivityAuditEvent $record) => ActivityAuditPresentation::actor($record))
+                ->description(fn (ActivityAuditEvent $record) => ActivityAuditPresentation::SOURCES[$record->source] ?? $record->source)
+                ->searchable(query: fn (Builder $query, string $search) => $query
+                    ->whereHas('actor', fn (Builder $actor) => $actor->where('name', 'like', '%'.$search.'%'))
+                    ->when(ctype_digit($search), fn (Builder $q) => $q->orWhere('actor_id', $search))),
+            TextColumn::make('event_type')->label('Действие')->searchable()->wrap()
+                ->formatStateUsing(fn (ActivityAuditEvent $record) => ActivityAuditPresentation::action($record))
+                ->description(fn (ActivityAuditEvent $record) => ActivityAuditPresentation::summary($record)),
+            TextColumn::make('subject_id')->label('Объект')->wrap()->searchable(['subject_id', 'subject_type'])
+                ->state(fn (ActivityAuditEvent $record) => ActivityAuditPresentation::subject($record))
+                ->limit(75),
+            TextColumn::make('result')->label('Результат')->badge()
+                ->formatStateUsing(fn (string $state) => ActivityAuditPresentation::RESULTS[$state] ?? $state)
+                ->color(fn (string $state) => match ($state) {
+                    'success' => 'success',
+                    'denied' => 'warning',
+                    default => 'danger',
+                }),
             TextColumn::make('session_tag')->label('Сессия')->limit(12)->tooltip(fn ($record) => $record->session_tag)->searchable()->toggleable(isToggledHiddenByDefault: true),
             TextColumn::make('request_id')->label('Запрос')->searchable()->toggleable(isToggledHiddenByDefault: true),
-            TextColumn::make('details')->label('Детали')->getStateUsing(fn ($record) => json_encode($record->details, JSON_UNESCAPED_UNICODE))->wrap(),
         ])->filters([
             \Filament\Tables\Filters\Filter::make('actor')->label('Пользователь')->schema([
                 \Filament\Forms\Components\TextInput::make('id')->numeric()->label('ID пользователя'),
@@ -65,7 +78,12 @@ final class ActivityAuditResource extends Resource
             SelectFilter::make('actor_type')->label('Инициатор')->options(['admin'=>'Администратор','user'=>'Покупатель','guest'=>'Гость','system'=>'Система','integration'=>'Интеграция','bank'=>'Банк']),
             SelectFilter::make('source')->label('Источник')->options(['storefront'=>'Витрина','admin'=>'Админка','integration'=>'Интеграция','bank'=>'Банк','system'=>'Система']),
             SelectFilter::make('result')->label('Результат')->options(['success'=>'Успешно','denied'=>'Отказ','error'=>'Ошибка']),
-        ])->defaultSort('created_at', 'desc')->paginated([25, 50, 100])->recordActions([])->toolbarActions([]);
+        ])->defaultSort('created_at', 'desc')->paginated([25, 50, 100])->recordActions([
+            Action::make('details')->label('Подробности')->icon('heroicon-o-eye')
+                ->modalHeading(fn (ActivityAuditEvent $record) => ActivityAuditPresentation::action($record))
+                ->modalContent(fn (ActivityAuditEvent $record) => view('filament.activity-audit.event-details', ['event' => $record]))
+                ->modalSubmitAction(false)->modalCancelActionLabel('Закрыть'),
+        ])->recordAction('details')->toolbarActions([]);
     }
 
     public static function getPages(): array { return ['index' => Pages\ListActivityAudit::route('/'), 'user-timeline' => Pages\UserActivityTimeline::route('/user/{userId}')]; }

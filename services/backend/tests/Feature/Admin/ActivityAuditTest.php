@@ -45,6 +45,30 @@ class ActivityAuditTest extends TestCase
         $this->assertFalse(ActivityAuditResource::canDelete($record));
     }
 
+    public function test_journal_shows_the_employee_and_historical_product_rename(): void
+    {
+        $admin = User::factory()->create(['name' => 'Оператор каталога']);
+        $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin_sv'));
+        $product = \App\Models\Product\Product::factory()->create(['name' => 'Старое название']);
+        $context = app(ActivityAudit::class)->context($admin);
+        \App\Services\Audit\AuditExecutionContext::run($context, fn () => $product->update(['name' => 'Новое название']));
+
+        $event = ActivityAuditEvent::where('event_type', 'product.updated')->firstOrFail();
+        $this->assertSame(['Старое название', 'Новое название'], $event->details['changes']['name']);
+
+        $product->update(['name' => 'Текущее название']);
+        $page = Livewire::test(ListActivityAudit::class)
+            ->searchTable('Оператор каталога')
+            ->assertSee('Оператор каталога')
+            ->assertSee('Изменили товар')
+            ->mountTableAction('details', $event);
+        $modal = $page->instance()->getMountedAction()?->getModalContent();
+        $this->assertNotNull($modal);
+        $this->assertStringContainsString('Старое название → Новое название', $modal->render());
+    }
+
     public function test_audit_does_not_store_credentials_or_arbitrary_fields(): void
     {
         app(ActivityAudit::class)->record('security', 'test.safe', details: [

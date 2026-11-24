@@ -27,13 +27,16 @@ final class ActivityAuditObserver
         };
         $fields = array_keys($model->getChanges());
         if ($action === 'updated' && $subject === 'order' && ! in_array('status', $fields, true)
-            && ! array_intersect($fields, ['total', 'contact_email', 'contact_phone', 'contact_name', 'payment_method', 'delivery_type'])) { return; }
+            && ! array_intersect($fields, ['total', 'contact_email', 'contact_phone', 'contact_name', 'payment_method', 'delivery_type', 'comment'])) { return; }
         if ($action === 'updated' && ! array_diff($fields, ['updated_at', 'remember_token', 'last_seen_at', 'last_activity_at'])) { return; }
         $details = ['fields' => $fields];
         if ($action === 'updated') {
             foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price','amount_paid'] as $field) {
                 if (in_array($field, $fields, true)) { $details['changes'][$field] = [$model->getRawOriginal($field), $model->getAttribute($field)]; }
             }
+        }
+        if ($subject === 'product' && $action === 'updated' && in_array('name', $fields, true)) {
+            $details['changes']['name'] = [$model->getRawOriginal('name'), $model->getAttribute('name')];
         }
         if ($subject === 'refund') {
             if ($action === 'updated' && ! in_array('status', $fields, true)) { return; }

@@ -37,7 +37,7 @@ final class UserActivityTimeline extends Page
     protected function getViewData(): array
     {
         abort_unless(ActivityAuditResource::canViewAny(), 403);
-        return ['events' => ActivityAuditHistory::forUser(ActivityAuditEvent::query(), $this->userId)
+        return ['events' => ActivityAuditHistory::forUser(ActivityAuditEvent::with(['actor:id,name', 'product:id,name', 'order:id,number']), $this->userId)
             ->orderByDesc('created_at')->orderByDesc('id')->simplePaginate(50)];
     }
 }

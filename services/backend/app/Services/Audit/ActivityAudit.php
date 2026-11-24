@@ -74,9 +74,18 @@ final class ActivityAudit
                 $safe[$key] = array_values(array_slice(array_unique(array_filter($value, fn ($v) => is_int($v) && $v > 0)), 0, 100));
             }
             if ($key === 'fields' && is_array($value)) {
-                $safe[$key] = array_values(array_slice(array_intersect($value, ['name','is_active','is_enabled','is_coming_soon','status','payment_method','delivery_type','total','price','sale_price','amount_paid','allow_preorder','email','phone','password','address_id','contact_email','contact_phone','contact_name','configuration','roles']), 0, 30));
+                $safe[$key] = array_values(array_slice(array_intersect($value, ['name','is_active','is_enabled','is_coming_soon','status','payment_method','delivery_type','total','price','sale_price','amount_paid','allow_preorder','email','phone','password','address_id','contact_email','contact_phone','contact_name','comment','configuration','roles']), 0, 30));
             }
             if ($key === 'changes' && is_array($value)) {
+                $names = $value['name'] ?? null;
+                if ($event === 'product.updated' && $subject === 'product'
+                    && is_array($names) && array_is_list($names) && count($names) === 2
+                    && collect($names)->every(fn ($name) => $name === null || is_string($name))) {
+                    $safe['changes']['name'] = array_map(
+                        fn (?string $name) => $name === null ? null : mb_substr($name, 0, 255),
+                        $names
+                    );
+                }
                 foreach (['is_active','is_enabled','is_coming_soon','allow_preorder','total','price','sale_price','amount_paid'] as $field) {
                     $pair = $value[$field] ?? null;
                     if (is_array($pair) && count($pair) === 2 && array_is_list($pair)
