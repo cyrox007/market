@@ -29,6 +29,7 @@ class AddressResource extends JsonResource
             'directory_external_id' => $this->directory_external_id,
             'gar_guid' => $this->gar_guid,
             'kladr_code' => $this->kladr_code,
+            'postal_code' => $this->address_snapshot['target']['postalCode'] ?? null,
             'address_snapshot' => $this->address_snapshot,
             'is_default' => $this->is_default,
             'full_address' => $this->full_address,
