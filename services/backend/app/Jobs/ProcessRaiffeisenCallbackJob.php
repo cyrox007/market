@@ -41,6 +41,13 @@ class ProcessRaiffeisenCallbackJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    private ?array $auditContext = null;
+
+    public function middleware(): array
+    {
+        return [new \App\Jobs\Middleware\WithActivityAuditContext('bank', $this->auditContext)];
+    }
+
     public int $tries = 3;
 
     public int $backoff = 30;
@@ -54,6 +61,7 @@ class ProcessRaiffeisenCallbackJob implements ShouldQueue
     public function __construct(
         private readonly array $payload
     ) {
+        $this->auditContext = \App\Services\Audit\AuditExecutionContext::capture('bank');
         $this->queue = 'default';
     }
 

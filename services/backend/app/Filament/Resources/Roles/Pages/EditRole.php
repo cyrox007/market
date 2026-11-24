@@ -45,5 +45,6 @@ class EditRole extends EditRecord
         $this->record->syncPermissions(
             Permission::query()->where('guard_name', 'web')->whereIn('id', $this->permissionIds)->get()
         );
+        app(\App\Services\Audit\ActivityAudit::class)->record('security', 'role.permissions_saved', 'role', (int) $this->record->id, details: ['changed_count' => count($this->permissionIds)]);
     }
 }

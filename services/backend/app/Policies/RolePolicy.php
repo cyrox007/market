@@ -19,16 +19,16 @@ class RolePolicy
 
     public function create(User $user): bool
     {
-        return $user->can('create roles');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin')) && $user->can('create roles');
     }
 
     public function update(User $user, Role $role): bool
     {
-        return $user->can('update roles');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin')) && $user->can('update roles');
     }
 
     public function delete(User $user, Role $role): bool
     {
-        return $user->can('delete roles');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin')) && $user->can('delete roles');
     }
 }

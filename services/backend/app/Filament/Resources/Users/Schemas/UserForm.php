@@ -61,6 +61,7 @@ class UserForm
                         CheckboxList::make('roles')
                             ->label('Назначенные роли')
                             ->options(fn (): array => AdminAccessCatalog::roleOptions())
+                            ->disabled(fn (): bool => config('activity_audit.enabled') && ! auth()->user()?->hasRole('super_admin'))
                             ->descriptions(fn (): array => AdminAccessCatalog::roleDescriptions())
                             ->columns(1)
                             ->helperText('Для изменения разрешений откройте раздел «Права доступа → Роли».'),

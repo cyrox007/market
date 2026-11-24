@@ -149,6 +149,8 @@ class BulkRelatedProducts
                 }
             }
 
+            app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'product.related_bulk_'.$mode, 'product',
+                details: ['product_ids' => $sources, 'target_ids' => $targets, 'added_count' => $added, 'removed_count' => count($remove)]);
             return [
                 'sources' => count($sources), 'targets' => count($targets),
                 'added' => $added, 'removed' => count($remove),

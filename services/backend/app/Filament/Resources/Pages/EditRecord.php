@@ -8,6 +8,11 @@ abstract class EditRecord extends \Filament\Resources\Pages\EditRecord
 {
     public static bool $formActionsAreSticky = true;
 
+    public function hasDatabaseTransactions(): bool
+    {
+        return config('activity_audit.enabled') || parent::hasDatabaseTransactions();
+    }
+
     protected bool $stayAfterSave = false;
 
     protected function getFormActions(): array

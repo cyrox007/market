@@ -38,6 +38,9 @@ class EditOrder extends EditRecord
         $canRefund = $latestPayment && $refundService->canRefund($latestPayment);
 
         return [
+            Action::make('activity_audit')->label('Журнал действий')
+                ->visible(fn () => \App\Services\Audit\ActivityAudit::canView(auth()->user()))
+                ->url(fn () => \App\Filament\Resources\ActivityAudit\ActivityAuditResource::getUrl('index', ['tableFilters' => ['order' => ['id' => $order->id]]])),
             Action::make('next_step')->label(fn () => app(\App\Services\Order\OperatorOrder::class)->next($order)['label'] ?? 'Следующее действие')
                 ->visible(fn () => app(\App\Services\Order\OperatorOrder::class)->next($order) !== null)
                 ->disabled(fn () => app(\App\Services\Order\OperatorOrder::class)->blockedReason($order) !== null)

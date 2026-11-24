@@ -23,6 +23,7 @@ class ClearCatalogService
         DB::transaction(function () use (&$counts) {
             $counts['products'] = $this->deleteAllProducts();
             $counts['categories'] = $this->deleteAllCategories();
+            app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'catalog.clear_all', details: ['product_count' => $counts['products'], 'category_count' => $counts['categories']]);
         });
 
         return $counts;
@@ -34,6 +35,7 @@ class ClearCatalogService
         $count = 0;
         DB::transaction(function () use (&$count) {
             $count = $this->deleteAllProducts();
+            app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'catalog.clear_products', details: ['product_count' => $count]);
         });
 
         return $count;
@@ -45,6 +47,7 @@ class ClearCatalogService
         $count = 0;
         DB::transaction(function () use (&$count) {
             $count = $this->deleteAllCategories();
+            app(\App\Services\Audit\ActivityAudit::class)->record('admin', 'catalog.clear_categories', details: ['category_count' => $count]);
         });
 
         return $count;
