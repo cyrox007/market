@@ -89,6 +89,13 @@ final class ActivityAudit
                 $safe[$key] = $value;
             }
         }
+        if ($event === 'audit.settings_changed') {
+            foreach (config('activity_audit.retention_days') as $categoryKey => $defaultDays) {
+                $days = $details['retention_days'][$categoryKey] ?? null;
+                if (is_int($days) && $days >= 7 && $days <= 1095) { $safe['retention_days'][$categoryKey] = $days; }
+            }
+            if (is_bool($details['behavior_enabled'] ?? null)) { $safe['behavior_enabled'] = $details['behavior_enabled']; }
+        }
         DB::table('activity_audit_events')->insert(array_merge($context ?? $this->context(), [
             'event_id' => (string) Str::uuid(), 'category' => $category, 'event_type' => $event,
             'subject_type' => $subject, 'subject_id' => $id, 'result' => $result,
@@ -106,6 +113,12 @@ final class ActivityAudit
     public static function canView(?User $user): bool
     {
         // No reliance on global Gate::before, nor on customer/admin session alone.
-        return $user !== null && $user->hasRole('super_admin');
+        return $user !== null && ($user->hasRole('super_admin')
+            || ($user->hasRole('admin') && $user->hasPermissionTo('viewAny activity_audit', 'web')));
+    }
+
+    public static function canExport(?User $user): bool
+    {
+        return self::canView($user) && ($user->hasRole('super_admin') || $user->hasPermissionTo('export activity_audit', 'web'));
     }
 }

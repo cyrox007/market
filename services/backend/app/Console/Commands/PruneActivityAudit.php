@@ -14,7 +14,7 @@ final class PruneActivityAudit extends Command
     {
         if (! config('activity_audit.enabled')) { return self::SUCCESS; }
         $limit = max(1, min(10000, (int) $this->option('limit')));
-        foreach (config('activity_audit.retention_days') as $category => $days) {
+        foreach (app(\App\Services\Audit\ActivityAuditSettings::class)->get()['retention_days'] as $category => $days) {
             $cutoff = now()->subDays(max(1, (int) $days));
             $ids = DB::table('activity_audit_events')->where('category', $category)
                 ->where('created_at', '<', $cutoff)->orderBy('created_at')->orderBy('id')->limit($limit)->pluck('id');

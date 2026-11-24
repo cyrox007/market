@@ -53,7 +53,7 @@ final class AuditUserActivity
         $audit = app(ActivityAudit::class);
         if (! $audit->enabled() || ! $request->route()) { return $next($request); }
         $spec = self::EVENTS[$request->method().' '.$request->route()->uri()] ?? null;
-        if (! $spec || ($spec[0] === 'behavior' && ! config('activity_audit.behavior'))) { return $next($request); }
+        if (! $spec || ($spec[0] === 'behavior' && ! app(\App\Services\Audit\ActivityAuditSettings::class)->get()['behavior'])) { return $next($request); }
         // Inside api-session: persist the nonce before StartSession saves.
         $before = $audit->context();
         $request->attributes->set('activity_audit_context', $before);
@@ -73,7 +73,7 @@ final class AuditUserActivity
         $audit = app(ActivityAudit::class);
         if (! $audit->enabled() || ! $request->route()) { return; }
         $spec = self::EVENTS[$request->method().' '.$request->route()->uri()] ?? null;
-        if (! $spec || ($spec[0] === 'behavior' && ! config('activity_audit.behavior'))) { return; }
+        if (! $spec || ($spec[0] === 'behavior' && ! app(\App\Services\Audit\ActivityAuditSettings::class)->get()['behavior'])) { return; }
         $status = $response->getStatusCode();
         $id = null;
         foreach (['id','itemId','productId','address'] as $parameter) {

@@ -10,6 +10,16 @@ final class ListActivityAudit extends ListRecords
 {
     protected static string $resource = ActivityAuditResource::class;
 
+    protected function getHeaderActions(): array
+    {
+        return [
+            \Filament\Actions\Action::make('exportAudit')->label('Выгрузить CSV')
+                ->visible(fn () => ActivityAudit::canExport(auth()->user()) && config('activity_audit.enabled'))
+                ->requiresConfirmation()->modalDescription('Выгрузка текущей выборки до 5000 событий будет зарегистрирована в журнале.')
+                ->action(fn () => app(\App\Services\Audit\ActivityAuditExport::class)->download(auth()->user(), $this->getFilteredTableQuery())),
+        ];
+    }
+
     public function mount(): void
     {
         parent::mount();

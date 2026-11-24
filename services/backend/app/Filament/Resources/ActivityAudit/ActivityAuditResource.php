@@ -42,13 +42,13 @@ final class ActivityAuditResource extends Resource
             TextColumn::make('subject_type')->label('Объект')->searchable(),
             TextColumn::make('subject_id')->label('ID объекта')->searchable(),
             TextColumn::make('result')->label('Результат')->badge(),
-            TextColumn::make('session_tag')->label('Сессия')->limit(12)->searchable()->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('session_tag')->label('Сессия')->limit(12)->tooltip(fn ($record) => $record->session_tag)->searchable()->toggleable(isToggledHiddenByDefault: true),
             TextColumn::make('request_id')->label('Запрос')->searchable()->toggleable(isToggledHiddenByDefault: true),
             TextColumn::make('details')->label('Детали')->getStateUsing(fn ($record) => json_encode($record->details, JSON_UNESCAPED_UNICODE))->wrap(),
         ])->filters([
             \Filament\Tables\Filters\Filter::make('actor')->label('Пользователь')->schema([
                 \Filament\Forms\Components\TextInput::make('id')->numeric()->label('ID пользователя'),
-            ])->query(fn (Builder $query, array $data) => $query->when($data['id'] ?? null, fn (Builder $q, $id) => $q->where('actor_id', (int) $id))),
+            ])->query(fn (Builder $query, array $data) => $query->when($data['id'] ?? null, fn (Builder $q, $id) => \App\Services\Audit\ActivityAuditHistory::forUser($q, (int) $id))),
             \Filament\Tables\Filters\Filter::make('order')->label('Заказ')->schema([
                 \Filament\Forms\Components\TextInput::make('id')->numeric()->label('ID заказа'),
             ])->query(fn (Builder $query, array $data) => $query->when($data['id'] ?? null, fn (Builder $q, $id) => $q->where('subject_type', 'order')->where('subject_id', (int) $id))),
@@ -58,6 +58,9 @@ final class ActivityAuditResource extends Resource
             ])->query(fn (Builder $query, array $data) => $query
                 ->when($data['from'] ?? null, fn (Builder $q, $date) => $q->where('created_at', '>=', $date.' 00:00:00'))
                 ->when($data['to'] ?? null, fn (Builder $q, $date) => $q->where('created_at', '<', \Illuminate\Support\Carbon::parse($date)->addDay()->startOfDay()))),
+            \Filament\Tables\Filters\Filter::make('session')->label('Сессия')->schema([
+                \Filament\Forms\Components\TextInput::make('tag')->label('Полный ID сессии')->maxLength(64),
+            ])->query(fn (Builder $query, array $data) => $query->when($data['tag'] ?? null, fn (Builder $q, $tag) => $q->where('session_tag', $tag))),
             SelectFilter::make('category')->label('Категория')->options(['security'=>'Безопасность','admin'=>'Администрирование','order'=>'Заказы','account'=>'Аккаунт','shopping'=>'Корзина и оформление','behavior'=>'Каталог']),
             SelectFilter::make('actor_type')->label('Инициатор')->options(['admin'=>'Администратор','user'=>'Покупатель','guest'=>'Гость','system'=>'Система','integration'=>'Интеграция','bank'=>'Банк']),
             SelectFilter::make('source')->label('Источник')->options(['storefront'=>'Витрина','admin'=>'Админка','integration'=>'Интеграция','bank'=>'Банк','system'=>'Система']),
