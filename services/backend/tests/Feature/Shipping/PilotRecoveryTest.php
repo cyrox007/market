@@ -22,6 +22,26 @@ class PilotRecoveryTest extends TestCase
         Queue::assertPushed(\App\Jobs\Integration\SyncOrderTo1CJob::class, 1);
     }
 
+    public function test_periodic_enqueue_skips_acknowledged_and_recently_queued_orders(): void
+    {
+        Queue::fake();
+        config(['services.integration_1c.enabled' => true]);
+        $sent = Order::factory()->create(['integration_state' => 'sent', 'integration_sent_at' => now()->subDay()]);
+        Order::factory()->create(['integration_state' => 'failed', 'updated_at' => now()->subMinute()]);
+        $unsent = Order::factory()->create(['integration_state' => null]);
+        $retry = Order::factory()->create(['integration_state' => 'failed', 'updated_at' => now()->subMinutes(20)]);
+
+        $this->artisan('orders:enqueue-1c-sync')->assertSuccessful();
+        $this->artisan('orders:enqueue-1c-sync')->assertSuccessful();
+
+        Queue::assertPushed(\App\Jobs\Integration\SyncOrderTo1CJob::class, 2);
+        foreach ([$unsent, $retry] as $order) {
+            Queue::assertPushed(\App\Jobs\Integration\SyncOrderTo1CJob::class,
+                fn ($job) => $job->uniqueId() === 'order:'.$order->id);
+        }
+        $this->assertSame('sent', $sent->fresh()->integration_state);
+    }
+
     public function test_link_survives_reload_but_is_encrypted_and_hidden_in_serialized_model(): void
     {
         $sku = \App\Models\Product\Product::factory()->create();

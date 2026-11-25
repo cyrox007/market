@@ -15,7 +15,7 @@ class EnqueueOrders1CSyncCommand extends Command
                             {--since= : Только заказы с created_at >= даты (Y-m-d)}
                             {--limit=0 : Максимум заказов (0 = без лимита)}';
 
-    protected $description = 'Поставить в очередь integration-1c отправку заказов в 1С';
+    protected $description = 'Поставить в очередь заказы, отправка которых ещё не подтверждена API';
 
     public function handle(): int
     {
@@ -25,7 +25,12 @@ class EnqueueOrders1CSyncCommand extends Command
             return self::FAILURE;
         }
 
-        $query = Order::query()->orderBy('id');
+        $query = Order::query()
+            ->where(fn ($q) => $q->whereNull('integration_state')->orWhere('integration_state', '!=', 'sent'))
+            ->where(fn ($q) => $q->whereNull('integration_state')
+                ->orWhereNotIn('integration_state', ['queued', 'failed'])
+                ->orWhere('updated_at', '<=', now()->subMinutes(15)))
+            ->orderBy('id');
 
         if ($status = $this->option('status')) {
             $query->where('status', (string) $status);
@@ -46,9 +51,9 @@ class EnqueueOrders1CSyncCommand extends Command
             $count++;
         });
 
-        $queue = config('services.integration_1c.orders_queue', 'integration-1c');
-        $this->info("В очередь «{$queue}» поставлено заказов: {$count}");
-        $this->line('Обработка: php8.4 artisan queue:work --queue=default,integration-1c');
+        $queue = config('services.integration_1c.orders_queue') ?? 'integration-orders';
+        $this->info("В очередь «{$queue}» отобрано заказов для проверки отправки: {$count}");
+        $this->line("Обработка: php8.4 artisan queue:work --queue={$queue}");
 
         return self::SUCCESS;
     }
