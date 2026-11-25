@@ -77,13 +77,10 @@ primary_action — телефон, при его отсутствии почта
 ## Установка
 
 Нужна миграция 2026_11_20_100000_add_order_item_display_and_store_email.
-На локальном SERVER-AD:
+Из каталога `services/backend` локальной копии выполните
+`php artisan config:clear`, `php artisan migrate`, `php artisan route:clear`
+и `php artisan view:clear`.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\OSPanel\home\svetofor.local\scripts\local\prepare-order-display.ps1
-```
-
-Журнал services/backend/storage/logs/order-display-setup.log, маркер ORDER_DISPLAY_SETUP_OK.
 Миграция не меняет сохранённые строки старых заказов. Для Beget отдельное слияние,
 и миграция. Сборка публичного фронтенда для этой ветки не требуется.
 Изменения в данной ветке не выкладываются автоматически.

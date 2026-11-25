@@ -39,3 +39,6 @@ CLAUDE.md
 # Local geographic source datasets (large, not application assets)
 /storage/geodata/
 /scripts/geodata/__pycache__/
+
+# RDP-only preparation scripts
+/scripts/local/prepare-*.ps1
