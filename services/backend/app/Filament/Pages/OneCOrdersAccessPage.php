@@ -35,6 +35,8 @@ class OneCOrdersAccessPage extends Page
     /** Optional comma-separated exact IPv4/IPv6 addresses. */
     public string $allowedIps = '';
 
+    public string $scope = 'orders:read';
+
     /** Visible only until this page is refreshed or explicitly dismissed. */
     #[Locked]
     public ?string $issuedToken = null;
@@ -59,6 +61,7 @@ class OneCOrdersAccessPage extends Page
         abort_unless(static::canAccess(), 403);
         $this->validate([
             'name' => ['required', 'string', 'max:120'],
+            'scope' => ['required', 'in:orders:read,orders:status:write'],
             'expiresOn' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
             'allowedIps' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -71,11 +74,12 @@ class OneCOrdersAccessPage extends Page
             $this->expiresOn !== '' ? $this->expiresOn : null,
             $ips,
             (int) auth()->id(),
-            request()->ip()
+            request()->ip(),
+            [$this->scope]
         );
         $this->issuedToken = $created['token'];
         $this->issuedTokenId = $created['id'];
-        $this->reset('name', 'expiresOn', 'allowedIps');
+        $this->reset('name', 'expiresOn', 'allowedIps', 'scope');
 
         Notification::make()->title('Токен выпущен')
             ->body('Скопируйте новый секрет сейчас: после закрытия страницы его нельзя получить повторно.')

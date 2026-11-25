@@ -11,6 +11,10 @@ class DispatchOrderStatusSyncTo1C
 {
     public function handle(OrderStatusChanged $event): void
     {
+        // An inbound 1C status must not be sent back to its origin.
+        if ($event->origin === 'onec') {
+            return;
+        }
         try {
             $orderId = $event->order->id ?? null;
             if ($orderId === null) {

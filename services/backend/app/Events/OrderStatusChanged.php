@@ -21,7 +21,8 @@ class OrderStatusChanged
     public function __construct(
         public Order $order,
         public string $oldStatus,
-        public string $newStatus
+        public string $newStatus,
+        public string $origin = 'internal'
     ) {
     }
 

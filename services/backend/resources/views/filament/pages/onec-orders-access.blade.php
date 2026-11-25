@@ -1,12 +1,13 @@
 <x-filament-panels::page>
     <div class="space-y-6">
         <section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-            <h2 class="text-lg font-semibold">Защищённое чтение заказов системой 1С</h2>
+            <h2 class="text-lg font-semibold">Доступ 1С к заказам</h2>
             <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                GET <code>/api/v1/integration/1c/orders</code>.
-                Токены этой страницы дают право <code>orders:read</code> и не позволяют менять статус,
-                проводить оплату или пользоваться административным API. Исторические данные
-                заказов доступны только после окончания периода охлаждения.
+                Чтение: GET <code>/api/v1/integration/1c/orders</code>, право <code>orders:read</code>.
+                Обновление статуса: POST <code>/api/v1/integration/1c/orders/{orderId}/status</code>,
+                отдельное право <code>orders:status:write</code> и серверный флаг включения.
+                Токен чтения не разрешает запись, а токен записи не даёт доступа к списку заказов.
+                Оплата, отмена и произвольное изменение заказа через этот API недоступны.
             </p>
             <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                 Документация: <code>market-docs/onec-direct-orders-read-api.md</code>.
@@ -49,6 +50,15 @@
                     @error('name') <p role="alert" class="text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
+                    <label for="one-c-token-scope" class="block text-sm font-medium">Право доступа</label>
+                    <select id="one-c-token-scope" wire:model="scope"
+                            class="mt-1 w-full rounded-lg border border-gray-400 bg-white p-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                        <option value="orders:read">Только чтение заказов</option>
+                        <option value="orders:status:write">Только обновление статуса</option>
+                    </select>
+                    @error('scope') <p role="alert" class="text-sm text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
                     <label for="one-c-token-expiry" class="block text-sm font-medium">Дата истечения (UTC)</label>
                     <input id="one-c-token-expiry" type="date"
                            class="mt-1 w-full rounded-lg border border-gray-400 bg-white p-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -69,7 +79,7 @@
                 </div>
                 <div class="md:col-span-2">
                     <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="issueToken">
-                        Выпустить токен с правом чтения заказов
+                        Выпустить токен с выбранным правом
                     </x-filament::button>
                 </div>
             </form>
@@ -101,7 +111,7 @@
                             @endphp
                             <tr wire:key="onec-credential-{{ $token->id }}" class="border-b align-top dark:border-gray-800">
                                 <td class="p-2 font-medium">{{ $token->name }}<div class="text-xs text-gray-500">№ {{ $token->id }} · {{ $token->created_at }}</div></td>
-                                <td class="p-2"><code>orders:read</code><div class="text-xs text-gray-500">{{ $token->token_hint }}…</div></td>
+                                <td class="p-2"><code>{{ implode(', ', json_decode($token->abilities ?? '[]', true) ?: []) }}</code><div class="text-xs text-gray-500">{{ $token->token_hint }}…</div></td>
                                 <td class="p-2">{{ $token->expires_at ?? 'Бессрочно' }}
                                     <div class="text-xs text-gray-500">{{ $ips ? implode(', ', $ips) : 'Любой IP' }}</div>
                                 </td>

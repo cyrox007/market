@@ -10844,6 +10844,158 @@
           }
         }
       }
+    },
+    "/api/v1/integration/1c/orders/{orderId}/status": {
+      "post": {
+        "operationId": "updateOrderStatusFromOneC",
+        "tags": [
+          "Integration 1C"
+        ],
+        "summary": "Обновить статус заказа от имени 1С с защитой от повторов",
+        "description": "Входящая операция отключена по умолчанию. Только токен orders:status:write из Filament, HTTPS на production, подтверждение ожидаемого статуса, последовательный шаг по бизнес-правилам, проверка оплаты и периода охлаждения. Идемпотентность по event_id; никакой отмены/изменения оплаты/резервов. Документация: market-docs/onec-order-status-update-api.md.",
+        "security": [
+          {
+            "oneCOrdersToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "description": "Внутренний ID заказа сайта",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "event_id",
+                  "expected_status",
+                  "status"
+                ],
+                "properties": {
+                  "event_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Стабильный идентификатор события 1С; неизменный при повторе"
+                  },
+                  "expected_status": {
+                    "type": "string",
+                    "enum": [
+                      "new",
+                      "manager_processing",
+                      "assembling",
+                      "awaiting_payment",
+                      "accepted",
+                      "assembled",
+                      "shipped",
+                      "in_transit",
+                      "delivered",
+                      "cancelled"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "new",
+                      "manager_processing",
+                      "assembling",
+                      "awaiting_payment",
+                      "accepted",
+                      "assembled",
+                      "shipped",
+                      "in_transit",
+                      "delivered",
+                      "cancelled"
+                    ]
+                  },
+                  "comment": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Переход применён или ранее применён по этому event_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "event_id",
+                        "order_id",
+                        "number",
+                        "previous_status",
+                        "applied_status",
+                        "current_status",
+                        "duplicate"
+                      ],
+                      "properties": {
+                        "event_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "order_id": {
+                          "type": "integer"
+                        },
+                        "number": {
+                          "type": "string"
+                        },
+                        "previous_status": {
+                          "type": "string"
+                        },
+                        "applied_status": {
+                          "type": "string"
+                        },
+                        "current_status": {
+                          "type": "string"
+                        },
+                        "duplicate": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Недействительный токен или отсутствие orders:status:write"
+          },
+          "403": {
+            "description": "Интеграция выключена либо требуется HTTPS"
+          },
+          "404": {
+            "description": "Заказ не найден"
+          },
+          "409": {
+            "description": "Конфликт состояния заказа, политики переходов или event_id"
+          },
+          "422": {
+            "description": "Неверные параметры запроса"
+          },
+          "429": {
+            "description": "Превышен лимит запросов"
+          }
+        }
+      }
     }
   }
 }

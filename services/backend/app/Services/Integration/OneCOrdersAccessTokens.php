@@ -17,13 +17,16 @@ class OneCOrdersAccessTokens
 {
     public const READ_ABILITY = 'orders:read';
 
+    public const WRITE_STATUS_ABILITY = 'orders:status:write';
+
     /** @return array{token: string, id: int} */
     public function issue(
         string $name,
         ?string $expiresOn,
         array $allowedIps,
         int $actorId,
-        ?string $actorIp = null
+        ?string $actorIp = null,
+        array $abilities = [self::READ_ABILITY]
     ): array {
         $name = trim($name);
         if ($name === '' || mb_strlen($name) > 120) {
@@ -47,13 +50,18 @@ class OneCOrdersAccessTokens
             }
         }
 
+        $abilities = array_values(array_unique($abilities));
+        if ($abilities === [] || array_diff($abilities, [self::READ_ABILITY, self::WRITE_STATUS_ABILITY]) !== []) {
+            throw ValidationException::withMessages(['abilities' => 'Недопустимые права токена 1С.']);
+        }
+
         $plaintext = 'onec_'.bin2hex(random_bytes(32));
-        $id = DB::transaction(function () use ($name, $expiresAt, $allowedIps, $actorId, $actorIp, $plaintext): int {
+        $id = DB::transaction(function () use ($name, $expiresAt, $allowedIps, $actorId, $actorIp, $plaintext, $abilities): int {
             $id = DB::table('onec_orders_access_tokens')->insertGetId([
                 'name' => $name,
                 'token_hash' => hash('sha256', $plaintext),
                 'token_hint' => substr($plaintext, 0, 12),
-                'abilities' => json_encode([self::READ_ABILITY], JSON_THROW_ON_ERROR),
+                'abilities' => json_encode($abilities, JSON_THROW_ON_ERROR),
                 'allowed_ips' => json_encode($allowedIps, JSON_THROW_ON_ERROR),
                 'expires_at' => $expiresAt,
                 'created_by' => $actorId,
@@ -100,7 +108,7 @@ class OneCOrdersAccessTokens
         });
     }
 
-    public function authenticate(string $plaintext, ?string $ip): ?stdClass
+    public function authenticate(string $plaintext, ?string $ip, string $requiredAbility = self::READ_ABILITY): ?stdClass
     {
         if (strlen($plaintext) !== 69 || ! str_starts_with($plaintext, 'onec_')) {
             return null;
@@ -117,7 +125,7 @@ class OneCOrdersAccessTokens
 
         $abilities = json_decode($record->abilities, true);
         $allowedIps = json_decode($record->allowed_ips ?? '[]', true);
-        if (! is_array($abilities) || ! in_array(self::READ_ABILITY, $abilities, true)
+        if (! is_array($abilities) || ! in_array($requiredAbility, $abilities, true)
             || ! is_array($allowedIps)
             || ($allowedIps !== [] && ($ip === null || ! in_array($ip, $allowedIps, true)))) {
             return null;
