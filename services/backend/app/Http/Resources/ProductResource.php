@@ -237,7 +237,7 @@ class ProductResource extends JsonResource
             'in_stock' => $resolvedStock > 0,
             'available_in_region' => $regionalIds === null ? null : in_array($this->id, $regionalIds, true),
             'available_to_order' => ($isVariableKit || $isSimpleKit) ? ($kitAvailableSets > 0 || (isset($kit) && app(\App\Services\Product\SellableBundle::class)->canOrder($kit['items'])))
-                : $warehouseStockResolver->availableToOrder($this->resource, $region),
+                : $warehouseStockResolver->canOrder($this->resource, $region),
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'stock' => $resolvedStock,
             'stock_known' => $resolvedStock !== null,

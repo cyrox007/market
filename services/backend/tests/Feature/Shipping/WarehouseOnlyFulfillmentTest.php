@@ -112,9 +112,9 @@ class WarehouseOnlyFulfillmentTest extends TestCase
         $location = ShippingLocation::factory()->create(['delivery_price' => 1]);
         $this->warehouse->shippingLocations()->attach($location);
         $data = [...$this->orderData(), 'delivery_type' => 'delivery', 'directory_external_id' => 'house'];
-        $this->postJson('/api/v1/orders', $data)->assertUnprocessable();
-        $this->assertSame(0, Order::count());
-        $this->assertSame(5.0, (float) $this->warehouse->productStocks()->first()->quantity);
+        $this->postJson('/api/v1/orders', $data)->assertCreated();
+        $this->assertSame(0.0, (float) Order::firstOrFail()->delivery_cost);
+        $this->assertSame('other_region', Order::firstOrFail()->fulfillment_snapshot['mode']);
     }
 
     public function test_old_global_stock_and_first_warehouse_switch_cannot_restore_legacy_mode(): void

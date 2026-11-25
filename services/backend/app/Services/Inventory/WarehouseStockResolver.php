@@ -46,6 +46,31 @@ class WarehouseStockResolver
         // No process-global SKU cache: request geography and live inventory must not leak.
     }
 
+    /** Можно заказать: под заказ в регионе или с доставкой со склада другого региона. */
+    public function canOrder(Product $product, ?ShippingLocation $location): bool
+    {
+        return $this->availableToOrder($product, $location) || $this->onlyInOtherRegion($product, $location);
+    }
+
+    /** Свободный остаток есть только на складах вне зоны доставки покупателя. */
+    private function onlyInOtherRegion(Product $product, ?ShippingLocation $location): bool
+    {
+        $destination = request()->attributes->get('warehouse_destination') ?? app(WarehouseCoverage::class)->destination($location);
+        if (! $destination['specified']) {
+            return false;
+        }
+        if ($product->isVariable() && ! $product->isVariant()) {
+            return $product->variants()->active()->get()->contains(fn ($sku) => $this->onlyInOtherRegion($sku, $location));
+        }
+        $stocks = $product->warehouseStocks()
+            ->whereHas('warehouse', fn ($q) => $q->where('is_active', true)->where('stock_mode', 'quantity'))
+            ->with(['warehouse.physicalSite', 'warehouse.deliveryProfiles'])->get()
+            ->filter(fn ($stock) => app(CartStockReservations::class)->available($stock->warehouse_id, $stock->product_id, (float) $stock->quantity) >= 1);
+
+        return $stocks->isNotEmpty()
+            && ! $stocks->contains(fn ($stock) => app(WarehouseCoverage::class)->firstProfile($stock->warehouse, $destination) !== null);
+    }
+
     public function availableToOrder(Product $product, ?ShippingLocation $location): bool
     {
         $destination = request()->attributes->get('warehouse_destination') ?? app(WarehouseCoverage::class)->destination($location);

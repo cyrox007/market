@@ -65,7 +65,7 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $this->assertSame(3, $quote['selected']['delivery_days_min']);
         $this->assertSame(6, $quote['selected']['delivery_days_max']);
         $this->assertSame(2000.0, $quote['subtotal']);
-        $this->assertFalse($this->quote('outside')['available']);
+        $this->assertSame('other_region', $this->quote('outside')['selected']['mode']);
     }
 
     public function test_quote_is_only_delivery_estimate_and_does_not_offer_bookable_slots(): void
@@ -104,13 +104,13 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $warehouse = $this->warehouse(['coverage_type' => 'hybrid', 'radius_km' => 10, 'price_per_km' => 50]);
         $this->assertSame(1500.0, $this->quote()['selected']['delivery_cost']);
         $warehouse->update(['latitude' => 53.6]);
-        $this->assertFalse($this->quote()['available']);
+        $this->assertSame('other_region', $this->quote()['selected']['mode']);
         $warehouse->update(['latitude' => 52.61]);
         $this->assertGreaterThan(1500, $this->quote()['selected']['delivery_cost']);
         $warehouse->deliveryProfiles()->first()->update(['free_delivery_threshold' => 2000]);
         $this->assertSame(0.0, $this->quote()['selected']['delivery_cost']);
         $warehouse->update(['latitude' => null, 'longitude' => null]);
-        $this->assertFalse($this->quote()['available']);
+        $this->assertSame('other_region', $this->quote()['selected']['mode']);
     }
 
     public function test_no_silent_split_of_a_cart_between_warehouses(): void
@@ -151,6 +151,36 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
     }
 
+    public function test_other_region_warehouse_is_offered_only_without_regional_stock(): void
+    {
+        $local = $this->warehouse();
+        $this->assertNull($this->quote()['selected']['mode'] ?? null);
+        $this->getJson('/api/v1/products?directory_external_id=house')->assertJsonPath('data.0.available_to_order', false);
+        $local->productStocks()->update(['quantity' => 0]);
+        foreach (['Дальний' => 56.0, 'Ближний' => 53.0, 'Без остатка' => 52.7] as $name => $latitude) {
+            Warehouse::create(['name' => $name, 'stock_mode' => 'quantity', 'latitude' => $latitude, 'longitude' => 39.6])
+                ->productStocks()->create(['product_id' => $this->product->id, 'quantity' => $name === 'Без остатка' ? 1 : 5]);
+        }
+        $selected = $this->quote()['selected'];
+        $this->assertSame(['other_region', 'Ближний', null, null], [$selected['mode'], $selected['warehouse_name'], $selected['delivery_cost'], $selected['delivery_days_min']]);
+        $this->assertSame('Срок поставки уточняется', $selected['delivery']['label']);
+        $this->getJson('/api/v1/products?directory_external_id=house')
+            ->assertJsonPath('data.0.in_stock', false)->assertJsonPath('data.0.available_to_order', true);
+    }
+
+    public function test_other_region_order_cannot_be_paid_online(): void
+    {
+        $warehouse = $this->warehouse(['is_active' => false]);
+        PaymentMethod::create(['code' => 'online', 'name' => 'Онлайн', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'raiffeisen_ecom']);
+        $this->postJson('/api/v1/cart', ['product_id' => $this->product->id, 'quantity' => 2])->assertCreated();
+        $this->postJson('/api/v1/orders', [
+            'contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'buyer@example.test',
+            'payment_method' => 'online', 'delivery_type' => 'delivery', 'directory_external_id' => 'house',
+        ])->assertUnprocessable()->assertJsonPath('message', 'Онлайн-оплата недоступна для доставки со склада другого региона.');
+        $this->assertSame(0, Order::count());
+        $this->assertSame(0.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
+    }
+
     public function test_quote_does_not_allow_another_users_address(): void
     {
         $owner = User::factory()->create();
@@ -164,7 +194,7 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $warehouse = $this->warehouse();
         $this->assertTrue($this->quote()['available']);
         $warehouse->deliveryProfiles()->first()->update(['coverage_type' => 'radius', 'radius_km' => 100]);
-        $this->assertFalse($this->quote()['available']);
+        $this->assertSame('other_region', $this->quote()['selected']['mode']);
     }
 
     public function test_locality_tariff_priority_and_factory_preparation(): void
@@ -188,7 +218,7 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $this->assertFalse($this->quote()['available']);
         $warehouse->update(['is_active' => true]);
         $warehouse->deliveryProfiles()->first()->update(['is_active' => false]);
-        $this->assertFalse($this->quote()['available']);
+        $this->assertSame('other_region', $this->quote()['selected']['mode']);
     }
 
     public function test_changed_stock_cannot_be_reserved_and_transaction_rolls_back(): void
