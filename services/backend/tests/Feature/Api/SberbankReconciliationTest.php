@@ -195,7 +195,6 @@ class SberbankReconciliationTest extends TestCase
             'payment.sberbank_acquiring.username' => 'testMerchant',
             'payment.sberbank_acquiring.password' => 'testPassword',
             'payment.sberbank_acquiring.base_url' => 'https://ecomtest.sberbank.ru',
-            'payment.sberbank_acquiring.api_format' => 'ecom',
         ]);
         \Illuminate\Support\Facades\Http::fake([
             'https://ecomtest.sberbank.ru/*/refund.do' =>
@@ -350,19 +349,18 @@ class SberbankReconciliationTest extends TestCase
         $this->assertDatabaseHas('order_refund_tasks', ['order_id' => $order->id, 'status' => 'completed', 'amount' => 0]);
     }
 
-    public function test_legacy_registration_status_and_refund_all_use_form_rest_api(): void
+    public function test_registration_status_and_refund_use_ecom_json(): void
     {
         config(['payment.sberbank_acquiring.username' => 'testMerchant',
             'payment.sberbank_acquiring.password' => 'testPassword',
             'payment.sberbank_acquiring.base_url' => 'https://bank.test',
-            'payment.sberbank_acquiring.api_format' => 'legacy',
             'payment.sberbank_acquiring.status_path' => null]);
         \Illuminate\Support\Facades\Http::fake([
-            'https://bank.test/payment/rest/register.do' => \Illuminate\Support\Facades\Http::response([
+            'https://bank.test/ecomm/gw/partner/api/v1/register.do' => \Illuminate\Support\Facades\Http::response([
                 'errorCode' => '0', 'orderId' => self::BANK_ID, 'formUrl' => 'https://bank.test/pay']),
-            'https://bank.test/payment/rest/getOrderStatusExtended.do' => \Illuminate\Support\Facades\Http::response([
+            'https://bank.test/ecomm/gw/partner/api/v1/getOrderStatusExtended.do' => \Illuminate\Support\Facades\Http::response([
                 'errorCode' => 0, 'orderStatus' => 2, 'amount' => 123456]),
-            'https://bank.test/payment/rest/refund.do' => \Illuminate\Support\Facades\Http::response(['errorCode' => '0']),
+            'https://bank.test/ecomm/gw/partner/api/v1/refund.do' => \Illuminate\Support\Facades\Http::response(['errorCode' => '0']),
         ]);
         [$order] = $this->payment();
         $client = app(SberbankAcquiringClient::class);
@@ -372,8 +370,8 @@ class SberbankReconciliationTest extends TestCase
         $this->assertTrue($client->refundOrder($order, self::BANK_ID, 1234.56, 'refund-test')['ok']);
         \Illuminate\Support\Facades\Http::assertSentCount(3);
         foreach (['register.do', 'getOrderStatusExtended.do', 'refund.do'] as $path) {
-            \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r->url() === 'https://bank.test/payment/rest/'.$path
-                && $r->hasHeader('Content-Type', 'application/x-www-form-urlencoded') && $r['userName'] === 'testMerchant');
+            \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r->url() === 'https://bank.test/ecomm/gw/partner/api/v1/'.$path
+                && $r->hasHeader('Content-Type', 'application/json') && $r['userName'] === 'testMerchant');
         }
     }
 
@@ -381,8 +379,7 @@ class SberbankReconciliationTest extends TestCase
     {
         config(['payment.sberbank_acquiring.username' => 'testMerchant',
             'payment.sberbank_acquiring.password' => 'testPassword',
-            'payment.sberbank_acquiring.base_url' => 'https://bank.test',
-            'payment.sberbank_acquiring.api_format' => 'ecom']);
+            'payment.sberbank_acquiring.base_url' => 'https://bank.test']);
         \Illuminate\Support\Facades\Http::fake(['https://bank.test/*' => \Illuminate\Support\Facades\Http::response([
             'errorCode' => '0', 'orderId' => self::BANK_ID, 'formUrl' => 'https://bank.test/pay'])]);
         [$order, $payment] = $this->payment();
@@ -400,6 +397,33 @@ class SberbankReconciliationTest extends TestCase
             && $r['orderNumber'] === $first['number']);
     }
 
+    public function test_registration_denied_by_http_auth_can_be_retried_with_a_new_attempt(): void
+    {
+        config(['payment.sberbank_acquiring.username' => 'testMerchant',
+            'payment.sberbank_acquiring.password' => 'testPassword',
+            'payment.sberbank_acquiring.base_url' => 'https://bank.test']);
+        \Illuminate\Support\Facades\Http::fake([
+            '*/register.do' => \Illuminate\Support\Facades\Http::sequence()->push([], 401)->push([
+                'errorCode' => '0', 'orderId' => self::BANK_ID, 'formUrl' => 'https://bank.test/pay',
+            ]),
+        ]);
+        [$order, $payment] = $this->payment();
+        $payment->remote_id = null;
+        $payment->save();
+        $attempts = app(\App\Services\Payment\SberbankPaymentAttempts::class);
+
+        $this->assertNull($attempts->config($order, false));
+        $this->assertSame('rejected', $payment->fresh()->data['sberbank_registration']['state']);
+        $this->assertTrue($attempts->reconcileOrder($order));
+        $this->assertNull($attempts->config($order, false));
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+        $this->assertNotNull($attempts->config($order, true));
+        \Illuminate\Support\Facades\Http::assertSentCount(2);
+        $latest = $order->fresh()->getLatestPayment();
+        $this->assertNotSame($payment->id, $latest->id);
+        $this->assertSame(self::BANK_ID, $latest->remote_id);
+    }
+
     public function test_production_tls_cannot_be_disabled_for_any_bank_operation(): void
     {
         [$order] = $this->payment();
@@ -411,12 +435,9 @@ class SberbankReconciliationTest extends TestCase
         $this->app->instance('env', 'production');
         try {
             $client = app(SberbankAcquiringClient::class);
-            try {
-                $client->registerOrder($order, 1234.56, 'https://shop.test/ok', 'https://shop.test/fail', 'ORD1', 'ba95ad47-119b-4d46-883e-36e9865cb938');
-                $this->fail('Unsafe registration was not blocked');
-            } catch (\RuntimeException $e) {
-                $this->assertStringContainsString('TLS', $e->getMessage());
-            }
+            $result = $client->registerOrder($order, 1234.56, 'https://shop.test/ok', 'https://shop.test/fail', 'ORD1', 'ba95ad47-119b-4d46-883e-36e9865cb938');
+            $this->assertFalse($result['ok']);
+            $this->assertTrue($result['registration_rejected']);
             $this->assertSame([], $client->getOrderStatusExtended(self::BANK_ID));
             $this->assertFalse($client->refundOrder($order, self::BANK_ID, 1234.56, 'refund-test')['ok']);
             \Illuminate\Support\Facades\Http::assertNothingSent();

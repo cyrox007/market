@@ -310,8 +310,8 @@ class ProcessSberbankCallbackJob implements ShouldQueue
                 return $order;
             }
 
-            // Повторная регистрация: ORDER-1-R12-2 → ORDER-1
-            if (preg_match('/^(.+)-(?:R\d+-\d+|S\d+)$/', $orderNumber, $matches) === 1) {
+            // Номер попытки Сбера: ORDER-1-S12 → ORDER-1
+            if (preg_match('/^(.+)-S\d+$/', $orderNumber, $matches) === 1) {
                 return Order::where('number', $matches[1])->first();
             }
         }

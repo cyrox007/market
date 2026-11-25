@@ -16,9 +16,6 @@ final class SberbankConnectionSettings
             || isset($url['user']) || isset($url['pass']) || isset($url['query']) || isset($url['fragment'])) {
             $problems[] = 'Укажите корректный HTTPS-адрес банка.';
         }
-        if (! in_array(strtolower((string) config('payment.sberbank_acquiring.api_format')), ['ecom', 'legacy'], true)) {
-            $problems[] = 'Неизвестный формат API Сбера.';
-        }
         if (! config('payment.sberbank_acquiring.verify_ssl', true) && ! app()->environment(['local', 'testing'])) {
             $problems[] = 'Проверка TLS обязательна вне local/testing.';
         }

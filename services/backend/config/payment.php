@@ -70,15 +70,13 @@ return [
     |   SBERBANK_ACQUIRING_USERNAME=testMerchant_071
     |   SBERBANK_ACQUIRING_PASSWORD=...  (в кавычках, если есть % и спецсимволы)
     |   SBERBANK_ACQUIRING_BASE_URL=https://ecomtest.sberbank.ru
-    |   SBERBANK_ACQUIRING_API_FORMAT=ecom
     |
-    | Пром: base_url и креды из ЛК (userName / merchantLogin), api_format=ecom
+    | Пром: base_url и креды из ЛК (userName / merchantLogin)
     */
     'sberbank_acquiring' => [
         'username' => env('SBERBANK_ACQUIRING_USERNAME', ''),
         'password' => env('SBERBANK_ACQUIRING_PASSWORD', ''),
         'base_url' => env('SBERBANK_ACQUIRING_BASE_URL', 'https://ecomtest.sberbank.ru'),
-        'api_format' => env('SBERBANK_ACQUIRING_API_FORMAT', 'ecom'), // ecom | legacy (3dsec /payment/rest/)
         'register_path' => env('SBERBANK_ACQUIRING_REGISTER_PATH', '/ecomm/gw/partner/api/v1/register.do'),
         'pay_page_path' => env('SBERBANK_ACQUIRING_PAY_PAGE_PATH', '/pp/pay_ru'),
         'callback_url' => env('SBERBANK_ACQUIRING_CALLBACK_URL', null),

@@ -79,17 +79,12 @@ final class SberbankPaymentAttempts
                     return null;
                 }
                 if ($status !== 3 && ! ($status === 6 && $action === -2007)) { return null; }
-                $payment = DB::transaction(function () use ($order, $payment) {
-                    $fresh = Order::lockForUpdate()->findOrFail($order->id);
-                    if (! $this->eligible($fresh) || $fresh->getLatestPayment()?->id !== $payment->id) { return null; }
-                    $next = $fresh->payments()->create([
-                        'payment_method_id' => $payment->payment_method_id,
-                        'currency' => $payment->currency, 'amount' => $payment->amount,
-                        'amount_paid' => 0, 'status' => 'pending',
-                    ]);
-                    $this->prepare($fresh, $next);
-                    return $next;
-                });
+                $payment = $this->newAttempt($order, $payment);
+                if (! $payment) { return null; }
+            }
+            if (($payment->data['sberbank_registration']['state'] ?? null) === 'rejected') {
+                if (! $retry) { return null; }
+                $payment = $this->newAttempt($order, $payment);
                 if (! $payment) { return null; }
             }
             $this->prepare($order, $payment);
@@ -118,7 +113,12 @@ final class SberbankPaymentAttempts
                 $result = app(SberbankAcquiringClient::class)->registerOrder($order, (float) $payment->amount,
                     $frontend.'/orders/'.$order->id.'?payment=success',
                     $frontend.'/orders/'.$order->id.'?payment=fail', $intent['number'], $intent['key']);
-                if (! ($result['ok'] ?? false)) { return null; }
+                if (! ($result['ok'] ?? false)) {
+                    if ($result['registration_rejected'] ?? false) {
+                        $this->reject($payment);
+                    }
+                    return null;
+                }
                 $this->bind($payment, (string) ($result['remote_id'] ?? ''), (string) ($result['form_url'] ?? ''));
             } catch (\Throwable $e) {
                 report($e);
@@ -126,6 +126,34 @@ final class SberbankPaymentAttempts
             }
             return $this->eligible($order->fresh()) ? $this->cachedConfig($order->fresh()) : null;
         } finally { $lock->release(); }
+    }
+
+    private function newAttempt(Order $order, $payment)
+    {
+        return DB::transaction(function () use ($order, $payment) {
+            $fresh = Order::lockForUpdate()->findOrFail($order->id);
+            if (! $this->eligible($fresh) || $fresh->getLatestPayment()?->id !== $payment->id) { return null; }
+            $next = $fresh->payments()->create([
+                'payment_method_id' => $payment->payment_method_id,
+                'currency' => $payment->currency, 'amount' => $payment->amount,
+                'amount_paid' => 0, 'status' => 'pending',
+            ]);
+            $this->prepare($fresh, $next);
+            return $next;
+        });
+    }
+
+    private function reject($payment): void
+    {
+        DB::transaction(function () use ($payment): void {
+            Order::lockForUpdate()->findOrFail($payment->payable_id);
+            $row = $payment->newQuery()->lockForUpdate()->findOrFail($payment->id);
+            $data = $row->data;
+            if (filled($row->remote_id) || $data['sberbank_registration']['state'] !== 'submitted') { return; }
+            $data['sberbank_registration']['state'] = 'rejected';
+            $row->data = $data;
+            $row->saveOrFail();
+        });
     }
 
     private function eligible(Order $order): bool
@@ -172,7 +200,7 @@ final class SberbankPaymentAttempts
         if (! is_string($id) || ! Str::isUuid($id) || ($hint !== null && $id !== $hint)) { return false; }
         $url = config('local_sber.enabled')
             ? \Illuminate\Support\Facades\URL::temporarySignedRoute('local-sber.show', now()->addHours(24), ['id' => $id]) : '';
-        if (! config('local_sber.enabled') && config('payment.sberbank_acquiring.api_format') === 'ecom') {
+        if (! config('local_sber.enabled')) {
             $url = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/')
                 . config('payment.sberbank_acquiring.pay_page_path', '/pp/pay_ru') . '?orderId=' . rawurlencode($id);
         }
@@ -190,7 +218,7 @@ final class SberbankPaymentAttempts
             if (in_array((string) $payment->getRawOriginal('status'), ['paid', 'refunded', 'partially_refunded'], true)) { continue; }
             if (! filled($payment->remote_id)) {
                 $state = $payment->data['sberbank_registration']['state'] ?? null;
-                if ($state === 'prepared' || $state === null) { continue; }
+                if ($state !== 'submitted') { continue; }
                 if (! $this->recover($order, $payment)) { $complete = false; continue; }
                 $payment->refresh();
             }
