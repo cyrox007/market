@@ -11,6 +11,19 @@ const TABS: { id: ProductTabId; label: string }[] = [
   { id: 'reviews', label: 'Отзывы' },
 ];
 
+const SPECIFICATION_PRIORITY = new Map([
+  ['proizvoditel', 0],
+  ['brand', 0],
+  ['brend', 0],
+  ['dimensions', 1],
+  ['weight', 2],
+]);
+
+function specificationPriority(spec: ProductSpecification): number {
+  if (spec.name.trim().toLowerCase() === 'бренд') return 0;
+  return SPECIFICATION_PRIORITY.get(spec.slug) ?? 3;
+}
+
 interface Props {
   activeTab: ProductTabId;
   onTabChange: (tab: ProductTabId) => void;
@@ -45,6 +58,10 @@ export default function ProductTabs({
     tabRefs.current[id]?.focus();
   };
 
+  const orderedSpecifications = [...specifications].sort(
+    (a, b) => specificationPriority(a) - specificationPriority(b),
+  );
+
   const panels: Record<ProductTabId, ReactNode> = {
     description: hasMeaningfulProductText(description) ? (
       <div
@@ -60,7 +77,7 @@ export default function ProductTabs({
     ),
     specs: specifications.length ? (
       <div className="max-w-[714px] text-14 font-medium">
-        {specifications.map((spec) => (
+        {orderedSpecifications.map((spec) => (
           <div
             key={spec.slug}
             className="flex gap-2.5 rounded-[2px] px-3 py-2 even:bg-surface-grey/[0.54]"
