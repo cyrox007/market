@@ -32,6 +32,30 @@ class OfferInheritedContentTest extends TestCase
         $this->assertSame($specs->all(), $nested['specifications']);
     }
 
+    public function test_detail_prioritizes_brand_manufacturer_dimensions_and_weight_for_products_and_offers(): void
+    {
+        $parent = Product::factory()->create(['is_variable' => true, 'length' => 250, 'width' => 105, 'height' => 92, 'weight' => 130]);
+        $offer = Product::factory()->create(['parent_product_id' => $parent->id]);
+        foreach ([
+            ['material', 'Материал', 30],
+            ['catalog-brand', 'Бренд', 40],
+            ['proizvoditel', 'Производитель', 50],
+            ['type', 'Тип', 10],
+        ] as [$slug, $name, $position]) {
+            $attribute = Attribute::create(['slug' => $slug, 'name' => $name, 'type' => 'text']);
+            $parent->attributes()->attach($attribute->id, ['custom_value' => $name, 'sort_order' => $position]);
+        }
+
+        $expected = ['catalog-brand', 'proizvoditel', 'dimensions', 'weight', 'type', 'material'];
+        $data = $this->getJson('/api/v1/products/'.$parent->slug)->assertOk()->json('product');
+        $direct = $this->getJson('/api/v1/products/'.$offer->slug)->assertOk()->json('product.specifications');
+        $nested = collect($data['variants'])->firstWhere('id', $offer->id);
+
+        $this->assertSame($expected, array_column($data['specifications'], 'slug'));
+        $this->assertSame($expected, array_column($direct, 'slug'));
+        $this->assertSame($direct, $nested['specifications']);
+    }
+
     public function test_gallery_order_is_respected_in_original_and_hd_api_images(): void
     {
         $offer = Product::factory()->create();

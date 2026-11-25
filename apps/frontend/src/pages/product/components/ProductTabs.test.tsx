@@ -57,45 +57,6 @@ describe('вкладки карточки товара', () => {
     expect(row).toHaveTextContent('Ширина, мм1500');
   });
 
-  it('выводит производителя, размеры и вес перед остальными характеристиками', () => {
-    render(
-      <Tabs
-        initial="specs"
-        specifications={[
-          specs[0],
-          { slug: 'weight', name: 'Вес', value: '191 кг' },
-          specs[1],
-          { slug: 'proizvoditel', name: 'Производитель', value: 'Мебельный рай' },
-          { slug: 'dimensions', name: 'Размеры', value: '200 × 65 × 220 см' },
-        ]}
-      />,
-    );
-    const rows = screen.getByRole('tabpanel').querySelectorAll('div > div > span:first-child');
-    expect(Array.from(rows, (row) => row.textContent)).toEqual([
-      'Производитель',
-      'Размеры',
-      'Вес',
-      'Ширина, мм',
-      'Материал корпуса',
-    ]);
-  });
-
-  it('выводит бренд перед размерами и весом', () => {
-    render(
-      <Tabs
-        initial="specs"
-        specifications={[
-          specs[0],
-          { slug: 'dimensions', name: 'Размеры', value: '250 × 105 × 92 см' },
-          { slug: 'weight', name: 'Вес', value: '130 кг' },
-          { slug: 'catalog-brand', name: 'Бренд', value: 'Светофор Мебели' },
-        ]}
-      />,
-    );
-    const rows = screen.getByRole('tabpanel').querySelectorAll('div > div > span:first-child');
-    expect(Array.from(rows, (row) => row.textContent)).toEqual(['Бренд', 'Размеры', 'Вес', 'Ширина, мм']);
-  });
-
   it('пусто — вкладки не прячутся, заглушки; без отзывов — без числа', () => {
     render(<Tabs description="<p> </p>" specifications={[]} reviewsCount={0} />);
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
