@@ -70,19 +70,22 @@ return [
     |   SBERBANK_ACQUIRING_USERNAME=testMerchant_071
     |   SBERBANK_ACQUIRING_PASSWORD=...  (в кавычках, если есть % и спецсимволы)
     |   SBERBANK_ACQUIRING_BASE_URL=https://ecomtest.sberbank.ru
-    |   SBERBANK_ACQUIRING_API_FORMAT=ecom
     |
-    | Пром: base_url и креды из ЛК (userName / merchantLogin), api_format=ecom
+    | Пром: base_url и креды из ЛК (userName / merchantLogin)
     */
     'sberbank_acquiring' => [
         'username' => env('SBERBANK_ACQUIRING_USERNAME', ''),
         'password' => env('SBERBANK_ACQUIRING_PASSWORD', ''),
         'base_url' => env('SBERBANK_ACQUIRING_BASE_URL', 'https://ecomtest.sberbank.ru'),
-        'api_format' => env('SBERBANK_ACQUIRING_API_FORMAT', 'ecom'), // ecom | legacy (3dsec /payment/rest/)
         'register_path' => env('SBERBANK_ACQUIRING_REGISTER_PATH', '/ecomm/gw/partner/api/v1/register.do'),
         'pay_page_path' => env('SBERBANK_ACQUIRING_PAY_PAGE_PATH', '/pp/pay_ru'),
         'callback_url' => env('SBERBANK_ACQUIRING_CALLBACK_URL', null),
         'verify_ssl' => (bool) env('SBERBANK_ACQUIRING_VERIFY_SSL', true),
+        'ca_bundle' => env('SBERBANK_ACQUIRING_CA_BUNDLE'),
+        'status_path' => env('SBERBANK_ACQUIRING_STATUS_PATH'),
+        'callback_per_ip' => (int) env('SBERBANK_CALLBACK_PER_IP', 120),
+        'callback_global' => (int) env('SBERBANK_CALLBACK_GLOBAL', 600),
+        'callback_dedup_seconds' => (int) env('SBERBANK_CALLBACK_DEDUP_SECONDS', 60),
     ],
 
     'sberbank_acquiring_callback_path' => 'api/v1/payment/sberbank/callback',

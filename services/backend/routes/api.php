@@ -256,6 +256,7 @@ Route::prefix('v1')->group(function () {
 
     // Callback от Сбербанка (ecom)
     Route::post('payment/sberbank/callback', SberbankCallbackController::class)
+        ->middleware('throttle:sberbank-callback')
         ->name('payment.sberbank.callback');
 
     if (config('app.debug')) {

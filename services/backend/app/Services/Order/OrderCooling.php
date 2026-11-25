@@ -18,6 +18,14 @@ class OrderCooling
 
     public function advance(int $id): void
     {
+        $candidate = Order::find($id);
+        if ($candidate && $candidate->status === OrderStatus::MANAGER_PROCESSING->value
+            && $candidate->cooling_until && now()->gte($candidate->cooling_until)
+            && $candidate->getPaymentGateway() === 'sberbank_acquiring' && ! $this->isPaid($candidate)
+            && ! app(\App\Services\Payment\SberbankPaymentAttempts::class)->reconcileOrder($candidate)) {
+            // Bank outcome is unknown: do not release a potentially paid sale.
+            return;
+        }
         DB::transaction(function () use ($id): void {
             $order = Order::lockForUpdate()->find($id);
             if (! $order || ! $order->cooling_until || now()->lt($order->cooling_until)

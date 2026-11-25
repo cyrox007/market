@@ -34,7 +34,7 @@ class CheckoutIdempotency
                     if (! $order->canPayOnline()) { unset($data['gateway_client_config']); }
                 }
                 DB::commit();
-                return response()->json($data, 201)->header('Idempotency-Replayed', 'true')->header('Cache-Control', 'no-store, private');
+                return $this->withSberConfig($data)->header('Idempotency-Replayed', 'true')->header('Cache-Control', 'no-store, private');
             }
             $response = $next($request);
             if ($response->getStatusCode() >= 400) { DB::rollBack(); return $response; }
@@ -42,7 +42,34 @@ class CheckoutIdempotency
             DB::table('checkout_attempts')->where('id', $attempt->id)->update(['order_id' => $data['order']['id'] ?? null,
                 'response' => Crypt::encryptString($response->getContent()), 'updated_at' => now()]);
             DB::commit();
-            return $response;
         } catch (\Throwable $e) { DB::rollBack(); throw $e; }
+        // Never put a bank call or its result inside the checkout transaction.
+        $order = \App\Models\Order\Order::find($data['order']['id'] ?? null);
+        return $order?->getPaymentGateway() === 'sberbank_acquiring'
+            ? $this->withSberConfig($data)->header('Cache-Control', 'no-store, private')
+            : $response;
+    }
+
+    private function withSberConfig(array $data): Response
+    {
+        $order = \App\Models\Order\Order::find($data['order']['id'] ?? null);
+        if ($order?->getPaymentGateway() === 'sberbank_acquiring') {
+            unset($data['gateway_client_config']);
+            if ($order->canPayOnline()) {
+                try {
+                    $config = app(\App\Services\Payment\SberbankPaymentAttempts::class)->config($order, false);
+                    if ($config) { $data['gateway_client_config'] = $config; }
+                    else { $data['payment_registration_pending'] = true; }
+                } catch (\Throwable $e) {
+                    report($e);
+                    $data['payment_registration_pending'] = true;
+                }
+            }
+            $data['order'] = (new \App\Http\Resources\OrderResource($order->fresh()->load([
+                'items.product.taxons', 'address', 'statusHistory.user', 'shippingLocation',
+                'shippingMethod.carrier', 'deliveryHandlingType', 'additionalServices',
+            ])))->resolve(request());
+        }
+        return response()->json($data, 201);
     }
 }

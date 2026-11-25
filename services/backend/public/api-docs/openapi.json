@@ -6650,6 +6650,14 @@
                   "properties": {
                     "order": {
                       "$ref": "#/components/schemas/Order"
+                    },
+                    "payment_registration_pending": {
+                      "type": "boolean",
+                      "description": "Заказ сохранён, но регистрация Сбера пока не подтверждена; повторите исходный Idempotency-Key или запрос payment-config, не создавайте новый заказ."
+                    },
+                    "gateway_client_config": {
+                      "type": "object",
+                      "additionalProperties": true
                     }
                   }
                 }
@@ -6847,6 +6855,10 @@
                     },
                     "fail_url": {
                       "type": "string"
+                    },
+                    "gateway_client_config": {
+                      "type": "object",
+                      "additionalProperties": true
                     }
                   }
                 }
@@ -6888,6 +6900,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Регистрация Сбера ещё не подтверждена; повторить запрос конфигурации, не создавать новый заказ."
           }
         }
       }
@@ -7831,7 +7846,7 @@
       "post": {
         "operationId": "sberbankCallback",
         "summary": "Колбэк Сбербанк (ecom)",
-        "description": "ВНИМАНИЕ: подпись НЕ проверяется. Статус оплаты определяется по полям operation/status тела запроса. См. docs/CRITICAL_ENDPOINTS.md.",
+        "description": "Недоверенный сигнал о банковском событии. Оплата подтверждается только независимой сверкой со Сбером по сохранённой попытке и точной сумме. Повторные уведомления кратковременно дедуплицируются; действует отдельное ограничение частоты.",
         "tags": [
           "Payment"
         ],
@@ -7851,7 +7866,14 @@
                     "type": "string"
                   },
                   "status": {
-                    "type": "string"
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ]
                   }
                 }
               }
@@ -7868,6 +7890,15 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Некорректный идентификатор или формат уведомления"
+          },
+          "429": {
+            "description": "Превышено ограничение частоты уведомлений"
+          },
+          "503": {
+            "description": "Очередь обработки недоступна"
           }
         }
       }

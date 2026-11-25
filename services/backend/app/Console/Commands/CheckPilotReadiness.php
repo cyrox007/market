@@ -33,6 +33,12 @@ class CheckPilotReadiness extends Command
                 $secret = $settings['secret_key'] ?? config('payment.raiffeisen_ecom.secret_key') ?: config('payment.raiffeisen.secret_key');
                 $check('Эквайринг '.$method->code, filled($public) && filled($secret), 'Не заданы реквизиты подключения к банку. Их значения в отчёт не выводятся.');
             }
+            if ($method->gateway === 'sberbank_acquiring') {
+                $problems = \App\Services\Payment\SberbankConnectionSettings::readinessProblems();
+                $check('Сбер '.$method->code, $problems === [], implode(' ', $problems));
+                $rows[] = ['Callback Сбера', 'CHECK', 'Проверьте URL в ЛК банка и доступность уведомлений; сверка конфигурации не обращается к банку.'];
+                $rows[] = ['Сверка Сбера', 'CHECK', 'Проверьте выполнение payments:reconcile-sberbank и обработчик очереди.'];
+            }
         }
         $check('Принимающий API', config('services.integration_1c.enabled') && filled(config('services.integration_1c.base_url')), 'Включите интеграцию и задайте адрес принимающего API.');
         $queue = config('services.integration_1c.orders_queue');

@@ -27,40 +27,29 @@ class SberbankAcquiringClient
         string $returnUrl,
         string $failUrl,
         ?string $orderNumberOverride = null,
+        ?string $idempotencyKey = null,
     ): array {
         if (config('local_sber.enabled')) {
             return app(LocalSberSimulator::class)->register($order, $amountRub, $orderNumberOverride ?? (string) $order->number);
+        }
+        if (SberbankConnectionSettings::transportProblems() !== []) {
+            return ['ok' => false, 'error' => 'invalid_configuration', 'registration_rejected' => true];
+        }
+        if (! SberbankConnectionSettings::credentialsPresent()) {
+            return ['ok' => false, 'error' => 'invalid_configuration', 'registration_rejected' => true];
         }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
         $userName = (string) config('payment.sberbank_acquiring.username');
         $password = (string) config('payment.sberbank_acquiring.password');
         $verifySsl = (bool) config('payment.sberbank_acquiring.verify_ssl', true);
-        $apiFormat = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom'));
 
         $amountKopecks = (int) round($amountRub * 100);
         $orderNumber = $orderNumberOverride ?? (string) $order->number;
-        $requestId = (string) Str::uuid();
-
-        if ($apiFormat === 'legacy') {
-            return $this->registerLegacy($order, $baseUrl, $userName, $password, $verifySsl, $orderNumber, $amountKopecks, $returnUrl, $failUrl, $requestId, $amountRub);
+        if (! is_string($idempotencyKey) || ! Str::isUuid($idempotencyKey)) {
+            return ['ok' => false, 'error' => 'missing_registration_intent_key', 'registration_rejected' => true];
         }
+        $requestId = $idempotencyKey;
 
-        return $this->registerEcom($order, $baseUrl, $userName, $password, $verifySsl, $orderNumber, $amountKopecks, $returnUrl, $failUrl, $requestId, $amountRub);
-    }
-
-    private function registerEcom(
-        Order $order,
-        string $baseUrl,
-        string $userName,
-        string $password,
-        bool $verifySsl,
-        string $orderNumber,
-        int $amountKopecks,
-        string $returnUrl,
-        string $failUrl,
-        string $requestId,
-        float $amountRub,
-    ): array {
         $registerPath = (string) config('payment.sberbank_acquiring.register_path', '/ecomm/gw/partner/api/v1/register.do');
         $endpoint = $baseUrl . $registerPath;
 
@@ -84,7 +73,6 @@ class SberbankAcquiringClient
             'amount' => $amountRub,
             'request_id' => $requestId,
             'endpoint' => $endpoint,
-            'api_format' => 'ecom',
         ], $order, 'payment', 'info');
 
         /** @var Response $response */
@@ -96,50 +84,7 @@ class SberbankAcquiringClient
             ])
             ->post($endpoint, $payload);
 
-        return $this->parseRegisterResponse($response, $order, $orderNumber, $amountRub, $requestId, $baseUrl, true);
-    }
-
-    private function registerLegacy(
-        Order $order,
-        string $baseUrl,
-        string $userName,
-        string $password,
-        bool $verifySsl,
-        string $orderNumber,
-        int $amountKopecks,
-        string $returnUrl,
-        string $failUrl,
-        string $requestId,
-        float $amountRub,
-    ): array {
-        $endpoint = $baseUrl . '/payment/rest/register.do';
-
-        $payload = [
-            'userName' => $userName,
-            'password' => $password,
-            'orderNumber' => $orderNumber,
-            'amount' => $amountKopecks,
-            'returnUrl' => $returnUrl,
-            'failUrl' => $failUrl,
-        ];
-
-        $this->gatewayLog->log('sberbank_acquiring', 'order_register_initiated', 'Инициация регистрации платежа в Сбербанке (legacy REST)', [
-            'order_id' => $order->id,
-            'order_number' => $orderNumber,
-            'amount' => $amountRub,
-            'request_id' => $requestId,
-            'endpoint' => $endpoint,
-            'api_format' => 'legacy',
-        ], $order, 'payment', 'info');
-
-        /** @var Response $response */
-        $response = Http::asForm()
-            ->timeout(30)
-            ->acceptJson()
-            ->withOptions($this->httpVerifyOptions($verifySsl))
-            ->post($endpoint, $payload);
-
-        return $this->parseRegisterResponse($response, $order, $orderNumber, $amountRub, $requestId, $baseUrl, false);
+        return $this->parseRegisterResponse($response, $order, $orderNumber, $amountRub, $requestId, $baseUrl);
     }
 
     private function parseRegisterResponse(
@@ -149,7 +94,6 @@ class SberbankAcquiringClient
         float $amountRub,
         string $requestId,
         string $baseUrl,
-        bool $isEcomApi,
     ): array {
         $metaBase = [
             'order_id' => $order->id,
@@ -168,6 +112,7 @@ class SberbankAcquiringClient
             return [
                 'ok' => false,
                 'error' => 'http_error',
+                'registration_rejected' => in_array($response->status(), [401, 403], true),
                 'http_status' => $response->status(),
                 'message' => mb_substr((string) $response->body(), 0, 200),
             ];
@@ -202,7 +147,7 @@ class SberbankAcquiringClient
             ];
         }
 
-        if ($formUrl === '' && $bankOrderId && $isEcomApi) {
+        if ($formUrl === '' && $bankOrderId) {
             $payPagePath = (string) config('payment.sberbank_acquiring.pay_page_path', '/pp/pay_ru');
             $formUrl = $baseUrl . $payPagePath . '?orderId=' . rawurlencode($bankOrderId);
         }
@@ -244,14 +189,15 @@ class SberbankAcquiringClient
     public function getOrderStatusExtended(string $orderId = '', string $orderNumber = ''): array
     {
         if (config('local_sber.enabled')) {
-            return app(LocalSberSimulator::class)->status($orderId);
+            return app(LocalSberSimulator::class)->status($orderId, $orderNumber);
         }
         // Never send a local simulator transaction to a real bank after changing configuration.
         if (LocalSberSimulator::isSimulatedId($orderId)) {
             return [];
         }
         $baseUrl = rtrim((string) config('payment.sberbank_acquiring.base_url'), '/');
-        $path = (string) config('payment.sberbank_acquiring.status_path', '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
+        $path = (string) (config('payment.sberbank_acquiring.status_path')
+            ?: '/ecomm/gw/partner/api/v1/getOrderStatusExtended.do');
         $endpoint = $baseUrl . $path;
         $verifySsl = (bool) config('payment.sberbank_acquiring.verify_ssl', true);
 
@@ -267,6 +213,8 @@ class SberbankAcquiringClient
         }
 
         try {
+            SberbankConnectionSettings::assertTransport();
+            if (! SberbankConnectionSettings::credentialsPresent() || ($orderId === '' && $orderNumber === '')) { return []; }
             /** @var Response $response */
             $response = Http::asJson()
                 ->timeout(15)
@@ -318,20 +266,22 @@ class SberbankAcquiringClient
         }
 
         $minor = (int) round($amountRub * 100);
-        $path = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom')) === 'legacy'
-            ? '/payment/rest/refund.do'
-            : '/ecomm/gw/partner/api/v1/refund.do';
+        $path = '/ecomm/gw/partner/api/v1/refund.do';
         $payload = ['userName' => $username, 'password' => $password,
             'orderId' => $remoteId, 'amount' => $minor];
         $endpoint = $base . $path;
+
+        try {
+            SberbankConnectionSettings::assertTransport();
+        } catch (\RuntimeException $error) {
+            return ['ok' => false, 'error' => 'invalid_configuration_or_payment'];
+        }
 
         $this->gatewayLog->log('sberbank_acquiring', 'refund_requested',
             'Запрос возврата Сбербанка', ['order_id' => $order->id,
                 'refund_id' => $refundId, 'amount_rub' => $amountRub], $order, 'payment', 'info');
         try {
-            $request = strtolower((string) config('payment.sberbank_acquiring.api_format', 'ecom')) === 'legacy'
-                ? Http::asForm() : Http::asJson();
-            $response = $request->timeout(30)
+            $response = Http::asJson()->timeout(30)
                 ->withOptions($this->httpVerifyOptions((bool) config('payment.sberbank_acquiring.verify_ssl', true)))
                 ->withHeaders(['x-idempotencyKey' => $refundId])
                 ->post($endpoint, $payload);
@@ -353,15 +303,6 @@ class SberbankAcquiringClient
 
     private function httpVerifyOptions(bool $verifySsl): array
     {
-        if (!$verifySsl) {
-            return ['verify' => false];
-        }
-
-        $caBundle = config('payment.sberbank_acquiring.ca_bundle');
-        if (is_string($caBundle) && $caBundle !== '' && is_file($caBundle)) {
-            return ['verify' => $caBundle];
-        }
-
-        return ['verify' => true];
+        return SberbankConnectionSettings::verifyOptions();
     }
 }

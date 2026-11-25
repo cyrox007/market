@@ -147,12 +147,8 @@ class BuildOrderSyncPayloadAction
 
     private function resolvePaymentStatusLabel(Order $order): string
     {
-        $payment = $order->payments()->orderByDesc('id')->first();
-        if ($payment === null) {
-            return 'Не оплачен';
-        }
-
-        if ($payment->getStatus()->equals(PaymentStatusProxy::PAID()) || (float) $payment->getAmountPaid() > 0.0) {
+        if ($order->payments()->get()->contains(fn ($payment) =>
+            $payment->getStatus()->equals(PaymentStatusProxy::PAID()) || (float) $payment->getAmountPaid() > 0.0)) {
             return 'Оплачен';
         }
 

@@ -101,10 +101,26 @@ class AutomaticOrderRefunds
 
         if ($record) {
             if ($status === 4 && $refundedMinor === $expectedMinor) {
-                $record->update(['status' => PaymentRefund::STATUS_COMPLETED,
-                    'meta' => ['bank_order_status' => $status, 'verified_at' => now()->toISOString()]]);
-                $payment->status = PaymentStatusProxy::REFUNDED();
-                $payment->save();
+                \Illuminate\Support\Facades\DB::transaction(function () use ($order, $payment, $record, $status, $remoteId, $expectedMinor): void {
+                    // All three writes are atomic. Keep the same lock order as
+                    // callback reconciliation (order -> payment -> refund).
+                    $lockedOrder = Order::lockForUpdate()->findOrFail($order->id);
+                    $lockedPayment = $payment->newQuery()->lockForUpdate()->findOrFail($payment->id);
+                    $lockedRefund = PaymentRefund::lockForUpdate()->findOrFail($record->id);
+                    if ($lockedOrder->status !== 'cancelled'
+                        || (int) $lockedPayment->payable_id !== (int) $lockedOrder->id
+                        || (string) $lockedPayment->remote_id !== $remoteId
+                        || (int) round((float) $lockedPayment->amount_paid * 100) !== $expectedMinor
+                        || (int) $lockedRefund->payment_id !== (int) $lockedPayment->id
+                        || (int) round((float) $lockedRefund->amount * 100) !== $expectedMinor
+                        || $lockedRefund->isFailed()) { return; }
+                    $lockedRefund->update(['status' => PaymentRefund::STATUS_COMPLETED,
+                        'meta' => array_merge($lockedRefund->meta ?? [], ['bank_order_status' => $status,
+                            'verified_at' => now()->toISOString(), 'reconciliation_required' => false])]);
+                    $lockedPayment->status = PaymentStatusProxy::REFUNDED();
+                    $lockedPayment->saveOrFail();
+                    app(OrderRefundTasks::class)->ensure($lockedOrder);
+                });
             }
             return;
         }

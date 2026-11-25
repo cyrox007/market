@@ -482,6 +482,9 @@ class Order extends Model implements Payable
     public function getCachedPayformUrl(): ?string
     {
         $payment = $this->getLatestPayment();
+        if ($this->getPaymentGateway() === 'sberbank_acquiring') {
+            return app(\App\Services\Payment\SberbankPaymentAttempts::class)->cachedConfig($this)['payformUrl'] ?? null;
+        }
         if (!$payment || !is_array($payment->data)) {
             return null;
         }

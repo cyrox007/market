@@ -579,12 +579,14 @@ class OrderController extends Controller
                 if ($gateway instanceof RaiffeisenEcomGateway) {
                     $gatewayClientConfig = $gateway->getClientConfig($paymentMethodModel, $order);
                 }
+                // Sber registration is performed by CheckoutIdempotency only AFTER
+                // the order, payment intent and replay response have committed.
                 if ($gateway instanceof SberbankAcquiringGateway) {
-                    $gatewayClientConfig = $gateway->getClientConfig($paymentMethodModel, $order);
+                    app(\App\Services\Payment\SberbankPaymentAttempts::class)->prepare($order, $payment);
                 }
             }
 
-            if ($isOnlinePayment && !$gatewayClientConfig) {
+            if ($isOnlinePayment && $paymentMethodModel->gateway !== 'sberbank_acquiring' && !$gatewayClientConfig) {
                 throw new \RuntimeException('payment_init_failed');
             }
 
@@ -722,7 +724,9 @@ class OrderController extends Controller
         ];
 
         if ($order->canPayOnline()) {
-            $gatewayClientConfig = $this->resolveGatewayClientConfigForOrder($order);
+            $gatewayClientConfig = $order->getPaymentGateway() === 'sberbank_acquiring'
+                ? app(\App\Services\Payment\SberbankPaymentAttempts::class)->cachedConfig($order)
+                : $this->resolveGatewayClientConfigForOrder($order);
             if ($gatewayClientConfig) {
                 $payload['gateway_client_config'] = $gatewayClientConfig;
             }
@@ -775,6 +779,10 @@ class OrderController extends Controller
         $gatewayClientConfig = $this->resolveGatewayClientConfigForOrder($order);
 
         if (!$gatewayClientConfig) {
+            if ($order->getPaymentGateway() === 'sberbank_acquiring') {
+                return response()->json(['message' => 'Платёж ещё не подтверждён банком. Повторите проверку позже.', 'code' => 'payment_registration_pending'], 503)
+                    ->header('Cache-Control', 'no-store, private');
+            }
             return response()->json(['message' => 'Онлайн-оплата для этого заказа недоступна'], 404);
         }
 
@@ -785,7 +793,7 @@ class OrderController extends Controller
             'success_url' => $baseUrl . '/orders/' . $order->id . '?payment=success',
             'fail_url' => $baseUrl . '/orders/' . $order->id . '?payment=fail',
             'gateway_client_config' => $gatewayClientConfig,
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     /**
