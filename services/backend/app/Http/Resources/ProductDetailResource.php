@@ -551,7 +551,8 @@ class ProductDetailResource extends JsonResource
                 \App\Models\Product\Attribute::SLUG_MANUFACTURER => 1,
                 'dimensions' => 2,
                 'weight' => 3,
-                default => 4,
+                \App\Models\Product\Attribute::SLUG_VARIANT => 4,
+                default => 5,
             };
         };
 
