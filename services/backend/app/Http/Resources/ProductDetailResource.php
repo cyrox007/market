@@ -254,7 +254,7 @@ class ProductDetailResource extends JsonResource
                     'images' => $variant->images_urls ?: $sourceProduct->images_urls,
                     'description' => $variant->getEffectiveDescription(),
                     //'excerpt' => $variant->excerpt,
-                    'specifications' => $variantSpecs !== [] ? $variantSpecs : null,
+                    'specifications' => $variantSpecs !== [] ? $this->orderSpecifications($variantSpecs) : null,
                     'colors' => $productColors->rows($variant),
                 ];
             })->values()->toArray();
@@ -523,7 +523,7 @@ class ProductDetailResource extends JsonResource
                 ] : null
             ),
             'categories' => CategoryResource::collection($displayCategories),
-            'specifications' => $specifications,
+            'specifications' => $this->orderSpecifications($specifications),
             'variation_attributes' => $variationAttributes,
             'selected_variation' => $selectedVariation,
             'seo' => SeoApiTransformer::forModel($this->resource),
@@ -538,6 +538,28 @@ class ProductDetailResource extends JsonResource
     /**
      * Документы общего товара: у торгового предложения своих нет.
      */
+    /** @param list<array{name: string, value: string, slug: string}> $specifications */
+    private function orderSpecifications(array $specifications): array
+    {
+        $priority = static function (array $specification): int {
+            $slug = $specification['slug'];
+            if (in_array($slug, ['brand', 'brend'], true) || mb_strtolower(trim($specification['name'])) === 'бренд') {
+                return 0;
+            }
+
+            return match ($slug) {
+                \App\Models\Product\Attribute::SLUG_MANUFACTURER => 1,
+                'dimensions' => 2,
+                'weight' => 3,
+                default => 4,
+            };
+        };
+
+        usort($specifications, static fn (array $a, array $b): int => $priority($a) <=> $priority($b));
+
+        return $specifications;
+    }
+
     private function documentsForApi(Product $product): array
     {
         $product->loadMissing('documents.media');
