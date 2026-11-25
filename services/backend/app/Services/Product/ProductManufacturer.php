@@ -59,11 +59,23 @@ class ProductManufacturer
     {
         $name = preg_replace('/\s+/u', ' ', trim((string) $name));
         validator(['manufacturer_name' => $name], ['manufacturer_name' => 'nullable|string|max:255'])->validate();
-        DB::transaction(function () use ($product, $name): void {
+        $changed = DB::transaction(function () use ($product, $name): bool {
             $attribute = $this->attribute();
-            foreach (['product_product_attributes'] as $table) {
-                DB::table($table)->where('product_id', $product->id)->where('attribute_id', $attribute->id)->delete();
+            $record = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $rows = DB::table('product_product_attributes')->where('product_id', $product->id)
+                ->where('product_product_attributes.attribute_id', $attribute->id);
+            $current = (clone $rows)->leftJoin('product_attribute_values', 'product_attribute_values.id', '=', 'product_product_attributes.attribute_value_id')
+                ->get(['product_product_attributes.custom_value', 'product_attribute_values.value']);
+
+            if ($record->manufacturer_id === null && (
+                ($name === '' && $current->isEmpty())
+                || ($name !== '' && $current->count() === 1 && $current->first()->custom_value === null
+                    && is_string($current->first()->value) && mb_strtolower($current->first()->value) === mb_strtolower($name))
+            )) {
+                return false;
             }
+
+            $rows->delete();
             if ($name !== '') {
                 $slug = mb_substr(Str::slug($name), 0, 240) ?: 'manufacturer-'.substr(sha1(mb_strtolower($name)), 0, 16);
                 $value = AttributeValue::where('attribute_id', $attribute->id)->get()
@@ -81,7 +93,15 @@ class ProductManufacturer
             }
             // Do not let the obsolete entity resurrect a cleared value.
             $product->forceFill(['manufacturer_id' => null])->saveQuietly();
+
+            return true;
         });
+
+        if (! $changed) {
+            return;
+        }
+
+
         $product->unsetRelation('manufacturerAttributes')->unsetRelation('variantManufacturerAttributes')->unsetRelation('attributeValues')->unsetRelation('manufacturer');
         Product::flushAllProductCaches();
     }

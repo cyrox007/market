@@ -16,7 +16,7 @@ class AttributeQuickCreate
     public static function form(): array
     {
         return [
-            TextInput::make('name')->label('Название')->required()->maxLength(255),
+            TextInput::make('name')->label('Название')->required()->maxLength(255)->skipRenderAfterStateUpdated(),
             Select::make('type')
                 ->label('Тип')
                 ->options([
@@ -25,11 +25,12 @@ class AttributeQuickCreate
                     'number' => 'Число',
                 ])
                 ->default('text')
-                ->required(),
-            Toggle::make('is_use_in_variations')->label('Участвует в вариациях')->default(false),
-            Toggle::make('is_filterable')->label('Показывать в фильтрах')->default(false),
-            Toggle::make('is_multiple')->label('Множественный выбор')->default(false),
-            Toggle::make('allow_custom_value')->label('Разрешить ручной ввод')->default(false),
+                ->required()
+                ->skipRenderAfterStateUpdated(),
+            Toggle::make('is_use_in_variations')->label('Участвует в вариациях')->default(false)->skipRenderAfterStateUpdated(),
+            Toggle::make('is_filterable')->label('Показывать в фильтрах')->default(false)->skipRenderAfterStateUpdated(),
+            Toggle::make('is_multiple')->label('Множественный выбор')->default(false)->skipRenderAfterStateUpdated(),
+            Toggle::make('allow_custom_value')->label('Разрешить ручной ввод')->default(false)->skipRenderAfterStateUpdated(),
         ];
     }
 

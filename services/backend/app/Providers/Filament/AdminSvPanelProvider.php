@@ -3,8 +3,6 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\CatalogSyncPage;
-use App\Filament\Resources\Products\Pages\EditProduct;
-use App\Filament\Resources\Products\Pages\OperatorEditProduct;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -48,12 +46,6 @@ class AdminSvPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): string => view('filament.session-recovery')->render(),
-            )
-            // В конце body: у Livewire-компонента страницы допустим один корневой элемент
-            ->renderHook(
-                PanelsRenderHook::BODY_END,
-                fn (): string => view('filament.products.save-overlay')->render(),
-                scopes: [EditProduct::class, OperatorEditProduct::class],
             )
             ->renderHook(PanelsRenderHook::BODY_END, fn (): string => view('filament.editing-presence')->render())
             ->colors([

@@ -256,6 +256,66 @@ class AttributeTemplatesTest extends TestCase
         $this->assertNull($page->instance()->callSchemaComponentMethod($findField()->getKey(), 'getOptionLabel'));
     }
 
+    public function test_manual_attribute_value_can_be_sent_together_with_save(): void
+    {
+        $attribute = $this->attribute('Материал корпуса', ['type' => 'select']);
+        $value = $attribute->values()->create(['value' => 'ЛДСП', 'slug' => 'ldsp']);
+        $product = Product::factory()->create();
+        app(\App\Services\Product\ProductAttributeSyncService::class)->sync($product, [
+            ['attribute_id' => $attribute->id, 'attribute_value_id' => $value->id],
+        ]);
+
+        $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()]);
+        $row = array_key_first($page->get('data.product_attributes'));
+        $field = 'data.product_attributes.'.$row.'.custom_value';
+        $page->assertSeeHtml('wire:model.live="'.$field.'"');
+        $page->update(
+            calls: [['method' => 'save', 'params' => [], 'path' => '']],
+            updates: [$field => 'Фанера'],
+        )->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('product_product_attributes', [
+            'product_id' => $product->id,
+            'attribute_id' => $attribute->id,
+            'attribute_value_id' => null,
+            'custom_value' => 'Фанера',
+        ]);
+        $this->assertDatabaseMissing('product_product_attributes', [
+            'product_id' => $product->id,
+            'attribute_id' => $attribute->id,
+            'attribute_value_id' => $value->id,
+        ]);
+    }
+
+    public function test_changing_only_price_keeps_attribute_and_manufacturer_rows(): void
+    {
+        $product = Product::factory()->create(['price' => 100]);
+        $attribute = $this->attribute('Материал корпуса');
+        app(\App\Services\Product\ProductAttributeSyncService::class)->sync($product, [
+            ['attribute_id' => $attribute->id, 'custom_value' => 'Фанера'],
+        ]);
+        app(\App\Services\Product\ProductManufacturer::class)->save($product, 'Тестовый производитель');
+        $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        try {
+            $page->update(
+                calls: [['method' => 'save', 'params' => [], 'path' => '']],
+                updates: ['data.price' => 200],
+            )->assertHasNoFormErrors();
+            $writes = array_filter(DB::getQueryLog(), fn (array $query) => preg_match(
+                '/^(delete|insert|update).*product_product_attributes/i', $query['query'],
+            ));
+            $this->assertSame([], $writes);
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertSame(200.0, (float) $product->fresh()->price);
+    }
+
     public function test_offer_name_and_edit_button_open_the_same_editor(): void
     {
         $parent = Product::factory()->create(['is_variable' => true]);

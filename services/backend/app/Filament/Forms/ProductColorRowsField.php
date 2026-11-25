@@ -11,6 +11,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Illuminate\Support\Facades\Gate;
 
@@ -46,17 +47,19 @@ class ProductColorRowsField
             ->schema([
                 Select::make('color_element_id')
                     ->label('Элемент')
-                    ->options(fn (): array => [self::MAIN => 'Основной цвет']
-                        + ColorElement::orderBy('sort_order')->orderBy('name')->pluck('name', 'id')->all())
+                    ->options(fn (): array => static::options('elements', fn (): array => [self::MAIN => 'Основной цвет']
+                        + ColorElement::orderBy('sort_order')->orderBy('name')->pluck('name', 'id')->all()))
                     ->default(self::MAIN)
                     ->formatStateUsing(fn ($state) => $state ?? self::MAIN)
                     ->dehydrateStateUsing(fn ($state) => $state === self::MAIN ? null : $state)
                     ->required()
                     ->selectablePlaceholder(false)
                     ->searchable()
-                    ->createOptionForm(ColorElementResource::formFields())
+                    ->createOptionForm(static::createOptionFields(ColorElementResource::formFields()))
                     ->createOptionUsing(fn (array $data): int => ColorElement::create($data)->getKey())
-                    ->createOptionAction(fn (Action $action) => $action->authorize(fn (): bool => Gate::allows('create', ColorElement::class)))
+                    ->createOptionAction(fn (Action $action) => $action
+                        ->authorize(fn (): bool => Gate::allows('create', ColorElement::class))
+                        ->after(fn (Select $component) => static::refreshOptions($component, 'elements')))
                     ->createOptionModalHeading('Новый элемент'),
 
                 Select::make('color_solution_id')
@@ -66,10 +69,18 @@ class ProductColorRowsField
                     ->validationMessages(['required' => 'Выберите решение.'])
                     ->searchable()
                     ->preload()
+                    ->options(fn (Select $component): array => static::options(
+                        'solutions:'.$component->getOptionsLimit(),
+                        fn (): array => ColorSolution::query()->with('media')->orderBy('name')->orderBy('id')
+                            ->limit($component->getOptionsLimit())->get()
+                            ->mapWithKeys(fn (ColorSolution $solution) => [$solution->id => static::solutionLabel($solution)])->all(),
+                    ))
                     ->allowHtml()
                     ->getOptionLabelFromRecordUsing(fn (ColorSolution $record): string => static::solutionLabel($record))
-                    ->createOptionForm(ColorSolutionResource::formFields())
-                    ->createOptionAction(fn (Action $action) => $action->authorize(fn (): bool => Gate::allows('create', ColorSolution::class)))
+                    ->createOptionForm(static::createOptionFields(ColorSolutionResource::formFields()))
+                    ->createOptionAction(fn (Action $action) => $action
+                        ->authorize(fn (): bool => Gate::allows('create', ColorSolution::class))
+                        ->after(fn (Select $component) => static::refreshOptions($component, 'solutions:'.$component->getOptionsLimit())))
                     ->createOptionModalHeading('Новое цветовое решение'),
             ])
             ->rule(fn (): Closure => function (string $attribute, $value, Closure $fail): void {
@@ -87,6 +98,35 @@ class ProductColorRowsField
             })
             ->defaultItems(0)
             ->addActionLabel('Добавить цвет');
+    }
+
+    private static function createOptionFields(array $fields): array
+    {
+        foreach ($fields as $field) {
+            if ($field instanceof TextInput || $field instanceof Select) {
+                $field->skipRenderAfterStateUpdated();
+            }
+        }
+
+        return $fields;
+    }
+
+    private static function options(string $name, Closure $load): array
+    {
+        $attributes = request()->attributes;
+        $key = self::class.':'.$name;
+
+        if (! $attributes->has($key)) {
+            $attributes->set($key, $load());
+        }
+
+        return $attributes->get($key);
+    }
+
+    private static function refreshOptions(Select $component, string $name): void
+    {
+        request()->attributes->remove(self::class.':'.$name);
+        $component->getContainer()->getParentComponent()?->partiallyRender();
     }
 
     private static function solutionLabel(ColorSolution $record): string

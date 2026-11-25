@@ -1589,11 +1589,25 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
     {
         \Cache::forever('catalog_filters_revision', (string) \Illuminate\Support\Str::uuid());
         // Сбрасываем мета-фильтры категорий (ключи без тегов, поэтому сбрасываем явно)
-        $categoryIds = Category::pluck('id');
-        foreach ($categoryIds as $categoryId) {
-            \Cache::forget('product_filters_meta:cat:' . $categoryId);
+        $keys = Category::pluck('id')->map(fn ($id) => 'product_filters_meta:cat:'.$id)
+            ->push('product_filters_meta:cat:0')->all();
+        $cache = \Cache::store();
+        $store = $cache->getStore();
+        if ($store instanceof \Illuminate\Cache\DatabaseStore) {
+            // Match DatabaseStore::forget(), including the flexible cache timestamp.
+            $prefix = $store->getPrefix();
+            $table = config('cache.stores.'.config('cache.default').'.table', 'cache');
+            foreach (array_chunk($keys, 400) as $batch) {
+                $prefixed = [];
+                foreach ($batch as $key) {
+                    $prefixed[] = $prefix.$key;
+                    $prefixed[] = $prefix.'illuminate:cache:flexible:created:'.$key;
+                }
+                $store->getConnection()->table($table)->whereIn('key', $prefixed)->delete();
+            }
+        } else {
+            $cache->deleteMultiple($keys);
         }
-        \Cache::forget('product_filters_meta:cat:0');
 
         // Используем теги для эффективной инвалидации
         if (static::supportsCacheTags()) {
