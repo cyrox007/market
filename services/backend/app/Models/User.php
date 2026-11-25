@@ -21,6 +21,7 @@ class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use \App\Models\Traits\TransactionalActivityAudit;
 
     /**
      * The attributes that are mass assignable.

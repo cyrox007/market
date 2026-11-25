@@ -15,6 +15,9 @@ class EditUser extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('activity_audit')->label('История действий')
+                ->visible(fn () => \App\Services\Audit\ActivityAudit::canView(auth()->user()))
+                ->url(fn () => \App\Filament\Resources\ActivityAudit\ActivityAuditResource::getUrl('user-timeline', ['userId' => $this->record->id])),
             Actions\DeleteAction::make(),
         ];
     }
@@ -32,6 +35,9 @@ class EditUser extends EditRecord
     {
         // Сохраняем роли для последующей синхронизации
         $this->rolesToSync = $data['roles'] ?? [];
+        if (config('activity_audit.enabled') && ! auth()->user()?->hasRole('super_admin') && $this->rolesToSync !== []) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['data.roles' => 'Назначать роли сотрудников может только суперадминистратор.']);
+        }
         // Удаляем роли из данных, чтобы не пытаться сохранить их напрямую
         unset($data['roles']);
 
@@ -40,6 +46,7 @@ class EditUser extends EditRecord
 
     protected function afterSave(): void
     {
+        $before = $this->record->roles()->pluck('roles.id')->sort()->values()->all();
         // Синхронизируем роли после сохранения пользователя
         if (isset($this->rolesToSync) && ! empty($this->rolesToSync)) {
             // Получаем роли по ID
@@ -51,6 +58,10 @@ class EditUser extends EditRecord
             // Если роли не выбраны, удаляем все роли
             $this->record->syncRoles([]);
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        }
+        $after = $this->record->roles()->pluck('roles.id')->sort()->values()->all();
+        if ($before !== $after) {
+            app(\App\Services\Audit\ActivityAudit::class)->record('security', 'user.roles_changed', 'user', (int) $this->record->id, details: ['fields' => ['roles'], 'changed_count' => count(array_diff($before, $after)) + count(array_diff($after, $before))]);
         }
     }
 

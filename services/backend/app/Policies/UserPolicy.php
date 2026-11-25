@@ -35,7 +35,8 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        return $user->can('update users');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin') || (! $model->roles()->exists() && ! $model->permissions()->exists()))
+            && $user->can('update users');
     }
 
     /**
@@ -43,7 +44,8 @@ class UserPolicy
      */
     public function delete(User $user, User $model): bool
     {
-        return $user->can('delete users');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin') || (! $model->roles()->exists() && ! $model->permissions()->exists()))
+            && $user->can('delete users');
     }
 
     /**
@@ -51,7 +53,8 @@ class UserPolicy
      */
     public function restore(User $user, User $model): bool
     {
-        return $user->can('restore users');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin') || (! $model->roles()->exists() && ! $model->permissions()->exists()))
+            && $user->can('restore users');
     }
 
     /**
@@ -59,6 +62,7 @@ class UserPolicy
      */
     public function forceDelete(User $user, User $model): bool
     {
-        return $user->can('forceDelete users');
+        return (! config('activity_audit.enabled') || $user->hasRole('super_admin') || (! $model->roles()->exists() && ! $model->permissions()->exists()))
+            && $user->can('forceDelete users');
     }
 }

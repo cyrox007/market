@@ -24,6 +24,7 @@ class Order extends Model implements Payable
 {
     protected $hidden = ['guest_token_hash'];
     use HasFactory;
+    use \App\Models\Traits\TransactionalActivityAudit;
 
     /**
      * Create a new factory instance for the model.

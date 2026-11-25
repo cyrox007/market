@@ -15,19 +15,11 @@
 
 ## Подготовка на RDP
 
-Рабочая папка: `C:\OSPanel\home\svetofor.local` на SERVER-AD.
-В PowerShell запустить:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\OSPanel\home\svetofor.local\scripts\local\prepare-sub-develop.ps1
-```
-
-Скрипт проверяет локальные настройки, очищает кэш конфигурации, применяет миграции,
-очищает скомпилированные представления, создаёт локальный способ оплаты Сбера и
-запускает обработчик очереди `default` и планировщик в скрытых окнах. Повторный запуск допустим.
-Результат: `services/backend/storage/logs/sub-develop-setup.log`, маркер
-`SUB_DEVELOP_SETUP_OK` и `SUB_DEVELOP_SCHEDULER_OK`. Логи планировщика: `sub-develop-scheduler.log` и `sub-develop-scheduler-error.log`. Логи worker: `sub-develop-worker.log` и
-`sub-develop-worker-error.log` в том же каталоге.
+После настройки локального окружения по списку ниже выполните из `services/backend`
+команды `php artisan config:clear`, `php artisan migrate`, `php artisan view:clear`
+и `php artisan sber:simulator-setup`. Перезапустите существующий воркер через
+`php artisan queue:restart`. Запустите `php artisan queue:work --queue=default`
+и `php artisan schedule:work` в отдельных терминалах, если они ещё не работают.
 
 Настройки локальной копии:
 

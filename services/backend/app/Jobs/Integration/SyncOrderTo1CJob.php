@@ -27,15 +27,18 @@ class SyncOrderTo1CJob implements ShouldQueue, \Illuminate\Contracts\Queue\Shoul
     public int $uniqueFor = 600;
     public int $timeout = 120;
 
+    private ?array $auditContext = null;
+
     public function uniqueId(): string { return 'order:'.$this->orderId; }
     public function middleware(): array
     {
-        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping('order-sync:'.$this->orderId))->releaseAfter(10)->expireAfter(180)];
+        return [new \App\Jobs\Middleware\WithActivityAuditContext('integration', $this->auditContext), (new \Illuminate\Queue\Middleware\WithoutOverlapping('order-sync:'.$this->orderId))->releaseAfter(10)->expireAfter(180)];
     }
 
     public function __construct(
-        private readonly int $orderId
+        private readonly int $orderId, ?array $auditContext = null
     ) {
+        $this->auditContext = $auditContext ?? \App\Services\Audit\AuditExecutionContext::capture('integration');
         $this->queue = (string) (config('services.integration_1c.orders_queue') ?? 'integration-orders');
     }
 
@@ -57,10 +60,12 @@ class SyncOrderTo1CJob implements ShouldQueue, \Illuminate\Contracts\Queue\Shoul
 
         if (! $ok) {
             $order->update(['integration_state' => 'failed']);
+            app(\App\Services\Audit\ActivityAudit::class)->bestEffort('order', 'integration.order_send', 'order', $this->orderId, 'error');
             throw new \RuntimeException('Order integration did not acknowledge successful delivery.');
         }
         $order->update(['integration_state' => 'sent', 'integration_sent_at' => now()]);
 
+        app(\App\Services\Audit\ActivityAudit::class)->bestEffort('order', 'integration.order_send', 'order', $this->orderId);
         Log::info('SyncOrderTo1CJob finished', [
             'order_id' => $this->orderId,
             'order_number' => $order->number,

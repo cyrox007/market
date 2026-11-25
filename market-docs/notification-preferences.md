@@ -49,15 +49,10 @@ POST по той же ссылке выключает рекламу однов�
 ## Установка на RDP
 
 Миграция `2026_11_19_160000_connect_notification_preferences` обязательна.
-В PowerShell на SERVER-AD:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\OSPanel\home\svetofor.local\scripts\local\prepare-notifications.ps1
-```
-
-Скрипт допускает только APP_ENV=local и MAIL_MAILER=log, применяет миграцию, очищает
-кэши и перезапускает локальную очередь. Журнал: `services/backend/storage/logs/notification-preferences-setup.log`,
-маркер `NOTIFICATION_PREFERENCES_SETUP_OK`. Выкладка на Beget выполняется отдельно.
+На локальной копии установите `APP_ENV=local` и `MAIL_MAILER=log`.
+Из `services/backend` выполните `php artisan config:clear`, `php artisan migrate`
+и `php artisan queue:restart`. Если воркер ещё не запущен, запустите
+`php artisan queue:work --queue=default` в отдельном терминале.
 
 ## Автономная отправка
 

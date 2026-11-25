@@ -9,6 +9,8 @@ use Vanilo\Payment\Models\PaymentProxy;
 
 class PaymentRefund extends Model
 {
+    use \App\Models\Traits\TransactionalActivityAudit;
+
     protected static function booted(): void
     {
         static::updating(function (self $refund): void {
