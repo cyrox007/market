@@ -40,7 +40,6 @@ class EditProduct extends EditRecord
                 ->label('Сохранить и остаться')
                 ->icon('heroicon-m-pencil-square')
                 ->color('gray')
-                ->extraAttributes(['data-save-overlay' => true])
                 ->action('saveAndStay')
                 ->keyBindings(['mod+shift+s']),
             $this->getCancelFormAction(),

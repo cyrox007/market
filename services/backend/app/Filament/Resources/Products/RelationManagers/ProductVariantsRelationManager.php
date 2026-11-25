@@ -7,6 +7,7 @@ use App\Actions\Product\BuildMergedProductDraftAction;
 use App\Actions\Product\DetachVariantFromParentAction;
 use App\Actions\Product\GetVariationAttributesForProductAction;
 use App\Actions\Product\SyncVariantVariationAttributesAction;
+use App\Filament\Forms\ProductAttributeFormLookup;
 use App\Filament\Forms\ProductColorRowsField;
 use App\Filament\Forms\WarehouseStocksFormComponents;
 use App\Filament\Resources\Products\ProductResource;
@@ -19,6 +20,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
@@ -358,24 +360,35 @@ class ProductVariantsRelationManager extends RelationManager
                 TextInput::make('weight')->label('Вес (кг)')->numeric(),
                 Repeater::make('offer_attributes')->label('Свои характеристики')->defaultItems(0)->schema([
                     Select::make('attribute_id')->label('Характеристика')->required()->searchable()->live()
-                        ->options(fn () => \App\Models\Product\Attribute::whereIn('id', app(\App\Services\Product\OfferAttributeOverrides::class)->ids($parentProduct))
-                            ->orderBy('sort_order')->pluck('name', 'id'))
-                        ->afterStateUpdated(function (Set $set): void {
+                        ->options(fn () => ProductAttributeFormLookup::current()->options(
+                            'offer:'.$parentProduct->getKey(),
+                            fn () => \App\Models\Product\Attribute::whereIn('id', app(\App\Services\Product\OfferAttributeOverrides::class)->ids($parentProduct))
+                                ->orderBy('sort_order')->pluck('name', 'id'),
+                        ))
+                        ->afterStateUpdated(function (Select $component, Set $set): void {
                             $set('attribute_value_id', null);
                             $set('custom_value', null);
+                            $component->getContainer()->getParentComponent()?->partiallyRender();
                         }),
                     \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')->label('Значение')
-                        ->options(fn (Get $get) => AttributeValue::where('attribute_id', $get('attribute_id'))->pluck('value', 'id'))
-                        ->multiple(fn (Get $get) => (bool) \App\Models\Product\Attribute::find($get('attribute_id'))?->is_multiple)
+                        ->options(fn (Field $component, Get $get) => ProductAttributeFormLookup::current()
+                            ->values($component, $get->integer('attribute_id', isNullable: true)))
+                        ->multiple(fn (Field $component, Get $get) => (bool) ProductAttributeFormLookup::current()
+                            ->attribute($component, $get->integer('attribute_id', isNullable: true))?->is_multiple)
                         ->searchable()->live()
-                        ->afterStateUpdated(function ($state, Set $set): void {
+                        ->afterStateUpdated(function (Select $component, $state, Set $set): void {
                             if (filled($state)) {
                                 $set('custom_value', null);
                             }
+
+                            $component->getContainer()->getParentComponent()?->partiallyRender();
                         }),
                     TextInput::make('custom_value')->label('Своё значение')->maxLength(1000)
-                        ->visible(fn (Get $get) => (bool) \App\Models\Product\Attribute::find($get('attribute_id'))?->allow_custom_value)
-                        ->live()->afterStateUpdated(function ($state, Set $set): void {
+                        ->visible(fn (Field $component, Get $get) => (bool) ProductAttributeFormLookup::current()
+                            ->attribute($component, $get->integer('attribute_id', isNullable: true))?->allow_custom_value)
+                        ->live()
+                        ->partiallyRenderComponentsAfterStateUpdated(['attribute_value_id'])
+                        ->afterStateUpdated(function ($state, Set $set): void {
                             if (filled($state)) {
                                 $set('attribute_value_id', null);
                             }

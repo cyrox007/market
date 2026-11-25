@@ -2,14 +2,15 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Filament\Forms\ProductAttributeFormLookup;
 use App\Filament\Forms\ProductColorRowsField;
 use App\Filament\Resources\Products\Attributes\AttributeQuickCreate;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeTemplate;
-use App\Models\Product\AttributeValue;
 use App\Models\Product\Product;
 use App\Models\Product\ProductDocument;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -219,61 +220,66 @@ class ProductClassicForm extends ProductForm
                     ->schema([
                         Select::make('attribute_id')
                             ->label('Характеристика')
-                            ->options(fn (?Product $record) => Attribute::query()
-                                ->assignableToProduct($record)
-                                ->orderBy('sort_order')
-                                ->orderBy('name')
-                                ->pluck('name', 'id'))
+                            ->options(fn (?Product $record) => ProductAttributeFormLookup::current()->options(
+                                'product:'.($record?->getKey() ?? 'new'),
+                                fn () => Attribute::query()
+                                    ->assignableToProduct($record)
+                                    ->orderBy('sort_order')
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id'),
+                            ))
                             ->searchable()
                             ->preload()
                             ->required()
                             ->live()
-                            ->afterStateUpdated(function ($set) {
+                            ->afterStateUpdated(function (Select $component, $set) {
                                 $set('attribute_value_id', null);
                                 $set('custom_value', null);
+                                $component->getContainer()->getParentComponent()?->partiallyRender();
                             })
                             ->createOptionForm(AttributeQuickCreate::form())
-                            ->createOptionUsing(fn (array $data) => AttributeQuickCreate::create($data)),
+                            ->createOptionUsing(function (array $data): int {
+                                $id = AttributeQuickCreate::create($data);
+                                ProductAttributeFormLookup::current()->forgetOptions();
+
+                                return $id;
+                            }),
 
                         \App\Filament\Forms\AttributeValueSelect::make('attribute_value_id')
                             ->label('Значение')
-                            ->options(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                if (! $attributeId) {
-                                    return [];
-                                }
-
-                                return AttributeValue::query()
-                                    ->where('attribute_id', $attributeId)
-                                    ->orderBy('sort_order')
-                                    ->orderBy('value')
-                                    ->pluck('value', 'id');
-                            })
-                            ->multiple(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                return $attributeId && (bool) Attribute::query()->find($attributeId)?->is_multiple;
-                            })
+                            ->options(fn (Field $component, Get $get) => ProductAttributeFormLookup::current()
+                                ->values($component, $get->integer('attribute_id', isNullable: true), ordered: true))
+                            ->multiple(fn (Field $component, Get $get) => (bool) ProductAttributeFormLookup::current()
+                                ->attribute($component, $get->integer('attribute_id', isNullable: true))?->is_multiple)
                             ->searchable()
                             ->live()
                             ->disabled(fn ($get) => ! $get('attribute_id'))
-                            ->afterStateUpdated(function ($state, $set) {
+                            ->afterStateUpdated(function (Select $component, $state, $set) {
                                 if ($state !== null && $state !== '' && $state !== []) {
                                     $set('custom_value', null);
                                 }
+
+                                $component->getContainer()->getParentComponent()?->partiallyRender();
                             })
                             ->createOptionForm([
-                                TextInput::make('value')->label('Значение')->required()->maxLength(255),
+                                TextInput::make('value')->label('Значение')->required()->maxLength(255)
+                                    ->skipRenderAfterStateUpdated(),
                             ])
-                            ->createOptionUsing(fn (array $data, $get): int => \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create($data, $get('attribute_id'))),
+                            ->createOptionUsing(function (array $data, Get $get): int {
+                                $attributeId = $get('attribute_id');
+                                $id = \App\Filament\Resources\Products\Attributes\AttributeValueQuickCreate::create($data, $attributeId);
+                                ProductAttributeFormLookup::current()->forgetValues((int) $attributeId);
+
+                                return $id;
+                            }),
 
                         TextInput::make('custom_value')
                             ->label('Своё значение')
                             ->maxLength(1000)
-                            ->visible(function ($get) {
-                                $attributeId = $get('attribute_id');
-                                return $attributeId && (bool) Attribute::query()->find($attributeId)?->allow_custom_value;
-                            })
+                            ->visible(fn (Field $component, Get $get) => (bool) ProductAttributeFormLookup::current()
+                                ->attribute($component, $get->integer('attribute_id', isNullable: true))?->allow_custom_value)
                             ->live()
+                            ->partiallyRenderComponentsAfterStateUpdated(['attribute_value_id'])
                             ->afterStateUpdated(function ($state, $set) {
                                 if ($state !== null && trim((string) $state) !== '') {
                                     $set('attribute_value_id', null);

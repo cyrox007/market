@@ -16,13 +16,20 @@ class ProductAttributeSyncService
      */
     public function sync(Product $product, array $rows, ?array $attributeIds = null): void
     {
-        DB::transaction(function () use ($product, $rows, $attributeIds): void {
+        $changed = DB::transaction(function () use ($product, $rows, $attributeIds): bool {
             DB::table('products')->where('id', $product->id)->lockForUpdate()->first();
             $delete = DB::table('product_product_attributes')->where('product_id', $product->id);
             $attributeIds !== null
                 ? $delete->whereIn('attribute_id', $attributeIds)
-                : $delete->whereNotIn('attribute_id', Attribute::hiddenIds());
-            $delete->delete();
+                : $delete->whereNotIn('attribute_id', Attribute::hiddenIds())
+                    ->whereNotIn('attribute_id', Attribute::query()->select('id')->where('slug', Attribute::SLUG_MANUFACTURER));
+
+            $selectedIds = array_unique(array_map('intval', array_column($rows, 'attribute_id')));
+            $attributes = Attribute::query()->whereKey($selectedIds)->get()->keyBy('id');
+            $selectedValues = collect($rows)->flatMap(fn (array $row) => (array) ($row['attribute_value_id'] ?? []))
+                ->filter(fn ($id) => is_numeric($id))->map(fn ($id) => (int) $id)->unique()->all();
+            $valuesByAttribute = AttributeValue::query()->whereKey($selectedValues)
+                ->get(['id', 'attribute_id'])->groupBy('attribute_id');
 
             $insert = [];
             foreach (array_values($rows) as $position => $row) {
@@ -34,8 +41,8 @@ class ProductAttributeSyncService
                     continue;
                 }
 
-                $attribute = Attribute::query()->find($attributeId);
-                if (! $attribute) {
+                $attribute = $attributes->get($attributeId);
+                if (! $attribute || $attribute->slug === Attribute::SLUG_MANUFACTURER) {
                     continue;
                 }
 
@@ -50,12 +57,8 @@ class ProductAttributeSyncService
                 ))));
 
                 if ($valueIds !== []) {
-                    $validValueIds = AttributeValue::query()
-                        ->where('attribute_id', $attributeId)
-                        ->whereIn('id', $valueIds)
-                        ->pluck('id')
-                        ->map(fn ($id) => (int) $id)
-                        ->all();
+                    $validValueIds = $valuesByAttribute->get($attributeId)?->pluck('id')
+                        ->map(fn ($id) => (int) $id)->intersect($valueIds)->all() ?? [];
 
                     foreach ($validValueIds as $valueId) {
                         $insert[] = $this->row($product->id, $attributeId, $valueId, null, $position);
@@ -72,12 +75,32 @@ class ProductAttributeSyncService
                 }
             }
 
-            if ($insert !== []) {
-                DB::table('product_product_attributes')->insert(collect($insert)->unique(fn (array $row) => json_encode([
-                    $row['attribute_id'], $row['attribute_value_id'], $row['custom_value'],
-                ]))->values()->all());
+            $insert = collect($insert)->unique(fn (array $row) => json_encode([
+                $row['attribute_id'], $row['attribute_value_id'], $row['custom_value'],
+            ]))->values()->all();
+            $signature = static fn ($row): array => [
+                (int) $row['attribute_id'],
+                isset($row['attribute_value_id']) ? (int) $row['attribute_value_id'] : null,
+                $row['custom_value'],
+                (int) $row['sort_order'],
+            ];
+            $current = $delete->get(['attribute_id', 'attribute_value_id', 'custom_value', 'sort_order'])
+                ->map(fn ($row) => $signature((array) $row))->sort()->values()->all();
+            if ($current === collect($insert)->map($signature)->sort()->values()->all()) {
+                return false;
             }
+
+            $delete->delete();
+            if ($insert !== []) {
+                DB::table('product_product_attributes')->insert($insert);
+            }
+
+            return true;
         });
+
+        if (! $changed) {
+            return;
+        }
 
         // Pivots are saved after the product event; invalidate the final persisted attribute state.
         $product->unsetRelation('attributes')->unsetRelation('variantAttributes')->unsetRelation('attributeValues')->unsetRelation('variantAttributeValues');
