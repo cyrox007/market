@@ -39,7 +39,7 @@ class ProductOneCConversionTest extends TestCase
         $this->assertSame($parent->external_id, $fields['external_id']->getDefaultState());
         $this->assertEquals(
             $parent->warehouseStocks()->get(['warehouse_id', 'quantity'])->toArray(),
-            $fields['warehouseStocks']->getDefaultState(),
+            array_values($fields['warehouseStocks']->getDefaultState()),
         );
         $this->assertSame('onec-transfer-code', $parent->fresh()->external_id);
         $this->assertFalse($parent->fresh()->isVariable());
