@@ -19,6 +19,13 @@ class ProductOneCConversionTest extends TestCase
         $page->record = $parent;
         $action = EditProduct::createOfferWithOneCCodeAction()->livewire($page);
 
+        // A CreateAction on a product resource resolves to the /create URL in Filament 4.3.
+        $this->assertNull($action->getUrl());
+        $this->assertFalse($action->canSubmitForm());
+        $this->assertTrue($action->isLivewireClickHandlerEnabled());
+        $this->assertStringContainsString("mountAction('createOfferWithOneCCode'", $action->getLivewireClickHandler());
+        $this->assertTrue($action->shouldOpenModal());
+
         // Filament 4.3 may pass the existing record to actions embedded in an edit form.
         $schema = $action->getSchema(Schema::make($page)->model($parent));
 
