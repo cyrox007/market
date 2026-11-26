@@ -75,32 +75,17 @@ class EditProduct extends EditRecord
                 ->icon('heroicon-o-exclamation-triangle')
                 ->color('warning')
                 ->modalSubmitActionLabel('Выполнить')
-                ->visible(fn (): bool => ! $this->record->isVariant() && ! $this->record->is_sellable_bundle && filled($this->record->external_id))
+                ->visible(fn (): bool => ! $this->record->isVariant() && $this->record->isVariable() && ! $this->record->is_sellable_bundle && filled($this->record->external_id))
                 ->authorize(fn (): bool => ProductResource::canEdit($this->record))
                 ->modalDescription(fn (): string => 'Код '.$this->record->external_id.' будет освобождён на общей карточке. Сохраните текущие изменения в форме перед выполнением.')
                 ->fillForm(fn (): array => [
                     'expected_code' => $this->record->external_id,
                     'offer_name' => $this->record->name,
-                    'price' => $this->record->price,
+                    'offer_price' => $this->record->price,
                 ])
                 ->schema([
                     \Filament\Forms\Components\Hidden::make('expected_code')->required(),
-                    Select::make('operation')->label('Что сделать с кодом 1С')->required()->live()
-                        ->afterStateUpdated(fn (\Filament\Schemas\Components\Utilities\Set $set) => $set('confirmed', false))
-                        ->options(fn (): array => (ProductResource::canCreate() ? ['create' => 'Создать предложение и перенести остатки'] : [])
-                            + ['clear' => 'Освободить код, остатки оставить на карточке']),
-                    TextInput::make('offer_name')->label('Название предложения')->maxLength(255)
-                        ->visible(fn (Get $get): bool => $get('operation') === 'create')->required(),
-                    TextInput::make('price')->label('Цена предложения')->numeric()->minValue(0)
-                        ->visible(fn (Get $get): bool => $get('operation') === 'create'),
-                    Checkbox::make('confirmed')
-                        ->label('Подтверждаю изменение кода 1С')
-                        ->helperText(fn (Get $get): string => $get('operation') === 'create'
-                            ? 'Код и складские остатки будут сняты с общей карточки и перенесены в новое предложение.'
-                            : 'Код будет снят с общей карточки. Остатки останутся на ней, а предложение нужно будет создать вручную.')
-                        ->visible(fn (Get $get): bool => filled($get('operation')))
-                        ->accepted()
-                        ->validationMessages(['accepted' => 'Подтвердите изменение кода 1С.']),
+                    ...self::oneCConversionFields(),
                 ])
                 ->action(function (array $data): void {
                     abort_unless(in_array($data['operation'], ['create', 'clear'], true), 422);
@@ -111,7 +96,7 @@ class EditProduct extends EditRecord
                         $offer = app(ConvertProductWithOneCCode::class)->execute(
                             $this->record, (string) $data['expected_code'],
                             $create ? $data['offer_name'] : null,
-                            isset($data['price']) ? (float) $data['price'] : null,
+                            isset($data['offer_price']) ? (float) $data['offer_price'] : null,
                         );
                     } catch (ValidationException $exception) {
                         $path = $this->getMountedActionSchema()->getStatePath();
@@ -238,6 +223,28 @@ class EditProduct extends EditRecord
      * На странице редактирования товара хлебные крошки дублируют название товара
      * и занимают заметную высоту. Возврат к списку остаётся через навигацию/Cancel.
      */
+    public static function oneCConversionFields(): array
+    {
+        return [
+            Select::make('operation')->label('Что сделать с кодом 1С')->required()->live()
+                ->afterStateUpdated(fn (\Filament\Schemas\Components\Utilities\Set $set) => $set('confirmed', false))
+                ->options(fn (): array => (ProductResource::canCreate() ? ['create' => 'Создать предложение и перенести остатки'] : [])
+                    + ['clear' => 'Освободить код, остатки оставить на карточке']),
+            TextInput::make('offer_name')->label('Название предложения')->maxLength(255)
+                ->visible(fn (Get $get): bool => $get('operation') === 'create')->required(),
+            TextInput::make('offer_price')->label('Цена предложения')->numeric()->minValue(0)
+                ->visible(fn (Get $get): bool => $get('operation') === 'create'),
+            Checkbox::make('confirmed')
+                ->label('Подтверждаю изменение кода 1С')
+                ->helperText(fn (Get $get): string => $get('operation') === 'create'
+                    ? 'Код и складские остатки будут сняты с общей карточки и перенесены в новое предложение.'
+                    : 'Код будет снят с общей карточки. Остатки останутся на ней, а предложение нужно будет создать вручную.')
+                ->visible(fn (Get $get): bool => filled($get('operation')))
+                ->accepted()
+                ->validationMessages(['accepted' => 'Подтвердите изменение кода 1С.']),
+        ];
+    }
+
     public function hasResourceBreadcrumbs(): bool
     {
         return false;
@@ -280,15 +287,20 @@ class EditProduct extends EditRecord
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
             $current = Product::lockForUpdate()->findOrFail($record->getKey());
-            if (! $current->is_variable && ! empty($data['is_variable'])
-                && filled($current->external_id) && ! $current->is_sellable_bundle) {
-                Notification::make()->title('Сначала выберите, что сделать с кодом 1С')
-                    ->body('Вверху карточки нажмите «Перенести или освободить код 1С».')
-                    ->warning()->send();
-
-                throw ValidationException::withMessages([
-                    'data.is_variable' => 'Перенесите или освободите код 1С перед сохранением вариативной карточки.',
-                ]);
+            $operation = $data['operation'] ?? null;
+            $confirmed = (bool) ($data['confirmed'] ?? false);
+            $offerName = $data['offer_name'] ?? null;
+            $offerPrice = isset($data['offer_price']) ? (float) $data['offer_price'] : null;
+            unset($data['operation'], $data['confirmed'], $data['offer_name'], $data['offer_price']);
+            $converting = ! $current->isVariable() && ! empty($data['is_variable'])
+                && (filled($current->external_id) || filled($data['external_id'] ?? null)) && ! $current->is_sellable_bundle;
+            if ($converting) {
+                if (! in_array($operation, ['create', 'clear'], true) || ! $confirmed
+                    || ($operation === 'create' && blank($offerName))) {
+                    throw ValidationException::withMessages(['data.operation' => 'Выберите и подтвердите действие с кодом 1С.']);
+                }
+                abort_if($operation === 'create' && ! ProductResource::canCreate(), 403);
+                $data['is_variable'] = false;
             }
 
             if (array_key_exists('external_id', $data)) {
@@ -302,7 +314,22 @@ class EditProduct extends EditRecord
             }
             // Filament keeps the original record instance for afterSave/form state.
             $record->setRawAttributes($current->getAttributes(), true);
-            return parent::handleRecordUpdate($record, $data);
+            parent::handleRecordUpdate($record, $data);
+            if ($converting) {
+                try {
+                    app(ConvertProductWithOneCCode::class)->execute(
+                        $record, (string) $record->external_id,
+                        $operation === 'create' ? trim($offerName) : null, $offerPrice,
+                    );
+                } catch (ValidationException $exception) {
+                    throw ValidationException::withMessages(['data.operation' => $exception->validator->errors()->first()]);
+                }
+                $record->refresh();
+                $this->data['external_id'] = null;
+                unset($this->data['operation'], $this->data['confirmed'], $this->data['offer_name'], $this->data['offer_price']);
+            }
+
+            return $record;
         });
     }
 

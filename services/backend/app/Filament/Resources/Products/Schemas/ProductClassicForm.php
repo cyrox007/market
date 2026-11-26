@@ -182,6 +182,18 @@ class ProductClassicForm extends ProductForm
                     ->disabled(fn ($record) => $record && $record->variants()->count() > 0)
                     ->dehydrated()
                     ->live()
+                    ->afterStateUpdated(function (bool $state, Set $set): void {
+                        if (! $state) {
+                            $set('operation', null);
+                            $set('confirmed', false);
+                        }
+                    })
+                    ->columnSpanFull(),
+
+                Group::make(\App\Filament\Resources\Products\Pages\EditProduct::oneCConversionFields())
+                    ->visible(fn (Get $get, ?Product $record): bool => $record !== null
+                        && ! $record->isVariable() && ! $record->isVariant() && ! $record->is_sellable_bundle
+                        && (filled($record->external_id) || $get->filled('external_id')) && $get->boolean('is_variable'))
                     ->columnSpanFull(),
 
                 Placeholder::make('variants_info')
