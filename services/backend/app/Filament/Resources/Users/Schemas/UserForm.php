@@ -4,11 +4,17 @@ namespace App\Filament\Resources\Users\Schemas;
 
 use App\Support\AdminAccessCatalog;
 use App\Support\PhoneNumber;
+use App\Support\UserName;
+use Closure;
+use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class UserForm
 {
@@ -18,17 +24,19 @@ class UserForm
             ->components([
                 Section::make('Основная информация')
                     ->schema([
-                        TextInput::make('name')
-                            ->label(__('filament/admin_sv/user_resource.name'))
+                        TextInput::make('last_name')
+                            ->label('Фамилия')
                             ->required()
                             ->maxLength(255),
                         TextInput::make('first_name')
-                            ->label('Имя (отдельное поле)')
+                            ->label('Имя')
+                            ->required()
                             ->maxLength(255)
-                            ->helperText('Заполняйте вместе с фамилией; старое ФИО не разбивается автоматически.'),
-                        TextInput::make('last_name')
-                            ->label('Фамилия (отдельное поле)')
-                            ->maxLength(255),
+                            ->rules([fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                if (mb_strlen(self::fullName($get) ?? '') > 255) {
+                                    $fail('ФИО целиком должно содержать не более 255 символов.');
+                                }
+                            }]),
                         TextInput::make('patronymic')
                             ->label('Отчество (необязательно)')
                             ->maxLength(255),
@@ -50,6 +58,12 @@ class UserForm
                         TextInput::make('password')
                             ->label(__('filament/admin_sv/user_resource.password'))
                             ->password()
+                            ->revealable()
+                            ->suffixAction(Action::make('generatePassword')
+                                ->label('Сгенерировать пароль')
+                                ->tooltip('Сгенерировать пароль')
+                                ->icon('heroicon-o-key')
+                                ->action(fn (Set $set) => $set('password', Str::password(20))))
                             ->dehydrateStateUsing(fn($state) => Hash::make($state))
                             ->dehydrated(fn($state) => filled($state))
                             ->required(fn(string $context): bool => $context === 'create')
@@ -67,5 +81,15 @@ class UserForm
                             ->helperText('Для изменения разрешений откройте раздел «Права доступа → Роли».'),
                     ]),
             ]);
+    }
+
+    private static function fullName(Get $get): ?string
+    {
+        $first = UserName::normalize($get->string('first_name', isNullable: true));
+        $last = UserName::normalize($get->string('last_name', isNullable: true));
+
+        return $first !== null && $last !== null
+            ? UserName::format($first, $last, $get->string('patronymic', isNullable: true))
+            : null;
     }
 }

@@ -100,7 +100,7 @@ class User extends Authenticatable implements FilamentUser
                 }
             }
 
-            if ($user->isDirty(['first_name', 'last_name', 'patronymic'])
+            if (($user->isDirty(['first_name', 'last_name', 'patronymic']) || ! $user->isDirty('name'))
                 && $user->first_name !== null && $user->last_name !== null) {
                 $user->name = UserName::format($user->first_name, $user->last_name, $user->patronymic);
 
