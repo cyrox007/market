@@ -332,18 +332,43 @@ class EditProduct extends EditRecord
                 ]);
             }
 
+            // Проверяем актуальное состояние под блокировкой, а не снимок открытой формы.
+            if ($current->variants()->exists()) {
+                $data['is_variable'] = true;
+            }
+
             if (array_key_exists('external_id', $data)) {
                 $value = trim((string) $data['external_id']);
                 if (filled($current->external_id) && $value !== (string) $current->external_id) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'data.external_id' => 'Код 1С уже заполнен. Обновите страницу: менять сохранённый код нельзя.',
                     ]);
                 }
+
+                if ($value !== '' && ! $current->isVariant() && ! $current->is_sellable_bundle
+                    && ($current->isVariable() || ! empty($data['is_variable']))) {
+                    throw ValidationException::withMessages([
+                        'data.is_variable' => 'Код 1С вариативного товара должен находиться в торговом предложении. Обновите страницу и проверьте данные.',
+                    ]);
+                }
+
                 $data['external_id'] = $value === '' ? null : $value;
             }
             // Filament keeps the original record instance for afterSave/form state.
             $record->setRawAttributes($current->getAttributes(), true);
-            parent::handleRecordUpdate($record, $data);
+            try {
+                parent::handleRecordUpdate($record, $data);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $exception) {
+                $message = $exception->getPrevious()?->getMessage() ?? '';
+                if (! str_contains($message, 'products_external_id_unique')
+                    && ! str_contains($message, 'UNIQUE constraint failed: products.external_id')) {
+                    throw $exception;
+                }
+
+                throw ValidationException::withMessages([
+                    'data.external_id' => 'Этот код 1С уже используется другим товаром или торговым предложением. Обновите страницу и проверьте код.',
+                ]);
+            }
 
             return $record;
         });
