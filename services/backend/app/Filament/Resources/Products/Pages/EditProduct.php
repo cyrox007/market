@@ -13,7 +13,6 @@ use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -210,14 +209,18 @@ class EditProduct extends EditRecord
             });
     }
 
-    public static function createOfferWithOneCCodeAction(): CreateAction
+    public static function createOfferWithOneCCodeAction(): Action
     {
-        return CreateAction::make('createOfferWithOneCCode')
+        // CreateAction автоматически получает URL страницы создания товара от Filament.
+        // Здесь нужен только модальный сценарий на текущей странице редактирования.
+        return Action::make('createOfferWithOneCCode')
             ->label('Создать торговое предложение')
             ->modalHeading('Добавить торговое предложение')
             ->modalDescription(fn (EditProduct $livewire): string => 'При создании предложения код '.$livewire->getRecord()->external_id.' будет снят с общей карточки. Проверьте склады и остатки в форме.')
             ->model(Product::class)
-            ->createAnother(false)
+            ->modal()
+            ->modalSubmitActionLabel('Создать торговое предложение')
+            ->successNotificationTitle('Торговое предложение создано.')
             ->databaseTransaction()
             ->authorize(fn (EditProduct $livewire): bool => ProductResource::canEdit($livewire->getRecord()) && ProductResource::canCreate())
             // В Filament 4.3 действие внутри формы может унаследовать запись родителя.
@@ -227,14 +230,14 @@ class EditProduct extends EditRecord
                 $livewire->getRecord(),
                 transferCode: true,
             ))
-            ->using(function (array $data, EditProduct $livewire): Product {
+            ->action(function (array $data, EditProduct $livewire, Schema $schema, Action $action): void {
                 $stocks = array_values($data['warehouseStocks'] ?? []);
                 unset($data['warehouseStocks']);
                 $data['stock'] = $stocks === [] ? ($data['stock'] ?? 0) : array_sum(array_column($stocks, 'quantity'));
-                $path = $livewire->getMountedActionSchema()?->getStatePath();
+                $path = $schema->getStatePath();
 
                 try {
-                    return app(ConvertProductWithOneCCode::class)->execute(
+                    $offer = app(ConvertProductWithOneCCode::class)->execute(
                         $livewire->getRecord(),
                         (string) $data['external_id'],
                         function (Product $parent) use ($data, $stocks, $path): Product {
@@ -253,8 +256,12 @@ class EditProduct extends EditRecord
                         filled($path) ? $path.'.external_id' : 'external_id' => $exception->validator->errors()->first(),
                     ]);
                 }
-            })
-            ->after(fn (EditProduct $livewire) => $livewire->refreshAfterOneCConversion(movedStocks: true));
+
+                // Сохраняем связи (цвета, изображения) только у созданного ТП.
+                $schema->model($offer)->saveRelationships();
+                $livewire->refreshAfterOneCConversion(movedStocks: true);
+                $action->success();
+            });
     }
 
     private function refreshAfterOneCConversion(bool $movedStocks = false): void
