@@ -6,17 +6,18 @@ use App\Actions\Inventory\Sync\RefreshProductStocksFrom1CAction;
 use App\Actions\Product\ConvertProductWithOneCCode;
 use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
 use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\Select;
+use Filament\Actions\CreateAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
@@ -70,45 +71,6 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('convertOneCProduct')
-                ->label('Перенести или освободить код 1С')
-                ->icon('heroicon-o-exclamation-triangle')
-                ->color('warning')
-                ->modalSubmitActionLabel('Выполнить')
-                ->visible(fn (): bool => ! $this->record->isVariant() && $this->record->isVariable() && ! $this->record->is_sellable_bundle && filled($this->record->external_id))
-                ->authorize(fn (): bool => ProductResource::canEdit($this->record))
-                ->modalDescription(fn (): string => 'Код '.$this->record->external_id.' будет освобождён на общей карточке. Сохраните текущие изменения в форме перед выполнением.')
-                ->fillForm(fn (): array => [
-                    'expected_code' => $this->record->external_id,
-                    'offer_name' => $this->record->name,
-                    'offer_price' => $this->record->price,
-                ])
-                ->schema([
-                    \Filament\Forms\Components\Hidden::make('expected_code')->required(),
-                    ...self::oneCConversionFields(),
-                ])
-                ->action(function (array $data): void {
-                    abort_unless(in_array($data['operation'], ['create', 'clear'], true), 422);
-                    $create = $data['operation'] === 'create';
-                    abort_if($create && ! ProductResource::canCreate(), 403);
-
-                    try {
-                        $offer = app(ConvertProductWithOneCCode::class)->execute(
-                            $this->record, (string) $data['expected_code'],
-                            $create ? $data['offer_name'] : null,
-                            isset($data['offer_price']) ? (float) $data['offer_price'] : null,
-                        );
-                    } catch (ValidationException $exception) {
-                        $path = $this->getMountedActionSchema()->getStatePath();
-
-                        throw ValidationException::withMessages([$path.'.operation' => $exception->validator->errors()->first()]);
-                    }
-
-                    Notification::make()
-                        ->title($offer ? 'Предложение создано. Код 1С и остатки перенесены.' : 'Код 1С освобождён.')
-                        ->success()->send();
-                    $this->redirect(static::getResource()::getUrl('edit', ['record' => $this->record]));
-                }),
             Action::make('openParentProduct')
                 ->label('Корневой товар')
                 ->icon('heroicon-o-arrow-uturn-left')
@@ -223,26 +185,85 @@ class EditProduct extends EditRecord
      * На странице редактирования товара хлебные крошки дублируют название товара
      * и занимают заметную высоту. Возврат к списку остаётся через навигацию/Cancel.
      */
-    public static function oneCConversionFields(): array
+    public static function clearOneCCodeAction(): Action
     {
-        return [
-            Select::make('operation')->label('Что сделать с кодом 1С')->required()->live()
-                ->afterStateUpdated(fn (\Filament\Schemas\Components\Utilities\Set $set) => $set('confirmed', false))
-                ->options(fn (): array => (ProductResource::canCreate() ? ['create' => 'Создать предложение и перенести остатки'] : [])
-                    + ['clear' => 'Освободить код, остатки оставить на карточке']),
-            TextInput::make('offer_name')->label('Название предложения')->maxLength(255)
-                ->visible(fn (Get $get): bool => $get('operation') === 'create')->required(),
-            TextInput::make('offer_price')->label('Цена предложения')->numeric()->minValue(0)
-                ->visible(fn (Get $get): bool => $get('operation') === 'create'),
-            Checkbox::make('confirmed')
-                ->label('Подтверждаю изменение кода 1С')
-                ->helperText(fn (Get $get): string => $get('operation') === 'create'
-                    ? 'Код и складские остатки будут сняты с общей карточки и перенесены в новое предложение.'
-                    : 'Код будет снят с общей карточки. Остатки останутся на ней, а предложение нужно будет создать вручную.')
-                ->visible(fn (Get $get): bool => filled($get('operation')))
-                ->accepted()
-                ->validationMessages(['accepted' => 'Подтвердите изменение кода 1С.']),
-        ];
+        return Action::make('clearOneCCode')
+            ->label('Стереть код 1С')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Стереть код 1С и сделать товар вариативным?')
+            ->modalDescription(fn (EditProduct $livewire): string => 'Код '.$livewire->getRecord()->external_id.' будет удалён с общей карточки. Складские остатки останутся на ней.')
+            ->modalSubmitActionLabel('Стереть код')
+            ->authorize(fn (EditProduct $livewire): bool => ProductResource::canEdit($livewire->getRecord()))
+            ->schema([Hidden::make('expected_code')->required()])
+            ->fillForm(fn (EditProduct $livewire): array => ['expected_code' => $livewire->getRecord()->external_id])
+            ->action(function (EditProduct $livewire, array $data): void {
+                try {
+                    app(ConvertProductWithOneCCode::class)->execute($livewire->getRecord(), $data['expected_code']);
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+                    return;
+                }
+
+                $livewire->refreshAfterOneCConversion();
+                Notification::make()->title('Код 1С стёрт.')->success()->send();
+            });
+    }
+
+    public static function createOfferWithOneCCodeAction(): CreateAction
+    {
+        return CreateAction::make('createOfferWithOneCCode')
+            ->label('Создать торговое предложение')
+            ->modalHeading('Добавить торговое предложение')
+            ->modalDescription(fn (EditProduct $livewire): string => 'При создании предложения код '.$livewire->getRecord()->external_id.' будет снят с общей карточки. Проверьте склады и остатки в форме.')
+            ->model(Product::class)
+            ->createAnother(false)
+            ->databaseTransaction()
+            ->authorize(fn (EditProduct $livewire): bool => ProductResource::canEdit($livewire->getRecord()) && ProductResource::canCreate())
+            ->schema(fn (Schema $schema, EditProduct $livewire): Schema => ProductVariantsRelationManager::offerForm($schema, $livewire->getRecord(), transferCode: true))
+            ->using(function (array $data, EditProduct $livewire, Schema $schema): Product {
+                $stocks = array_values($data['warehouseStocks'] ?? []);
+                unset($data['warehouseStocks']);
+                $data['stock'] = $stocks === [] ? ($data['stock'] ?? 0) : array_sum(array_column($stocks, 'quantity'));
+                $path = $schema->getStatePath();
+
+                try {
+                    return app(ConvertProductWithOneCCode::class)->execute(
+                        $livewire->getRecord(),
+                        (string) $data['external_id'],
+                        function (Product $parent) use ($data, $stocks, $path): Product {
+                            $offer = ProductVariantsRelationManager::createOffer($parent, $data, $path);
+                            $offer->warehouseStocks()->createMany($stocks);
+
+                            return $offer;
+                        },
+                    );
+                } catch (ValidationException $exception) {
+                    if (! $exception->validator->errors()->has('operation')) {
+                        throw $exception;
+                    }
+
+                    throw ValidationException::withMessages([$path.'.external_id' => $exception->validator->errors()->first()]);
+                }
+            })
+            ->after(fn (EditProduct $livewire) => $livewire->refreshAfterOneCConversion(movedStocks: true));
+    }
+
+    private function refreshAfterOneCConversion(bool $movedStocks = false): void
+    {
+        $this->getRecord()->refresh();
+        $this->data['external_id'] = null;
+        $this->data['is_variable'] = true;
+
+        if ($movedStocks) {
+            $this->data['warehouseStocks'] = [];
+            $this->data['sku'] = null;
+            $this->data['stock'] = 0;
+            $this->data['backorder'] = false;
+        }
+
+        unset($this->cachedSchemas['content']);
+        $this->activeRelationManager = (string) array_key_first($this->getRelationManagers());
     }
 
     public function hasResourceBreadcrumbs(): bool
@@ -287,20 +308,13 @@ class EditProduct extends EditRecord
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
             $current = Product::lockForUpdate()->findOrFail($record->getKey());
-            $operation = $data['operation'] ?? null;
-            $confirmed = (bool) ($data['confirmed'] ?? false);
-            $offerName = $data['offer_name'] ?? null;
-            $offerPrice = isset($data['offer_price']) ? (float) $data['offer_price'] : null;
-            unset($data['operation'], $data['confirmed'], $data['offer_name'], $data['offer_price']);
-            $converting = ! $current->isVariable() && ! empty($data['is_variable'])
-                && (filled($current->external_id) || filled($data['external_id'] ?? null)) && ! $current->is_sellable_bundle;
-            if ($converting) {
-                if (! in_array($operation, ['create', 'clear'], true) || ! $confirmed
-                    || ($operation === 'create' && blank($offerName))) {
-                    throw ValidationException::withMessages(['data.operation' => 'Выберите и подтвердите действие с кодом 1С.']);
-                }
-                abort_if($operation === 'create' && ! ProductResource::canCreate(), 403);
-                $data['is_variable'] = false;
+            if (! empty($data['is_variable']) && ! $current->isVariable() && ! $current->is_sellable_bundle
+                && (filled($current->external_id) || filled($data['external_id'] ?? null))) {
+                throw ValidationException::withMessages([
+                    'data.is_variable' => filled($current->external_id)
+                        ? 'Сотрите код 1С или создайте с ним торговое предложение.'
+                        : 'Сначала сохраните код 1С без переключения товара на вариативный.',
+                ]);
             }
 
             if (array_key_exists('external_id', $data)) {
@@ -315,19 +329,6 @@ class EditProduct extends EditRecord
             // Filament keeps the original record instance for afterSave/form state.
             $record->setRawAttributes($current->getAttributes(), true);
             parent::handleRecordUpdate($record, $data);
-            if ($converting) {
-                try {
-                    app(ConvertProductWithOneCCode::class)->execute(
-                        $record, (string) $record->external_id,
-                        $operation === 'create' ? trim($offerName) : null, $offerPrice,
-                    );
-                } catch (ValidationException $exception) {
-                    throw ValidationException::withMessages(['data.operation' => $exception->validator->errors()->first()]);
-                }
-                $record->refresh();
-                $this->data['external_id'] = null;
-                unset($this->data['operation'], $this->data['confirmed'], $this->data['offer_name'], $this->data['offer_price']);
-            }
 
             return $record;
         });

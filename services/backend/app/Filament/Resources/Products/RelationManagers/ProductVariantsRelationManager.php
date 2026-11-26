@@ -69,8 +69,11 @@ class ProductVariantsRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        $parentProduct = $this->getOwnerRecord();
+        return self::offerForm($schema, $this->getOwnerRecord());
+    }
 
+    public static function offerForm(Schema $schema, Product $parentProduct, bool $transferCode = false): Schema
+    {
         // Основные поля вариации (идентичность и базовые данные)
         $components = [
             Section::make('Основные данные вариации')
@@ -86,7 +89,8 @@ class ProductVariantsRelationManager extends RelationManager
                     TextInput::make('sku')
                         ->label('Артикул (SKU)')
                         ->required()
-                        ->unique(ignoreRecord: true)
+                        ->unique(ignorable: $transferCode ? $parentProduct : null, ignoreRecord: true)
+                        ->default($transferCode ? ($parentProduct->sku ?: $parentProduct->external_id) : null)
                         ->maxLength(255)
                         ->helperText('Уникальный артикул вариации'),
 
@@ -104,6 +108,7 @@ class ProductVariantsRelationManager extends RelationManager
 
                     TextInput::make('original_price')
                         ->label('Старая цена')
+                        ->default($transferCode ? $parentProduct->original_price : null)
                         ->numeric()
                         ->prefix('₽')
                         ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle)
@@ -112,7 +117,7 @@ class ProductVariantsRelationManager extends RelationManager
                     TextInput::make('stock')
                         ->label('Остаток (общий)')
                         ->numeric()
-                        ->default(0)
+                        ->default($transferCode ? $parentProduct->stock : 0)
                         ->required()
                         ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle
                             && ! ProductStockSettings::getInstance()->warehouse_accounting_enabled)
@@ -121,7 +126,7 @@ class ProductVariantsRelationManager extends RelationManager
                     Toggle::make('backorder')
                         ->label('Разрешить предзаказ')
                         ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle)
-                        ->default(false),
+                        ->default($transferCode && $parentProduct->backorder),
 
                     Select::make('state')
                         ->label('Статус')
@@ -308,7 +313,9 @@ class ProductVariantsRelationManager extends RelationManager
             ->schema([
                 TextInput::make('external_id')
                     ->label('Внешний ID 1С (external_id)')
-                    ->unique(table: Product::class, ignoreRecord: true)
+                    ->unique(table: Product::class, ignorable: $transferCode ? $parentProduct : null, ignoreRecord: true)
+                    ->default($transferCode ? $parentProduct->external_id : null)
+                    ->readOnly($transferCode)
                     ->validationMessages(['unique' => self::EXTERNAL_ID_TAKEN])
                     ->mutateStateForValidationUsing(self::normalizeExternalId(...))
                     ->dehydrateStateUsing(self::normalizeExternalId(...))
@@ -316,12 +323,13 @@ class ProductVariantsRelationManager extends RelationManager
                     ->helperText('UUID торгового предложения в кэше 1С. Обязателен для автоматической загрузки остатков по складам.')
                     ->columnSpanFull(),
 
-                WarehouseStocksFormComponents::warehouseStocksRepeater()
-                    ->visible(fn (): bool => ProductStockSettings::getInstance()->warehouse_accounting_enabled)
+                WarehouseStocksFormComponents::warehouseStocksRepeater(saveRelationship: ! $transferCode)
+                    ->default(fn () => $transferCode ? $parentProduct->warehouseStocks()->get(['warehouse_id', 'quantity'])->toArray() : [])
+                    ->visible(fn (): bool => $transferCode || ProductStockSettings::getInstance()->warehouse_accounting_enabled)
                     ->helperText('Остатки по складам. Склады подтягиваются из 1С при синхронизации (stockId).'),
             ])
             ->collapsible()
-            ->collapsed()
+            ->collapsed(! $transferCode)
             ->visible(fn (): bool => ! $parentProduct->is_sellable_bundle);
 
         $components[] = Section::make('Изображения торгового предложения')
@@ -416,7 +424,31 @@ class ProductVariantsRelationManager extends RelationManager
         return $code === '' ? null : $code;
     }
 
-    private function saveWithExternalIdValidation(\Closure $save): Product
+    public static function createOffer(Product $parentProduct, array $data, ?string $formPath): Product
+    {
+        $data['is_variable'] = false;
+        $data['parent_product_id'] = $parentProduct->id;
+
+        $formDataForSync = $data;
+        $overrides = $data['offer_attributes'] ?? [];
+        unset($data['offer_attributes']);
+        SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
+
+        $variant = self::saveWithExternalIdValidation(fn (): Product => Product::create($data), $formPath);
+
+        app(SyncVariantVariationAttributesAction::class)->execute($variant, $formDataForSync, $parentProduct);
+        app(\App\Services\Product\OfferAttributeOverrides::class)->save($variant, $parentProduct, $overrides);
+
+        if (!$parentProduct->is_variable) {
+            $parentProduct->update(['is_variable' => true]);
+        }
+
+        $parentProduct->flushCache();
+
+        return $variant;
+    }
+
+    private static function saveWithExternalIdValidation(\Closure $save, ?string $path): Product
     {
         try {
             return $save();
@@ -426,8 +458,6 @@ class ProductVariantsRelationManager extends RelationManager
                 && ! str_contains($message, 'UNIQUE constraint failed: products.external_id')) {
                 throw $exception;
             }
-
-            $path = $this->getMountedActionSchema()?->getStatePath();
 
             throw ValidationException::withMessages([
                 filled($path) ? $path.'.external_id' : 'external_id' => self::EXTERNAL_ID_TAKEN,
@@ -644,25 +674,7 @@ class ProductVariantsRelationManager extends RelationManager
                                 throw new \Exception('Нельзя создавать торговые предложения для торговых предложений');
                             }
 
-                            $data['parent_product_id'] = $parentProduct->id;
-
-                            $formDataForSync = $data;
-                            $overrides = $data['offer_attributes'] ?? [];
-                            unset($data['offer_attributes']);
-                            SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
-
-                            $variant = $this->saveWithExternalIdValidation(fn (): Product => Product::create($data));
-
-                            app(SyncVariantVariationAttributesAction::class)->execute($variant, $formDataForSync, $parentProduct);
-                            app(\App\Services\Product\OfferAttributeOverrides::class)->save($variant, $parentProduct, $overrides);
-
-                            if (!$parentProduct->is_variable) {
-                                $parentProduct->update(['is_variable' => true]);
-                            }
-
-                            $parentProduct->flushCache();
-
-                            return $variant;
+                            return self::createOffer($parentProduct, $data, $this->getMountedActionSchema()?->getStatePath());
                         });
                     }),
             ])
@@ -787,11 +799,11 @@ class ProductVariantsRelationManager extends RelationManager
                             }
                             unset($data['offer_attributes']);
                             SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
-                            $this->saveWithExternalIdValidation(function () use ($record, $data): Product {
+                            self::saveWithExternalIdValidation(function () use ($record, $data): Product {
                                 $record->update($data);
 
                                 return $record;
-                            });
+                            }, $this->getMountedActionSchema()?->getStatePath());
                             if ($parent) {
                                 $parent->flushCache();
                             }
