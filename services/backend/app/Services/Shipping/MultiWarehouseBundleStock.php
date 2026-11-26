@@ -29,7 +29,7 @@ class MultiWarehouseBundleStock
         return $allocations;
     }
 
-    private function verifySource(array $source): Warehouse
+    private function verifySource(array $source, bool $outsideZone): Warehouse
     {
         $warehouse = Warehouse::lockForUpdate()->find($source['warehouse_id']);
         if ($warehouse?->physical_site_id) {
@@ -40,6 +40,9 @@ class MultiWarehouseBundleStock
             || hash('sha256', json_encode([$warehouse->getAttributes(),
                 $warehouse->physicalSite?->getAttributes()])) !== ($source['warehouse_fingerprint'] ?? null)) {
             throw ValidationException::withMessages(['warehouse_id' => 'Один из складов изменился. Пересчитайте доставку.']);
+        }
+        if ($outsideZone && $source['profile_id'] === null) {
+            return $warehouse;
         }
         $profile = WarehouseDeliveryProfile::lockForUpdate()->find($source['profile_id']);
         if (! $profile?->is_active || (int) $profile->warehouse_id !== (int) $warehouse->id
@@ -82,7 +85,7 @@ class MultiWarehouseBundleStock
         $allocations = $this->allocations($quote);
         $sources = [];
         foreach ($allocations as $source) {
-            $warehouse = $this->verifySource($source);
+            $warehouse = $this->verifySource($source, ($quote['mode'] ?? null) === 'other_region');
             $sources[$warehouse->id] = $warehouse;
         }
         $quote['demand_reservation'] = true;

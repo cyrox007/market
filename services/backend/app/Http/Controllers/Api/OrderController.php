@@ -418,7 +418,7 @@ class OrderController extends Controller
             $isOnlinePayment = in_array((string) $paymentMethodModel->gateway, ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true);
             $initialStatus = OrderStatus::MANAGER_PROCESSING;
             if ($isOnlinePayment && $directoryDelivery && ($warehouseQuote['selected']['mode'] ?? null) === 'other_region') {
-                return response()->json(['message' => 'Онлайн-оплата недоступна для доставки со склада другого региона.'], 422);
+                return response()->json(['message' => 'Онлайн-оплата будет доступна после согласования.'], 422);
             }
 
             $gatewayClientConfig = null;

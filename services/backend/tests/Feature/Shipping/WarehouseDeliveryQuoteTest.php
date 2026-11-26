@@ -176,9 +176,36 @@ class WarehouseDeliveryQuoteTest extends TestCase
         $this->postJson('/api/v1/orders', [
             'contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'buyer@example.test',
             'payment_method' => 'online', 'delivery_type' => 'delivery', 'directory_external_id' => 'house',
-        ])->assertUnprocessable()->assertJsonPath('message', 'Онлайн-оплата недоступна для доставки со склада другого региона.');
+        ])->assertUnprocessable()->assertJsonPath('message', 'Онлайн-оплата будет доступна после согласования.');
         $this->assertSame(0, Order::count());
         $this->assertSame(0.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
+    }
+
+    public function test_order_is_split_with_outside_warehouse_only_when_multi_warehouse_is_enabled(): void
+    {
+        $local = $this->warehouse();
+        $other = Product::factory()->create(['price' => 500, 'stock' => 20]);
+        $remote = Warehouse::create(['name' => 'Чужой', 'stock_mode' => 'quantity', 'latitude' => 53.0, 'longitude' => 39.6]);
+        $remote->productStocks()->create(['product_id' => $other->id, 'quantity' => 5]);
+        $lines = [['product_id' => $this->product->id, 'quantity' => 1], ['product_id' => $other->id, 'quantity' => 1]];
+        $this->assertFalse(app(WarehouseDeliveryQuote::class)->calculate('house', $lines)['available']);
+
+        config(['bundles.multi_warehouse_enabled' => true]);
+        $selected = app(WarehouseDeliveryQuote::class)->calculate('house', $lines)['selected'];
+        $this->assertSame(['other_region', 'multi', null], [$selected['mode'], $selected['stock_mode'], $selected['total_fulfillment_cost']]);
+        $this->assertSame([$local->id, $remote->id], array_column($selected['warehouse_allocations'], 'warehouse_id'));
+
+        PaymentMethod::create(['code' => 'online', 'name' => 'Онлайн', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'raiffeisen_ecom']);
+        PaymentMethod::create(['code' => 'cash', 'name' => 'Наличные', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
+        foreach ($lines as $line) {
+            $this->postJson('/api/v1/cart', $line)->assertCreated();
+        }
+        $order = ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'buyer@example.test',
+            'payment_method' => 'online', 'delivery_type' => 'delivery', 'directory_external_id' => 'house'];
+        $this->postJson('/api/v1/orders', $order)->assertUnprocessable();
+        $this->postJson('/api/v1/orders', [...$order, 'payment_method' => 'cash'])->assertCreated();
+        $this->assertSame(0.0, (float) Order::firstOrFail()->delivery_cost);
+        $this->assertSame([1.0, 1.0], [(float) $local->productStocks()->first()->reserved_quantity, (float) $remote->productStocks()->first()->reserved_quantity]);
     }
 
     public function test_quote_does_not_allow_another_users_address(): void

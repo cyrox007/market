@@ -19,9 +19,10 @@ class MultiWarehouseBundleDelivery
     /**
      * @param Collection<int,Warehouse> $warehouses eager-loaded as WarehouseDeliveryQuote does
      * @param array<int,int> $quantities physical SKU => units
+     * @param bool $outsideZone склады вне зоны адреса участвуют фактическим остатком, после складов зоны
      * @return array<int,array<string,mixed>>
      */
-    public function options(Collection $warehouses, array $quantities, array $destination, ?array $point, array $unitPrices, array $selection): array
+    public function options(Collection $warehouses, array $quantities, array $destination, ?array $point, array $unitPrices, array $selection, bool $outsideZone = false): array
     {
         if (! config('bundles.multi_warehouse_enabled', false)) {
             return [];
@@ -48,7 +49,8 @@ class MultiWarehouseBundleDelivery
                     return false;
                 }
             });
-            if (! $profile) {
+            $remote = ! $profile;
+            if ($remote && (! $outsideZone || $warehouse->stock_mode !== 'quantity')) {
                 continue;
             }
             $eligible = [];
@@ -63,25 +65,28 @@ class MultiWarehouseBundleDelivery
                     }
                 } elseif ($warehouse->stock_mode === 'quantity') {
                     // The caller has already reduced quantity to free stock.
-                    if (($stocks[$id]->quantity ?? 0) < 1 && ! (isset($stocks[$id]) && ($backorders[$id] ?? false))) {
+                    if (($stocks[$id]->quantity ?? 0) < 1 && ($remote || ! (isset($stocks[$id]) && ($backorders[$id] ?? false)))) {
                         continue;
                     }
                 } else {
                     continue;
                 }
                 $eligible[(int) $id] = $warehouse->stock_mode === 'quantity'
-                    ? (($backorders[$id] ?? false) ? (int) $count : min((int) $count, (int) $stocks[$id]->quantity)) : (int) $count;
+                    ? (($backorders[$id] ?? false) && ! $remote ? (int) $count : min((int) $count, (int) $stocks[$id]->quantity)) : (int) $count;
             }
             if ($eligible === []) {
                 continue;
             }
             $sources[$warehouse->id] = [
                 'warehouse' => $warehouse, 'profile' => $profile,
-                'eligible' => $eligible, 'distance' => $distance,
+                'eligible' => $eligible, 'distance' => $distance, 'remote' => $remote,
                 'physical' => $stocks->map(fn ($stock) => max(0, (int) floor($stock->quantity)))->all(),
-                'services' => app(WarehouseServices::class)->calculate($profile, $selection),
-                'service_options' => app(WarehouseServices::class)->options($profile),
-                'transport' => round((float) $profile->base_price + (float) $profile->price_per_km * ($distance ?? 0), 2),
+                'services' => $remote ? ['handling_cost' => 0.0, 'assembly_cost' => 0.0, 'additional_services_cost' => 0.0,
+                    'additional_services' => [], 'assembly_days' => null, 'requires_assembly' => false]
+                    : app(WarehouseServices::class)->calculate($profile, $selection),
+                'service_options' => $remote ? ['assembly' => ['available' => false, 'required' => false, 'price' => null, 'days' => null], 'handling' => [], 'additional' => []]
+                    : app(WarehouseServices::class)->options($profile),
+                'transport' => $remote ? 0.0 : round((float) $profile->base_price + (float) $profile->price_per_km * ($distance ?? 0), 2),
             ];
         }
 
@@ -111,7 +116,7 @@ class MultiWarehouseBundleDelivery
                 }
                 $preorders = $source['warehouse']->stock_mode === 'quantity'
                     ? collect($coverage)->map(fn ($qty, $id) => max(0, $qty - ($source['physical'][$id] ?? 0)))->sum() : 0;
-                $score = [$preorders, -count($coverage), $source['transport'], (int) $warehouseId];
+                $score = [$preorders, (int) $source['remote'], -count($coverage), $source['remote'] ? ($source['distance'] ?? INF) : $source['transport'], (int) $warehouseId];
                 if ($best === null || $score < $best['score']) {
                     $best = ['score' => $score, 'id' => $warehouseId, 'source' => $source, 'items' => $coverage];
                 }
@@ -130,7 +135,7 @@ class MultiWarehouseBundleDelivery
                 $sourceSubtotal += (float) ($unitPrices[$skuId] ?? 0) * $qty;
             }
             $transportCost = $best['source']['transport'];
-            if ($profile->free_delivery_threshold !== null
+            if ($profile?->free_delivery_threshold !== null
                 && $sourceSubtotal >= (float) $profile->free_delivery_threshold) {
                 $transportCost = 0.0;
             }
@@ -152,16 +157,16 @@ class MultiWarehouseBundleDelivery
                 'warehouse_fingerprint' => hash('sha256', json_encode([
                     $warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes(),
                 ])),
-                'profile_id' => $profile->id,
-                'profile_fingerprint' => hash('sha256', json_encode($profile->getAttributes())),
+                'profile_id' => $profile?->id,
+                'profile_fingerprint' => $profile ? hash('sha256', json_encode($profile->getAttributes())) : null,
                 'items' => $items,
                 'transport_cost' => $transportCost,
                 ...$best['source']['services'],
                 'service_options' => $best['source']['service_options'],
                 'processing_days_min' => (int) $warehouse->processing_days_min,
                 'processing_days_max' => (int) $warehouse->processing_days_max,
-                'delivery_days_min' => (int) $profile->delivery_days_min,
-                'delivery_days_max' => (int) $profile->delivery_days_max,
+                'delivery_days_min' => (int) $profile?->delivery_days_min,
+                'delivery_days_max' => (int) $profile?->delivery_days_max,
             ];
             if ($warehouse->stock_mode === 'availability') {
                 foreach (array_keys($best['items']) as $skuId) {
@@ -195,7 +200,7 @@ class MultiWarehouseBundleDelivery
         ]))->values()->all();
         $lead = $allocations[0];
         $warehouse = $warehouses->firstWhere('id', $lead['warehouse_id']);
-        $profile = $warehouse->deliveryProfiles->firstWhere('id', $lead['profile_id']);
+        $profile = $lead['profile_id'] ? $warehouse->deliveryProfiles->firstWhere('id', $lead['profile_id']) : null;
         $handling = round(array_sum(array_column($allocations, 'handling_cost')), 2);
         $assembly = round(array_sum(array_column($allocations, 'assembly_cost')), 2);
         $additional = round(array_sum(array_column($allocations, 'additional_services_cost')), 2);
@@ -210,7 +215,7 @@ class MultiWarehouseBundleDelivery
             'warehouse_external_id' => $lead['warehouse_external_id'],
             'stock_mode' => 'multi',
             'profile_id' => $lead['profile_id'],
-            'profile_name' => $profile->name,
+            'profile_name' => $profile?->name,
             'profile_fingerprint' => $lead['profile_fingerprint'],
             'warehouse_fingerprint' => $lead['warehouse_fingerprint'],
             'warehouse_allocations' => $allocations,
