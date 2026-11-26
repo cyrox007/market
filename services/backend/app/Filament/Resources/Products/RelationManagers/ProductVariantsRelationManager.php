@@ -35,12 +35,16 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Vanilo\Product\Models\ProductState;
 
 class ProductVariantsRelationManager extends RelationManager
 {
+    private const EXTERNAL_ID_TAKEN = 'Этот код 1С уже закреплён за другим товаром или торговым предложением.';
+
     protected static string $relationship = 'variants';
 
     protected static ?string $title = 'Торговые предложения';
@@ -304,6 +308,10 @@ class ProductVariantsRelationManager extends RelationManager
             ->schema([
                 TextInput::make('external_id')
                     ->label('Внешний ID 1С (external_id)')
+                    ->unique(table: Product::class, ignoreRecord: true)
+                    ->validationMessages(['unique' => self::EXTERNAL_ID_TAKEN])
+                    ->mutateStateForValidationUsing(self::normalizeExternalId(...))
+                    ->dehydrateStateUsing(self::normalizeExternalId(...))
                     ->maxLength(255)
                     ->helperText('UUID торгового предложения в кэше 1С. Обязателен для автоматической загрузки остатков по складам.')
                     ->columnSpanFull(),
@@ -399,6 +407,32 @@ class ProductVariantsRelationManager extends RelationManager
         return $schema
             ->components($components)
             ->columns(1);
+    }
+
+    private static function normalizeExternalId(?string $state): ?string
+    {
+        $code = trim((string) $state);
+
+        return $code === '' ? null : $code;
+    }
+
+    private function saveWithExternalIdValidation(\Closure $save): Product
+    {
+        try {
+            return $save();
+        } catch (UniqueConstraintViolationException $exception) {
+            $message = $exception->getPrevious()?->getMessage() ?? '';
+            if (! str_contains($message, 'products_external_id_unique')
+                && ! str_contains($message, 'UNIQUE constraint failed: products.external_id')) {
+                throw $exception;
+            }
+
+            $path = $this->getMountedActionSchema()?->getStatePath();
+
+            throw ValidationException::withMessages([
+                filled($path) ? $path.'.external_id' : 'external_id' => self::EXTERNAL_ID_TAKEN,
+            ]);
+        }
     }
 
     public function table(Table $table): Table
@@ -617,7 +651,7 @@ class ProductVariantsRelationManager extends RelationManager
                             unset($data['offer_attributes']);
                             SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
 
-                            $variant = Product::create($data);
+                            $variant = $this->saveWithExternalIdValidation(fn (): Product => Product::create($data));
 
                             app(SyncVariantVariationAttributesAction::class)->execute($variant, $formDataForSync, $parentProduct);
                             app(\App\Services\Product\OfferAttributeOverrides::class)->save($variant, $parentProduct, $overrides);
@@ -753,7 +787,11 @@ class ProductVariantsRelationManager extends RelationManager
                             }
                             unset($data['offer_attributes']);
                             SyncVariantVariationAttributesAction::stripVariationFormKeys($data);
-                            $record->update($data);
+                            $this->saveWithExternalIdValidation(function () use ($record, $data): Product {
+                                $record->update($data);
+
+                                return $record;
+                            });
                             if ($parent) {
                                 $parent->flushCache();
                             }
