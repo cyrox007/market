@@ -1,9 +1,25 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import Checkout from './warehouse-page';
+import WarehouseCheckout from './warehouse-page';
+import { RegionContext } from '../../contexts/region-context';
 import { api } from '../../lib/api';
 import { deferred } from '../../test/deferred';
+
+function Checkout() {
+  return (
+    <RegionContext.Provider value={{
+      locality: { externalId: 'city48', name: 'Липецк', label: 'Липецк', source: 'gar', regionExternalId: 'region48' },
+      locationReady: true,
+      region: null,
+      selectLocality: vi.fn(),
+      selectRegion: vi.fn(),
+      getRegionId: () => null,
+    }}>
+      <WarehouseCheckout />
+    </RegionContext.Provider>
+  );
+}
 
 const { navigate, reload, cart, auth } = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -484,4 +500,25 @@ it('offers only online and cash, with a gateway list only for online payment', a
   expect(screen.getByRole('combobox', { name: 'Способ оплаты' })).toHaveTextContent('Сбербанк');
   fireEvent.click(screen.getByRole('radio', { name: 'Наличными при получении' }));
   expect(screen.queryByRole('combobox', { name: 'Способ оплаты' })).not.toBeInTheDocument();
+});
+
+it('shows unknown delivery cost and disables online payment for another region', async () => {
+  vi.mocked(api.paymentMethods.list).mockResolvedValue({
+    data: [
+      { id: 1, code: 'card_sberbank', name: 'Сбер', is_active: true, sort_order: 0 },
+      { id: 2, code: 'cash', name: 'Наличные', is_active: true, sort_order: 1 },
+    ],
+  });
+  const remote = { mode: 'other_region', warehouse_id: 4, warehouse_name: 'Склад', delivery_cost: null,
+    assembly_cost: 0, total_fulfillment_cost: null, delivery_estimate_unavailable: true };
+  vi.mocked(api.shipping.quote).mockResolvedValue({ available: true, subtotal: 1000, selected: remote, options: [remote] });
+  render(<MemoryRouter><Checkout /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Выбрать дом' }));
+  expect(await screen.findByText('Стоимость доставки уточняется')).toBeInTheDocument();
+  expect(screen.getByText('Онлайн-оплата будет доступна после согласования.')).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: 'Онлайн' })).toBeDisabled();
+  expect(screen.getByRole('radio', { name: 'Наличными при получении' })).toBeChecked();
+  await waitFor(() => expect(api.shipping.pickupOptions).toHaveBeenCalledWith(
+    [{ product_id: 17, quantity: 1 }], 'region48',
+  ));
 });

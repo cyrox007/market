@@ -24,7 +24,9 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
         ) : (
           c.selected && (
             <span className="rounded-pill bg-brand-green px-3 py-2 text-14 font-medium text-white">
-              + {c.selected.delivery_cost.toLocaleString('ru-RU')} ₽
+              {c.selected.delivery_cost == null
+                ? 'Стоимость доставки уточняется'
+                : `+ ${c.selected.delivery_cost.toLocaleString('ru-RU')} ₽`}
             </span>
           )
         )}
@@ -93,7 +95,7 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
             }}
             options={c.quote.options.map((option) => ({
               value: String(option.warehouse_id),
-              label: `${option.warehouse_name} — ${option.total_fulfillment_cost.toLocaleString('ru-RU')} ₽`,
+              label: `${option.warehouse_name} — ${option.total_fulfillment_cost == null ? 'Стоимость уточняется' : `${option.total_fulfillment_cost.toLocaleString('ru-RU')} ₽`}`,
             }))}
           />
         )}
@@ -113,7 +115,9 @@ export default function CheckoutDelivery({ checkout: c }: { checkout: CheckoutSt
         />
         {!c.pickup.length && (
           <p className="text-14 text-ink-secondary">
-            Для этих товаров нет доступных точек самовывоза.
+            {c.pickupRegion
+              ? 'В выбранном регионе нет доступных точек самовывоза для этих товаров.'
+              : 'Выберите город в шапке сайта, чтобы увидеть точки самовывоза.'}
           </p>
         )}
         {c.pickupPoint && <CheckoutPickupNotice point={c.pickupPoint} />}

@@ -37,7 +37,7 @@ class FulfillmentFrontContractTest extends TestCase
 
     private function warehouse(Product $sku, array $attributes = [], array $profile = [], float $quantity = 5): Warehouse
     {
-        $warehouse = Warehouse::create(array_merge(['name' => 'Склад', 'address' => 'Липецк, дом 10', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'latitude' => 52.6, 'longitude' => 39.6], $attributes));
+        $warehouse = Warehouse::create(array_merge(['address_snapshot' => ['path' => [['kind' => 'region', 'externalId' => 'region48']]], 'name' => 'Склад', 'address' => 'Липецк, дом 10', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'latitude' => 52.6, 'longitude' => 39.6], $attributes));
         $warehouse->productStocks()->create(['product_id' => $sku->id, 'quantity' => $quantity]);
         $warehouse->deliveryProfiles()->create(array_merge(['name' => 'Город', 'base_price' => 1000, 'coverage_type' => 'locations', 'delivery_days_min' => 1, 'delivery_days_max' => 2,
             'directory_territories' => [['region_id' => 'region48', 'locality_id' => 'city48']]], $profile));
@@ -171,12 +171,12 @@ class FulfillmentFrontContractTest extends TestCase
         $sku = Product::factory()->create(['stock' => 20]);
         $warehouse = $this->warehouse($sku, ['pickup_enabled' => true, 'external_id' => 'warehouse-code', 'address_snapshot' => [
             'label' => 'Адрес точки самовывоза', 'target' => ['externalId' => 'house-guid', 'source' => 'gar', 'objectId' => '123', 'kladrCode' => '480000010000001'],
-            'path' => [['kind' => 'locality', 'externalId' => 'city48', 'kladrCode' => '4800000100000']],
+            'path' => [['kind' => 'region', 'externalId' => 'region48'], ['kind' => 'locality', 'externalId' => 'city48', 'kladrCode' => '4800000100000']],
         ]]);
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
         $this->postJson('/api/v1/cart', ['product_id' => $sku->id, 'quantity' => 2])->assertCreated();
         $response = $this->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'pickup@example.test',
-            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $warehouse->id])->assertCreated()
+            'payment_method' => 'card', 'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $warehouse->id])->assertCreated()
             ->assertJsonPath('order.fulfillment.mode', 'pickup')->assertJsonPath('order.fulfillment.warehouse_id', $warehouse->id)->assertJsonPath('order.assembly_cost', 0);
         $this->assertSame(5.0, $warehouse->productStocks()->first()->quantity);
         $this->assertSame(2.0, (float) $warehouse->productStocks()->first()->reserved_quantity);
@@ -204,7 +204,7 @@ class FulfillmentFrontContractTest extends TestCase
             'items' => [['product_id' => $sku->id, 'quantity' => 2]],
             'accept_offer' => true, 'accept_personal_data' => true,
             'contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => 'direct@example.test',
-            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $warehouse->id,
+            'payment_method' => 'card', 'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $warehouse->id,
         ])->assertCreated();
         $order = \App\Models\Order\Order::findOrFail($response->json('order.id'));
         $this->assertCount(1, $order->items);

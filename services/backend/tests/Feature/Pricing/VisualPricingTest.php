@@ -153,7 +153,7 @@ class VisualPricingTest extends TestCase
         $cart = $this->actingAs($user)->getJson('/api/v1/cart')->assertOk();
         $this->assertEquals(1800, $cart->json('subtotal'));
         \App\Models\Payment\PaymentMethod::create(['code' => 'card', 'name' => 'Карта', 'is_active' => true, 'is_enabled' => true, 'gateway' => 'manual']);
-        $order = $this->actingAs($user)->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => $user->email, 'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id])->assertCreated();
+        $order = $this->actingAs($user)->postJson('/api/v1/orders', ['contact_name' => 'Покупатель', 'contact_phone' => '+79991234567', 'contact_email' => $user->email, 'payment_method' => 'card', 'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id])->assertCreated();
         $item = \App\Models\Order\OrderItem::where('order_id', $order->json('order.id'))->firstOrFail();
         $this->assertEquals(900, $item->price);
         $this->assertEquals('Скидка', $item->pricing_snapshot['rule_name']);

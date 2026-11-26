@@ -6539,6 +6539,11 @@
                     "type": "string",
                     "description": "code активного метода оплаты (валидируется на существование)"
                   },
+                  "pickup_region_external_id": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "description": "Обязателен при delivery_type=pickup. Идентификатор выбранного региона из справочника адресов."
+                  },
                   "delivery_type": {
                     "type": "string",
                     "enum": [
@@ -10022,12 +10027,18 @@
         "operationId": "warehousePickupOptions",
         "summary": "Варианты самовывоза по текущей корзине либо заданным SKU",
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["pickup_region_external_id"],
                 "properties": {
+                  "pickup_region_external_id": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "description": "Идентификатор выбранного региона из справочника адресов."
+                  },
                   "items": {
                     "type": "array",
                     "minItems": 1,
@@ -10061,7 +10072,7 @@
         },
         "responses": {
           "200": {
-            "description": "Доступные точки самовывоза",
+            "description": "Доступные точки самовывоза выбранного региона",
             "content": {
               "application/json": {
                 "schema": {

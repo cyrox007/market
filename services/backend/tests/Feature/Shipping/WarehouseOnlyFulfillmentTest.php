@@ -30,7 +30,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
             'label' => 'Липецк, д. 10',
         ]));
         $this->sku = Product::factory()->create(['price' => 1000, 'stock' => 999, 'backorder' => false]);
-        $this->warehouse = Warehouse::create(['name' => 'Warehouse', 'address' => 'Confirmed address', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'is_active' => true, 'pickup_enabled' => true]);
+        $this->warehouse = Warehouse::create(['address_snapshot' => ['path' => [['kind' => 'region', 'externalId' => 'region48']]], 'name' => 'Warehouse', 'address' => 'Confirmed address', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'is_active' => true, 'pickup_enabled' => true]);
         $this->warehouse->productStocks()->create(['product_id' => $this->sku->id, 'quantity' => 5]);
         $this->warehouse->deliveryProfiles()->create(['name' => 'Radius', 'coverage_type' => 'radius', 'radius_km' => 10, 'base_price' => 500, 'service_tariffs' => []]);
         PaymentMethod::create(['name' => 'Cash', 'code' => 'cash', 'gateway' => 'manual', 'is_active' => true, 'is_enabled' => true]);
@@ -44,7 +44,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
     private function orderData(): array
     {
         return ['contact_name' => 'Test', 'contact_phone' => '+79001234567', 'contact_email' => 'test@example.test', 'payment_method' => 'cash',
-            'delivery_type' => 'pickup', 'warehouse_id' => $this->warehouse->id, 'items' => $this->items(), 'accept_offer' => true, 'accept_personal_data' => true];
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->warehouse->id, 'items' => $this->items(), 'accept_offer' => true, 'accept_personal_data' => true];
     }
 
     public function test_all_legacy_shipping_routes_are_absent(): void
@@ -70,9 +70,22 @@ class WarehouseOnlyFulfillmentTest extends TestCase
 
     public function test_pickup_options_do_not_require_a_delivery_address(): void
     {
-        $this->postJson('/api/v1/shipping/pickup-options', ['items' => $this->items()])->assertOk()
+        $this->postJson('/api/v1/shipping/pickup-options', ['pickup_region_external_id' => 'region48', 'items' => $this->items()])->assertOk()
             ->assertJsonPath('pickup.0.warehouse_id', $this->warehouse->id)->assertJsonPath('pickup.0.items.0.available_quantity', 5);
-        $this->postJson('/api/v1/shipping/pickup-options', ['items' => $this->items(6)])->assertOk()->assertJsonCount(0, 'pickup');
+        $this->postJson('/api/v1/shipping/pickup-options', ['pickup_region_external_id' => 'region48', 'items' => $this->items(6)])->assertOk()->assertJsonCount(0, 'pickup');
+    }
+
+    public function test_pickup_list_and_order_are_scoped_to_the_selected_region(): void
+    {
+        $foreignRegion = 'region23';
+        $this->postJson('/api/v1/shipping/pickup-options', [
+            'pickup_region_external_id' => $foreignRegion,
+            'items' => $this->items(),
+        ])->assertOk()->assertJsonCount(0, 'pickup');
+        $this->postJson('/api/v1/orders', [
+            ...$this->orderData(),
+            'pickup_region_external_id' => $foreignRegion,
+        ])->assertUnprocessable()->assertJsonValidationErrors('warehouse_id');
     }
 
     public function test_pickup_order_reserves_exact_stock_and_release_is_idempotent(): void
@@ -124,7 +137,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
         $this->assertFalse(ProductStockSettings::getInstance()->fallback_to_first_warehouse);
         $this->assertSame(5.0, app(WarehouseStockResolver::class)->resolveForProduct($this->sku, null));
         $this->assertSame(0.0, app(WarehouseStockResolver::class)->resolveForProduct($this->sku, null,
-            ['specified' => true, 'path' => [['kind' => 'locality', 'externalId' => 'outside']], 'point' => null]));
+            ['specified' => true, 'path' => [['kind' => 'region', 'externalId' => 'region48'], ['kind' => 'locality', 'externalId' => 'outside']], 'point' => null]));
     }
 
     public function test_blank_shared_address_is_never_a_pickup_point(): void
@@ -133,7 +146,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
         $this->warehouse->update(['physical_site_id' => $site->id]);
         Store::create(['name' => 'Shop', 'slug' => 'shop', 'phone' => '123', 'address' => '', 'city' => 'City',
             'warehouse_id' => $this->warehouse->id, 'physical_site_id' => $site->id, 'is_active' => true, 'pickup_enabled' => true]);
-        $this->postJson('/api/v1/shipping/pickup-options', ['items' => $this->items()])->assertOk()->assertJsonCount(0, 'pickup');
+        $this->postJson('/api/v1/shipping/pickup-options', ['pickup_region_external_id' => 'region48', 'items' => $this->items()])->assertOk()->assertJsonCount(0, 'pickup');
         $this->getJson('/api/v1/stores')->assertOk()->assertJsonPath('data.0.pickup_enabled', false);
     }
 
@@ -141,7 +154,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
     {
         $parent = Product::factory()->create(['state' => 'inactive', 'is_variable' => true]);
         $this->sku->update(['parent_product_id' => $parent->id]);
-        $this->postJson('/api/v1/shipping/pickup-options', ['items' => $this->items()])->assertUnprocessable();
+        $this->postJson('/api/v1/shipping/pickup-options', ['pickup_region_external_id' => 'region48', 'items' => $this->items()])->assertUnprocessable();
     }
 
     public function test_deleted_store_is_not_replaced_by_warehouse_pickup(): void
@@ -183,7 +196,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
         $this->warehouse->productStocks()->first()->update(['quantity' => 1]);
         $other = Warehouse::create(['name' => 'Other', 'address' => 'Other address', 'is_active' => true, 'pickup_enabled' => true]);
         $other->productStocks()->create(['product_id' => $this->sku->id, 'quantity' => 1]);
-        $this->postJson('/api/v1/shipping/pickup-options', ['items' => $this->items(2)])->assertOk()->assertJsonCount(0, 'pickup');
+        $this->postJson('/api/v1/shipping/pickup-options', ['pickup_region_external_id' => 'region48', 'items' => $this->items(2)])->assertOk()->assertJsonCount(0, 'pickup');
         $this->postJson('/api/v1/orders', $this->orderData())->assertUnprocessable();
         $this->assertSame(0, Order::count());
     }
@@ -191,7 +204,7 @@ class WarehouseOnlyFulfillmentTest extends TestCase
     public function test_inactive_warehouse_is_never_offered_for_pickup(): void
     {
         $this->warehouse->update(['is_active' => false]);
-        $this->postJson('/api/v1/shipping/pickup-options', ['items' => $this->items()])->assertOk()->assertJsonCount(0, 'pickup');
+        $this->postJson('/api/v1/shipping/pickup-options', ['pickup_region_external_id' => 'region48', 'items' => $this->items()])->assertOk()->assertJsonCount(0, 'pickup');
         $this->postJson('/api/v1/orders', $this->orderData())->assertUnprocessable();
     }
 }

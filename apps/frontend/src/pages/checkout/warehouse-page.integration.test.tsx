@@ -94,6 +94,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 function renderCheckout() {
+  localStorage.setItem('customer_locality', JSON.stringify({
+    locality: { externalId: 'city48', name: 'Липецк', label: 'Липецк', source: 'gar', regionExternalId: 'region48' },
+    shippingLocation: null,
+  }));
+
   return render(
     <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
       <MemoryRouter initialEntries={['/checkout']}>

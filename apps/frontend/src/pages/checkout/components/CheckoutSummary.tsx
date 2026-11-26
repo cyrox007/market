@@ -29,6 +29,7 @@ export type CheckoutSummaryState = Pick<
 export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSummaryState }) {
   const hasAddress = Boolean(c.addressId || c.building);
   const deliveryUnavailable = c.mode === 'delivery' && hasAddress && c.quote?.available === false;
+  const pendingDelivery = c.mode === 'delivery' && c.selected?.mode === 'other_region';
   const discount = !c.direct && c.cart?.subtotal === c.subtotal ? (c.cart.discount_total ?? 0) : 0;
   const rows = !c.direct
     ? (c.cart?.items ?? [])
@@ -149,12 +150,12 @@ export default function CheckoutSummary({ checkout: c }: { checkout: CheckoutSum
             {c.calculating
               ? 'Расчёт…'
               : c.fulfillment == null
-                ? deliveryUnavailable ? 'Недоступна' : 'Не рассчитана'
+                ? pendingDelivery ? 'Уточняется' : deliveryUnavailable ? 'Недоступна' : 'Не рассчитана'
                 : money(c.fulfillment)}
           </span>
         </div>
         <div className="flex justify-between gap-3 text-24 font-semibold max-vsm:text-20">
-          <span>Итого</span>
+          <span>{pendingDelivery ? 'Итого без доставки' : 'Итого'}</span>
           <output aria-label="Итоговая стоимость">{money(c.total)}</output>
         </div>
         {c.mode === 'delivery' && !c.selected && (
