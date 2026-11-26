@@ -220,12 +220,18 @@ class EditProduct extends EditRecord
             ->createAnother(false)
             ->databaseTransaction()
             ->authorize(fn (EditProduct $livewire): bool => ProductResource::canEdit($livewire->getRecord()) && ProductResource::canCreate())
-            ->schema(fn (Schema $schema, EditProduct $livewire): Schema => ProductVariantsRelationManager::offerForm($schema, $livewire->getRecord(), transferCode: true))
-            ->using(function (array $data, EditProduct $livewire, Schema $schema): Product {
+            // В Filament 4.3 действие внутри формы может унаследовать запись родителя.
+            // Модалка создаёт новое ТП и не должна сохранять связи общей карточки.
+            ->schema(fn (Schema $schema, EditProduct $livewire): Schema => ProductVariantsRelationManager::offerForm(
+                $schema->model(Product::class)->operation('create'),
+                $livewire->getRecord(),
+                transferCode: true,
+            ))
+            ->using(function (array $data, EditProduct $livewire): Product {
                 $stocks = array_values($data['warehouseStocks'] ?? []);
                 unset($data['warehouseStocks']);
                 $data['stock'] = $stocks === [] ? ($data['stock'] ?? 0) : array_sum(array_column($stocks, 'quantity'));
-                $path = $schema->getStatePath();
+                $path = $livewire->getMountedActionSchema()?->getStatePath();
 
                 try {
                     return app(ConvertProductWithOneCCode::class)->execute(
@@ -243,7 +249,9 @@ class EditProduct extends EditRecord
                         throw $exception;
                     }
 
-                    throw ValidationException::withMessages([$path.'.external_id' => $exception->validator->errors()->first()]);
+                    throw ValidationException::withMessages([
+                        filled($path) ? $path.'.external_id' : 'external_id' => $exception->validator->errors()->first(),
+                    ]);
                 }
             })
             ->after(fn (EditProduct $livewire) => $livewire->refreshAfterOneCConversion(movedStocks: true));
