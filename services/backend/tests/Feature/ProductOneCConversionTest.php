@@ -116,6 +116,56 @@ class ProductOneCConversionTest extends TestCase
         $this->assertSame(7.0, (float) $parent->warehouseStocks()->sum('quantity'));
     }
 
+    public function test_stale_parent_form_cannot_restore_transferred_code(): void
+    {
+        $parent = $this->makeProductWithStock();
+        $staleRecord = $parent->fresh();
+        $code = $parent->external_id;
+        $offer = app(ConvertProductWithOneCCode::class)->execute(
+            $parent,
+            $code,
+            fn (Product $lockedParent): Product => Product::factory()->create([
+                'parent_product_id' => $lockedParent->id,
+                'external_id' => $code,
+            ]),
+        );
+
+        $page = new EditProduct;
+        $method = new \ReflectionMethod(EditProduct::class, 'handleRecordUpdate');
+
+        try {
+            $method->invoke($page, $staleRecord, ['external_id' => $code, 'is_variable' => true]);
+            $this->fail('Устаревшая форма не должна возвращать перенесённый код.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('data.is_variable', $exception->errors());
+        }
+
+        $this->assertNull($parent->fresh()->external_id);
+        $this->assertSame($code, $offer->fresh()->external_id);
+
+        $method->invoke($page, $parent->fresh(), ['name' => 'Обновлённое название']);
+        $this->assertSame('Обновлённое название', $parent->fresh()->name);
+        $this->assertNull($parent->fresh()->external_id);
+    }
+
+    public function test_duplicate_code_on_ordinary_product_returns_validation_error(): void
+    {
+        $owner = $this->makeProductWithStock();
+        $product = Product::factory()->create(['external_id' => null, 'is_variable' => false]);
+        $page = new EditProduct;
+        $method = new \ReflectionMethod(EditProduct::class, 'handleRecordUpdate');
+
+        try {
+            $method->invoke($page, $product, ['external_id' => $owner->external_id, 'is_variable' => false]);
+            $this->fail('Дублирующийся код должен вызывать ошибку валидации.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('data.external_id', $exception->errors());
+        }
+
+        $this->assertNull($product->fresh()->external_id);
+        $this->assertSame('onec-transfer-code', $owner->fresh()->external_id);
+    }
+
     private function makeProductWithStock(): Product
     {
         $parent = Product::factory()->create([
