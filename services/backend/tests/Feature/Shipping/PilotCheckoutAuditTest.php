@@ -52,22 +52,16 @@ class PilotCheckoutAuditTest extends TestCase
         }
         $data = ['directory_external_id' => $building, 'items' => [['product_id' => $sku->id, 'quantity' => 2]]];
         $quote = $this->postJson('/api/v1/shipping/quote', $data)->assertOk();
-        $quote->assertJsonPath('available', $covered);
+        $quote->assertJsonPath('available', true)->assertJsonPath('selected.mode', $covered ? null : 'other_region');
         $response = $this->postJson('/api/v1/orders', $data + ['delivery_type' => 'delivery',
             'warehouse_id' => $warehouse->id, 'payment_method' => 'cash', 'contact_name' => 'Тест',
             'contact_phone' => '+79001234567', 'contact_email' => 'pilot@example.test',
             'accept_offer' => true, 'accept_personal_data' => true]);
-        if (! $covered) {
-            $response->assertUnprocessable();
-            $this->assertSame(0, Order::count());
-            $this->assertEquals(5, $warehouse->productStocks()->first()->quantity);
-            return;
-        }
         $response->assertCreated();
         $order = Order::latest('id')->firstOrFail();
-        $this->assertEquals(500, $order->delivery_cost);
-        $this->assertEquals(200, $order->assembly_cost);
-        $this->assertEquals(2700, $order->total);
+        $this->assertEquals($covered ? 500 : 0, $order->delivery_cost);
+        $this->assertEquals($covered ? 200 : 0, $order->assembly_cost);
+        $this->assertEquals($covered ? 2700 : 2000, $order->total);
         $this->assertEquals(5, $warehouse->productStocks()->first()->quantity);
         $this->assertEquals(2, $warehouse->productStocks()->first()->reserved_quantity);
         $payload = app(\App\Actions\Integration\Integration1C\BuildOrderSyncPayloadAction::class)->execute($order);

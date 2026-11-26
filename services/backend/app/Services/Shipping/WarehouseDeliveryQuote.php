@@ -165,6 +165,9 @@ class WarehouseDeliveryQuote
                 $warehouses, $quantities, $destination, $point, $unitPrices, $selection
             ));
         }
+        if (! $options && ! isset($serviceErrors) && $otherRegion = app(OtherRegionDelivery::class)->option($warehouses, $quantities, $destination, $point)) {
+            $options[] = $otherRegion;
+        }
         foreach ($options as &$option) {
             $preorderItems = ! empty($option['warehouse_allocations'])
                 ? collect($option['warehouse_allocations'])->flatMap(fn ($a) => $a['items']) : collect($option['items']);

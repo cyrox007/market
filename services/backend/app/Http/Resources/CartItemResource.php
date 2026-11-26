@@ -135,7 +135,7 @@ class CartItemResource extends JsonResource
             'is_sellable_bundle' => (bool) $isBundle,
             'is_bundle_configured' => ! $isBundle || $bundleQuote !== null,
             'available_to_order' => $isBundle ? ($bundleQuote !== null && app(\App\Services\Product\SellableBundle::class)->canOrder($bundleQuote['items']))
-                : ($product ? $warehouseStockResolver->availableToOrder($product, $region) : false),
+                : ($product ? $warehouseStockResolver->canOrder($product, $region) : false),
             'bundle_components' => $bundleQuote['priced_components'] ?? [],
             'quantity' => $quantity,
             'price_source' => filled(($this->configuration ?? [])['private_offer_hash'] ?? null) ? 'private_link' : 'catalog',

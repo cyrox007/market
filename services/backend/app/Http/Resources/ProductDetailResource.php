@@ -249,7 +249,7 @@ class ProductDetailResource extends JsonResource
                     'stock_label' => $variantStock === null ? null : StockCategoryHelper::formatStockDisplay($variantStock),
                     'in_stock' => $variantStock > 0,
                     'available_to_order' => $sourceProduct->is_sellable_bundle
-                        ? ($kitQuote !== null && app(\App\Services\Product\SellableBundle::class)->canOrder($kitQuote['items'])) : $warehouseStockResolver->availableToOrder($variant, $region),
+                        ? ($kitQuote !== null && app(\App\Services\Product\SellableBundle::class)->canOrder($kitQuote['items'])) : $warehouseStockResolver->canOrder($variant, $region),
                     'variation_attributes' => $variant->getVariationAttributesForApi(),
                     'images' => $variant->images_urls ?: $sourceProduct->images_urls,
                     'description' => $variant->getEffectiveDescription(),
@@ -486,7 +486,7 @@ class ProductDetailResource extends JsonResource
             'stock_scope' => $region || ($request->attributes->get('warehouse_destination')['specified'] ?? false) ? 'destination' : 'global',
             'available_to_order' => $sourceProduct->is_sellable_bundle && $sourceProduct->isVariable()
                 ? ($kitCurrentVariant ? $kitCurrentVariant['available_to_order'] : collect($variants)->contains('available_to_order', true))
-                : ($simpleKit ? (isset($simpleQuote) && app(\App\Services\Product\SellableBundle::class)->canOrder($simpleQuote['items'])) : $warehouseStockResolver->availableToOrder($this->resource, $region)),
+                : ($simpleKit ? (isset($simpleQuote) && app(\App\Services\Product\SellableBundle::class)->canOrder($simpleQuote['items'])) : $warehouseStockResolver->canOrder($this->resource, $region)),
             'nearest_distance_km' => $priority['nearest_distance_km'],
             'nearest_stock' => $priority['nearest_stock'],
             'nearest_warehouse_name' => $priority['nearest_warehouse_name'],

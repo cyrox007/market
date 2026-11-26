@@ -386,7 +386,7 @@ class OrderController extends Controller
                     $deliveryHandlingType = DeliveryHandlingType::find($validated['delivery_handling_type_id']);
                 }
                 $selected = $warehouseQuote['selected'];
-                $deliveryCost = $selected['delivery_cost'];
+                $deliveryCost = $selected['delivery_cost'] ?? 0;
                 $assemblyCost = $selected['assembly_cost'];
                 $deliveryDaysMin = $selected['delivery_days_min'];
                 $deliveryDaysMax = $selected['delivery_days_max'];
@@ -417,6 +417,9 @@ class OrderController extends Controller
             // Онлайн-оплата → ожидание оплаты; самовывоз/другие способы → сразу принят
             $isOnlinePayment = in_array((string) $paymentMethodModel->gateway, ['raiffeisen_acquiring', 'raiffeisen_ecom', 'sberbank_acquiring'], true);
             $initialStatus = OrderStatus::MANAGER_PROCESSING;
+            if ($isOnlinePayment && $directoryDelivery && ($warehouseQuote['selected']['mode'] ?? null) === 'other_region') {
+                return response()->json(['message' => 'Онлайн-оплата будет доступна после согласования.'], 422);
+            }
 
             $gatewayClientConfig = null;
             $guestToken = bin2hex(random_bytes(32));

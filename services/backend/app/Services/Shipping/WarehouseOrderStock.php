@@ -50,7 +50,7 @@ class WarehouseOrderStock
             if ($missingStore || $changedStore || ! app(PickupReadiness::class)->ready($warehouse, $store)) {
                 throw ValidationException::withMessages(['warehouse_id' => 'Самовывоз в выбранной точке больше недоступен.']);
             }
-        } else {
+        } elseif (($quote['mode'] ?? null) !== 'other_region') {
             $profile = \App\Models\Shipping\WarehouseDeliveryProfile::lockForUpdate()->find($quote['profile_id']);
             if (! $profile?->is_active || $profile->warehouse_id !== $warehouse->id
                 || hash('sha256', json_encode($profile->getAttributes())) !== ($quote['profile_fingerprint'] ?? null)) {
