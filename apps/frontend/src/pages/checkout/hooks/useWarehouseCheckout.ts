@@ -1,5 +1,6 @@
+import { RegionContext } from '../../../contexts/region-context';
 ﻿import { isOnlineCardPaymentMethod } from '../../../utils/paymentUtils';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   api,
@@ -51,6 +52,19 @@ export function useWarehouseCheckout() {
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const locality = useContext(RegionContext)?.locality;
+  const localityId = locality?.externalId;
+  const knownPickupRegion = locality?.regionExternalId;
+  const [resolvedPickupRegion, setResolvedPickupRegion] = useState<{ localityId: string; region: string } | null>(null);
+  const pickupRegion = knownPickupRegion || (resolvedPickupRegion?.localityId === localityId ? resolvedPickupRegion?.region : null);
+  useEffect(() => {
+    if (!localityId || knownPickupRegion) return;
+    let active = true;
+    api.localities.get(localityId).then(({ data }) => {
+      if (active && data.regionExternalId) setResolvedPickupRegion({ localityId, region: data.regionExternalId });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [localityId, knownPickupRegion]);
   const product = Number(search.get('product_id'));
   const bundleId = Number(search.get('bundle_id'));
   const primarySkuId = Number(search.get('primary_sku_id'));
@@ -81,12 +95,13 @@ export function useWarehouseCheckout() {
   );
   const itemsKey = JSON.stringify(items);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
-  const [payment, setPayment] = useState('');
+  const [chosenPayment, setPayment] = useState('');
   const [mode, setMode] = useState<'delivery' | 'pickup'>('delivery');
   const [building, setBuilding] = useState<string | null>(null);
   const [addressId, setAddressId] = useState<number | null>(null);
   const [points, setPoints] = useState<{ key: string; data: PickupOption[] } | null>(null);
-  const pickup = points?.key === itemsKey ? points.data : [];
+  const pickupKey = JSON.stringify([pickupRegion, itemsKey]);
+  const pickup = points?.key === pickupKey ? points.data : [];
   const [point, setPoint] = useState('');
   const pickupPoint = pickup.find((p) => `${p.warehouse_id}:${p.store_id || ''}` === point);
   const [warehouse, setWarehouse] = useState<number | null>(null);
@@ -146,6 +161,10 @@ export function useWarehouseCheckout() {
   const [calculatingKey, setCalculatingKey] = useState<string | null>(null);
   const calculating = mode === 'delivery' && calculatingKey === quoteKey;
   const selected = quote?.available ? quote.selected : null;
+  const onlinePaymentUnavailable = mode === 'delivery' && selected?.mode === 'other_region';
+  const payment = onlinePaymentUnavailable
+    ? (selectable(methods.find((method) => method.code === 'cash')) ? 'cash' : '')
+    : chosenPayment;
   const services = selected?.service_options;
   const subtotal = direct ? prepared?.subtotal || 0 : cart?.subtotal || 0;
   const effectiveSubtotal = quote?.subtotal ?? subtotal;
@@ -206,10 +225,10 @@ export function useWarehouseCheckout() {
   useEffect(() => {
     let active = true;
     setPoint('');
-    if (items.length)
-      runSessionRead(() => api.shipping.pickupOptions(items))
+    if (items.length && pickupRegion)
+      runSessionRead(() => api.shipping.pickupOptions(items, pickupRegion))
         .then((response) => {
-          if (active) setPoints({ key: itemsKey, data: response.pickup });
+          if (active) setPoints({ key: pickupKey, data: response.pickup });
         })
         .catch(() => {
           if (active) setError('Не удалось проверить точки самовывоза.');
@@ -217,7 +236,7 @@ export function useWarehouseCheckout() {
     return () => {
       active = false;
     };
-  }, [itemsKey, items]);
+  }, [pickupKey, pickupRegion, items]);
   useEffect(() => {
     if (mode !== 'delivery' || (!building && !addressId) || !items.length) {
       setCalculatingKey(null);
@@ -345,7 +364,7 @@ export function useWarehouseCheckout() {
                 delivery_floor: floor,
                 additional_services: additional.map((id) => ({ id })),
               }
-            : { warehouse_id: pickupPoint!.warehouse_id, store_id: pickupPoint!.store_id }),
+            : { warehouse_id: pickupPoint!.warehouse_id, store_id: pickupPoint!.store_id, pickup_region_external_id: pickupRegion! }),
         }),
       );
       if (!response.order) throw new Error('Заказ не получен.');
@@ -391,6 +410,7 @@ export function useWarehouseCheckout() {
     directProduct,
     items,
     methods,
+    onlinePaymentUnavailable,
     payment,
     setPayment,
     mode,
@@ -400,6 +420,7 @@ export function useWarehouseCheckout() {
     selectBuilding,
     selectAddress,
     pickup,
+    pickupRegion,
     pickupPoint,
     point,
     setPoint,

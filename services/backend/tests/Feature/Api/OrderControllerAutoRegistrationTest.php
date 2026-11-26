@@ -44,7 +44,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
         $this->addProductToCart($product);
         $this->postJson('/api/v1/orders', [
             'contact_name' => 'Гость', 'contact_phone' => '+79991234567', 'contact_email' => 'guest-off@example.com',
-            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id,
+            'payment_method' => 'card', 'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id,
         ])->assertCreated()->assertJsonMissing(['user_registered' => true]);
         $this->assertDatabaseMissing('users', ['email' => 'guest-off@example.com']);
         $this->assertDatabaseHas('orders', ['contact_email' => 'guest-off@example.com', 'user_id' => null]);
@@ -58,7 +58,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
         $this->addProductToCart($product);
         $this->postJson('/api/v1/orders', [
             'contact_name' => 'Гость', 'contact_phone' => '+79991234567', 'contact_email' => 'guest-login-off@example.com',
-            'payment_method' => 'card', 'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id,
+            'payment_method' => 'card', 'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id,
         ])->assertCreated()->assertJsonPath('user_registered', true)->assertJsonPath('user_authenticated', false);
         $this->assertDatabaseHas('users', ['email' => 'guest-login-off@example.com']);
         $this->assertFalse(Auth::check());
@@ -106,7 +106,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
             'contact_phone' => '+79991234567',
             'contact_email' => $email,
             'payment_method' => 'card',
-            'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id,
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id,
         ]);
 
         $response->assertStatus(201)
@@ -166,7 +166,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
             'contact_phone' => '+79991234567',
             'contact_email' => $existingUser->email,
             'payment_method' => 'card',
-            'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id,
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id,
         ]);
 
         $response->assertStatus(201);
@@ -214,7 +214,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
             'contact_phone' => '+79991234567',
             'contact_email' => $user->email,
             'payment_method' => 'card',
-            'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id,
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id,
         ]);
 
         $response->assertStatus(201)
@@ -260,7 +260,7 @@ class OrderControllerAutoRegistrationTest extends TestCase
             'contact_phone' => '89991234567', // тот же номер в ином формате
             'contact_email' => 'guest@example.com',
             'payment_method' => 'card',
-            'delivery_type' => 'pickup', 'warehouse_id' => $this->inventoryWarehouse->id,
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->inventoryWarehouse->id,
         ]);
 
         // Заказ проходит, коллизии уникальности нет.

@@ -192,6 +192,7 @@ class OrderController extends Controller
                     },
                 ],
                 'delivery_type' => 'required|in:delivery,pickup',
+                'pickup_region_external_id' => 'required_if:delivery_type,pickup|nullable|string|max:255',
 
                 // Поля для новой системы доставки (сохраняем даже для pickup для информации)
                 'shipping_location_id' => 'prohibited',
@@ -273,8 +274,14 @@ class OrderController extends Controller
                 if (! empty($validated['additional_services']) || ! empty($validated['requires_assembly']) || ! empty($validated['delivery_handling_type_id'])) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['services' => 'Услуги доставки недоступны в расчёте самовывоза.']);
                 }
-                $warehouseQuote = ['selected' => app(\App\Services\Shipping\WarehousePickup::class)->select((int) $validated['warehouse_id'],
-                    isset($validated['store_id']) ? (int) $validated['store_id'] : null, app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems))];
+                $pickupRegion = $validated['pickup_region_external_id'];
+                $warehouseQuote = ['selected' => app(\App\Services\Shipping\WarehousePickup::class)->select(
+                    (int) $validated['warehouse_id'],
+                    isset($validated['store_id']) ? (int) $validated['store_id'] : null,
+                    app(\App\Services\Shipping\WarehouseDeliveryQuote::class)->cartLines($cartItems),
+                    ['kind' => 'region', 'externalId' => $pickupRegion,
+                        'kladrCode' => ctype_digit($pickupRegion) ? $pickupRegion : null],
+                )];
             }
             if ($bundleComposition === null) {
                 foreach ($cartItems as $line) {

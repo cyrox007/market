@@ -31,7 +31,7 @@ class OrderControllerTest extends TestCase
             $target = $id === 'region48' ? $region : ['kind' => 'building', 'source' => 'gar', 'externalId' => 'house', 'name' => '1'];
             return Http::response(['target' => $target, 'path' => [$region, $city, $street], 'label' => 'Москва, Ленина, д. 1']);
         });
-        $this->warehouse = Warehouse::create(['name' => 'Test warehouse', 'address' => 'Москва, Ленина, д. 1', 'pickup_enabled' => true]);
+        $this->warehouse = Warehouse::create(['address_snapshot' => ['path' => [['kind' => 'region', 'externalId' => 'region48']]], 'name' => 'Test warehouse', 'address' => 'Москва, Ленина, д. 1', 'pickup_enabled' => true]);
         $this->warehouse->deliveryProfiles()->create(['name' => 'Москва', 'base_price' => 500, 'directory_territories' => [['region_id' => 'region48']], 'service_tariffs' => []]);
 
         PaymentMethod::query()->firstOrCreate(
@@ -109,7 +109,7 @@ class OrderControllerTest extends TestCase
         $this->app->instance(\App\Services\Payment\SberbankAcquiringClient::class, $client);
         $body = ['contact_name' => 'Test User', 'contact_phone' => '+79991234567',
             'contact_email' => $user->email, 'payment_method' => $method->code,
-            'delivery_type' => 'pickup', 'warehouse_id' => $this->warehouse->id];
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $this->warehouse->id];
         $headers = ['Idempotency-Key' => 'sber-committed-checkout-test', 'Authorization' => 'Bearer '.$user->createToken('sber')->plainTextToken];
         $response = $this->postJson('/api/v1/orders', $body, $headers)->assertCreated()
             ->assertJsonPath('payment_registration_pending', true);
@@ -155,7 +155,7 @@ class OrderControllerTest extends TestCase
             'contact_phone' => '+79991234567',
             'contact_email' => 'test@example.com',
             'payment_method' => 'card',
-            'delivery_type' => 'pickup',
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48',
             'warehouse_id' => $this->warehouse->id,
         ]);
 
@@ -464,7 +464,7 @@ class OrderControllerTest extends TestCase
                 'contact_phone' => '+79991234567',
                 'contact_email' => 'john@example.com',
                 'payment_method' => 'card',
-                'delivery_type' => 'pickup',
+                'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48',
             'warehouse_id' => $this->warehouse->id,
             ]);
 
@@ -503,7 +503,7 @@ class OrderControllerTest extends TestCase
             'contact_phone' => '+79991234567',
             'contact_email' => 'pickup-cost@example.com',
             'payment_method' => 'card',
-            'delivery_type' => 'pickup',
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48',
             'warehouse_id' => $this->warehouse->id,
             'delivery_cost' => 999,
         ]);

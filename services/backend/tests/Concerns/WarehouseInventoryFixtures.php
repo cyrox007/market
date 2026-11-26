@@ -12,7 +12,7 @@ trait WarehouseInventoryFixtures
 
     protected function configureWarehouseInventoryFixtures(): void
     {
-        $this->inventoryWarehouse = Warehouse::create(['name' => 'Test inventory', 'address' => 'Test pickup address', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'is_active' => true, 'pickup_enabled' => true]);
+        $this->inventoryWarehouse = Warehouse::create(['address_snapshot' => ['path' => [['kind' => 'region', 'externalId' => 'region48']]], 'name' => 'Test inventory', 'address' => 'Test pickup address', 'source_type' => 'physical', 'stock_mode' => 'quantity', 'is_active' => true, 'pickup_enabled' => true]);
         Product::created(function (Product $product): void {
             $quantity = $product->getAttributes()['stock'] ?? 100;
             $this->inventoryWarehouse->productStocks()->create(['product_id' => $product->id, 'quantity' => $quantity]);

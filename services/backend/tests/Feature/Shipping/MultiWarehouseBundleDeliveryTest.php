@@ -250,7 +250,7 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
         $body = $this->paymentAndContact();
         unset($body['directory_external_id']);
         $response = $this->postJson('/api/v1/orders', array_replace($body, [
-            'delivery_type' => 'pickup', 'warehouse_id' => $central->id,
+            'delivery_type' => 'pickup', 'pickup_region_external_id' => 'region48', 'warehouse_id' => $central->id,
             'bundle_id' => $root->id, 'primary_sku_id' => $offer->id, 'bundle_quantity' => 1,
             'items' => app(SellableBundle::class)->composition($root->id, $offer->id)['items'],
             'expected_subtotal' => 1500,
@@ -403,6 +403,7 @@ class MultiWarehouseBundleDeliveryTest extends TestCase
     private function warehouse(Product $sku, int $quantity, int $deliveryCost, string $name): Warehouse
     {
         $warehouse = Warehouse::create([
+            'address_snapshot' => ['path' => [['kind' => 'region', 'externalId' => 'region48']]],
             'name' => $name, 'is_active' => true, 'stock_mode' => 'quantity',
             'processing_days_min' => 1, 'processing_days_max' => 2,
         ]);

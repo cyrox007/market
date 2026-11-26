@@ -191,11 +191,14 @@ class WarehouseDeliveryQuote
             }
         }
 
+        $pickup = app(WarehousePickup::class);
+        $pickupRegion = $pickup->regionFromAddress($snapshot);
+
         return [
             'available' => count($options) > 0, 'currency' => 'RUB', 'subtotal' => round($amount, 2),
             'address' => $address, 'selected' => $selected, 'options' => $options,
             'estimate' => ($snapshot['target']['kind'] ?? null) !== 'building',
-            'pickup' => app(WarehousePickup::class)->options($lines, $point),
+            'pickup' => $pickupRegion === null ? [] : $pickup->options($lines, $point, $pickupRegion),
             'reason' => $options ? null : 'Нет подходящего склада или допустимого распределения компонентов между складами с доставкой по этому адресу.',
         ];
     }

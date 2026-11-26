@@ -7,10 +7,26 @@ use App\Models\Page\Store;
 
 class WarehousePickup
 {
-    public function select(int $warehouseId, ?int $storeId, array $lines): array
+    public function regionFromAddress(?array $address): ?array
+    {
+        $target = $address['target'] ?? [];
+        $region = ($target['kind'] ?? null) === 'region'
+            ? $target
+            : collect($address['path'] ?? [])->firstWhere('kind', 'region');
+
+        if (! $region) {
+            return null;
+        }
+
+        $region['kladrCode'] ??= ctype_digit((string) ($region['externalId'] ?? '')) ? $region['externalId'] : null;
+
+        return $region;
+    }
+
+    public function select(int $warehouseId, ?int $storeId, array $lines, ?array $region = null): array
     {
         $lines = app(FulfillmentLines::class)->resolve($lines);
-        $option = collect($this->options($lines))->first(fn ($row) => $row['warehouse_id'] === $warehouseId && $row['store_id'] === $storeId);
+        $option = collect($this->options($lines, region: $region))->first(fn ($row) => $row['warehouse_id'] === $warehouseId && $row['store_id'] === $storeId);
         if (! $option) {
             throw \Illuminate\Validation\ValidationException::withMessages(['warehouse_id' => 'Точка самовывоза недоступна или недостаточно остатков.']);
         }
@@ -24,7 +40,7 @@ class WarehousePickup
             ])->values()->all()];
     }
 
-    public function options(array $lines, ?array $point = null): array
+    public function options(array $lines, ?array $point = null, ?array $region = null): array
     {
         $lines = app(FulfillmentLines::class)->resolve($lines);
         if (! $lines) {
@@ -53,6 +69,11 @@ class WarehousePickup
                     continue;
                 }
                 $site = $warehouse->physicalSite;
+                if ($region !== null && ! app(DirectoryCoverage::class)->matches([$region], [
+                    'path' => [$this->regionFromAddress($site?->address_snapshot ?? $warehouse->address_snapshot) ?? []],
+                ])) {
+                    continue;
+                }
                 $options[] = ['warehouse_id' => $warehouse->id, 'store_id' => $store?->id,
                     'warehouse_external_id' => $warehouse->external_id,
                     'warehouse_fingerprint' => hash('sha256', json_encode([$warehouse->getAttributes(), $warehouse->physicalSite?->getAttributes()])),

@@ -7,11 +7,11 @@ import CheckoutSelect from './CheckoutSelect';
 export default function CheckoutPayment({
   checkout: c,
 }: {
-  checkout: Pick<CheckoutState, 'methods' | 'payment' | 'setPayment'>;
+  checkout: Pick<CheckoutState, 'methods' | 'payment' | 'setPayment'> & Partial<Pick<CheckoutState, 'onlinePaymentUnavailable'>>;
 }) {
   const online = c.methods.filter((method) => isOnlineCardPaymentMethod(method.code) || method.is_coming_soon);
   const current = c.methods.find((method) => method.code === c.payment);
-  const group = c.payment === 'cash' ? 'cash' : 'online';
+  const group = c.payment === 'cash' ? 'cash' : c.onlinePaymentUnavailable ? '' : 'online';
   return (
     <section className="space-y-4" aria-labelledby="checkout-payment">
       <h2 id="checkout-payment" className="text-20 font-semibold max-vsm:text-16">
@@ -21,7 +21,7 @@ export default function CheckoutPayment({
         label="Тип оплаты"
         value={group}
         onChange={(value) => {
-          const code = value === 'cash' ? 'cash' : online.find(selectable)?.code;
+          const code = value === 'cash' ? 'cash' : c.onlinePaymentUnavailable ? undefined : online.find(selectable)?.code;
           if (code) c.setPayment(code);
         }}
         className="!flex-row flex-wrap gap-x-6 gap-y-3"
@@ -29,7 +29,7 @@ export default function CheckoutPayment({
         <Radio
           value="online"
           label="Онлайн"
-          disabled={!online.some(selectable)}
+          disabled={c.onlinePaymentUnavailable || !online.some(selectable)}
           className="!flex-row-reverse !bg-transparent !p-0 !text-14 !font-medium"
         />
         <Radio
@@ -52,6 +52,7 @@ export default function CheckoutPayment({
           }))}
         />
       )}
+      {c.onlinePaymentUnavailable && <p className="text-14 text-ink-secondary">Онлайн-оплата будет доступна после согласования.</p>}
       {current?.description && <p className="text-12 text-ink-secondary">{current.description}</p>}
     </section>
   );

@@ -16,6 +16,7 @@ class WarehousePickupController extends Controller
     public function __invoke(Request $request, WarehousePickup $pickup, WarehouseDeliveryQuote $quotes): JsonResponse
     {
         $data = $request->validate([
+            'pickup_region_external_id' => 'required|string|max:255',
             'items' => 'sometimes|array|min:1|max:50',
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.variant_id' => 'nullable|integer|exists:products,id',
@@ -28,7 +29,8 @@ class WarehousePickupController extends Controller
 
         return response()->json(['pickup' => array_map(
             fn (array $option): array => \Illuminate\Support\Arr::except($option, ['warehouse_fingerprint', 'store_fingerprint']),
-            $pickup->options($lines),
+            $pickup->options($lines, region: ['kind' => 'region', 'externalId' => $data['pickup_region_external_id'],
+                'kladrCode' => ctype_digit($data['pickup_region_external_id']) ? $data['pickup_region_external_id'] : null]),
         )]);
     }
 }

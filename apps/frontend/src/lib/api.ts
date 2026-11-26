@@ -180,10 +180,10 @@ export const api = {
      */
     quote: <T = WarehouseQuote>(data: unknown) =>
       fetchAPI<T>('/shipping/quote', { method: 'POST', body: JSON.stringify(data) }),
-    pickupOptions: (items: Array<{ product_id: number; quantity: number }>) =>
+    pickupOptions: (items: Array<{ product_id: number; quantity: number }>, regionExternalId: string) =>
       fetchAPI<{ pickup: PickupOption[] }>('/shipping/pickup-options', {
         method: 'POST',
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, pickup_region_external_id: regionExternalId }),
       }),
   },
   cart: {
@@ -1287,6 +1287,7 @@ export interface Order {
 
 export interface PickupOption { warehouse_id: number; store_id: number | null; name: string; address: string | null; ready?: ReadyRange | null; hours?: string | null }
 export interface WarehouseOption {
+  mode?: string;
   delivery_days_min?: number | null;
   delivery_days_max?: number | null;
   has_preorders?: boolean;
@@ -1299,8 +1300,8 @@ export interface WarehouseOption {
     notice: string;
   };
   delivery?: ReadyRange | null;
-  warehouse_id: number; warehouse_name: string; delivery_cost: number; assembly_cost: number;
-  total_fulfillment_cost: number; service_options: {
+  warehouse_id: number; warehouse_name: string; delivery_cost: number | null; assembly_cost: number;
+  total_fulfillment_cost: number | null; service_options: {
     assembly: { available: boolean; required: boolean; price: number | null };
     handling: Array<{ id: number; name: string; requires_floor: boolean; max_floor?: number }>;
     additional: Array<{ id: number; name: string; price: number }>;
