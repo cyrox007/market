@@ -33,11 +33,10 @@ class WarehouseStocksFormComponents
             ->helperText('Склады из справочника 1С подтягиваются автоматически при синхронизации остатков.');
     }
 
-    public static function warehouseStocksRepeater(string $relationship = 'warehouseStocks'): Repeater
+    public static function warehouseStocksRepeater(string $relationship = 'warehouseStocks', bool $saveRelationship = true): Repeater
     {
-        return Repeater::make($relationship)
+        $repeater = Repeater::make($relationship)
             ->label('Остатки по складам')
-            ->relationship($relationship)
             ->schema([
                 self::warehouseSelectField(),
                 TextInput::make('quantity')
@@ -51,5 +50,7 @@ class WarehouseStocksFormComponents
             ->addActionLabel('Добавить склад')
             ->defaultItems(0)
             ->columnSpanFull();
+
+        return $saveRelationship ? $repeater->relationship($relationship) : $repeater;
     }
 }

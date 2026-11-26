@@ -3,16 +3,21 @@
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Actions\Inventory\Sync\RefreshProductStocksFrom1CAction;
+use App\Actions\Product\ConvertProductWithOneCCode;
 use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Products\RelationManagers\ProductVariantsRelationManager;
 use App\Models\Product\Product;
 use App\Services\Catalog\OneCProductSyncService;
 use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 class EditProduct extends EditRecord
@@ -179,6 +184,103 @@ class EditProduct extends EditRecord
      * На странице редактирования товара хлебные крошки дублируют название товара
      * и занимают заметную высоту. Возврат к списку остаётся через навигацию/Cancel.
      */
+    public static function clearOneCCodeAction(): Action
+    {
+        return Action::make('clearOneCCode')
+            ->label('Стереть код 1С')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Стереть код 1С и сделать товар вариативным?')
+            ->modalDescription(fn (EditProduct $livewire): string => 'Код '.$livewire->getRecord()->external_id.' будет удалён с общей карточки. Складские остатки останутся на ней.')
+            ->modalSubmitActionLabel('Стереть код')
+            ->authorize(fn (EditProduct $livewire): bool => ProductResource::canEdit($livewire->getRecord()))
+            ->schema([Hidden::make('expected_code')->required()])
+            ->fillForm(fn (EditProduct $livewire): array => ['expected_code' => $livewire->getRecord()->external_id])
+            ->action(function (EditProduct $livewire, array $data): void {
+                try {
+                    app(ConvertProductWithOneCCode::class)->execute($livewire->getRecord(), $data['expected_code']);
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+                    return;
+                }
+
+                $livewire->refreshAfterOneCConversion();
+                Notification::make()->title('Код 1С стёрт.')->success()->send();
+            });
+    }
+
+    public static function createOfferWithOneCCodeAction(): Action
+    {
+        // CreateAction автоматически получает URL страницы создания товара от Filament.
+        // Здесь нужен только модальный сценарий на текущей странице редактирования.
+        return Action::make('createOfferWithOneCCode')
+            ->label('Создать торговое предложение')
+            ->modalHeading('Добавить торговое предложение')
+            ->modalDescription(fn (EditProduct $livewire): string => 'При создании предложения код '.$livewire->getRecord()->external_id.' будет снят с общей карточки. Проверьте склады и остатки в форме.')
+            ->model(Product::class)
+            ->modal()
+            ->modalSubmitActionLabel('Создать торговое предложение')
+            ->successNotificationTitle('Торговое предложение создано.')
+            ->databaseTransaction()
+            ->authorize(fn (EditProduct $livewire): bool => ProductResource::canEdit($livewire->getRecord()) && ProductResource::canCreate())
+            // В Filament 4.3 действие внутри формы может унаследовать запись родителя.
+            // Модалка создаёт новое ТП и не должна сохранять связи общей карточки.
+            ->schema(fn (Schema $schema, EditProduct $livewire): Schema => ProductVariantsRelationManager::offerForm(
+                $schema->model(Product::class)->operation('create'),
+                $livewire->getRecord(),
+                transferCode: true,
+            ))
+            ->action(function (array $data, EditProduct $livewire, Schema $schema, Action $action): void {
+                $stocks = array_values($data['warehouseStocks'] ?? []);
+                unset($data['warehouseStocks']);
+                $data['stock'] = $stocks === [] ? ($data['stock'] ?? 0) : array_sum(array_column($stocks, 'quantity'));
+                $path = $schema->getStatePath();
+
+                try {
+                    $offer = app(ConvertProductWithOneCCode::class)->execute(
+                        $livewire->getRecord(),
+                        (string) $data['external_id'],
+                        function (Product $parent) use ($data, $stocks, $path): Product {
+                            $offer = ProductVariantsRelationManager::createOffer($parent, $data, $path);
+                            $offer->warehouseStocks()->createMany($stocks);
+
+                            return $offer;
+                        },
+                    );
+                } catch (ValidationException $exception) {
+                    if (! $exception->validator->errors()->has('operation')) {
+                        throw $exception;
+                    }
+
+                    throw ValidationException::withMessages([
+                        filled($path) ? $path.'.external_id' : 'external_id' => $exception->validator->errors()->first(),
+                    ]);
+                }
+
+                // Сохраняем связи (цвета, изображения) только у созданного ТП.
+                $schema->model($offer)->saveRelationships();
+                $livewire->refreshAfterOneCConversion(movedStocks: true);
+                $action->success();
+            });
+    }
+
+    private function refreshAfterOneCConversion(bool $movedStocks = false): void
+    {
+        $this->getRecord()->refresh();
+        $this->data['external_id'] = null;
+        $this->data['is_variable'] = true;
+
+        if ($movedStocks) {
+            $this->data['warehouseStocks'] = [];
+            $this->data['sku'] = null;
+            $this->data['stock'] = 0;
+            $this->data['backorder'] = false;
+        }
+
+        unset($this->cachedSchemas['content']);
+        $this->activeRelationManager = (string) array_key_first($this->getRelationManagers());
+    }
+
     public function hasResourceBreadcrumbs(): bool
     {
         return false;
@@ -221,18 +323,54 @@ class EditProduct extends EditRecord
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
             $current = Product::lockForUpdate()->findOrFail($record->getKey());
+            if (! empty($data['is_variable']) && ! $current->isVariable() && ! $current->is_sellable_bundle
+                && (filled($current->external_id) || filled($data['external_id'] ?? null))) {
+                throw ValidationException::withMessages([
+                    'data.is_variable' => filled($current->external_id)
+                        ? 'Сотрите код 1С или создайте с ним торговое предложение.'
+                        : 'Сначала сохраните код 1С без переключения товара на вариативный.',
+                ]);
+            }
+
+            // Проверяем актуальное состояние под блокировкой, а не снимок открытой формы.
+            if ($current->variants()->exists()) {
+                $data['is_variable'] = true;
+            }
+
             if (array_key_exists('external_id', $data)) {
                 $value = trim((string) $data['external_id']);
                 if (filled($current->external_id) && $value !== (string) $current->external_id) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'data.external_id' => 'Код 1С уже заполнен. Обновите страницу: менять сохранённый код нельзя.',
                     ]);
                 }
+
+                if ($value !== '' && ! $current->isVariant() && ! $current->is_sellable_bundle
+                    && ($current->isVariable() || ! empty($data['is_variable']))) {
+                    throw ValidationException::withMessages([
+                        'data.is_variable' => 'Код 1С вариативного товара должен находиться в торговом предложении. Обновите страницу и проверьте данные.',
+                    ]);
+                }
+
                 $data['external_id'] = $value === '' ? null : $value;
             }
             // Filament keeps the original record instance for afterSave/form state.
             $record->setRawAttributes($current->getAttributes(), true);
-            return parent::handleRecordUpdate($record, $data);
+            try {
+                parent::handleRecordUpdate($record, $data);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $exception) {
+                $message = $exception->getPrevious()?->getMessage() ?? '';
+                if (! str_contains($message, 'products_external_id_unique')
+                    && ! str_contains($message, 'UNIQUE constraint failed: products.external_id')) {
+                    throw $exception;
+                }
+
+                throw ValidationException::withMessages([
+                    'data.external_id' => 'Этот код 1С уже используется другим товаром или торговым предложением. Обновите страницу и проверьте код.',
+                ]);
+            }
+
+            return $record;
         });
     }
 

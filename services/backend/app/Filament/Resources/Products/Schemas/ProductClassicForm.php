@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Products\Schemas;
 use App\Filament\Forms\ProductAttributeFormLookup;
 use App\Filament\Forms\ProductColorRowsField;
 use App\Filament\Resources\Products\Attributes\AttributeQuickCreate;
+use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Models\Product\Attribute;
 use App\Models\Product\AttributeTemplate;
 use App\Models\Product\Product;
@@ -19,6 +20,7 @@ use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
@@ -182,6 +184,13 @@ class ProductClassicForm extends ProductForm
                     ->disabled(fn ($record) => $record && $record->variants()->count() > 0)
                     ->dehydrated()
                     ->live()
+                    ->columnSpanFull(),
+
+                Actions::make([EditProduct::clearOneCCodeAction(), EditProduct::createOfferWithOneCCodeAction()])
+                    ->key('oneCConversion')
+                    ->visible(fn (Get $get, ?Product $record): bool => $record !== null
+                        && ! $record->isVariant() && ! $record->is_sellable_bundle
+                        && filled($record->external_id) && ($record->isVariable() || $get->boolean('is_variable')))
                     ->columnSpanFull(),
 
                 Placeholder::make('variants_info')

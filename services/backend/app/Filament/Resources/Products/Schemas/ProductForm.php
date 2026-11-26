@@ -451,11 +451,15 @@ class ProductForm
                 TextInput::make('external_id')
                     ->label(__('filament/admin_sv/product_resource.external_id'))
                     ->maxLength(255)
-                    ->disabled(fn (?Product $record): bool => filled($record?->external_id))
-                    ->dehydrated(fn (?Product $record): bool => blank($record?->external_id))
+                    ->disabled(fn (?Product $record): bool => filled($record?->external_id)
+                        || ($record?->isVariable() && ! $record->is_sellable_bundle))
+                    ->dehydrated(fn (?Product $record): bool => blank($record?->external_id)
+                        && ! ($record?->isVariable() && ! $record->is_sellable_bundle))
                     ->helperText(fn (?Product $record): string => filled($record?->external_id)
                         ? 'Код 1С уже сохранён и защищён от изменения.'
-                        : 'Укажите идентификатор товара из 1С. После сохранения изменить его в этой форме нельзя.'),
+                        : ($record?->isVariable() && ! $record->is_sellable_bundle
+                            ? 'Код 1С указывается в торговом предложении, а не в общей карточке.'
+                            : 'Укажите идентификатор товара из 1С. После сохранения изменить его в этой форме нельзя.')),
 
                 Action::make('load_from_1c')
                     ->label('Загрузить данные из 1С')
