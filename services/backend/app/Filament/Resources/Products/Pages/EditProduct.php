@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Actions\Inventory\Sync\RefreshProductStocksFrom1CAction;
+use App\Actions\Product\ConvertProductWithOneCCode;
 use App\Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product\Product;
@@ -11,8 +12,12 @@ use App\Services\Product\ProductAttributeSyncService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 class EditProduct extends EditRecord
@@ -65,6 +70,60 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('convertOneCProduct')
+                ->label('Перенести или освободить код 1С')
+                ->icon('heroicon-o-exclamation-triangle')
+                ->color('warning')
+                ->modalSubmitActionLabel('Выполнить')
+                ->visible(fn (): bool => ! $this->record->isVariant() && ! $this->record->is_sellable_bundle && filled($this->record->external_id))
+                ->authorize(fn (): bool => ProductResource::canEdit($this->record))
+                ->modalDescription(fn (): string => 'Код '.$this->record->external_id.' будет освобождён на общей карточке. Сохраните текущие изменения в форме перед выполнением.')
+                ->fillForm(fn (): array => [
+                    'expected_code' => $this->record->external_id,
+                    'offer_name' => $this->record->name,
+                    'price' => $this->record->price,
+                ])
+                ->schema([
+                    \Filament\Forms\Components\Hidden::make('expected_code')->required(),
+                    Select::make('operation')->label('Что сделать с кодом 1С')->required()->live()
+                        ->afterStateUpdated(fn (\Filament\Schemas\Components\Utilities\Set $set) => $set('confirmed', false))
+                        ->options(fn (): array => (ProductResource::canCreate() ? ['create' => 'Создать предложение и перенести остатки'] : [])
+                            + ['clear' => 'Освободить код, остатки оставить на карточке']),
+                    TextInput::make('offer_name')->label('Название предложения')->maxLength(255)
+                        ->visible(fn (Get $get): bool => $get('operation') === 'create')->required(),
+                    TextInput::make('price')->label('Цена предложения')->numeric()->minValue(0)
+                        ->visible(fn (Get $get): bool => $get('operation') === 'create'),
+                    Checkbox::make('confirmed')
+                        ->label('Подтверждаю изменение кода 1С')
+                        ->helperText(fn (Get $get): string => $get('operation') === 'create'
+                            ? 'Код и складские остатки будут сняты с общей карточки и перенесены в новое предложение.'
+                            : 'Код будет снят с общей карточки. Остатки останутся на ней, а предложение нужно будет создать вручную.')
+                        ->visible(fn (Get $get): bool => filled($get('operation')))
+                        ->accepted()
+                        ->validationMessages(['accepted' => 'Подтвердите изменение кода 1С.']),
+                ])
+                ->action(function (array $data): void {
+                    abort_unless(in_array($data['operation'], ['create', 'clear'], true), 422);
+                    $create = $data['operation'] === 'create';
+                    abort_if($create && ! ProductResource::canCreate(), 403);
+
+                    try {
+                        $offer = app(ConvertProductWithOneCCode::class)->execute(
+                            $this->record, (string) $data['expected_code'],
+                            $create ? $data['offer_name'] : null,
+                            isset($data['price']) ? (float) $data['price'] : null,
+                        );
+                    } catch (ValidationException $exception) {
+                        $path = $this->getMountedActionSchema()->getStatePath();
+
+                        throw ValidationException::withMessages([$path.'.operation' => $exception->validator->errors()->first()]);
+                    }
+
+                    Notification::make()
+                        ->title($offer ? 'Предложение создано. Код 1С и остатки перенесены.' : 'Код 1С освобождён.')
+                        ->success()->send();
+                    $this->redirect(static::getResource()::getUrl('edit', ['record' => $this->record]));
+                }),
             Action::make('openParentProduct')
                 ->label('Корневой товар')
                 ->icon('heroicon-o-arrow-uturn-left')
@@ -221,6 +280,17 @@ class EditProduct extends EditRecord
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
             $current = Product::lockForUpdate()->findOrFail($record->getKey());
+            if (! $current->is_variable && ! empty($data['is_variable'])
+                && filled($current->external_id) && ! $current->is_sellable_bundle) {
+                Notification::make()->title('Сначала выберите, что сделать с кодом 1С')
+                    ->body('Вверху карточки нажмите «Перенести или освободить код 1С».')
+                    ->warning()->send();
+
+                throw ValidationException::withMessages([
+                    'data.is_variable' => 'Перенесите или освободите код 1С перед сохранением вариативной карточки.',
+                ]);
+            }
+
             if (array_key_exists('external_id', $data)) {
                 $value = trim((string) $data['external_id']);
                 if (filled($current->external_id) && $value !== (string) $current->external_id) {
