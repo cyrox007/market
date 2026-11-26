@@ -95,6 +95,20 @@ class ProductOneCConversionTest extends TestCase
         }
     }
 
+    public function test_clear_code_does_not_create_offer_or_remove_stocks(): void
+    {
+        $parent = $this->makeProductWithStock();
+
+        $result = app(ConvertProductWithOneCCode::class)->execute($parent, $parent->external_id);
+
+        $parent->refresh();
+        $this->assertNull($result);
+        $this->assertNull($parent->external_id);
+        $this->assertTrue($parent->isVariable());
+        $this->assertSame(0, $parent->variants()->count());
+        $this->assertSame(7.0, (float) $parent->warehouseStocks()->sum('quantity'));
+    }
+
     private function makeProductWithStock(): Product
     {
         $parent = Product::factory()->create([
