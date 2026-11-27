@@ -292,7 +292,15 @@ function ProductCard({
           </ProductLink>
           <span
             aria-hidden="true"
-            className="pointer-events-none invisible absolute inset-x-0 z-30 mt-7 break-words rounded-lg bg-brand-green px-3 py-2 text-12 text-ink-inverse [@media(hover:hover)]:peer-hover/title:visible peer-focus-visible/title:visible"
+            className={cn(
+              'pointer-events-none invisible absolute inset-x-0 z-30 mt-7 translate-y-1 break-words rounded-lg bg-brand-green px-3 py-2 text-12 text-ink-inverse',
+              'opacity-0 transition-[opacity,transform,visibility] duration-150 motion-reduce:transform-none motion-reduce:duration-0',
+              '[@media(hover:hover)]:peer-hover/title:visible',
+              '[@media(hover:hover)]:peer-hover/title:translate-y-0',
+              '[@media(hover:hover)]:peer-hover/title:opacity-100',
+              '[@media(hover:hover)]:peer-hover/title:delay-500',
+              'peer-focus-visible/title:visible peer-focus-visible/title:translate-y-0 peer-focus-visible/title:opacity-100 peer-focus-visible/title:delay-500',
+            )}
           >
             {product.name}
           </span>
