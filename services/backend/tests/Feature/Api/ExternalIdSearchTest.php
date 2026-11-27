@@ -23,6 +23,20 @@ class ExternalIdSearchTest extends TestCase
         }
     }
 
+    public function test_public_search_matches_all_words_in_any_order(): void
+    {
+        $product = Product::factory()->create(['name' => 'комплект из 2-х ящиков', 'state' => 'active']);
+        Product::factory()->create(['name' => 'комплект полок', 'state' => 'active']);
+        Product::factory()->create(['name' => 'Набор ящиков', 'state' => 'active']);
+
+        foreach (['комплект ящиков', 'комплект из 2-х ящиков', 'из 2-х ящиков комплект'] as $term) {
+            $this->getJson('/api/v1/products/search?'.http_build_query(['q' => $term]))
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.id', $product->id);
+        }
+    }
+
     public function test_admin_catalog_finds_parent_by_offer_code_and_simple_product_by_own_code(): void
     {
         Role::findOrCreate('super_admin', 'web');
