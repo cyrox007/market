@@ -481,9 +481,12 @@ class ProductVariantsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
+                    ->width('32rem')
+                    ->wrap()
+                    ->lineClamp(2)
                     ->description(fn(Product $record): string => 'Торговое предложение')
                     ->action(fn (Product $record, RelationManager $livewire) => $livewire->mountTableAction('edit', $record->getKey()))
-                    ->tooltip('Редактировать торговое предложение'),
+                    ->tooltip(fn (Product $record): string => $record->name),
 
                 TextColumn::make('sku')
                     ->label('SKU')

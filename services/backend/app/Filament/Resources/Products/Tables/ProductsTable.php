@@ -88,8 +88,10 @@ class ProductsTable
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
-                    ->limit(50)
-                    ->tooltip(fn($record) => $record?->name),
+                    ->width('32rem')
+                    ->wrap()
+                    ->lineClamp(2)
+                    ->tooltip(fn (Product $record): string => $record->name),
 
                 TextColumn::make('sku')
                     ->label(__('filament/admin_sv/product_resource.sku'))
