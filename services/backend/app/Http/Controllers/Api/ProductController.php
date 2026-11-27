@@ -1292,10 +1292,52 @@ class ProductController extends Controller
             'sort_by' => 'sometimes|in:created_at,price,name,units_sold,rating,distance',
             'sort_order' => 'sometimes|in:asc,desc',
         ]);
-        // One query contract for search, filters, counts, prices and pagination.
-        $request->merge(['search' => $request->input('q')]);
+        $original = $request->input('q');
+        $request->merge(['search' => $original]);
+        $result = $this->index($request);
+        if (! $result instanceof AnonymousResourceCollection
+            || ! $result->resource instanceof LengthAwarePaginator
+            || $result->resource->total() !== 0) {
+            return $result;
+        }
 
-        return $this->index($request);
+        $correction = app(\App\Services\Product\CatalogSearchCorrection::class);
+        foreach ($correction->candidates($original) as $group) {
+            $matches = [];
+            foreach ($group as $candidate) {
+                $request->merge(['search' => $candidate]);
+                if ($this->index($request, countOnly: true)->getData()->total > 0) {
+                    $matches[] = $candidate;
+                }
+                if (count($matches) === 3) {
+                    break;
+                }
+            }
+
+            if (count($matches) > 1) {
+                $request->merge(['search' => $original]);
+
+                return $result->additional(array_replace_recursive($result->additional, [
+                    'meta' => ['suggestions' => $matches],
+                ]));
+            }
+
+            if ($matches !== []) {
+                $request->merge(['search' => $matches[0]]);
+                $corrected = $this->index($request);
+
+                if ($corrected instanceof AnonymousResourceCollection && $corrected->resource->total() > 0) {
+                    return $corrected->additional(array_replace_recursive($corrected->additional, [
+                        'meta' => ['corrected_query' => $matches[0]],
+                    ]));
+                }
+                break;
+            }
+        }
+
+        $request->merge(['search' => $original]);
+
+        return $result;
     }
 
     /**

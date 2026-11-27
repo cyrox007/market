@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
 import { isSheetHistoryEntry, SearchInput } from '../../components/ui/primitives';
 import SortControl from '../../components/catalog/SortControl';
@@ -118,6 +118,8 @@ export default function Search() {
     },
   );
 
+  const searchMeta = searchData?.meta ?? (shouldUseSSRSearch ? initialProducts.meta : undefined);
+
   // Обновляем состояние при изменении данных
   useEffect(() => {
     if (!searchParamsForSWR) {
@@ -208,6 +210,28 @@ export default function Search() {
           aria-label="Поиск по каталогу"
           wrapperClassName="mt-6 max-w-2xl"
         />
+
+        {!isLoading && searchMeta?.corrected_query && (
+          <p className="mt-4 text-14 text-ink-secondary">
+            Показаны результаты по запросу «{searchMeta.corrected_query}»
+          </p>
+        )}
+        {!isLoading && !!searchMeta?.suggestions?.length && (
+          <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-14">
+            <span>Возможно, вы имели в виду</span>
+            {searchMeta.suggestions.map((suggestion: string) => {
+              const params = new URLSearchParams(searchParams);
+              params.set('q', suggestion);
+              params.delete('page');
+
+              return (
+                <Link key={suggestion} to={`?${params.toString()}`} className="underline">
+                  {suggestion}
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         {!tooShort && products.length > 0 && (
           <div className="mt-6">

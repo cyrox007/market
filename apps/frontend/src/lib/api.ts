@@ -444,6 +444,8 @@ export const api = {
           last_page: number;
           per_page: number;
           total: number;
+          corrected_query?: string;
+          suggestions?: string[];
         };
         links?: any;
       }>(`/products/search?${searchParams.toString()}`);

@@ -37,6 +37,41 @@ class ExternalIdSearchTest extends TestCase
         }
     }
 
+    public function test_public_search_corrects_layout_and_a_single_typo(): void
+    {
+        $product = Product::factory()->create(['name' => 'шкаф для одежды нордик', 'state' => 'active']);
+
+        foreach (['irfa yjhlbr', 'шкаф yjhlbr', 'шкаф нордикк', 'шкаф норидк', 'irfa yjhlbrr'] as $term) {
+            $this->getJson('/api/v1/products/search?'.http_build_query(['q' => $term]))
+                ->assertOk()
+                ->assertJsonPath('meta.corrected_query', 'шкаф нордик')
+                ->assertJsonPath('meta.total', 1)
+                ->assertJsonPath('data.0.id', $product->id);
+        }
+
+        $this->getJson('/api/v1/products/search?'.http_build_query(['q' => 'нордик шкаф']))
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $product->id)
+            ->assertJsonMissingPath('meta.corrected_query');
+
+        $this->getJson('/api/v1/products/search?q=937937')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonMissingPath('meta.corrected_query');
+    }
+
+    public function test_public_search_suggests_multiple_plausible_corrections(): void
+    {
+        Product::factory()->create(['name' => 'шкаф нордик', 'state' => 'active']);
+        Product::factory()->create(['name' => 'шкаф бордик', 'state' => 'active']);
+
+        $this->getJson('/api/v1/products/search?'.http_build_query(['q' => 'шкаф мордик']))
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonCount(2, 'meta.suggestions')
+            ->assertJson(fn ($json) => $json->whereContains('meta.suggestions', ['шкаф нордик', 'шкаф бордик'])->etc());
+    }
+
     public function test_admin_catalog_finds_parent_by_offer_code_and_simple_product_by_own_code(): void
     {
         Role::findOrCreate('super_admin', 'web');
