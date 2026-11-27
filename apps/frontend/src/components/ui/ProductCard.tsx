@@ -286,13 +286,21 @@ function ProductCard({
           <ProductLink
             to={`/product/${product.slug}`}
             onClick={handleProductLinkClick}
-            className="peer/title truncate text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
+            className="peer/title text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
           >
-            {product.name}
+            <span className="relative z-10 block w-fit max-w-full truncate" data-product-title>{product.name}</span>
           </ProductLink>
           <span
             aria-hidden="true"
-            className="pointer-events-none invisible absolute inset-x-0 z-30 mt-7 break-words rounded-lg bg-brand-green px-3 py-2 text-12 text-ink-inverse [@media(hover:hover)]:peer-hover/title:visible peer-focus-visible/title:visible"
+            className={cn(
+              'pointer-events-none invisible absolute inset-x-0 z-30 mt-7 translate-y-1 break-words rounded-lg bg-brand-green px-3 py-2 text-12 text-ink-inverse',
+              'opacity-0 transition-[opacity,transform,visibility] duration-150 motion-reduce:transform-none motion-reduce:duration-0',
+              '[@media(hover:hover)]:peer-has-[[data-product-title]:hover]/title:visible',
+              '[@media(hover:hover)]:peer-has-[[data-product-title]:hover]/title:translate-y-0',
+              '[@media(hover:hover)]:peer-has-[[data-product-title]:hover]/title:opacity-100',
+              '[@media(hover:hover)]:peer-has-[[data-product-title]:hover]/title:delay-500',
+              'peer-focus-visible/title:visible peer-focus-visible/title:translate-y-0 peer-focus-visible/title:opacity-100 peer-focus-visible/title:delay-500',
+            )}
           >
             {product.name}
           </span>
