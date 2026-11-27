@@ -286,10 +286,16 @@ function ProductCard({
           <ProductLink
             to={`/product/${product.slug}`}
             onClick={handleProductLinkClick}
-            className="truncate text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
+            className="peer/title truncate text-18 font-medium text-ink outline-none after:absolute after:inset-0 focus-visible:underline"
           >
             {product.name}
           </ProductLink>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none invisible absolute inset-x-0 z-30 mt-7 break-words rounded-lg bg-brand-green px-3 py-2 text-12 text-ink-inverse [@media(hover:hover)]:peer-hover/title:visible peer-focus-visible/title:visible"
+          >
+            {product.name}
+          </span>
 
           <div className="flex items-end justify-between gap-2">
             {isUnconfiguredKit(product) ? (

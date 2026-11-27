@@ -48,7 +48,7 @@ foreach(\Filament\Facades\Filament::getPanel('admin_sv')->getPages() as $page){
    return;
   }
   const rows=new Map(),editing=[],editingPage=target(location.href,true);if(editingPage)editing.push(editingPage);
-  document.querySelectorAll('.fi-ta a[href]').forEach(a=>{const t=target(a.href);if(t&&rows.size<30)rows.set(t.resource+':'+t.record,{target:t,element:a.closest('tr')||a.parentElement});});
+  document.querySelectorAll('.fi-ta a[href]').forEach(a=>{const t=target(a.href);if(t&&rows.size<30)rows.set(t.resource+':'+t.record,{target:t,element:a.closest('tr')||a.parentElement,link:a});});
   for(const c of Livewire.all()){const component=c.$wire?c:c.__instance;const wire=component?.$wire||c;const name=String(component?.name||'');if(name.includes('relation-managers')&&!name.includes('product-variants-relation-manager'))continue;let actions;try{actions=wire.$get('mountedActions');}catch{continue;}
    if(!Array.isArray(actions))continue;
    for(const action of actions){if(action.name!=='edit'||!action.context?.recordKey)continue;
@@ -60,7 +60,16 @@ foreach(\Filament\Facades\Filament::getPanel('admin_sv')->getPages() as $page){
   const current=editing.length ? {kind:'resource',resource:editing.at(-1).resource,action:'edit',record:editing.at(-1).record} : currentPage();
   const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content||''},body:JSON.stringify({window_id:windowId,actor_id:actorId,targets:[...rows.values()].map(x=>x.target),editing:editing.slice(0,5),page:current})});
    if(!response.ok)return;reported=true;const result=await response.json();document.querySelectorAll('[data-editing-presence]').forEach(e=>e.remove());
-   for(const [key,{element}] of rows){const names=result.records[key]||[];if(names.length){const badge=document.createElement('small');badge.dataset.editingPresence='1';badge.textContent='Редактирует: '+names.join(', ');badge.style.cssText='display:block;color:#d97706;padding:4px';element.querySelector('td')?.append(badge);}}
+   for(const [key,{element,link}] of rows){
+    const names=result.records[key]||[];
+    const cell=element?.querySelector('td.fi-ta-cell-name')||link.closest('td');
+    if(!names.length||!cell)continue;
+    const badge=document.createElement('small');
+    badge.dataset.editingPresence='1';
+    badge.textContent='Редактирует: '+names.join(', ');
+    badge.style.cssText='display:block;color:#d97706;padding:0 1rem .5rem;font-size:.75rem;font-weight:500;letter-spacing:normal;text-transform:none;overflow-wrap:anywhere;white-space:normal';
+    cell.append(badge);
+   }
    for(const t of editing){const names=result.records[t.resource+':'+t.record]||[];if(names.length){const banner=document.createElement('div');banner.dataset.editingPresence='1';banner.setAttribute('role','status');banner.textContent='Эту карточку также редактирует: '+names.join(', ')+'. Сохранение доступно; согласуйте изменения.';banner.style.cssText='padding:12px;background:#fff7ed;color:#92400e;border:1px solid #f59e0b;margin:8px';(document.querySelector('[role="dialog"] form')||document.querySelector('main'))?.prepend(banner);}}
   }catch{}finally{busy=false;}
  }
