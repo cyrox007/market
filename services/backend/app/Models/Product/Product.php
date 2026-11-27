@@ -1045,16 +1045,21 @@ class Product extends VaniloProduct implements HasMedia, PageableContract, Buyab
      */
     public function scopeSearch(Builder $query, string $term): Builder
     {
-        $searchTerm = '%' . $term . '%';
-        return $query->where(function ($q) use ($searchTerm) {
-            $q->where('name', 'like', $searchTerm)
-                ->orWhere('description', 'like', $searchTerm)
-                //->orWhere('excerpt', 'like', $searchTerm)
-                ->orWhere('sku', 'like', $searchTerm)
-                ->orWhere('external_id', 'like', $searchTerm)
-                ->orWhereHas('parentProduct', fn (Builder $parent) => $parent->where(fn (Builder $text) => $text
-                    ->where('name', 'like', $searchTerm)->orWhere('description', 'like', $searchTerm)));
-        });
+        $words = preg_split('/\s+/u', $term, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach (array_unique($words) as $word) {
+            $searchTerm = '%'.$word.'%';
+
+            $query->where(function (Builder $match) use ($searchTerm): void {
+                $match->where('name', 'like', $searchTerm)
+                    ->orWhere('description', 'like', $searchTerm)
+                    ->orWhere('sku', 'like', $searchTerm)
+                    ->orWhere('external_id', 'like', $searchTerm)
+                    ->orWhereHas('parentProduct', fn (Builder $parent) => $parent->where(fn (Builder $text) => $text
+                        ->where('name', 'like', $searchTerm)->orWhere('description', 'like', $searchTerm)));
+            });
+        }
+
+        return $query;
     }
 
     /**
